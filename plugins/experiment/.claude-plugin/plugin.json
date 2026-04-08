@@ -1,0 +1,18 @@
+{
+  "name": "experiment",
+  "version": "1.0.0",
+  "description": "Provides acquisition system setup, experiment design, system health checks, hardware interface, and runtime data management skills for sollertia-experiment. Includes MCP bindings for Zaber motor management, session preprocessing, and animal migration.",
+  "repository": "https://github.com/Sun-Lab-NBB/sollertia",
+  "license": "Apache-2.0",
+  "skills": "./skills/",
+  "mcpServers": {
+    "sl-experiment-get": {
+      "command": "sl-get",
+      "args": ["mcp"]
+    },
+    "sl-experiment-manage": {
+      "command": "sl-manage",
+      "args": ["mcp"]
+    }
+  }
+}

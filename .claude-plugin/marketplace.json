@@ -1,0 +1,23 @@
+{
+  "name": "sollertia",
+  "owner": {
+    "name": "Sun (NeuroAI) lab at Cornell University"
+  },
+  "plugins": [
+    {
+      "name": "configuration",
+      "source": "./plugins/configuration",
+      "description": "Provides configuration authoring, session and dataset management, and metadata discovery skills for sollertia-shared-assets. Includes MCP bindings for reading, writing, and validating Sollertia platform configuration and runtime data files."
+    },
+    {
+      "name": "experiment",
+      "source": "./plugins/experiment",
+      "description": "Provides acquisition system setup, experiment design, system health checks, hardware interface, and runtime data management skills for sollertia-experiment. Includes MCP bindings for Zaber motor management, session preprocessing, and animal migration."
+    },
+    {
+      "name": "processing",
+      "source": "./plugins/processing",
+      "description": "Provides post-acquisition data processing pipeline orchestration skills for the Sollertia platform. Reserved for processing functionality that is being absorbed into other Sollertia libraries."
+    }
+  ]
+}
