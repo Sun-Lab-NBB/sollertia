@@ -1,5 +1,5 @@
 ---
-name: configure-task-templates
+name: task-templates
 description: >-
   Authors and modifies reusable TaskTemplate YAML files in the task templates directory via the
   sl-configure MCP server. Covers VR environment definition, cue catalogs, segment composition, trial
@@ -50,30 +50,30 @@ two different skills with two different ownership scopes.
 
 ## Trial primitive vocabulary
 
-| Primitive          | Purpose                                                                              |
-|--------------------|--------------------------------------------------------------------------------------|
-| `Cue`              | A visual / auditory / olfactory cue that can be triggered during a trial             |
-| `Segment`          | A spatial region of the VR environment with associated cues and reward zones        |
-| `BaseTrial`        | A generic trial type defined by an ordered sequence of segments                     |
-| `GasPuffTrial`     | A trial that delivers an aversive gas puff stimulus                                 |
-| `WaterRewardTrial` | A trial that delivers a water reward                                                |
-| `TriggerType`      | Enum describing what event triggers a cue or stimulus                               |
-| `VREnvironment`    | The VR scene the template runs in                                                   |
-| `TrialStructure`   | The ordered sequence of trials and their weights                                    |
+| Primitive          | Purpose                                                                  |
+|--------------------|--------------------------------------------------------------------------|
+| `Cue`              | A visual / auditory / olfactory cue that can be triggered during a trial |
+| `Segment`          | A spatial region of the VR environment with associated cues and rewards  |
+| `BaseTrial`        | A generic trial type defined by an ordered sequence of segments          |
+| `GasPuffTrial`     | A trial that delivers an aversive gas puff stimulus                      |
+| `WaterRewardTrial` | A trial that delivers a water reward                                     |
+| `TriggerType`      | Enum describing what event triggers a cue or stimulus                    |
+| `VREnvironment`    | The VR scene the template runs in                                        |
+| `TrialStructure`   | The ordered sequence of trials and their weights                         |
 
 For canonical field definitions and valid values, call `describe_template_schema_tool` — do not rely on
-hand-written documentation that may drift from the slsa source of truth.
+handwritten documentation that may drift from the slsa source of truth.
 
 ---
 
 ## MCP tool surface
 
-| Tool                            | Purpose                                                                      |
-|---------------------------------|------------------------------------------------------------------------------|
-| `discover_templates_tool`       | Lists all task templates in the configured templates directory               |
-| `read_template_tool`            | Reads an existing template by name                                           |
-| `write_template_tool`           | Writes a new template or overwrites an existing one (exclusive to this skill)|
-| `describe_template_schema_tool` | Returns the field schema for `TaskTemplate`                                  |
+| Tool                            | Purpose                                                                       |
+|---------------------------------|-------------------------------------------------------------------------------|
+| `discover_templates_tool`       | Lists all task templates in the configured templates directory                |
+| `read_template_tool`            | Reads an existing template by name                                            |
+| `write_template_tool`           | Writes a new template or overwrites an existing one (exclusive to this skill) |
+| `describe_template_schema_tool` | Returns the field schema for `TaskTemplate`                                   |
 
 ---
 
@@ -135,11 +135,23 @@ for instantiating templates into experiment configurations.
 
 ## Common patterns
 
-| Goal                                       | Pattern                                                            |
-|--------------------------------------------|--------------------------------------------------------------------|
-| Add a new trial type to an existing paradigm | Read template → add `BaseTrial`/`GasPuffTrial`/`WaterRewardTrial` → update `TrialStructure` weights → write template |
-| Migrate a template to a new VR scene       | Read template → mutate `VREnvironment` → re-verify zones with `/configuration-verification` |
-| Audit which projects use a template        | Discover templates here, then hand off to `/experiment-configuration` to enumerate consuming experiments |
+### Add a new trial type to an existing paradigm
+
+1. Read the template with `read_template_tool`.
+2. Add a `BaseTrial`, `GasPuffTrial`, or `WaterRewardTrial` entry to the trial list.
+3. Update the `TrialStructure` weights to include the new trial.
+4. Write the template back with `write_template_tool`.
+
+### Migrate a template to a new VR scene
+
+1. Read the template with `read_template_tool`.
+2. Mutate the `VREnvironment` field to point at the new scene.
+3. Hand off to `/configuration-verification` to re-verify segment zones against the new prefab state.
+
+### Audit which projects use a template
+
+1. List templates with `discover_templates_tool`.
+2. Hand off to `/experiment-configuration` to enumerate consuming experiments per project.
 
 ---
 
@@ -158,9 +170,9 @@ for instantiating templates into experiment configurations.
 
 ## Related skills
 
-| Skill                                          | Relationship                                                       |
-|------------------------------------------------|--------------------------------------------------------------------|
-| `/working-directory`                           | Required prerequisite — owns the templates directory path          |
-| `/mcp-environment-setup`                       | Run first if the MCP server is not connected                       |
-| `/experiment-configuration`                    | Consumer — instantiates templates into per-project experiments     |
-| experiment plugin `/configuration-verification`| Validates template values against the actual Unity prefab state    |
+| Skill                                           | Relationship                                                    |
+|-------------------------------------------------|-----------------------------------------------------------------|
+| `/working-directory`                            | Required prerequisite — owns the templates directory path       |
+| `/mcp-environment-setup`                        | Run first if the MCP server is not connected                    |
+| `/experiment-configuration`                     | Consumer — instantiates templates into per-project experiments  |
+| experiment plugin `/configuration-verification` | Validates template values against the actual Unity prefab state |

@@ -1,5 +1,5 @@
 ---
-name: configure-session-snapshots
+name: session-snapshots
 description: >-
   Reads and writes the per-session frozen runtime snapshot YAML files (MesoscopeHardwareState,
   ZaberPositions, MesoscopePositions) via the sl-configure MCP server. Owns the snapshot write tools.
@@ -49,11 +49,11 @@ The snapshots are written **once** at session start by `sl-run` (the runtime, no
 skill exists to **read** them for inspection and to **patch** them when a snapshot file is corrupted or
 out of sync with reality.
 
-| Snapshot                  | File                          | Captures                                              |
-|---------------------------|-------------------------------|-------------------------------------------------------|
-| `MesoscopeHardwareState`  | `mesoscope_hardware_state.yaml` | Microcontroller IDs, camera indices, MQTT topics    |
-| `ZaberPositions`          | `zaber_positions.yaml`        | Headbar / lickport / wheel motor positions in NVM    |
-| `MesoscopePositions`      | `mesoscope_positions.yaml`    | Mesoscope objective X/Y/Z and rotation positions     |
+| Snapshot                 | File                            | Captures                                          |
+|--------------------------|---------------------------------|---------------------------------------------------|
+| `MesoscopeHardwareState` | `mesoscope_hardware_state.yaml` | Microcontroller IDs, camera indices, MQTT topics  |
+| `ZaberPositions`         | `zaber_positions.yaml`          | Headbar / lickport / wheel motor positions in NVM |
+| `MesoscopePositions`     | `mesoscope_positions.yaml`      | Mesoscope objective X/Y/Z and rotation positions  |
 
 ---
 

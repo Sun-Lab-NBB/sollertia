@@ -1,5 +1,5 @@
 ---
-name: configure-working-directory
+name: working-directory
 description: >-
   Initializes the local Sollertia working directory and the Google Sheets credentials and task templates
   directory paths for sollertia-shared-assets. Covers the set/read MCP tools, expected directory layout,
@@ -43,7 +43,7 @@ configuration or runtime tooling.
 The Sollertia working directory is the cache root for **host-machine-local** configuration and runtime
 state. It is distinct from the long-term storage tier where session data lives. A typical layout:
 
-```
+```text
 <working-directory>/
 ├── system_configuration.yaml         # MesoscopeSystemConfiguration (or other acquisition system)
 ├── server_configuration.yaml         # ServerConfiguration for remote storage transfer
@@ -96,7 +96,7 @@ Verify with `read_working_directory_tool`.
 ### Step 3: Configure Google Sheets credentials
 
 If the user's project pulls animal metadata or water restriction data from Google Sheets (typical for
-the Sun Lab Mesoscope-VR pipeline), set the credentials path:
+the Sun Lab Mesoscope-VR pipeline), set the credentials' path:
 
 ```text
 set_google_credentials_tool(credentials_path="<absolute path to credentials.json>")

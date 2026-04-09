@@ -1,5 +1,5 @@
 ---
-name: configure-session-descriptors
+name: session-descriptors
 description: >-
   Reads, writes, and validates per-session descriptor YAML files (LickTrainingDescriptor,
   RunTrainingDescriptor, WindowCheckingDescriptor, MesoscopeExperimentDescriptor) via the sl-configure
@@ -36,12 +36,12 @@ session directory. This skill is the **exclusive** owner of `write_session_descr
 
 ## Session types and descriptor classes
 
-| `SessionTypes` value     | Descriptor file                       | Descriptor dataclass                  |
-|--------------------------|---------------------------------------|---------------------------------------|
-| `lick training`          | `lick_training_descriptor.yaml`       | `LickTrainingDescriptor`              |
-| `run training`           | `run_training_descriptor.yaml`        | `RunTrainingDescriptor`               |
-| `window checking`        | `window_checking_descriptor.yaml`     | `WindowCheckingDescriptor`            |
-| `mesoscope experiment`   | `mesoscope_experiment_descriptor.yaml`| `MesoscopeExperimentDescriptor`       |
+| `SessionTypes` value   | Descriptor file                        | Descriptor dataclass            |
+|------------------------|----------------------------------------|---------------------------------|
+| `lick training`        | `lick_training_descriptor.yaml`        | `LickTrainingDescriptor`        |
+| `run training`         | `run_training_descriptor.yaml`         | `RunTrainingDescriptor`         |
+| `window checking`      | `window_checking_descriptor.yaml`      | `WindowCheckingDescriptor`      |
+| `mesoscope experiment` | `mesoscope_experiment_descriptor.yaml` | `MesoscopeExperimentDescriptor` |
 
 Each descriptor captures the **per-session** metadata that varies between sessions of the same type
 (reward volume actually delivered, water restriction status, observed behavior summary, experimenter
@@ -124,11 +124,11 @@ If you need to know which descriptor file is present (when the session type is u
 
 ## Related skills
 
-| Skill                       | Relationship                                                       |
-|-----------------------------|--------------------------------------------------------------------|
-| `/working-directory`        | Required prerequisite — must be run first                          |
-| `/mcp-environment-setup`    | Run first if the MCP server is not connected                       |
-| `/session-data`             | Sibling — owns `SessionData` and `list_supported_session_types_tool` |
-| `/session-snapshots`        | Sibling — owns hardware state / Zaber positions / mesoscope positions |
-| `/subject-metadata`         | Sibling — owns subject records                                     |
-| `/project-hierarchy`        | Provides `discover_sessions_tool` to locate sessions               |
+| Skill                    | Relationship                                                          |
+|--------------------------|-----------------------------------------------------------------------|
+| `/working-directory`     | Required prerequisite — must be run first                             |
+| `/mcp-environment-setup` | Run first if the MCP server is not connected                          |
+| `/session-data`          | Sibling — owns `SessionData` and `list_supported_session_types_tool`  |
+| `/session-snapshots`     | Sibling — owns hardware state / Zaber positions / mesoscope positions |
+| `/subject-metadata`      | Sibling — owns subject records                                        |
+| `/project-hierarchy`     | Provides `discover_sessions_tool` to locate sessions                  |

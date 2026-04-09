@@ -1,5 +1,5 @@
 ---
-name: configure-datasets
+name: datasets
 description: >-
   Discovers, reads, and writes dataset-level YAML files (DatasetData, DatasetSession membership) for
   sollertia-shared-assets via the sl-configure MCP server. Owns the dataset write tools and schema
@@ -84,9 +84,9 @@ describe_dataset_schema_tool()
 
 ### Step 4: Identify member sessions
 
-Use `discover_sessions_tool` (from `/session-data`) to enumerate candidate sessions. Filter by project,
-animal, session type, and date range as needed. Confirm the membership list with the user before
-writing.
+Use `discover_sessions_tool` (owned by `/project-hierarchy`) to enumerate candidate sessions. Filter by
+project, animal, session type, and date range as needed. Confirm the membership list with the user
+before writing.
 
 ### Step 5: Author the dataset
 
@@ -137,11 +137,9 @@ downstream tooling and analysis notebooks may have references that break silentl
 
 ## Related skills
 
-| Skill                                  | Relationship                                                       |
-|----------------------------------------|--------------------------------------------------------------------|
-| `/working-directory`                   | Required prerequisite — must be run first                          |
-| `/mcp-environment-setup`               | Run first if the MCP server is not connected                       |
-| `/project-hierarchy`                   | Provides discover_sessions_tool for dataset membership lookup      |
-| `/session-data`                        | Sibling — sessions are the membership unit of datasets             |
-| `/session-data`                        | Sibling — sessions are the membership unit of datasets             |
-| processing plugin                      | Future home for tooling that consumes datasets for batch analysis  |
+| Skill                    | Relationship                                                    |
+|--------------------------|-----------------------------------------------------------------|
+| `/working-directory`     | Required prerequisite — must be run first                       |
+| `/mcp-environment-setup` | Run first if the MCP server is not connected                    |
+| `/project-hierarchy`     | Provides `discover_sessions_tool` for dataset membership lookup |
+| `/session-data`          | Sibling — sessions are the membership unit of datasets          |

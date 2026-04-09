@@ -1,5 +1,5 @@
 ---
-name: configure-subject-metadata
+name: subject-metadata
 description: >-
   Reads subject records (SubjectData, SurgeryData, ImplantData, InjectionData, DrugData) via the
   sl-configure MCP server. Subject metadata is sourced from Google Sheets and is read-only at the slsa
@@ -41,14 +41,13 @@ Reads subject records that live in the project hierarchy and are sourced from Go
 Subject metadata is **animal-scoped**, not session-scoped. A single animal accumulates records across
 its lifetime and across multiple projects:
 
-| Record type      | Dataclass        | Captures                                                       |
-|------------------|------------------|----------------------------------------------------------------|
-| Core subject     | `SubjectData`    | Subject ID, sex, date of birth, genotype, current weight       |
-| Surgery          | `SurgeryData`    | Surgical procedures (craniotomy, headbar, window implant, etc.)|
-| Implant          | `ImplantData`    | Implanted hardware (electrodes, optical fibers, headbars)      |
-| Injection        | `InjectionData`  | Viral / tracer / drug injections                               |
-| Drug             | `DrugData`       | Drug administration records (water restriction, antibiotics)   |
-| Procedure        | `ProcedureData`  | Catch-all for other procedures                                 |
+| Record type  | Dataclass       | Captures                                                        |
+|--------------|-----------------|-----------------------------------------------------------------|
+| Core subject | `SubjectData`   | Subject ID, sex, date of birth, genotype, current weight        |
+| Surgery      | `SurgeryData`   | Surgical procedures (craniotomy, headbar, window implant, etc.) |
+| Implant      | `ImplantData`   | Implanted hardware (electrodes, optical fibers, headbars)       |
+| Injection    | `InjectionData` | Viral / tracer / drug injections                                |
+| Drug         | `DrugData`      | Drug administration records (water restriction, antibiotics)    |
 
 The records live in the upstream Google Sheets (configured via `/working-directory`'s
 `set_google_credentials_tool`) and are projected through the slsa MCP server as read-only views.

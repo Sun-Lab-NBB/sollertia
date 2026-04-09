@@ -1,5 +1,5 @@
 ---
-name: configure-experiment-configuration
+name: experiment-configuration
 description: >-
   Authors and modifies per-project MesoscopeExperimentConfiguration YAML files for sollertia-shared-assets
   via the sl-configure MCP server. Owns the experiment configuration write tool, the
@@ -44,10 +44,10 @@ of `write_experiment_configuration_tool`, `create_experiment_config_tool`, and
 Sollertia separates **task structure** from **per-project configuration**. The same task template can
 back many experiment configurations across many projects.
 
-| Concept                            | What it is                                                 | Owning skill                |
-|------------------------------------|------------------------------------------------------------|-----------------------------|
-| `TaskTemplate`                     | Reusable VR environment + trial structure + cue catalog    | `/task-templates`           |
-| `MesoscopeExperimentConfiguration` | Project-specific instantiation of a template + state machine | this skill                |
+| Concept                            | What it is                                            | Owning skill      |
+|------------------------------------|-------------------------------------------------------|-------------------|
+| `TaskTemplate`                     | Reusable VR environment, trial structure, cue catalog | `/task-templates` |
+| `MesoscopeExperimentConfiguration` | Per-project template instantiation + state machine    | this skill        |
 
 A template defines **what is possible**. An experiment configuration picks **which template to use**
 and parameterizes it (state durations, trial weights, reward volumes, project-specific overrides). The
@@ -57,14 +57,14 @@ two are owned by two different skills.
 
 ## MCP tool surface
 
-| Tool                                                | Purpose                                                                  |
-|-----------------------------------------------------|--------------------------------------------------------------------------|
-| `discover_experiments_tool`                         | Lists experiment configurations under a project                          |
-| `describe_experiment_configuration_schema_tool`     | Returns the field schema for the experiment configuration dataclass      |
-| `read_experiment_configuration_tool`                | Reads a project's experiment configuration                               |
-| `write_experiment_configuration_tool`               | Writes a new experiment configuration (exclusive to this skill)          |
-| `create_experiment_config_tool`                     | Convenience: creates an experiment config from a template + parameters (exclusive to this skill) |
-| `read_session_experiment_configuration_tool`        | Reads the frozen experiment configuration captured at session start      |
+| Tool                                            | Purpose                                                         |
+|-------------------------------------------------|-----------------------------------------------------------------|
+| `discover_experiments_tool`                     | Lists experiment configurations under a project                 |
+| `describe_experiment_configuration_schema_tool` | Returns the field schema for the experiment dataclass           |
+| `read_experiment_configuration_tool`            | Reads a project's experiment configuration                      |
+| `write_experiment_configuration_tool`           | Writes a new experiment configuration (exclusive to this skill) |
+| `create_experiment_config_tool`                 | Creates a config from a template + parameters (exclusive)       |
+| `read_session_experiment_configuration_tool`    | Reads the frozen experiment configuration from a session        |
 
 ---
 
@@ -166,13 +166,19 @@ not supported by the slsa MCP layer.
 
 ## Common patterns
 
-| Goal                                       | Pattern                                                            |
-|--------------------------------------------|--------------------------------------------------------------------|
-| Reuse a template across projects           | `create_experiment_config_tool` for each project, override only the project-specific fields |
-| Change reward volume per session block     | Edit `experiment_states[*].water_reward_volume_uL` (no template change needed) |
-| Add a new state to the state machine       | Edit `experiment_states` list, then re-verify ordering and transitions |
-| Migrate an experiment to a new template    | Read old config → hand off to `/task-templates` if the new template doesn't exist → call `create_experiment_config_tool` with the new template → port over customizations manually |
-| Add a new trial type                       | Hand off to `/task-templates` to modify the template — don't author trial structure here |
+| Goal                                   | Pattern                                                                   |
+|----------------------------------------|---------------------------------------------------------------------------|
+| Reuse a template across projects       | Call `create_experiment_config_tool` per project, override project fields |
+| Change reward volume per session block | Edit `experiment_states[*].water_reward_volume_uL` (no template change)   |
+| Add a new state to the state machine   | Edit `experiment_states` list, then re-verify ordering and transitions    |
+| Add a new trial type                   | Hand off to `/task-templates` — do not author trial structure here        |
+
+### Migrating an experiment to a new template
+
+1. Read the old configuration with `read_experiment_configuration_tool`.
+2. If the new template does not exist, hand off to `/task-templates` to author it.
+3. Call `create_experiment_config_tool` with the new template name.
+4. Port the customizations (state durations, reward volumes, trial weights) over manually.
 
 ---
 

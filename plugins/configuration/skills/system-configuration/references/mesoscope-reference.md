@@ -1,11 +1,11 @@
-# Mesoscope System Configuration Reference
+# Mesoscope system configuration reference
 
 Detailed documentation of all configuration parameters for the `mesoscope` (Two-photon Random Access Mesoscope with
 Virtual Reality) acquisition system, based on actual usage in the sl-experiment codebase.
 
 ---
 
-## Filesystem Configuration
+## Filesystem configuration
 
 Directory paths for data storage and network mounts. These paths must be configured before runtime as they have no
 meaningful defaults.
@@ -95,7 +95,7 @@ meaningful defaults.
 
 ---
 
-## Google Sheets Configuration
+## Google Sheets configuration
 
 Google Sheet identifiers for lab records. Used during data preprocessing (post-session), not during acquisition.
 
@@ -143,7 +143,7 @@ Google Sheet identifiers for lab records. Used during data preprocessing (post-s
 
 ---
 
-## Cameras Configuration
+## Cameras configuration
 
 Video camera indices and H.265 encoding parameters. Cameras are managed via the Harvester GenICam interface.
 
@@ -239,17 +239,17 @@ Same as face camera settings. Default values: quantization=20, preset=7.
 
 ---
 
-## Microcontroller Configuration
+## Microcontroller configuration
 
 USB ports and hardware calibration parameters for the three microcontroller boards (Actor, Sensor, Encoder).
 
-### USB Port Assignments
+### USB port assignments
 
-| Parameter      | Default          | Controller Function                               |
-|----------------|------------------|---------------------------------------------------|
-| `actor_port`   | `/dev/ttyACM0`   | Controls outputs: valve, brake, gas puff, screens |
-| `sensor_port`  | `/dev/ttyACM1`   | Monitors inputs: lick, torque, mesoscope TTL      |
-| `encoder_port` | `/dev/ttyACM2`   | High-precision wheel encoder with HW interrupts   |
+| Parameter      | Default        | Controller function                               |
+|----------------|----------------|---------------------------------------------------|
+| `actor_port`   | `/dev/ttyACM0` | Controls outputs: valve, brake, gas puff, screens |
+| `sensor_port`  | `/dev/ttyACM1` | Monitors inputs: lick, torque, mesoscope TTL      |
+| `encoder_port` | `/dev/ttyACM2` | High-precision wheel encoder with HW interrupts   |
 
 **Discovery tool:** `list_microcontrollers()` from ataraxis-communication-interface
 
@@ -280,7 +280,7 @@ USB ports and hardware calibration parameters for the three microcontroller boar
 
 ---
 
-### Brake Calibration
+### Brake calibration
 
 | Parameter                     | Type    | Default     |
 |-------------------------------|---------|-------------|
@@ -302,9 +302,9 @@ USB ports and hardware calibration parameters for the three microcontroller boar
 
 ---
 
-### Wheel Configuration
+### Wheel configuration
 
-| Parameter                             | Type    | Default   | Valid Range  |
+| Parameter                             | Type    | Default   | Valid range  |
 |---------------------------------------|---------|-----------|--------------|
 | `wheel_diameter_cm`                   | `float` | `15.0333` | 10-25 cm     |
 | `wheel_encoder_ppr`                   | `int`   | `8192`    | 256-8192     |
@@ -326,9 +326,9 @@ USB ports and hardware calibration parameters for the three microcontroller boar
 
 ---
 
-### Lick Sensor Calibration
+### Lick sensor calibration
 
-| Parameter                   | Type  | Default | Valid Range | Description                         |
+| Parameter                   | Type  | Default | Valid range | Description                         |
 |-----------------------------|-------|---------|-------------|-------------------------------------|
 | `lick_threshold_adc`        | `int` | `600`   | 0-4095      | ADC threshold for tongue contact    |
 | `lick_signal_threshold_adc` | `int` | `300`   | 0-4095      | Minimum ADC to report (noise floor) |
@@ -351,9 +351,9 @@ USB ports and hardware calibration parameters for the three microcontroller boar
 
 ---
 
-### Torque Sensor Calibration
+### Torque sensor calibration
 
-| Parameter                     | Type    | Default    | Valid Range | Description                      |
+| Parameter                     | Type    | Default    | Valid range | Description                      |
 |-------------------------------|---------|------------|-------------|----------------------------------|
 | `torque_baseline_voltage_adc` | `int`   | `2048`     | 0-4095      | ADC reading at zero torque       |
 | `torque_maximum_voltage_adc`  | `int`   | `3443`     | 0-4095      | ADC reading at max torque        |
@@ -379,7 +379,7 @@ USB ports and hardware calibration parameters for the three microcontroller boar
 
 ---
 
-### Valve Calibration
+### Valve calibration
 
 | Property       | Value                                                |
 |----------------|------------------------------------------------------|
@@ -393,7 +393,7 @@ USB ports and hardware calibration parameters for the three microcontroller boar
 - Maps valve open time (microseconds) to water volume delivered (microliters)
 - Critical for precise reward delivery during training
 
-**YAML Format:**
+**YAML format:**
 ```yaml
 valve_calibration_data:
           15000: 1.1
@@ -417,9 +417,9 @@ Each entry: `open_time_microseconds: water_volume_microliters`
 
 ---
 
-### Timing Configuration
+### Timing configuration
 
-| Parameter                             | Type    | Default | Valid Range | Description                         |
+| Parameter                             | Type    | Default | Valid range | Description                         |
 |---------------------------------------|---------|---------|-------------|-------------------------------------|
 | `sensor_polling_delay_ms`             | `int`   | `1`     | 1-10 ms     | Time between sensor readouts        |
 | `screen_trigger_pulse_duration_ms`    | `int`   | `500`   | 100-1000 ms | TTL pulse width for screen toggle   |
@@ -437,17 +437,17 @@ Each entry: `open_time_microseconds: water_volume_microliters`
 
 ---
 
-## External Assets Configuration
+## External assets configuration
 
 Zaber motor controllers and MQTT broker settings.
 
-### Zaber Motor Ports
+### Zaber motor ports
 
-| Parameter       | Default          | Motor Group                              |
-|-----------------|------------------|------------------------------------------|
-| `headbar_port`  | `/dev/ttyUSB0`   | Headbar motors (Z, Pitch, Roll axes)     |
-| `lickport_port` | `/dev/ttyUSB1`   | Lickport motors (Z, Y, X axes)           |
-| `wheel_port`    | `/dev/ttyUSB2`   | Wheel motor (X-axis horizontal position) |
+| Parameter       | Default        | Motor group                              |
+|-----------------|----------------|------------------------------------------|
+| `headbar_port`  | `/dev/ttyUSB0` | Headbar motors (Z, Pitch, Roll axes)     |
+| `lickport_port` | `/dev/ttyUSB1` | Lickport motors (Z, Y, X axes)           |
+| `wheel_port`    | `/dev/ttyUSB2` | Wheel motor (X-axis horizontal position) |
 
 **Discovery tool:** `get_zaber_devices_tool()` from sl-experiment
 
@@ -469,7 +469,7 @@ Zaber motor controllers and MQTT broker settings.
 
 ---
 
-### MQTT Broker Configuration
+### MQTT broker configuration
 
 | Parameter    | Type  | Default       | Description                    |
 |--------------|-------|---------------|--------------------------------|
@@ -500,40 +500,40 @@ Zaber motor controllers and MQTT broker settings.
 
 ---
 
-## Configuration Priority Summary
+## Configuration priority summary
 
-### Must Configure (No Defaults)
+### Must configure (no defaults)
 
 These parameters have empty defaults and must be configured before system use:
 
-| Parameter             | Section     | Why Required                              |
-|-----------------------|-------------|-------------------------------------------|
-| `root_directory`      | Filesystem  | Local data storage path                   |
-| `server_directory`    | Filesystem  | Network storage for processed data        |
-| `nas_directory`       | Filesystem  | Backup storage mount                      |
-| `mesoscope_directory` | Filesystem  | ScanImagePC output directory              |
-| `surgery_sheet_id`    | Sheets      | Surgery log tracking                      |
-| `water_log_sheet_id`  | Sheets      | Animal welfare compliance                 |
+| Parameter             | Section    | Why required                       |
+|-----------------------|------------|------------------------------------|
+| `root_directory`      | Filesystem | Local data storage path            |
+| `server_directory`    | Filesystem | Network storage for processed data |
+| `nas_directory`       | Filesystem | Backup storage mount               |
+| `mesoscope_directory` | Filesystem | ScanImagePC output directory       |
+| `surgery_sheet_id`    | Sheets     | Surgery log tracking               |
+| `water_log_sheet_id`  | Sheets     | Animal welfare compliance          |
 
-### Should Verify (Hardware-Dependent)
+### Should verify (hardware-dependent)
 
 These parameters have defaults but should be verified for your specific hardware using MCP discovery tools:
 
-| Parameter                     | Section          | Discovery Tool                   |
-|-------------------------------|------------------|----------------------------------|
-| `face_camera_index`           | Cameras          | `list_cameras()`                 |
-| `body_camera_index`           | Cameras          | `list_cameras()`                 |
-| `actor_port`                  | Microcontrollers | `list_microcontrollers()`        |
-| `sensor_port`                 | Microcontrollers | `list_microcontrollers()`        |
-| `encoder_port`                | Microcontrollers | `list_microcontrollers()`        |
-| `headbar_port`                | External Assets  | `get_zaber_devices_tool()`       |
-| `lickport_port`               | External Assets  | `get_zaber_devices_tool()`       |
-| `wheel_port`                  | External Assets  | `get_zaber_devices_tool()`       |
-| `valve_calibration_data`      | Microcontrollers | None (hardware calibration)      |
-| `minimum_brake_strength_g_cm` | Microcontrollers | None (hardware calibration)      |
-| `maximum_brake_strength_g_cm` | Microcontrollers | None (hardware calibration)      |
+| Parameter                     | Section          | Discovery tool              |
+|-------------------------------|------------------|-----------------------------|
+| `face_camera_index`           | Cameras          | `list_cameras()`            |
+| `body_camera_index`           | Cameras          | `list_cameras()`            |
+| `actor_port`                  | Microcontrollers | `list_microcontrollers()`   |
+| `sensor_port`                 | Microcontrollers | `list_microcontrollers()`   |
+| `encoder_port`                | Microcontrollers | `list_microcontrollers()`   |
+| `headbar_port`                | External assets  | `get_zaber_devices_tool()`  |
+| `lickport_port`               | External assets  | `get_zaber_devices_tool()`  |
+| `wheel_port`                  | External assets  | `get_zaber_devices_tool()`  |
+| `valve_calibration_data`      | Microcontrollers | None (hardware calibration) |
+| `minimum_brake_strength_g_cm` | Microcontrollers | None (hardware calibration) |
+| `maximum_brake_strength_g_cm` | Microcontrollers | None (hardware calibration) |
 
-### Can Use Defaults (Typically Unchanged)
+### Can use defaults (typically unchanged)
 
 These parameters have sensible defaults that work for most setups:
 

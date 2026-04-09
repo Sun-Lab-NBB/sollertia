@@ -1,5 +1,5 @@
 ---
-name: configuration-mcp-environment-setup
+name: mcp-environment-setup
 description: >-
   Diagnoses and resolves sollertia-shared-assets MCP server connectivity issues. Covers environment
   verification, command availability for sl-configure, Python version checks, dependency validation, and
@@ -38,9 +38,10 @@ defined in `pyproject.toml`:
 sl-configure = "sollertia_shared_assets.interfaces.configure:configure"
 ```
 
-| Server                       | CLI command         | Purpose                                                              |
-|------------------------------|---------------------|----------------------------------------------------------------------|
-| `sollertia-shared-assets`    | `sl-configure mcp`  | Discovery, read, write, and schema introspection of all Sollertia configuration and runtime data files |
+- **Server**: `sollertia-shared-assets`
+- **CLI command**: `sl-configure mcp`
+- **Purpose**: Discovery, read, write, and schema introspection of all Sollertia configuration and
+  runtime data files
 
 The server accepts a `--transport` option (defaults to `stdio`). The configuration plugin's `plugin.json`
 configures the Claude assistant to launch the server automatically:
@@ -60,11 +61,11 @@ configures the Claude assistant to launch the server automatically:
 
 ### Dual-distribution model
 
-| Component                                | Distributed via                  | What it provides                                  |
-|------------------------------------------|----------------------------------|---------------------------------------------------|
-| Skills (`/working-directory`, etc.)      | sollertia configuration plugin   | Skill files that guide agents through workflows  |
-| MCP server registration                  | sollertia configuration plugin   | Plugin entry that tells the assistant how to start the server |
-| MCP server code (`sl-configure mcp`)     | sollertia-shared-assets pip pkg  | The actual CLI command and server implementation |
+| Component                            | Distributed via                 | What it provides                          |
+|--------------------------------------|---------------------------------|-------------------------------------------|
+| Skills (`/working-directory`, etc.)  | sollertia configuration plugin  | Workflow-guiding skill files              |
+| MCP server registration              | sollertia configuration plugin  | Plugin entry that launches the server     |
+| MCP server code (`sl-configure mcp`) | sollertia-shared-assets pip pkg | The CLI command and server implementation |
 
 Installing the plugin alone registers the MCP server but the server will fail to start if
 `sollertia-shared-assets` is not installed in the active Python environment.
@@ -137,14 +138,14 @@ the next session.
 
 ## Common issues and resolutions
 
-| Symptom                                         | Cause                                         | Resolution                                                  |
-|-------------------------------------------------|-----------------------------------------------|-------------------------------------------------------------|
-| `sl-configure: command not found`               | Environment not activated                     | Activate conda/venv, restart the assistant                  |
-| `sl-configure: command not found`               | sollertia-shared-assets not installed         | `pip install sollertia-shared-assets`                       |
-| Import error on `sl-configure mcp`              | ataraxis-data-structures version skew         | `pip install --upgrade sollertia-shared-assets`             |
-| Tools fail with "no working directory"          | Working directory not initialized             | Use `/working-directory` to set it                          |
-| Tools fail with "task templates directory not set" | Task templates path not configured         | Use `/working-directory` to set the templates path          |
-| MCP server connected but write tools fail       | Invalid YAML schema produced by previous edit | Use `discover_*` and `read_*` tools to inspect actual state |
+| Symptom                            | Cause                             | Resolution                          |
+|------------------------------------|-----------------------------------|-------------------------------------|
+| `sl-configure: command not found`  | Environment not activated         | Activate conda/venv and restart     |
+| `sl-configure: command not found`  | `sollertia-shared-assets` missing | Install the package (see Step 3)    |
+| Import error on `sl-configure mcp` | `ataraxis-data-structures` skew   | Upgrade the package (see Step 5)    |
+| Tools fail "no working directory"  | Working directory not initialized | Run `/working-directory` to set it  |
+| Tools fail "templates not set"     | Task templates path not set       | Run `/working-directory`            |
+| Write tools fail after connect     | Invalid YAML from a previous edit | Use `discover_*` / `read_*` tools   |
 
 ---
 
@@ -153,20 +154,20 @@ the next session.
 This skill is a prerequisite for **every** other skill in the configuration plugin — they all depend
 on the `sollertia-shared-assets` MCP server being reachable.
 
-| Skill                          | Asset it owns                                                  |
-|--------------------------------|----------------------------------------------------------------|
-| `/working-directory`           | Working directory, Google credentials, task templates dir path |
-| `/system-configuration`        | `MesoscopeSystemConfiguration`                                 |
-| `/server-configuration`        | `ServerConfiguration`                                          |
-| `/task-templates`              | `TaskTemplate` + trial primitives                              |
-| `/experiment-configuration`    | `MesoscopeExperimentConfiguration` + `ExperimentState`         |
-| `/project-hierarchy`           | Projects (`create_project_tool`)                               |
-| `/session-data`                | `SessionData` + `SessionTypes`                                 |
-| `/session-descriptors`         | The 4 per-session-type descriptors                             |
-| `/session-snapshots`           | Frozen `MesoscopeHardwareState` / `ZaberPositions` / `MesoscopePositions` |
-| `/subject-metadata`            | `SubjectData` / `SurgeryData` / `ImplantData` / `InjectionData` / `DrugData` |
-| `/datasets`                    | `DatasetData` / `DatasetSession`                               |
-| experiment plugin `/mcp-environment-setup` | Equivalent diagnostic for `sl-get` / `sl-manage` MCP servers |
+| Skill                                      | Asset it owns                                          |
+|--------------------------------------------|--------------------------------------------------------|
+| `/working-directory`                       | Working directory, credentials, templates dir path     |
+| `/system-configuration`                    | `MesoscopeSystemConfiguration`                         |
+| `/server-configuration`                    | `ServerConfiguration`                                  |
+| `/task-templates`                          | `TaskTemplate` + trial primitives                      |
+| `/experiment-configuration`                | `MesoscopeExperimentConfiguration` + `ExperimentState` |
+| `/project-hierarchy`                       | Projects (`create_project_tool`)                       |
+| `/session-data`                            | `SessionData` + `SessionTypes`                         |
+| `/session-descriptors`                     | The 4 per-session-type descriptors                     |
+| `/session-snapshots`                       | Frozen hardware state, Zaber, mesoscope positions      |
+| `/subject-metadata`                        | All animal-scoped subject record types                 |
+| `/datasets`                                | `DatasetData` / `DatasetSession`                       |
+| experiment plugin `/mcp-environment-setup` | Equivalent diagnostic for `sl-get` / `sl-manage`       |
 
 ---
 

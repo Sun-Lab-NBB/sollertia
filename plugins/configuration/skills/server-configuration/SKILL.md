@@ -1,5 +1,5 @@
 ---
-name: configure-server-configuration
+name: server-configuration
 description: >-
   Authors and modifies the ServerConfiguration YAML file for sollertia-shared-assets via the sl-configure
   MCP server. Covers remote storage transfer settings, BioHPC compute server credentials, and the

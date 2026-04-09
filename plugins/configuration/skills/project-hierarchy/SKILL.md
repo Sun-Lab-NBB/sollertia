@@ -1,5 +1,5 @@
 ---
-name: configure-project-hierarchy
+name: project-hierarchy
 description: >-
   Discovers and creates entries in the Sollertia project hierarchy (projects, animals, experiments,
   subjects, sessions) via the sl-configure MCP server. Owns create_project_tool. Covers project bootstrap,
@@ -43,7 +43,7 @@ need to enumerate the hierarchy. Only `create_project_tool` is exclusive to this
 A Sollertia working directory contains zero or more projects. Each project is a top-level directory
 under the working directory and has the following nested structure:
 
-```
+```text
 <working-directory>/
 └── <project>/
     ├── <animal-1>/
