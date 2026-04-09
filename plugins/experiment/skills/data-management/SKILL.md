@@ -136,7 +136,7 @@ session_path = session_data_yaml_path.parents[1]
 ## Preprocessing Workflow
 
 Preprocessing aggregates session data, compresses mesoscope frames, updates Google Sheets logs, and transfers data to
-long-term storage (NAS and BioHPC server).
+long-term storage (NAS and cloud compute server).
 
 ### Single Session
 
@@ -173,23 +173,23 @@ Agent: I'll preprocess all sessions for project "my_project". Let me first disco
 
 1. Get working directory:
    get_working_directory_tool()
-   -> Working directory: /data/sun_lab_data
+   -> Working directory: /data/lab_data
 
 2. Discover sessions:
-   Glob("/data/sun_lab_data/my_project/**/session_data.yaml")
+   Glob("/data/lab_data/my_project/**/session_data.yaml")
    -> Found 5 session_data.yaml files
 
 3. Extract session paths (two levels above each file):
-   - /data/sun_lab_data/my_project/12345/20250115_session_1
-   - /data/sun_lab_data/my_project/12345/20250116_session_2
-   - /data/sun_lab_data/my_project/67890/20250115_session_1
+   - /data/lab_data/my_project/12345/20250115_session_1
+   - /data/lab_data/my_project/12345/20250116_session_2
+   - /data/lab_data/my_project/67890/20250115_session_1
    ...
 
 4. Present to user: "I found 5 sessions to preprocess. Proceed?"
 
 5. Preprocess each:
-   preprocess_session_tool(session_path="/data/sun_lab_data/my_project/12345/20250115_session_1")
-   preprocess_session_tool(session_path="/data/sun_lab_data/my_project/12345/20250116_session_2")
+   preprocess_session_tool(session_path="/data/lab_data/my_project/12345/20250115_session_1")
+   preprocess_session_tool(session_path="/data/lab_data/my_project/12345/20250116_session_2")
    ...
 
 6. Report: "Successfully preprocessed 5 sessions."
@@ -200,7 +200,7 @@ Agent: I'll preprocess all sessions for project "my_project". Let me first disco
 ## Animal Migration Workflow
 
 Migration transfers all sessions for an animal from one project to another across all storage locations (VRPC, NAS, and
-BioHPC server).
+cloud compute server).
 
 ### Prerequisites
 
@@ -210,7 +210,7 @@ The migration tool enforces these health checks automatically:
    skill to create it. This skill must not call `create_project_tool` directly — project creation is owned
    by `/project-hierarchy`.
 2. **All local sessions must be preprocessed** - No unprocessed sessions can exist on the VRPC for the source animal
-3. **Source animal must have sessions on the server** - Migration pulls data from the BioHPC server
+3. **Source animal must have sessions on the server** - Migration pulls data from the cloud compute server
 
 ### Migration Tool
 
@@ -248,7 +248,7 @@ Agent: I'll help migrate animal 12345 from project_a to project_b. Let me verify
    -> Projects: project_a, project_b
 
 2. Check for unprocessed sessions:
-   Glob("/data/sun_lab_data/project_a/12345/**/session_data.yaml")
+   Glob("/data/lab_data/project_a/12345/**/session_data.yaml")
    -> Found 0 files (no unprocessed sessions on VRPC)
 
 3. Confirm with user: "Ready to migrate animal 12345 from project_a to project_b. This will:
@@ -266,7 +266,7 @@ Agent: I'll help migrate animal 12345 from project_a to project_b. Let me verify
 
 ## Session Deletion Workflow
 
-**CRITICAL: Session deletion is irreversible and removes data from ALL storage locations (VRPC, NAS, and BioHPC
+**CRITICAL: Session deletion is irreversible and removes data from ALL storage locations (VRPC, NAS, and cloud compute
 server). You MUST always obtain explicit user confirmation before proceeding.**
 
 ### Mandatory Confirmation Requirements
@@ -303,14 +303,14 @@ Session Deletion Progress:
 ### Example Deletion
 
 ```text
-User: Delete the session at /data/sun_lab_data/project_a/12345/20250115_broken_session
+User: Delete the session at /data/lab_data/project_a/12345/20250115_broken_session
 
-Agent: I understand you want to delete the session at /data/sun_lab_data/project_a/12345/20250115_broken_session.
+Agent: I understand you want to delete the session at /data/lab_data/project_a/12345/20250115_broken_session.
 
 WARNING: This operation is IRREVERSIBLE and will:
 - Remove the session from the local machine (VRPC)
 - Remove the session from the NAS backup storage
-- Remove the session from the BioHPC server
+- Remove the session from the cloud compute server
 - Permanently delete all data associated with this session
 
 [Uses AskUserQuestion with options: "Yes, permanently delete this session" / "No, cancel deletion"]
@@ -320,10 +320,10 @@ User selects: "Yes, permanently delete this session"
 Agent: Proceeding with deletion...
 
 delete_session_tool(
-    session_path="/data/sun_lab_data/project_a/12345/20250115_broken_session",
+    session_path="/data/lab_data/project_a/12345/20250115_broken_session",
     confirm_deletion=True
 )
--> Session deleted: /data/sun_lab_data/project_a/12345/20250115_broken_session
+-> Session deleted: /data/lab_data/project_a/12345/20250115_broken_session
 ```
 
 ### Bulk Deletion
@@ -373,7 +373,7 @@ will reject paths pointing to NAS or server storage locations.
 To find the root directory:
 ```text
 get_working_directory_tool()
--> Working directory: /path/to/sun_lab_data
+-> Working directory: /path/to/lab_data
 ```
 
 The root directory is specified in the system configuration as `filesystem.root_directory`.

@@ -2,7 +2,7 @@
 name: server-configuration
 description: >-
   Authors and modifies the ServerConfiguration YAML file for sollertia-shared-assets via the sl-configure
-  MCP server. Covers remote storage transfer settings, BioHPC compute server credentials, and the
+  MCP server. Covers remote storage transfer settings, cloud compute server credentials, and the
   read/write tool surface for the server configuration. Use when setting up remote data transfer for a new
   Sollertia host or rotating server credentials.
 user-invocable: true
@@ -35,14 +35,14 @@ writes — no other skill in the marketplace may call `read_server_configuration
 ## What lives in the server configuration
 
 The `ServerConfiguration` captures everything required to transfer preprocessed sessions from the
-acquisition PC to a long-term remote storage tier (typically a BioHPC compute server). It is **distinct
+acquisition PC to a long-term remote storage tier (typically a cloud compute server). It is **distinct
 from** `MesoscopeSystemConfiguration`, which describes the local acquisition hardware.
 
 The two configurations live side by side in the working directory but are owned by different skills
 because they are written at different times and rotate independently:
 
 - `MesoscopeSystemConfiguration` is set once when an acquisition PC is brought up and rarely changes.
-- `ServerConfiguration` may be rotated when the BioHPC server is replaced, when SSH keys are rotated, or
+- `ServerConfiguration` may be rotated when the remote server is replaced, when SSH keys are rotated, or
   when the long-term storage path changes.
 
 ---
@@ -76,7 +76,7 @@ an empty / not-found response, you are creating from scratch.
 
 For a new host, the values you cannot guess are:
 
-- **Server hostname or IP** — the BioHPC compute server address
+- **Server hostname or IP** — the remote compute server address
 - **SSH credentials path** — absolute path to the SSH key on the acquisition PC
 - **Remote storage root** — absolute path on the remote server where preprocessed sessions are deposited
 - **Project mapping rules** — if the host uses non-default per-project storage paths

@@ -40,14 +40,14 @@ meaningful defaults.
 | Discovery tool | None (user-provided)                               |
 
 **What it controls:**
-- SMB mount point to the Cornell BioHPC server's shared directory
+- SMB mount point to the cloud compute server's shared directory
 - Final destination for long-term hot storage of processed session data
 - Uses same directory structure as root_directory: `{server_directory}/{project}/{animal}/{session}`
 
 **Constraints:**
 - Must be an SMB-mounted network path accessible from VRPC
 - Requires network connectivity and valid server credentials
-- Example: `/mnt/sun_lab_server/sun_data`
+- Example: `/mnt/lab_server/lab_data`
 
 ---
 
@@ -69,7 +69,7 @@ meaningful defaults.
 **Constraints:**
 - Must be an SMB-mounted network path to Synology NAS
 - Should have substantial storage capacity for archival
-- Example: `/mnt/synology_nas/sun_data`
+- Example: `/mnt/synology_nas/lab_data`
 
 ---
 
