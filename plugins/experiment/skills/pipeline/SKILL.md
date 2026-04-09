@@ -98,11 +98,21 @@ configuration  configuration  /acquisition-  configuration  /system-       (sl-r
   - `ataraxis@communication:microcontroller-setup` for microcontroller enumeration
   - `/zaber-interface` (this plugin) for Zaber motor discovery
 
-### Phase 4: Experiment design
+### Phase 4: Experiment authoring
 
-- **Plugin / Skill:** configuration plugin → `/experiment-configuration`
-- **Actions:** Author or load a task template, customize trial parameters, populate experiment state
-  machine, write the per-project experiment configuration.
+This phase is split across three configuration plugin skills, invoked in dependency order. Each skill
+owns exactly one slsa asset and the others must hand off to it.
+
+- **Step 4a — `/project-hierarchy` (configuration plugin):** Create the project under which the
+  experiment will live, if it does not already exist. Owns `create_project_tool`.
+- **Step 4b — `/task-templates` (configuration plugin):** Author or load the task template that
+  defines the VR environment, cue catalog, segments, and trial structure. Owns `write_template_tool`.
+  Hand off to the experiment plugin's `/configuration-verification` if the template targets a Unity
+  scene.
+- **Step 4c — `/experiment-configuration` (configuration plugin):** Instantiate the template into a
+  per-project experiment configuration, populate the state machine, and customize state durations,
+  trial weights, and reward volumes. Owns `write_experiment_configuration_tool` and
+  `create_experiment_config_tool`.
 - **Handoff condition:** `read_experiment_configuration_tool` returns a validated experiment for the
   target project.
 
@@ -152,7 +162,7 @@ Is the system already configured?
         ├─ no  → /system-health-check
         └─ yes
             └─ Does an experiment configuration exist for this project?
-                ├─ no  → configuration plugin /experiment-configuration
+                ├─ no  → /project-hierarchy → /task-templates → /experiment-configuration
                 └─ yes
                     └─ Is a session already recorded?
                         ├─ no  → user runs `sl-run` (no AI involvement)
@@ -166,17 +176,27 @@ Is the system already configured?
 
 ## Cross-plugin handoffs at a glance
 
-| You need to…                                | Use…                                              |
-|---------------------------------------------|---------------------------------------------------|
-| Author a system or experiment YAML          | configuration plugin (`/system-configuration`, `/experiment-configuration`) |
-| Discover GenICam cameras                    | `ataraxis@video:camera-setup`                     |
-| Test camera acquisition interactively       | `ataraxis@video:camera-setup`                     |
-| Discover microcontrollers / verify MQTT     | `ataraxis@communication:microcontroller-setup`    |
-| Write a new VideoSystem binding             | `/camera-interface` → `ataraxis@video:camera-interface` |
-| Write a new ModuleInterface                 | `/microcontroller-interface` → `ataraxis@communication:microcontroller-interface` |
-| Write firmware for a new module             | `ataraxis@microcontroller:firmware-module`        |
-| Discover or configure Zaber motors          | `/zaber-interface`                                |
-| Modify the Mesoscope-VR system itself       | `/modifying-mesoscope-vr-system`                  |
+| You need to…                                       | Use…                                                                           |
+|----------------------------------------------------|--------------------------------------------------------------------------------|
+| Set the working directory or credentials          | configuration plugin `/working-directory`                                       |
+| Author the system configuration YAML              | configuration plugin `/system-configuration`                                    |
+| Author the server (remote transfer) configuration | configuration plugin `/server-configuration`                                    |
+| Create a project                                  | configuration plugin `/project-hierarchy`                                       |
+| Author a task template                            | configuration plugin `/task-templates`                                          |
+| Author a per-project experiment configuration     | configuration plugin `/experiment-configuration`                                |
+| Read a session marker / inspect session metadata  | configuration plugin `/session-data`                                            |
+| Read or repair a session descriptor               | configuration plugin `/session-descriptors`                                     |
+| Read or patch a frozen runtime snapshot           | configuration plugin `/session-snapshots`                                       |
+| Look up animal surgery / implants / drugs         | configuration plugin `/subject-metadata`                                        |
+| Curate or read a dataset                          | configuration plugin `/datasets`                                                |
+| Discover GenICam cameras                          | `ataraxis@video:camera-setup`                                                   |
+| Test camera acquisition interactively             | `ataraxis@video:camera-setup`                                                   |
+| Discover microcontrollers / verify MQTT           | `ataraxis@communication:microcontroller-setup`                                  |
+| Write a new VideoSystem binding                   | `/camera-interface` → `ataraxis@video:camera-interface`                         |
+| Write a new ModuleInterface                       | `/microcontroller-interface` → `ataraxis@communication:microcontroller-interface` |
+| Write firmware for a new module                   | `ataraxis@microcontroller:firmware-module`                                      |
+| Discover or configure Zaber motors                | `/zaber-interface`                                                              |
+| Modify the Mesoscope-VR system itself             | `/modifying-mesoscope-vr-system`                                                |
 | Verify Unity task template values           | `/configuration-verification`                     |
 
 ---

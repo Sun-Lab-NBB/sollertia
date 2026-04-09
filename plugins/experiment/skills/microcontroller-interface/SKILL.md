@@ -132,8 +132,11 @@ For the canonical PC-side implementation pattern, see `ataraxis@communication:mi
    `ataraxis@communication:microcontroller-interface`. Wire it to the new dataclass fields.
 5. **Update the binding class** to instantiate the new ModuleInterface on the correct controller and
    register it in the start/stop lifecycle.
-6. **Bump `sollertia-shared-assets`** so existing system configuration YAML files regenerate with the
-   new fields, then re-run `sl-configure system` on the host machine.
+6. **Hand off to the configuration plugin's `/system-configuration` skill** to regenerate the host machine's
+   system configuration YAML against the new schema. This skill must not call `write_system_configuration_tool`
+   or invoke `sl-configure` directly — system configuration writes are owned by `/system-configuration`.
+   The hand-off responsibility includes bumping the `sollertia-shared-assets` version pin so older configurations
+   no longer load against the new schema.
 7. **Verify** the new module appears in the controller manifest using
    `ataraxis@communication:microcontroller-setup` MCP tools.
 
@@ -145,8 +148,7 @@ For the canonical PC-side implementation pattern, see `ataraxis@communication:mi
 - [ ] New calibration fields follow the existing <module>_<parameter>_<unit> naming convention
 - [ ] Field placement (actor/sensor/encoder) matches the firmware Module's controller assignment
 - [ ] sollertia-micro-controllers version bumped after firmware change
-- [ ] sollertia-shared-assets version bumped after dataclass schema change
-- [ ] sl-configure system regenerated on the host machine after schema bump
+- [ ] Handed off to /system-configuration to regenerate the host machine's YAML and bump sollertia-shared-assets
 - [ ] Binding class lifecycle preserves DataLogger → MQTT → Controller → Module ordering
 - [ ] Read ataraxis@microcontroller:firmware-module for C++ Module structure
 - [ ] Read ataraxis@communication:microcontroller-interface for PC-side patterns

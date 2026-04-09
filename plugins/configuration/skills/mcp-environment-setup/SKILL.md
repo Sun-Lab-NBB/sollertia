@@ -150,14 +150,23 @@ the next session.
 
 ## Related skills
 
-| Skill                          | Relationship                                                       |
-|--------------------------------|--------------------------------------------------------------------|
-| `/working-directory`           | First skill to invoke after MCP server is verified                 |
-| `/system-configuration`        | Requires the MCP server for system YAML read/write/validate        |
-| `/experiment-configuration`    | Requires the MCP server for template + experiment read/write       |
-| `/session-data`                | Requires the MCP server for SessionData and descriptor CRUD        |
-| `/dataset-data`                | Requires the MCP server for DatasetData CRUD                       |
-| experiment plugin MCP env setup| Equivalent diagnostic for the `sl-get` / `sl-manage` MCP servers   |
+This skill is a prerequisite for **every** other skill in the configuration plugin — they all depend
+on the `sollertia-shared-assets` MCP server being reachable.
+
+| Skill                          | Asset it owns                                                  |
+|--------------------------------|----------------------------------------------------------------|
+| `/working-directory`           | Working directory, Google credentials, task templates dir path |
+| `/system-configuration`        | `MesoscopeSystemConfiguration`                                 |
+| `/server-configuration`        | `ServerConfiguration`                                          |
+| `/task-templates`              | `TaskTemplate` + trial primitives                              |
+| `/experiment-configuration`    | `MesoscopeExperimentConfiguration` + `ExperimentState`         |
+| `/project-hierarchy`           | Projects (`create_project_tool`)                               |
+| `/session-data`                | `SessionData` + `SessionTypes`                                 |
+| `/session-descriptors`         | The 4 per-session-type descriptors                             |
+| `/session-snapshots`           | Frozen `MesoscopeHardwareState` / `ZaberPositions` / `MesoscopePositions` |
+| `/subject-metadata`            | `SubjectData` / `SurgeryData` / `ImplantData` / `InjectionData` / `DrugData` |
+| `/datasets`                    | `DatasetData` / `DatasetSession`                               |
+| experiment plugin `/mcp-environment-setup` | Equivalent diagnostic for `sl-get` / `sl-manage` MCP servers |
 
 ---
 

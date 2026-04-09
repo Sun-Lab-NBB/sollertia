@@ -28,7 +28,7 @@ Diagnoses and resolves sollertia-experiment MCP server connectivity and environm
 - MCP tool usage for Zaber discovery/configuration (see `/zaber-interface`)
 - MCP tool usage for session preprocessing/migration (see `/data-management`)
 - sollertia-shared-assets `sl-configure mcp` server (see the configuration plugin's
-  `/configuration-mcp-environment-setup`)
+  `/mcp-environment-setup`)
 - sollertia-experiment package development workflows
 
 ---

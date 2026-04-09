@@ -27,8 +27,14 @@ configuration or runtime tooling.
 
 **Does not cover:**
 - Authoring system configuration (see `/system-configuration`)
-- Authoring experiment configuration or task templates (see `/experiment-configuration`)
-- Diagnosing MCP server connectivity (see `/configuration-mcp-environment-setup`)
+- Authoring server configuration (see `/server-configuration`)
+- Authoring task templates (see `/task-templates`)
+- Authoring experiment configurations (see `/experiment-configuration`)
+- Creating projects (see `/project-hierarchy`)
+- Reading session-level data (see `/session-data`, `/session-descriptors`, `/session-snapshots`,
+  `/subject-metadata`)
+- Reading datasets (see `/datasets`)
+- Diagnosing MCP server connectivity (see `/mcp-environment-setup`)
 
 ---
 
@@ -74,7 +80,7 @@ configuration plugin skills can be used freely.
 ### Step 1: Verify MCP connectivity
 
 Confirm the `sollertia-shared-assets` MCP server is connected. If not, hand off to
-`/configuration-mcp-environment-setup`.
+`/mcp-environment-setup`.
 
 ### Step 2: Set the working directory
 
@@ -109,12 +115,14 @@ set_task_templates_directory_tool(directory="<absolute path>")
 ```
 
 Verify with `read_task_templates_directory_tool`. If the directory is empty, the user should populate
-it before invoking `/experiment-configuration` (or that skill will create new templates from scratch).
+it before invoking `/task-templates` (which owns template authoring) or `/experiment-configuration`.
 
-### Step 5: Check available templates
+### Step 5: Verify templates are discoverable
 
-After the templates directory is set, call `discover_templates_tool` to confirm the directory layout is
-recognized.
+After the templates directory is set, call `discover_templates_tool` once to confirm the directory
+layout is recognized. This is a read-only "natural share" of the discover tool that is also exposed by
+`/task-templates` — the call here exists only to validate the templates path was set correctly. Do not
+inspect or modify any template content from this skill; that is owned by `/task-templates`.
 
 ---
 
@@ -142,9 +150,19 @@ recognized.
 
 ## Related skills
 
-| Skill                                       | Relationship                                                         |
-|---------------------------------------------|----------------------------------------------------------------------|
-| `/configuration-mcp-environment-setup`      | Run first if the MCP server is not connected                         |
-| `/system-configuration`                     | Requires working directory to be set before authoring system config  |
-| `/experiment-configuration`                 | Requires task templates directory to be set                          |
-| `/session-data` and `/dataset-data`         | Resolve relative paths against the working directory                 |
+This skill is a prerequisite for **every** other skill in the configuration plugin. The relationships
+below summarize where each downstream skill picks up after the working directory is set.
+
+| Downstream skill              | What it needs from this skill                                         |
+|-------------------------------|-----------------------------------------------------------------------|
+| `/mcp-environment-setup`      | (sibling — run first if the MCP server is not connected)              |
+| `/system-configuration`       | Working directory                                                     |
+| `/server-configuration`       | Working directory                                                     |
+| `/task-templates`             | Working directory + task templates directory                          |
+| `/experiment-configuration`   | Working directory                                                     |
+| `/project-hierarchy`          | Working directory                                                     |
+| `/session-data`               | Working directory                                                     |
+| `/session-descriptors`        | Working directory                                                     |
+| `/session-snapshots`          | Working directory                                                     |
+| `/subject-metadata`           | Working directory + Google credentials                                |
+| `/datasets`                   | Working directory                                                     |

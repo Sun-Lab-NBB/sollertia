@@ -114,8 +114,11 @@ Key Sollertia-specific rules:
 4. **Allocate a system ID** from the 50–99 range (next free is 63 at the time of writing).
 5. **Extend the binding class** in `sollertia-experiment` to instantiate a third VideoSystem using the new
    fields. Follow the existing face/body lifecycle pattern.
-6. **Bump `sollertia-shared-assets`** so existing system configuration YAML files regenerate with the new
-   fields, then re-run `sl-configure system` on the host machine.
+6. **Hand off to the configuration plugin's `/system-configuration` skill** to regenerate the host machine's
+   system configuration YAML against the new schema. This skill must not call `write_system_configuration_tool`
+   or invoke `sl-configure` directly — system configuration writes are owned by `/system-configuration`.
+   The hand-off responsibility includes bumping the `sollertia-shared-assets` version pin so older configurations
+   no longer load against the new schema.
 
 ---
 
@@ -127,8 +130,7 @@ Key Sollertia-specific rules:
 - [ ] System ID is unique within the 50–99 camera range
 - [ ] Binding class accepts MesoscopeCameras as a single argument
 - [ ] DataLogger is initialized before VideoSystem instances
-- [ ] sollertia-shared-assets version bumped if dataclass schema changed
-- [ ] sl-configure system regenerated on the host machine after schema bump
+- [ ] Handed off to /system-configuration to regenerate the host machine's YAML and bump sollertia-shared-assets
 - [ ] Read ataraxis@video:camera-interface for the VideoSystem API
 - [ ] Read ataraxis@video:camera-setup for hardware verification
 ```

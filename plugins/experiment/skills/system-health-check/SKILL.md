@@ -50,7 +50,9 @@ System Health Check Progress:
 | Task templates directory set | `get_task_templates_directory_tool` | Returns valid path to Unity configs |
 
 **Task templates directory** must point to the `sl-unity-tasks/Assets/InfiniteCorridorTask/Configurations/` folder.
-If not configured, use `set_task_templates_directory_tool(directory)` to set it before running experiments.
+If `get_task_templates_directory_tool` returns no path or an invalid one, hand off to the configuration plugin's
+`/working-directory` skill to set it. This skill must not call `set_task_templates_directory_tool` directly —
+bootstrap path setters are owned by `/working-directory`.
 
 ### Phase 2: Network Storage Mounts
 

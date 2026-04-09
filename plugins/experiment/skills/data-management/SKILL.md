@@ -206,7 +206,9 @@ BioHPC server).
 
 The migration tool enforces these health checks automatically:
 
-1. **Target project must exist** - Create it first using `create_project_tool` if needed
+1. **Target project must exist** - If missing, hand off to the configuration plugin's `/project-hierarchy`
+   skill to create it. This skill must not call `create_project_tool` directly — project creation is owned
+   by `/project-hierarchy`.
 2. **All local sessions must be preprocessed** - No unprocessed sessions can exist on the VRPC for the source animal
 3. **Source animal must have sessions on the server** - Migration pulls data from the BioHPC server
 
@@ -226,7 +228,7 @@ migrate_animal_tool(
 ```text
 Animal Migration Progress:
 - [ ] Step 1: Verify source project exists (get_projects_tool)
-- [ ] Step 2: Verify target project exists, create if needed (create_project_tool)
+- [ ] Step 2: Verify target project exists; if missing, hand off to /project-hierarchy to create it
 - [ ] Step 3: Check for unprocessed local sessions (Glob for session_data.yaml in source project)
 - [ ] Step 4: If unprocessed sessions exist, preprocess them first
 - [ ] Step 5: Confirm migration with user (source, destination, animal_id)
@@ -359,7 +361,7 @@ Bulk Deletion Progress:
 | Error                                          | Cause                                      | Solution                                    |
 |------------------------------------------------|--------------------------------------------|---------------------------------------------|
 | "Session directory must be inside root"        | Path is on NAS/server, not local VRPC      | Only process sessions in root_directory     |
-| "target project does not exist"                | Destination project not created            | Use create_project_tool first               |
+| "target project does not exist"                | Destination project not created            | Hand off to /project-hierarchy              |
 | "non-preprocessed session data"                | Unprocessed sessions exist for animal      | Preprocess all sessions before migration    |
 | "requires explicit confirmation"               | confirm_deletion not set to True           | Get user confirmation, then set to True     |
 
@@ -395,13 +397,11 @@ Glob("{root_directory}/**/session_data.yaml")            # All sessions
 ### Migration
 
 ```text
-# Check projects exist
-get_projects_tool()
+# Verify target project exists; if missing, hand off to the
+# configuration plugin's /project-hierarchy skill before
+# proceeding. Do not call create_project_tool from this skill.
 
-# Create target project if needed
-create_project_tool(project="new_project")
-
-# Migrate animal
+# Migrate animal once both projects exist
 migrate_animal_tool(source_project="old", destination_project="new", animal_id="12345")
 ```
 

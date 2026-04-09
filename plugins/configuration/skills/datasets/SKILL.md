@@ -1,15 +1,14 @@
 ---
-name: configure-dataset-data
+name: configure-datasets
 description: >-
   Discovers, reads, and writes dataset-level YAML files (DatasetData, DatasetSession membership) for
-  sollertia-shared-assets via the sl-configure MCP server. Covers dataset directory discovery, dataset
-  schema introspection, and the relationship between datasets and the sessions they aggregate. Use
-  when curating a dataset, adding sessions to an existing dataset, or building tooling that needs
-  dataset-level introspection.
+  sollertia-shared-assets via the sl-configure MCP server. Owns the dataset write tools and schema
+  introspection. Use when curating a dataset, adding sessions to an existing dataset, or building
+  tooling that needs dataset-level introspection.
 user-invocable: true
 ---
 
-# Sollertia dataset data
+# Sollertia datasets
 
 Discovers, reads, and writes the dataset-level YAML files that group sessions for downstream analysis
 and sharing. Uses the `sl-configure mcp` MCP server.
@@ -65,7 +64,7 @@ dataset is a curated collection of sessions intended to be processed and analyze
 
 ### Step 1: Verify prerequisites
 
-- MCP server connected (else `/configuration-mcp-environment-setup`)
+- MCP server connected (else `/mcp-environment-setup`)
 - Working directory set (else `/working-directory`)
 
 ### Step 2: Discover existing datasets
@@ -141,6 +140,8 @@ downstream tooling and analysis notebooks may have references that break silentl
 | Skill                                  | Relationship                                                       |
 |----------------------------------------|--------------------------------------------------------------------|
 | `/working-directory`                   | Required prerequisite — must be run first                          |
-| `/configuration-mcp-environment-setup` | Run first if the MCP server is not connected                       |
+| `/mcp-environment-setup`               | Run first if the MCP server is not connected                       |
+| `/project-hierarchy`                   | Provides discover_sessions_tool for dataset membership lookup      |
+| `/session-data`                        | Sibling — sessions are the membership unit of datasets             |
 | `/session-data`                        | Sibling — sessions are the membership unit of datasets             |
 | processing plugin                      | Future home for tooling that consumes datasets for batch analysis  |
