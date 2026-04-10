@@ -2,9 +2,11 @@
 name: mcp-environment-setup
 description: >-
   Diagnoses and resolves sollertia-shared-assets MCP server connectivity issues. Covers environment
-  verification, command availability for sl-configure, Python version checks, dependency validation, and
-  conda/pip/uv environment configuration. Use when sollertia-shared-assets MCP tools are unavailable, when
-  the server fails to start, or when starting a session that requires the configuration MCP tools.
+  verification, command availability for sl-configure, Python version checks, dependency validation,
+  conda/pip/uv environment configuration, and Unity Editor relay connectivity for Unity-dependent tools.
+  Use when sollertia-shared-assets MCP tools are unavailable, when the server fails to start, when
+  Unity relay tools fail with "Unity Editor is not reachable", or when starting a session that requires
+  the configuration MCP tools.
 user-invocable: true
 ---
 
@@ -21,10 +23,12 @@ Diagnoses and resolves sollertia-shared-assets MCP server connectivity and envir
 - Diagnosing why the `sl-configure` command is unavailable
 - Checking Python version compatibility
 - Validating sollertia-shared-assets package installation and dependencies
+- Diagnosing Unity Editor relay connectivity for Unity-dependent tools
 
 **Does not cover:**
 - MCP tool usage for any specific configuration task (see other configuration plugin skills)
 - sollertia-experiment `sl-get` / `sl-manage` MCP servers (see the experiment plugin's MCP env setup)
+- Unity Editor or sollertia-unity-tasks installation (see the sollertia-unity-tasks README)
 
 ---
 
@@ -69,6 +73,23 @@ configures the Claude assistant to launch the server automatically:
 
 Installing the plugin alone registers the MCP server but the server will fail to start if
 `sollertia-shared-assets` is not installed in the active Python environment.
+
+### Unity Editor relay
+
+A subset of tools registered by `sollertia-shared-assets` relay requests to the Unity Editor via HTTP.
+The sollertia-unity-tasks project includes an `McpBridge` editor plugin that starts an HTTP listener on
+`localhost:8090` when the Editor loads. The relay path is:
+
+```text
+Claude ↔ sl-configure mcp (stdio) ↔ HTTP POST to localhost:8090 ↔ Unity Editor McpBridge
+```
+
+The relayed tools are: `generate_task_prefab_tool`, `inspect_prefab_tool`,
+`validate_prefab_against_template_tool`, `list_unity_assets_tool`, `list_scenes_tool`, `open_scene_tool`,
+`create_scene_tool`, `enter_play_mode_tool`, `exit_play_mode_tool`, and `get_play_state_tool`. These tools
+require **both** the `sollertia-shared-assets` MCP server to be connected **and** the Unity Editor to be
+running with the sollertia-unity-tasks project open. All other `sollertia-shared-assets` tools (configuration
+read/write, schema introspection, template authoring) work without the Unity Editor.
 
 ---
 
@@ -134,18 +155,42 @@ and `mcp` (must be `>=1,<2`).
 The user must restart the Claude assistant. The configuration plugin will automatically reconnect on
 the next session.
 
+### Step 7: Verify Unity Editor relay (Unity-dependent tools only)
+
+This step is only required when a Unity relay tool fails with "Unity Editor is not reachable". It is
+not part of the base MCP diagnostic and should be skipped when the issue is with non-Unity tools.
+
+1. Confirm the Unity Editor is running and has the sollertia-unity-tasks project open.
+2. Check the Unity Console for `McpBridge: Listening on http://localhost:8090/` — this log line confirms
+   the bridge initialized successfully. If it is absent, the Editor may still be loading or the McpBridge
+   script may have failed to compile.
+3. Test connectivity from the command line:
+
+```bash
+curl -s -X POST http://localhost:8090/ \
+  -H "Content-Type: application/json" \
+  -d '{"tool": "get_play_state", "args": {}}' | python -m json.tool
+```
+
+If the request returns a JSON response with `"success": true`, the bridge is healthy and the issue is on
+the `sollertia-shared-assets` relay side (return to Step 1). If the request times out or is refused, the
+Unity Editor is not listening — restart the Editor and wait for the McpBridge log line.
+
 ---
 
 ## Common issues and resolutions
 
-| Symptom                            | Cause                             | Resolution                          |
-|------------------------------------|-----------------------------------|-------------------------------------|
-| `sl-configure: command not found`  | Environment not activated         | Activate conda/venv and restart     |
-| `sl-configure: command not found`  | `sollertia-shared-assets` missing | Install the package (see Step 3)    |
-| Import error on `sl-configure mcp` | `ataraxis-data-structures` skew   | Upgrade the package (see Step 5)    |
-| Tools fail "no working directory"  | Working directory not initialized | Run `/working-directory` to set it  |
-| Tools fail "templates not set"     | Task templates path not set       | Run `/working-directory`            |
-| Write tools fail after connect     | Invalid YAML from a previous edit | Use `discover_*` / `read_*` tools   |
+| Symptom                              | Cause                             | Resolution                                       |
+|--------------------------------------|-----------------------------------|--------------------------------------------------|
+| `sl-configure: command not found`    | Environment not activated         | Activate conda/venv and restart                  |
+| `sl-configure: command not found`    | `sollertia-shared-assets` missing | Install the package (see Step 3)                 |
+| Import error on `sl-configure mcp`   | `ataraxis-data-structures` skew   | Upgrade the package (see Step 5)                 |
+| Tools fail "no working directory"    | Working directory not initialized | Run `/working-directory` to set it               |
+| Tools fail "templates not set"       | Task templates path not set       | Run `/working-directory`                         |
+| Write tools fail after connect       | Invalid YAML from a previous edit | Use `discover_*` / `read_*` tools                |
+| "Unity Editor is not reachable"      | Editor not running                | Open the Unity Editor with sollertia-unity-tasks |
+| "Unity Editor is not reachable"      | McpBridge not loaded              | Verify the Editor finished loading (see Step 7)  |
+| "Unity bridge returned invalid JSON" | McpBridge returned malformed data | Restart the Unity Editor                         |
 
 ---
 
@@ -181,4 +226,5 @@ sollertia-shared-assets MCP environment setup:
 - [ ] Identified environment type (conda, venv, system)
 - [ ] Provided environment-specific resolution steps
 - [ ] Informed user that the assistant must be restarted after environment changes
+- [ ] (Unity tools only) Verified Unity Editor is running with McpBridge on localhost:8090
 ```

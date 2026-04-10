@@ -106,6 +106,8 @@ not have to live inside the working directory, though that is a common default.
 The task templates directory is a standalone directory (separate from the working directory) that holds
 reusable `TaskTemplate` YAML files. Each template describes a complete behavioral paradigm: the VR
 environment, the cue catalog, the segment layout, the available trial types, and the trial structure.
+This is typically the path to the local sollertia-unity-tasks repository's template directory:
+`<local-repo>/Assets/InfiniteCorridorTask/Configurations/`.
 
 Templates are **project-agnostic** — the same template can back many per-project experiment
 configuration instances across different projects and even across different hosts.
