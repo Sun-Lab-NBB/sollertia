@@ -15,9 +15,9 @@
       "description": "Provides acquisition system setup, experiment design, system health checks, hardware interface, and runtime data management skills for sollertia-experiment. Includes MCP bindings for Zaber motor management, session preprocessing, and animal migration."
     },
     {
-      "name": "processing",
-      "source": "./plugins/processing",
-      "description": "Provides post-acquisition data processing pipeline orchestration skills for the Sollertia platform. Reserved for processing functionality that is being absorbed into other Sollertia libraries."
+      "name": "forging",
+      "source": "./plugins/forging",
+      "description": "Umbrella plugin for sollertia-forgery skill systems. Currently ships the behavior processing subsystem (session discovery, batch preparation and execution, output verification, and feather data querying) and is structured to accommodate future forging, managing, and analysis subsystems. Backed by the sollertia-forgery MCP server (sl-mcp)."
     }
   ]
 }

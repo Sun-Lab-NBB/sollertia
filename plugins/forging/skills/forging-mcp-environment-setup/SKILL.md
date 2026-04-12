@@ -1,0 +1,212 @@
+---
+name: forging-mcp-environment-setup
+description: >-
+  Diagnoses and resolves sollertia-forgery MCP server connectivity issues. Covers environment
+  verification, command availability, Python version checks, dependency validation, and conda/pip/uv
+  environment configuration. Use when MCP tools are unavailable, when the sollertia-forgery MCP server
+  fails to start, when the user reports connection issues, or when starting a session that requires
+  MCP tools.
+user-invocable: true
+---
+
+# MCP environment setup
+
+Diagnoses and resolves sollertia-forgery MCP server connectivity and environment configuration issues.
+
+---
+
+## Scope
+
+**Covers:**
+- Verifying the sollertia-forgery MCP server is reachable and functional
+- Diagnosing why the `sl-mcp` command is unavailable
+- Checking Python version compatibility (`>=3.14,<3.15`)
+- Validating sollertia-forgery package installation and core dependencies
+- Environment-specific guidance for conda, pip, and uv workflows
+
+**Does not cover:**
+- MCP tool usage for session discovery (see `/behavior-session-setup`)
+- MCP tool usage for batch processing (see `/behavior-processing`)
+- MCP tool usage for output verification (see `/behavior-results`)
+- Input data preparation from upstream libraries (see `/behavior-input-format`)
+- sollertia-forgery package development or contribution workflows
+
+---
+
+## Architecture
+
+sollertia-forgery provides a single MCP server accessed through the `sl-mcp` CLI entry point defined in
+`pyproject.toml`:
+
+```toml
+[project.scripts]
+sl-mcp = "sollertia_forgery.interfaces.mcp_server:run_mcp_server"
+```
+
+| Server              | CLI command | Purpose                                                       |
+|---------------------|-------------|---------------------------------------------------------------|
+| `sollertia-forgery` | `sl-mcp`    | Session discovery, batch behavior processing, output querying |
+
+The server runs with stdio transport. The sollertia forging plugin's `plugin.json` configures the Claude
+assistant to launch the server automatically:
+
+```json
+{
+  "mcpServers": {
+    "sollertia-forgery": {
+      "command": "sl-mcp",
+      "args": []
+    }
+  }
+}
+```
+
+The `sl-mcp` command must be on PATH when the Claude assistant starts. This means the Python environment
+where sollertia-forgery is installed must be active before launching the assistant.
+
+### Dual-distribution model
+
+The sollertia forging plugin's Claude integration is split across two distribution channels:
+
+| Component                                                        | Distributed via               | What it provides                                                      |
+|------------------------------------------------------------------|-------------------------------|-----------------------------------------------------------------------|
+| Skills (`/behavior-session-setup`, `/behavior-processing`, etc.) | sollertia forging plugin      | Skill files that guide agents through workflows                       |
+| MCP server registration                                          | sollertia forging plugin      | Plugin entry that tells the Claude assistant how to start the server  |
+| MCP server code (`sl-mcp`)                                       | sollertia-forgery pip package | The actual CLI command and server implementation                      |
+
+Installing the plugin alone registers the MCP server and makes skills available, but the server will fail
+to start because the `sl-mcp` CLI command is not present. The pip package must also be installed in the
+active Python environment for the MCP server to function.
+
+This is the most common cause of MCP failures after initial setup: the plugin is installed but the pip
+package is not, or the pip package is installed in a different Python environment than the one active when
+the Claude assistant launches.
+
+---
+
+## Diagnostic workflow
+
+You MUST follow these steps in order when MCP tools are unavailable or the server fails to start.
+
+### Step 1: Test MCP tool availability
+
+Attempt to call any sollertia-forgery MCP tool (for example `discover_behavior_sessions_tool`). If the
+call succeeds, the environment is healthy, and you can invoke the target skill. If the call returns a
+connection error, continue to step 2.
+
+### Step 2: Verify CLI command availability
+
+```bash
+which sl-mcp
+```
+
+Expected outcome: `which sl-mcp` prints a path inside the active environment (conda env, venv, or
+uv tool dir). If `which` returns nothing, the package is not installed in the active environment —
+see "Installation workflows" below. Do NOT try `sl-mcp --help`: the entry point takes no arguments
+and would immediately launch the stdio MCP server instead of printing usage.
+
+### Step 3: Verify Python version
+
+```bash
+python --version
+```
+
+Expected: Python 3.14.x. sollertia-forgery requires `>=3.14,<3.15`. If the active environment is on a
+different version, create a new environment at the correct version and reinstall.
+
+### Step 4: Verify package installation
+
+```bash
+python -c "import sollertia_forgery; print(sollertia_forgery.__file__)"
+```
+
+Expected: a path inside the active environment's `site-packages`. If the import fails with
+`ModuleNotFoundError`, the package is not installed.
+
+### Step 5: Verify core dependencies
+
+```bash
+python -c "import mcp, polars, numpy, numba, scipy, ataraxis_time, ataraxis_base_utilities, ataraxis_data_structures, sollertia_shared_assets; print('ok')"
+```
+
+Expected: prints `ok`. Any `ImportError` indicates a missing or version-incompatible dependency — see
+`pyproject.toml` for the authoritative version constraints.
+
+---
+
+## Installation workflows
+
+### Conda / mamba
+
+```bash
+mamba create -n slf_dev python=3.14
+mamba activate slf_dev
+pip install -e .
+```
+
+Run inside `/home/cyberaxolotl/Desktop/GitHubRepos/sollertia-forgery`. The editable installation wires the
+`sl-mcp` entry point into the environment's `bin/` so Claude Code can launch it by name.
+
+### uv
+
+```bash
+uv venv --python 3.14
+source .venv/bin/activate
+uv pip install -e .
+```
+
+### pip (system Python)
+
+```bash
+python3.14 -m venv .venv
+source .venv/bin/activate
+pip install -e .
+```
+
+---
+
+## Common failure modes
+
+| Symptom                                        | Diagnosis                                                   | Resolution                                                                                      |
+|------------------------------------------------|-------------------------------------------------------------|-------------------------------------------------------------------------------------------------|
+| `sl-mcp: command not found`                    | Package not installed, or wrong environment active          | Activate the correct environment and `pip install -e .`                                         |
+| Skills available but MCP tools missing         | Plugin installed without pip package                        | Install `sollertia-forgery` into the active Python environment and restart the Claude assistant |
+| `ModuleNotFoundError: sollertia_shared_assets` | Shared-assets dependency missing                            | `pip install "sollertia-shared-assets>=8.0.0rc1,<9"`                                            |
+| `ModuleNotFoundError: mcp`                     | FastMCP dependency missing                                  | `pip install "mcp[cli]>=1,<2"`                                                                  |
+| Python version mismatch                        | Active environment does not meet `>=3.14,<3.15` requirement | Recreate environment with Python 3.14                                                           |
+| `sl-mcp` starts but returns no tools           | Claude assistant connected to a stale process               | Restart the Claude assistant so the MCP client respawns the server                              |
+
+---
+
+## Related skills
+
+| Skill                     | Relationship                                                   |
+|---------------------------|----------------------------------------------------------------|
+| `/behavior-session-setup` | Downstream: session discovery once MCP is verified             |
+| `/behavior-input-format`  | Reference: input formats consumed by MCP-driven workflows      |
+| `/behavior-processing`    | Downstream: batch processing operations require MCP tools      |
+| `/behavior-results`       | Downstream: output verification and querying require MCP tools |
+
+---
+
+## Proactive behavior
+
+You SHOULD proactively invoke this skill when:
+- A session begins and MCP tools from the sollertia-forgery server are expected but unavailable
+- Any sollertia-forgery MCP tool call fails with a connection or server error
+- The user mentions issues with sollertia-forgery MCP server connectivity or environment setup
+
+---
+
+## Verification checklist
+
+```text
+MCP Environment Setup:
+- [ ] Checked MCP server connection status (sollertia-forgery)
+- [ ] Verified `sl-mcp` command is on PATH (`which sl-mcp`)
+- [ ] Confirmed Python version matches >=3.14,<3.15
+- [ ] Confirmed sollertia-forgery package and core dependencies import successfully
+- [ ] Confirmed sollertia forging plugin installed and registers the sollertia-forgery MCP server
+- [ ] Informed user that the Claude assistant must be restarted after environment or plugin changes
+- [ ] Confirmed at least one sollertia-forgery MCP tool call returns without connection errors
+```
