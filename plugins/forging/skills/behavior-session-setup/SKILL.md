@@ -2,10 +2,10 @@
 name: behavior-session-setup
 description: >-
   Discovers and filters sessions eligible for behavior processing via the sollertia-forgery MCP server.
-  Owns `discover_behavior_sessions_tool` usage and the behavior-processing eligibility rules; delegates
-  session marker format, SessionTypes surface, project hierarchy, and session directory layout to the
-  configuration plugin's dedicated skills. Use when locating processable sessions ahead of a
-  behavior-processing batch.
+  Uses the shared `discover_sessions_tool` with behavior-processing type filtering and owns the
+  eligibility rules; delegates session marker format, SessionTypes surface, project hierarchy, and
+  session directory layout to the configuration plugin's dedicated skills. Use when locating
+  processable sessions ahead of a behavior-processing batch.
 user-invocable: true
 ---
 
@@ -13,7 +13,7 @@ user-invocable: true
 
 Discovers sessions eligible for behavior processing and produces the confirmed `session_paths` list
 that `/behavior-processing` consumes. This skill is deliberately narrow — it only owns the
-behavior-processing eligibility layer and the `discover_behavior_sessions_tool` MCP surface. Session
+behavior-processing eligibility layer and the shared `discover_sessions_tool` MCP tool. Session
 metadata, directory layout, and project hierarchy semantics are documented in the configuration
 plugin. Output locations are resolved statically by the pipeline (always under the session's
 `processed_data_path/behavior_data/`) and are not configurable from any layer.
@@ -23,7 +23,7 @@ plugin. Output locations are resolved statically by the pipeline (always under t
 ## Scope
 
 **Covers:**
-- `discover_behavior_sessions_tool` usage, parameters, and return structure
+- Shared `discover_sessions_tool` usage with behavior-specific type filtering
 - Behavior-processing eligibility rules (`PROCESSABLE_SESSION_TYPES`)
 
 **Does not cover:**
@@ -54,22 +54,26 @@ session metadata shape or layout beyond what the tool returns, invoke `/configur
 You MUST use the sollertia-forgery MCP tools for session discovery. Do not import
 `sollertia_forgery.processing.pipeline` helpers directly or scan the filesystem manually.
 
-You MUST run `discover_behavior_sessions_tool` before calling any batch preparation tool. The caller
+You MUST run `discover_sessions_tool` before calling any batch preparation tool. The caller
 must provide confirmed session root paths — do not guess or derive them manually.
 
 ---
 
 ## Available tool
 
-| Tool                               | Purpose                                                                    |
-|------------------------------------|----------------------------------------------------------------------------|
-| `discover_behavior_sessions_tool`  | Walks a root directory for session markers and filters by eligibility      |
+| Tool                     | Purpose                                                                                  |
+|--------------------------|------------------------------------------------------------------------------------------|
+| `discover_sessions_tool` | Shared tool that walks a root directory for session markers with optional type filtering |
 
 **Parameters:**
 
-| Parameter        | Type  | Default    | Description                                           |
-|------------------|-------|------------|-------------------------------------------------------|
-| `root_directory` | `str` | (required) | Absolute path to the root directory to search         |
+| Parameter        | Type          | Default    | Description                                                                 |
+|------------------|---------------|------------|-----------------------------------------------------------------------------|
+| `root_directory` | `str`         | (required) | Absolute path to the root directory to search                               |
+| `session_types`  | `list[str]`   | `None`     | Optional list of session type strings to filter by eligibility              |
+
+For behavior processing, pass `session_types=["lick_training", "run_training", "mesoscope_experiment"]`
+to filter for `PROCESSABLE_SESSION_TYPES`.
 
 **Return structure:**
 
@@ -79,6 +83,7 @@ sessions[]:              Per-session entries:
   session_name:          Human-readable session name from SessionData
   animal_id:             Animal identifier from SessionData
   session_type:          String form of the SessionType enum
+  acquisition_system:    String form of the acquisition system used
   raw_data_path:         Absolute path to the session's raw_data subdirectory
   processed_data_path:   Absolute path to the session's processed_data subdirectory
   eligible:              Boolean — True if the session is eligible for behavior processing
@@ -137,7 +142,8 @@ typical input — do not assume a default. For project hierarchy conventions, se
 
 ### Step 2: Run discovery
 
-Call `discover_behavior_sessions_tool` with the confirmed `root_directory`. Present the result as a
+Call `discover_sessions_tool` with the confirmed `root_directory` and
+`session_types=["lick_training", "run_training", "mesoscope_experiment"]`. Present the result as a
 readable summary so the user can see what was found:
 
 ```text
@@ -205,7 +211,7 @@ session in the batch — no output directory list is required or accepted.
 Behavior Session Setup:
 - [ ] Verified MCP server connectivity (invoked /forging-mcp-environment-setup if unavailable)
 - [ ] Confirmed root directory with user
-- [ ] Ran discover_behavior_sessions_tool and recorded at least one eligible session
+- [ ] Ran discover_sessions_tool and recorded at least one eligible session
 - [ ] Surfaced ineligible and errored sessions to the user
 - [ ] Confirmed the session_paths subset with user
 - [ ] Handed off to /behavior-processing

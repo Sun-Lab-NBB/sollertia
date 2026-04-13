@@ -90,7 +90,7 @@ You MUST follow these steps in order when MCP tools are unavailable or the serve
 
 ### Step 1: Test MCP tool availability
 
-Attempt to call any sollertia-forgery MCP tool (for example `discover_behavior_sessions_tool`). If the
+Attempt to call any sollertia-forgery MCP tool (for example `discover_sessions_tool`). If the
 call succeeds, the environment is healthy, and you can invoke the target skill. If the call returns a
 connection error, continue to step 2.
 
