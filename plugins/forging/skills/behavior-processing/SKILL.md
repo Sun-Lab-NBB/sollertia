@@ -29,14 +29,14 @@ analysis.
 - Resource allocation and the worker budget model
 
 **Does not cover:**
-- Session discovery and eligibility (see `/behavior-session-setup`)
+- Session discovery and filtering (see `/session-discovery`)
 - Input file formats or cross-library handoff (see `/behavior-input-format`)
 - Output verification, schemas, or interpretation (see `/behavior-results`)
 - MCP server connectivity (see `/forging-mcp-environment-setup`)
 - Upstream axvs/axci processing (see `/video:log-processing` and `/communication:log-processing`)
 
 **Handoff rules:** If MCP tools are unavailable, invoke `/forging-mcp-environment-setup`. If the user has not
-yet run session discovery, invoke `/behavior-session-setup` first. After all jobs complete successfully, hand
+yet run session discovery, invoke `/session-discovery` first. After all jobs complete successfully, hand
 off to `/behavior-results` to verify and analyze outputs.
 
 **Note:** `/video:*` and `/communication:*` refer to the **video** and **communication** plugins
@@ -50,7 +50,7 @@ You MUST use the sollertia-forgery MCP tools for all processing operations. Do n
 `sollertia_forgery.processing.pipeline` directly or invoke the `sl-process` CLI — those bypass the
 background execution manager and the progress/timing monitoring surface.
 
-You MUST have confirmed session paths from `/behavior-session-setup` before calling
+You MUST have confirmed session paths from `/session-discovery` before calling
 `prepare_behavior_processing_batch_tool`. Do not guess, infer, or discover paths from within this
 skill.
 
@@ -76,7 +76,7 @@ You MUST respect the single-execution-session constraint: only one batch may run
 
 | Parameter       | Type        | Default    | Description                                                                        |
 |-----------------|-------------|------------|------------------------------------------------------------------------------------|
-| `session_paths` | `list[str]` | (required) | Absolute paths to session root directories (from `/behavior-session-setup`)        |
+| `session_paths` | `list[str]` | (required) | Absolute paths to session root directories (from `/session-discovery`)              |
 
 Each session's `behavior_data/` subdirectory is created under its
 `{session.processed_data_path}/behavior_data/`, containing the processing tracker
@@ -181,7 +181,7 @@ The workflow uses a **prepare-then-execute** model:
 ### Pre-processing checklist
 
 ```text
-- [ ] Confirmed session paths from /behavior-session-setup
+- [ ] Confirmed session paths from /session-discovery
 - [ ] Upstream /video:log-processing outputs present in processed_data/ (if camera jobs expected)
 - [ ] Upstream /communication:log-processing outputs present in processed_data/ (if microcontroller jobs expected)
 - [ ] Hardware state YAML present in raw_data/ for every session in the batch
@@ -195,7 +195,7 @@ The workflow uses a **prepare-then-execute** model:
 
 ### Workflow steps
 
-1. **Receive confirmed inputs** — Get the `session_paths` list from `/behavior-session-setup`. Do
+1. **Receive confirmed inputs** — Get the `session_paths` list from `/session-discovery`. Do
    not re-derive.
 
 2. **Prepare batch** — Call `prepare_behavior_processing_batch_tool` with the confirmed session
@@ -358,9 +358,10 @@ updating `_MODULE_REGISTRY` or `_CAMERA_OUTPUT_NAMES`).
 | Skill                            | Relationship                                                     |
 |----------------------------------|------------------------------------------------------------------|
 | `/forging-mcp-environment-setup` | Prerequisite: MCP server connectivity                            |
-| `/behavior-session-setup`        | Upstream: session discovery and eligibility filtering            |
+| `/session-discovery`             | Upstream: session discovery and filtering                        |
 | `/behavior-input-format`         | Reference: input file layout and cross-library handoff           |
 | `/behavior-results`              | Downstream: output discovery, verification, and interpretation   |
+| `/project-manifest`              | Downstream: regenerate manifest to update behavior status        |
 | `/video:log-processing`          | Upstream: produces camera timestamp feathers consumed here       |
 | `/communication:log-processing`  | Upstream: produces microcontroller module feathers consumed here |
 
@@ -371,7 +372,7 @@ updating `_MODULE_REGISTRY` or `_CAMERA_OUTPUT_NAMES`).
 ```text
 Behavior Processing Workflow:
 - [ ] Verified MCP server connectivity (invoked /forging-mcp-environment-setup if unavailable)
-- [ ] Received confirmed session paths from /behavior-session-setup
+- [ ] Received confirmed session paths from /session-discovery
 - [ ] Prepared batch via prepare_behavior_processing_batch_tool
 - [ ] Presented discovered job counts per session and per type
 - [ ] Confirmed worker budget with user

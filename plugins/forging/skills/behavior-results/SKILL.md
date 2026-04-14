@@ -30,7 +30,7 @@ querying, and interpretation guidance.
 **Does not cover:**
 - Input data format (see `/behavior-input-format`)
 - Batch processing workflow (see `/behavior-processing`)
-- Session discovery (see `/behavior-session-setup`)
+- Session discovery (see `/session-discovery`)
 - MCP server connectivity (see `/forging-mcp-environment-setup`)
 
 **Note:** `/video:*` and `/communication:*` refer to the **video** and **communication** plugins
@@ -407,7 +407,7 @@ be compared directly to any `time_us` column in this output.
 | Skill                            | Relationship                                                 |
 |----------------------------------|--------------------------------------------------------------|
 | `/forging-mcp-environment-setup` | Prerequisite: MCP server connectivity                        |
-| `/behavior-session-setup`        | Upstream: session discovery produces confirmed session paths |
+| `/session-discovery`             | Upstream: session discovery produces confirmed session paths |
 | `/behavior-input-format`         | Reference: upstream inputs that became these outputs         |
 | `/behavior-processing`           | Upstream: produces the data described here                   |
 
