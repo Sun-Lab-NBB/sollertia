@@ -119,13 +119,16 @@ invalid_jobs:       Jobs that failed validation (optional)
 
 **`execute_transfer_jobs_tool` parameters:**
 
-| Parameter       | Type         | Default | Description                                                  |
-|-----------------|--------------|---------|--------------------------------------------------------------|
-| `jobs`          | `list[dict]` | (req)   | Job descriptors from the prepare manifest                    |
-| `worker_budget` | `int`        | `-1`    | CPU cores for the session; `-1` for automatic resolution     |
+| Parameter       | Type         | Default | Description                                                |
+|-----------------|--------------|---------|------------------------------------------------------------|
+| `jobs`          | `list[dict]` | (req)   | Job descriptors from the prepare manifest                  |
+| `worker_budget` | `int`        | `-1`    | Max concurrent operations; `-1` for auto, hard-capped at 4 |
 
 Each job runs in a separate subprocess with `workers=1`. The worker budget controls how many
-transfers or deletions run in parallel. Automatic resolution subtracts 2 reserved cores.
+transfers or deletions run in parallel. Automatic resolution subtracts 2 reserved cores, then
+caps the result at 4 concurrent operations regardless of the requested value. Transfer
+throughput is I/O-bound; exceeding 4 parallel operations saturates disk or network bandwidth
+without improving throughput.
 
 ### Monitoring
 
@@ -179,7 +182,7 @@ active.
 - [ ] For transfers: destination directory confirmed with user
 - [ ] Tracker directory confirmed with user (must survive the operation)
 - [ ] No active transfer session (get_transfer_status_tool → active: false)
-- [ ] Worker budget decision made with user (default -1 for auto)
+- [ ] Worker budget decision made with user (default -1 for auto, capped at 4)
 ```
 
 ### Workflow steps
@@ -307,7 +310,7 @@ Session Transfer:
 - [ ] Confirmed tracker directory (stable, outside affected sessions)
 - [ ] Prepared batch and reviewed manifest with user
 - [ ] For deletions: obtained secondary confirmation for permanent removal
-- [ ] Confirmed worker budget with user
+- [ ] Confirmed worker budget with user (auto-capped at 4 concurrent operations)
 - [ ] Verified no active transfer session before dispatch
 - [ ] Executed jobs and monitored until all reached terminal state
 - [ ] Investigated and retried failed jobs if needed

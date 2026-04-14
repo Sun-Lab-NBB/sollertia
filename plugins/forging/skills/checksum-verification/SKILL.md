@@ -93,15 +93,28 @@ invalid_paths:      Paths that could not be resolved (optional)
 
 **`execute_checksum_jobs_tool` parameters:**
 
-| Parameter             | Type         | Default | Description                                                  |
-|-----------------------|--------------|---------|--------------------------------------------------------------|
-| `jobs`                | `list[dict]` | (req)   | Job descriptors from the prepare manifest                    |
-| `worker_budget`       | `int`        | `-1`    | CPU cores for the session; `-1` for automatic resolution     |
-| `regenerate_checksum` | `bool`       | `False` | Overwrite stored checksums instead of verifying when `True`  |
+| Parameter             | Type         | Default | Description                                                     |
+|-----------------------|--------------|---------|-----------------------------------------------------------------|
+| `jobs`                | `list[dict]` | (req)   | Job descriptors from the prepare manifest                       |
+| `workers_per_job`     | `int`        | `-1`    | CPU cores per checksum job; `-1` for saturating allocation      |
+| `max_parallel_jobs`   | `int`        | `-1`    | Max concurrent jobs; `-1` for saturating allocation             |
+| `regenerate_checksum` | `bool`       | `False` | Overwrite stored checksums instead of verifying when `True`     |
 
-The `worker_budget` controls how many jobs run in parallel. Automatic resolution subtracts 2
-reserved cores (`RESERVED_CORES`) from the available CPU count. Each job runs in a separate
-subprocess with `workers=1` — parallelism is controlled at the batch level.
+The tool distributes the CPU budget across concurrent jobs using saturating allocation. When both
+parameters are `-1`, the allocator maximizes parallelism at the preferred per-job worker count,
+reduces parallelism when workers would drop below a minimum floor, and enforces a hard cap of
+20 cores per job. Each job runs in a separate subprocess with its resolved worker count bound
+at dispatch time — the process pool is sized to `max_parallel_jobs`, and each subprocess
+internally spawns its own worker pool sized to `workers_per_job`.
+
+Four resolution scenarios are supported:
+
+| `workers_per_job` | `max_parallel_jobs` | Behavior                                                  |
+|-------------------|---------------------|-----------------------------------------------------------|
+| `-1` (auto)       | `-1` (auto)         | Saturating allocation resolves both from CPU budget       |
+| fixed (>0)        | `-1` (auto)         | Workers capped at 20; parallel jobs derived from capacity |
+| `-1` (auto)       | fixed (>0)          | Workers derived from budget / parallel, capped at 20      |
+| fixed (>0)        | fixed (>0)          | Both used directly; workers still capped at 20            |
 
 ### Monitoring
 
@@ -168,7 +181,7 @@ status. Does not require an active execution session — reads directly from on-
 - [ ] Sessions discovered via /session-discovery (session_paths confirmed with user)
 - [ ] User confirmed which sessions to verify
 - [ ] No active checksum session (get_checksum_status_tool → active: false)
-- [ ] Worker budget decision made with user (default -1 for auto)
+- [ ] Resource allocation decision made with user (default -1/-1 for saturating auto)
 ```
 
 ### Workflow steps
@@ -191,8 +204,9 @@ status. Does not require an active execution session — reads directly from on-
    Sessions with existing trackers showing `SUCCEEDED` can be skipped unless the user wants
    re-verification.
 
-3. **Confirm resource allocation** — Present the default worker budget (`-1` = auto). Reduce to
-   limit memory on constrained systems.
+3. **Confirm resource allocation** — Present the default allocation (`-1` = saturating auto for
+   both `workers_per_job` and `max_parallel_jobs`). On constrained systems, reduce
+   `workers_per_job` or `max_parallel_jobs` to limit memory usage.
 
 4. **Flatten and execute** — Collect all job descriptors from `sessions[*].jobs` into a flat list.
    Call `execute_checksum_jobs_tool` with the flat list and confirmed settings.
@@ -279,7 +293,7 @@ Checksum Verification:
 - [ ] Verified MCP server connectivity (invoked /forging-mcp-environment-setup if unavailable)
 - [ ] Received confirmed session_paths from /session-discovery
 - [ ] Prepared batch and reviewed manifest
-- [ ] Confirmed worker budget with user
+- [ ] Confirmed resource allocation with user (workers_per_job / max_parallel_jobs)
 - [ ] Verified no active checksum session before dispatch
 - [ ] Executed jobs and monitored until all reached terminal state
 - [ ] Investigated and retried failed jobs if needed
