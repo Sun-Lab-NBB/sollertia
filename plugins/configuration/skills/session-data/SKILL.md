@@ -155,9 +155,9 @@ when handing off to `/session-descriptors` to read a descriptor).
 | `/mcp-environment-setup`             | Run first if the MCP server is not connected                              |
 | `/project-hierarchy`                 | Owns `discover_sessions_tool` and the project tree walk                   |
 | `/session-descriptors`               | Sibling — owns the per-session descriptor read/write/schema               |
-| `/session-snapshots`                 | Sibling — owns the frozen hardware / Zaber / mesoscope position snapshots |
+| experiment plugin `/session-snapshots` | Owns the frozen hardware / Zaber / mesoscope position snapshots         |
 | `/subject-metadata`                  | Sibling — owns animal-scoped subject records                              |
-| `/system-configuration`              | Owns `read_session_system_configuration_tool` (frozen system config)      |
+| experiment plugin `/system-configuration` | Owns `read_session_system_configuration_tool` (frozen system config)   |
 | `/experiment-configuration`          | Owns `read_session_experiment_configuration_tool` (frozen exp config)     |
-| `/datasets`                          | Sibling — datasets aggregate sessions                                     |
+| forging plugin `/datasets`           | Datasets aggregate sessions                                               |
 | experiment plugin `/data-management` | Preprocesses, migrates, and deletes sessions via `sl-manage` MCP          |

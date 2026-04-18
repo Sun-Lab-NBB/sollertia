@@ -62,9 +62,12 @@ You MUST respect the single-execution-session constraint: only one batch may run
 time per `sl-mcp` process. Cancel any active session before starting a new batch.
 
 Per-session forged output is written to `{session_root}/data.feather` — directly under
-the session's own directory, NOT under `processed_data/`. The dataset-level metadata
-(`dataset_data.yaml`) and tracker (`forging.yaml`) live at
-`{project_root}/{dataset_name}/`.
+the session's own directory, NOT under `processed_data/`. The session's
+`experiment_descriptor.yaml` is also copied from `raw_data/` into the session root
+alongside the feather so the forged session carries experimenter context without
+reaching back into the raw data. The dataset-level metadata (`dataset.yaml`) and
+tracker (`forging_tracker.yaml`) live at `{project_root}/{dataset_name}/`, and each
+animal's `surgery_data.yaml` is copied once to `{project_root}/{dataset_name}/{animal}/`.
 
 ---
 
@@ -102,7 +105,7 @@ Return shape:
 success:            Always True (per-dataset errors are reported in invalid_datasets)
 datasets:           Map keyed by dataset name. Each value has:
   dataset_path:     Absolute path to {project_root}/{dataset_name}/
-  tracker_path:     Absolute path to {dataset_path}/forging.yaml
+  tracker_path:     Absolute path to {dataset_path}/forging_tracker.yaml
   dataset_name:     Echo of the input name
   project_root:     Echo of the input project_root
   jobs[]:           Enriched job descriptors (fields: job_id, job_name, specifier,
@@ -166,7 +169,7 @@ from the earliest start time.
 
 | Parameter      | Type               | Default    | Description                                                            |
 |----------------|--------------------|------------|------------------------------------------------------------------------|
-| `tracker_path` | `str`              | (required) | Absolute path to the dataset's `forging.yaml`                          |
+| `tracker_path` | `str`              | (required) | Absolute path to the dataset's `forging_tracker.yaml`                  |
 | `job_ids`      | `list[str] \| None` | `None`     | Hexadecimal job IDs to reset; if omitted, every job in the tracker is reset |
 
 Returns `{reset: True, jobs_reset: N, jobs: [...], summary: {...}}` on success or
@@ -179,20 +182,21 @@ Returns `{reset: True, jobs_reset: N, jobs: [...], summary: {...}}` on success o
 | `dataset_paths` | `list[str]` | (required) | Absolute paths to `{project_root}/{dataset_name}/` directories to delete |
 
 Refuses to run while an execution session is active — cancel first. Deletes the full
-dataset directory tree (tracker + dataset metadata + per-session `data.feather` is NOT
-removed, because that file lives under the session root, not the dataset directory).
-After cleanup, pass the same dataset specs back to `prepare_forging_batch_tool` to
-reinitialize from scratch.
+dataset directory tree (tracker + dataset metadata + per-animal `surgery_data.yaml`
+copies). Per-session `data.feather` and the copied `experiment_descriptor.yaml` are
+NOT removed, because those files live under the session root, not the dataset
+directory. After cleanup, pass the same dataset specs back to
+`prepare_forging_batch_tool` to reinitialize from scratch.
 
 **`get_forging_batch_status_overview_tool` parameters:**
 
 | Parameter        | Type  | Default    | Description                                                   |
 |------------------|-------|------------|---------------------------------------------------------------|
-| `root_directory` | `str` | (required) | Absolute path to search recursively for `forging.yaml` files |
+| `root_directory` | `str` | (required) | Absolute path to search recursively for `forging_tracker.yaml` files |
 
-Walks the root with `rglob("forging.yaml")`. Each tracker's parent directory is the
-dataset root and its name is the dataset name. Returns per-dataset summaries plus
-cross-dataset aggregates.
+Walks the root with `rglob("forging_tracker.yaml")`. Each tracker's parent directory
+is the dataset root and its name is the dataset name. Returns per-dataset summaries
+plus cross-dataset aggregates.
 
 **Cancellation behavior:** `cancel_forging_tool` drains the pending queue atomically
 and marks the state canceled. Active workers complete their current session normally.
@@ -211,24 +215,30 @@ project_root/
 │   │   ├── raw_data/
 │   │   │   ├── hardware_state.yaml
 │   │   │   ├── experiment_configuration.yaml
+│   │   │   ├── experiment_descriptor.yaml
+│   │   │   ├── surgery_data.yaml
 │   │   │   └── ...
 │   │   ├── processed_data/
 │   │   │   ├── behavior_data/          ← from /behavior-processing
 │   │   │   └── mesoscope_data/
 │   │   │       ├── <single-recording>/ ← from /cindra:single-recording-processing
 │   │   │       └── multiday/{dataset_name}/  ← from /cindra:multi-recording-processing
-│   │   └── data.feather                ← FORGED OUTPUT (this pipeline)
+│   │   ├── data.feather                ← FORGED OUTPUT (this pipeline)
+│   │   └── experiment_descriptor.yaml  ← FORGED COPY (this pipeline)
 │   └── session_2/...
 └── {dataset_name}/                     ← FORGED DATASET HIERARCHY (this pipeline)
-    ├── dataset_data.yaml
-    └── forging.yaml
+    ├── dataset.yaml
+    ├── forging_tracker.yaml
+    └── animal_A/
+        └── surgery_data.yaml           ← FORGED COPY (one per animal)
 ```
 
 Key architectural facts:
 
 - **Job name:** `session_data_assembly`. Exactly one job per session in the dataset.
 - **Job specifier:** the session name.
-- **Tracker filename:** `forging.yaml`, written to `{project_root}/{dataset_name}/`.
+- **Tracker filename:** `forging_tracker.yaml`, written to
+  `{project_root}/{dataset_name}/`.
 - **ProcessingTracker lifecycle:** `SCHEDULED` → `RUNNING` → `SUCCEEDED` / `FAILED`,
   persisted as YAML.
 - **Single execution session constraint:** one batch per `sl-mcp` process. Cancel
@@ -236,12 +246,25 @@ Key architectural facts:
 - **Remote execution mode:** each worker subprocess runs
   `run_forging_pipeline(name=..., session_names=(), project_root=..., job_id=...)` so
   that only the single session identified by `job_id` is assembled.
-- **Output layout:** per-session `{session_root}/data.feather`; dataset-level
-  `{project_root}/{dataset_name}/` stores only the tracker and metadata.
+- **Output layout:** per-session `{session_root}/data.feather` plus a copy of
+  `experiment_descriptor.yaml` from `raw_data/`; the dataset hierarchy at
+  `{project_root}/{dataset_name}/` stores `dataset.yaml`, `forging_tracker.yaml`,
+  and one `{animal}/surgery_data.yaml` copy per animal (taken from each animal's
+  most recent session at dataset creation time).
 - **Reserved cores:** two cores are reserved system-wide (`RESERVED_CORES = 2`); the
   worker budget applies to the remaining cores. Each worker is a separate process.
 - **Session eligibility:** only `MESOSCOPE_EXPERIMENT` sessions — the pipeline raises
-  at dataset creation time if the first resolved session has a different type.
+  at dataset creation time if the first resolved session has a different type. Every
+  subsequent session in the batch must share the first session's `session_type` and
+  `acquisition_system`; a mismatch raises during dataset creation.
+- **Surgery data requirement:** every animal represented in the dataset must carry a
+  `surgery_data.yaml` under the most recent session's `raw_data/`. The file is copied
+  once per animal into the dataset hierarchy; a missing file raises during dataset
+  creation.
+- **Experiment descriptor requirement:** every session must carry an
+  `experiment_descriptor.yaml` under `raw_data/`. The file is copied alongside
+  `data.feather` at the end of each session assembly; a missing file raises at
+  assembly time before any computation is performed.
 
 ---
 
@@ -260,10 +283,12 @@ resolution rules are:
 | Dataset exists, sessions differ  | non-empty, diverges      | `True`           | Deletes the hierarchy, recreates from provided sessions |
 
 Use `force_recreate=True` whenever you extend, shrink, or modify the session set of an
-existing dataset. The existing tracker and any assembled data are discarded, but the
-per-session `{session_root}/data.feather` files already on disk are not touched (the
-dataset hierarchy only stores tracker + metadata). To also wipe per-session output,
-overwrite it naturally on the next run or remove each `data.feather` manually.
+existing dataset. The existing tracker, dataset metadata, and per-animal surgery
+copies are discarded, but the per-session `{session_root}/data.feather` and
+`{session_root}/experiment_descriptor.yaml` files already on disk are not touched
+(only the dataset hierarchy under `{project_root}/{dataset_name}/` is removed). To
+also wipe per-session output, overwrite it naturally on the next run or remove each
+`data.feather` manually.
 
 ---
 
@@ -436,6 +461,9 @@ To rebuild only the session set of an existing dataset without deleting first:
 | `Unable to define dataset '{name}'. The dataset does not exist under '{project_root}' and no sessions were provided...` | Provide `session_names`                                      |
 | `Unable to resolve the directory for session '{s}' under '{project_root}'.` | Session name not unique or absent under the project          |
 | `Unable to define dataset '{name}'. Dataset creation is currently supported only for mesoscope experiment sessions...` | Remove the non-mesoscope session or split the batch          |
+| `Unable to define dataset '{name}'. All sessions in a dataset must share the same session type...` | Split the batch by session type                              |
+| `Unable to define dataset '{name}'. All sessions in a dataset must be acquired by the same acquisition system...` | Split the batch by acquisition system                        |
+| `Unable to define dataset '{name}'. The latest session '{s}' for animal '{a}' does not contain a 'surgery_data.yaml' file...` | Add the missing surgery file to the animal's latest session  |
 
 ### Execution errors (`execute_forging_jobs_tool` top-level `error` or `invalid_jobs[]`)
 
@@ -455,6 +483,7 @@ To rebuild only the session set of an existing dataset without deleting first:
 | Cindra multi-day file missing (`cell_fluorescence.npy`, etc.) | Rerun `/cindra:multi-recording-processing` with the same dataset name |
 | Hardware state YAML missing / missing required field          | See `/dataset-forging-input-format` and the configuration plugin  |
 | Experiment configuration YAML missing                         | See `/dataset-forging-input-format`                               |
+| Experiment descriptor YAML missing                            | See `/dataset-forging-input-format`; add the file under `raw_data/` |
 | Polars / Arrow read errors on a behavior feather              | Rerun `/behavior-processing` — the upstream feather is corrupt    |
 | MCP tools unavailable                                         | Invoke `/forging-mcp-environment-setup`                           |
 | Out of memory                                                 | Reduce `worker_budget`                                            |

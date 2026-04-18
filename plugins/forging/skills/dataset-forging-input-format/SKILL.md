@@ -26,8 +26,10 @@ experiment configuration authoring to the configuration plugin.
 
 **Covers:**
 - Session eligibility: only `MESOSCOPE_EXPERIMENT` sessions are forgeable
-- The forged dataset hierarchy (dataset directory, `dataset_data.yaml`, `forging.yaml`)
-- The per-session `data.feather` output path
+- The forged dataset hierarchy (dataset directory, `dataset.yaml`,
+  `forging_tracker.yaml`, per-animal `surgery_data.yaml`)
+- The per-session `data.feather` output path and the copied
+  `experiment_descriptor.yaml`
 - Behavior feather inputs (which files, which columns) read from the
   `/behavior-processing` output directory
 - Cindra single-recording outputs (fluorescence arrays, classification, metadata)
@@ -35,6 +37,9 @@ experiment configuration authoring to the configuration plugin.
 - Cindra multi-day outputs discovered at `{cindra_parent}/multiday/{dataset_name}/`
 - `hardware_state.yaml` fields required at assembly time
 - `experiment_configuration.yaml` fields required at assembly time
+- `experiment_descriptor.yaml` presence required at assembly time (copied to output)
+- `surgery_data.yaml` presence required per animal at dataset creation time (copied
+  once to the dataset hierarchy)
 - Cross-library handoff ordering
 
 **Does not cover:**
@@ -63,6 +68,11 @@ else. The user-facing error message is
 `"Unable to define dataset '{name}'. Dataset creation is currently supported only for
 mesoscope experiment sessions..."`.
 
+Every subsequent session in the batch must additionally share the first session's
+`session_type` and `acquisition_system`. A mismatch raises a `ValueError` at dataset
+creation time. Split the batch by acquisition system and session type before
+calling `prepare_forging_batch_tool`.
+
 | Session type           | Eligible for forging | Notes                                                       |
 |------------------------|----------------------|-------------------------------------------------------------|
 | `MESOSCOPE_EXPERIMENT` | yes                  | The only currently supported type                           |
@@ -90,15 +100,20 @@ The forging pipeline expects the canonical sollertia project layout:
 │   │   ├── raw_data/
 │   │   │   ├── session_data.yaml            ← session marker (see /session-discovery)
 │   │   │   ├── hardware_state.yaml          ← required here
-│   │   │   └── experiment_configuration.yaml ← required here
+│   │   │   ├── experiment_configuration.yaml ← required here
+│   │   │   ├── experiment_descriptor.yaml   ← required here (copied to output)
+│   │   │   └── surgery_data.yaml            ← required on each animal's latest session
 │   │   ├── processed_data/
 │   │   │   ├── .../behavior_processing_tracker.yaml  ← discovered by rglob
 │   │   │   └── .../single_recording_tracker.yaml     ← discovered by rglob
-│   │   └── data.feather                     ← FORGED OUTPUT (this pipeline)
+│   │   ├── data.feather                     ← FORGED OUTPUT (this pipeline)
+│   │   └── experiment_descriptor.yaml       ← FORGED COPY (this pipeline)
 │   └── {session_name_2}/...
 └── {dataset_name}/                          ← FORGED DATASET HIERARCHY
-    ├── dataset_data.yaml                    ← dataset marker
-    └── forging.yaml                         ← processing tracker
+    ├── dataset.yaml                         ← dataset marker
+    ├── forging_tracker.yaml                 ← processing tracker
+    └── {animal_name_A}/
+        └── surgery_data.yaml                ← FORGED COPY (one per animal)
 ```
 
 Key facts:
@@ -112,8 +127,8 @@ Key facts:
 - **Output path:** per-session forged data lives at `{session_path}/data.feather` —
   alongside `raw_data/` and `processed_data/`, not under them.
 - **Dataset metadata vs output:** `clean_forging_output_tool` removes the dataset
-  directory (tracker + `dataset_data.yaml`) but never touches per-session
-  `data.feather` files.
+  directory (tracker + `dataset.yaml` + per-animal `surgery_data.yaml` copies) but
+  never touches per-session `data.feather` or `experiment_descriptor.yaml` files.
 
 ---
 
@@ -132,17 +147,17 @@ are uncompressed Arrow IPC produced by `/behavior-processing`:
 
 ### Always required
 
-| Feather file                       | Columns consumed                             | Use                                             |
-|------------------------------------|----------------------------------------------|-------------------------------------------------|
-| `mesoscope_frame_data.feather`     | `time_us`, `ttl_state`                       | TTL-to-frame alignment (cindra assembly)        |
-| `system_state_data.feather`        | `time_us`, `system_state`                    | System state interpolation onto reference time  |
-| `lick_data.feather`                | `time_us`, `lick_state`                      | Lick state interpolation                        |
-| `valve_data.feather`               | `time_us`, `dispensed_water_volume_uL`, `tone_state` | Water delivery + reward classification      |
-| `encoder_data.feather`             | `time_us`, `traveled_distance_cm`            | Running speed, distance, reference distance     |
-| `vr_trigger_zone_data.feather`     | `trigger_zone_start_cm`, `trigger_zone_end_cm` | Trigger-zone membership for the reference distance |
-| `vr_cue_data.feather`              | `traveled_distance_cm`, `vr_cue`             | Per-distance VR cue                             |
-| `trial_data.feather`               | `traveled_distance_cm`, `trial_type_index`   | Trial number and trial type                     |
-| `runtime_state_data.feather`       | `time_us`, `runtime_state`                   | Runtime state interpolation                     |
+| Feather file                   | Columns consumed                                     | Use                                                |
+|--------------------------------|------------------------------------------------------|----------------------------------------------------|
+| `mesoscope_frame_data.feather` | `time_us`, `ttl_state`                               | TTL-to-frame alignment (cindra assembly)           |
+| `system_state_data.feather`    | `time_us`, `system_state`                            | System state interpolation onto reference time     |
+| `lick_data.feather`            | `time_us`, `lick_state`                              | Lick state interpolation                           |
+| `valve_data.feather`           | `time_us`, `dispensed_water_volume_uL`, `tone_state` | Water delivery + reward classification             |
+| `encoder_data.feather`         | `time_us`, `traveled_distance_cm`                    | Running speed, distance, reference distance        |
+| `vr_trigger_zone_data.feather` | `trigger_zone_start_cm`, `trigger_zone_end_cm`       | Trigger-zone membership for the reference distance |
+| `vr_cue_data.feather`          | `traveled_distance_cm`, `vr_cue`                     | Per-distance VR cue                                |
+| `trial_data.feather`           | `traveled_distance_cm`, `trial_type_index`           | Trial number and trial type                        |
+| `runtime_state_data.feather`   | `time_us`, `runtime_state`                           | Runtime state interpolation                        |
 
 Only `MESOSCOPE_EXPERIMENT` sessions produce the trigger-zone, cue, trial, and runtime
 state feathers, which is why lick-training and run-training sessions are not forgeable
@@ -176,14 +191,14 @@ or multiple hits raise `FileNotFoundError` / `RuntimeError` respectively.
 The following files are read from the cindra directory at assembly time. All are
 produced by `/cindra:single-recording-processing`:
 
-| File                              | Loaded via              | Use                                                                        |
-|-----------------------------------|-------------------------|----------------------------------------------------------------------------|
-| `cell_fluorescence.npy`           | `np.load(mmap_mode="r")` | Frame count (via shape); single-day cell fluorescence (filtered by mask)   |
-| `combined_metadata.npz`           | `np.load`               | `sampling_rate[0]` → scanning frequency (for TTL pulse duration window)    |
-| `cell_classification.npy`         | `np.load(mmap_mode="r")` | Boolean mask (column 0 == 1) to filter non-cell ROIs                      |
-| `neuropil_fluorescence.npy`       | `np.load(mmap_mode="r")` | Single-day neuropil fluorescence (filtered)                                |
-| `subtracted_fluorescence.npy`     | `np.load(mmap_mode="r")` | Single-day subtracted fluorescence (filtered)                              |
-| `spikes.npy`                      | `np.load(mmap_mode="r")` | Single-day spike inference (filtered)                                      |
+| File                          | Loaded via               | Use                                                                      |
+|-------------------------------|--------------------------|--------------------------------------------------------------------------|
+| `cell_fluorescence.npy`       | `np.load(mmap_mode="r")` | Frame count (via shape); single-day cell fluorescence (filtered by mask) |
+| `combined_metadata.npz`       | `np.load`                | `sampling_rate[0]` → scanning frequency (for TTL pulse duration window)  |
+| `cell_classification.npy`     | `np.load(mmap_mode="r")` | Boolean mask (column 0 == 1) to filter non-cell ROIs                     |
+| `neuropil_fluorescence.npy`   | `np.load(mmap_mode="r")` | Single-day neuropil fluorescence (filtered)                              |
+| `subtracted_fluorescence.npy` | `np.load(mmap_mode="r")` | Single-day subtracted fluorescence (filtered)                            |
+| `spikes.npy`                  | `np.load(mmap_mode="r")` | Single-day spike inference (filtered)                                    |
 
 The frame count comes from the column dimension of `cell_fluorescence.npy` (its shape
 is `(rois, frames)`). If the mesoscope frame log contains more TTL pulses than cindra
@@ -231,10 +246,10 @@ or by pointing the forging run at the name that was used upstream.
 `raw_data/hardware_state.yaml` is loaded via `MesoscopeHardwareState.from_yaml` at
 behavior-dataset assembly time. The forging pipeline consults the following fields:
 
-| Field                       | Use                                                                   |
-|-----------------------------|-----------------------------------------------------------------------|
-| `system_state_codes`        | Int → name mapping used to convert raw codes to the `system_state` enum |
-| `minimum_brake_strength`    | Threshold for deriving the binary `brake` column from brake torque     |
+| Field                    | Use                                                                     |
+|--------------------------|-------------------------------------------------------------------------|
+| `system_state_codes`     | Int → name mapping used to convert raw codes to the `system_state` enum |
+| `minimum_brake_strength` | Threshold for deriving the binary `brake` column from brake torque      |
 
 Missing fields raise `ValueError` at assembly time. The YAML itself is authored and
 validated via the configuration plugin — this skill only documents which fields the
@@ -248,10 +263,10 @@ forging pipeline consumes.
 `MesoscopeExperimentConfiguration.from_yaml` at runtime-dataset assembly time. The
 forging pipeline consults the following structures:
 
-| Structure                                          | Use                                                                      |
-|----------------------------------------------------|--------------------------------------------------------------------------|
-| `trial_structures` keys                            | Enum categories for the forged `trial_type` column (plus `"undefined"`)  |
-| `experiment_states` values' `experiment_state_code`| Int → name mapping used to build the `runtime_state` enum                |
+| Structure                                           | Use                                                                     |
+|-----------------------------------------------------|-------------------------------------------------------------------------|
+| `trial_structures` keys                             | Enum categories for the forged `trial_type` column (plus `"undefined"`) |
+| `experiment_states` values' `experiment_state_code` | Int → name mapping used to build the `runtime_state` enum               |
 
 The runtime state mapping also hardcodes `0 → "idle"` as the default system state.
 
@@ -260,23 +275,62 @@ configuration plugin.
 
 ---
 
+## Raw-data prerequisite: experiment descriptor YAML
+
+`raw_data/experiment_descriptor.yaml` is required per session and is copied alongside
+`data.feather` at the end of each session assembly (the copy is placed directly under
+the session root, next to `data.feather`). The file is parsed as
+`MesoscopeExperimentDescriptor` and carries experimenter-authored runtime context —
+`experimenter`, `mouse_weight_g`, dispensed / consumed water volumes, the `incomplete`
+completion flag, and `experimenter_notes`.
+
+Presence is verified up front inside `_assemble_session_dataset`, before any cindra or
+behavior work is performed: a missing file raises `FileNotFoundError` with
+`"Unable to assemble session '{name}'. The session's raw data directory does not
+contain a 'experiment_descriptor.yaml' file at '{path}'. The experiment descriptor is
+required for every session in a forged dataset."`. Content is not validated by the
+forging pipeline itself (the file is only copied, not read), so authoring and
+validation belong to the configuration plugin.
+
+---
+
+## Raw-data prerequisite: per-animal surgery data YAML
+
+`raw_data/surgery_data.yaml` is required for every animal represented in a dataset,
+but only on the animal's **most recent** (natural-sorted last) session. Dataset
+creation groups resolved session paths by owning animal and, for each animal, copies
+that animal's latest session's `surgery_data.yaml` into
+`{project_root}/{dataset_name}/{animal}/surgery_data.yaml`. Surgery metadata is
+per-animal rather than per-session, so a single copy is materialized for each animal
+in the dataset.
+
+Missing files raise `FileNotFoundError` during dataset creation with
+`"Unable to define dataset '{name}'. The latest session '{session}' for animal
+'{animal}' does not contain a 'surgery_data.yaml' file at '{path}'. Surgery metadata
+is required for every animal in a forged dataset."`. Older animal sessions are
+allowed to omit the file; only the newest session per animal is consulted.
+
+---
+
 ## Cross-library handoff contract
 
 The forging pipeline is a pure consumer of upstream outputs:
 
-| Upstream producer                     | Required skill                               | Artifact location                                                               | Gates forging |
-|---------------------------------------|----------------------------------------------|---------------------------------------------------------------------------------|---------------|
-| Behavior processing pipeline          | `/behavior-processing`                       | `{processed_data}/.../behavior_processing_tracker.yaml` + feathers              | yes           |
-| Cindra single-recording pipeline      | `/cindra:single-recording-processing`        | `{processed_data}/.../single_recording_tracker.yaml` + `*.npy` / `*.npz`        | yes           |
-| Cindra multi-recording pipeline       | `/cindra:multi-recording-processing`         | `{cindra_parent}/multiday/{dataset_name}/*.npy` (dataset name must match)       | yes           |
-| Mesoscope-VR acquisition runtime      | (acquisition-side; no skill)                 | `{raw_data}/hardware_state.yaml`, `{raw_data}/experiment_configuration.yaml`    | yes           |
+| Upstream producer                | Required skill                        | Artifact location                                                                                                                                                                 | Gates forging |
+|----------------------------------|---------------------------------------|-----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|---------------|
+| Behavior processing pipeline     | `/behavior-processing`                | `{processed_data}/.../behavior_processing_tracker.yaml` + feathers                                                                                                                | yes           |
+| Cindra single-recording pipeline | `/cindra:single-recording-processing` | `{processed_data}/.../single_recording_tracker.yaml` + `*.npy` / `*.npz`                                                                                                          | yes           |
+| Cindra multi-recording pipeline  | `/cindra:multi-recording-processing`  | `{cindra_parent}/multiday/{dataset_name}/*.npy` (dataset name must match)                                                                                                         | yes           |
+| Mesoscope-VR acquisition runtime | (acquisition-side; no skill)          | `{raw_data}/hardware_state.yaml`, `{raw_data}/experiment_configuration.yaml`, `{raw_data}/experiment_descriptor.yaml`, `{raw_data}/surgery_data.yaml` (latest session per animal) | yes           |
 
 **Ordering constraint:** all four upstream producers MUST complete for every session
 in a dataset BEFORE `/dataset-forging` can assemble. Running the forging pipeline
 against a partially-processed session raises during dataset assembly — the
-`prepare_forging_batch_tool` call itself will succeed (it only resolves the dataset
-hierarchy and initializes the tracker), but the per-session job will fail during
-execution with a `FileNotFoundError` on the missing tracker or `.npy`.
+`prepare_forging_batch_tool` call itself will mostly succeed (it only resolves the
+dataset hierarchy and initializes the tracker), but dataset creation will fail up
+front if any animal's latest session is missing `surgery_data.yaml`, and per-session
+jobs will fail during execution with a `FileNotFoundError` on a missing tracker,
+missing `.npy`, or missing `experiment_descriptor.yaml`.
 
 ---
 
@@ -285,12 +339,15 @@ execution with a `FileNotFoundError` on the missing tracker or `.npy`.
 ```text
 Dataset Forging Prerequisites:
 - [ ] Every session is MESOSCOPE_EXPERIMENT
+- [ ] Every session shares the same acquisition_system
 - [ ] raw_data/hardware_state.yaml valid per configuration plugin
 -   [ ] system_state_codes populated
 -   [ ] minimum_brake_strength set (if brake module present)
 - [ ] raw_data/experiment_configuration.yaml valid per configuration plugin
 -   [ ] trial_structures defined
 -   [ ] experiment_states defined with experiment_state_code values
+- [ ] raw_data/experiment_descriptor.yaml present on every session
+- [ ] raw_data/surgery_data.yaml present on each animal's latest (natural-sorted) session
 - [ ] /behavior-processing completed — behavior_processing_tracker.yaml + feathers present
 -   [ ] mesoscope_frame_data.feather
 -   [ ] system_state_data.feather, lick_data.feather, valve_data.feather

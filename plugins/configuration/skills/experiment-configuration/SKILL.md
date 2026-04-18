@@ -207,6 +207,6 @@ not supported by the slsa MCP layer.
 | `/mcp-environment-setup`                       | Run first if the MCP server is not connected                       |
 | `/task-templates`                              | Required upstream — owns template authoring                        |
 | `/project-hierarchy`                           | Required upstream — owns project creation                          |
-| `/system-configuration`                        | Sibling — system config is consumed by the same runtime            |
+| experiment plugin `/system-configuration`      | Owns MesoscopeSystemConfiguration (moved out of this plugin)       |
 | experiment plugin `/configuration-verification`| Validates template values against the Unity prefab state           |
 | experiment plugin `/pipeline`                  | Phase 4 of the experiment lifecycle is owned by this skill         |

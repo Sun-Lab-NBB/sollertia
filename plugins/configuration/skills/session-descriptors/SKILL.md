@@ -129,6 +129,6 @@ If you need to know which descriptor file is present (when the session type is u
 | `/working-directory`     | Required prerequisite — must be run first                             |
 | `/mcp-environment-setup` | Run first if the MCP server is not connected                          |
 | `/session-data`          | Sibling — owns `SessionData` and `list_supported_session_types_tool`  |
-| `/session-snapshots`     | Sibling — owns hardware state / Zaber positions / mesoscope positions |
+| experiment plugin `/session-snapshots` | Owns hardware state / Zaber positions / mesoscope positions |
 | `/subject-metadata`      | Sibling — owns subject records                                        |
 | `/project-hierarchy`     | Provides `discover_sessions_tool` to locate sessions                  |

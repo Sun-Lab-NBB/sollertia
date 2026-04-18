@@ -1,8 +1,8 @@
 ---
 name: system-configuration
 description: >-
-  Authors and modifies the MesoscopeSystemConfiguration YAML file for sollertia-shared-assets via the
-  sl-configure MCP server. Owns the system configuration write tool and schema introspection. Covers the
+  Authors and modifies the MesoscopeSystemConfiguration YAML file for sollertia-experiment via the
+  sl-get MCP server. Owns the system configuration write tool and schema introspection. Covers the
   full nested dataclass tree (file system, microcontrollers, cameras, external assets, Google Sheets) and
   the relationship between configuration fields and the binding classes that consume them. Use when
   generating or editing the system configuration for a new Sollertia host or modifying calibration values
@@ -12,10 +12,11 @@ user-invocable: true
 
 # Sollertia system configuration
 
-Authors and modifies the `MesoscopeSystemConfiguration` YAML file for `sollertia-shared-assets` using
-the `sl-configure mcp` MCP server. This skill is the **exclusive** owner of
-`write_system_configuration_tool`, `describe_system_configuration_schema_tool`, and
-`list_supported_acquisition_systems_tool` — no other skill in the marketplace may call these.
+Authors and modifies the `MesoscopeSystemConfiguration` YAML file for `sollertia-experiment` using
+the `sl-get mcp` MCP server. This skill is the **exclusive** owner of `write_system_configuration_tool`
+and `describe_system_configuration_schema_tool` — no other skill in the marketplace may call these. The
+`list_supported_acquisition_systems_tool` lives on `sl-configure mcp` (sollertia-shared-assets) since the
+enum itself remains the shared vocabulary across the platform.
 
 For the full per-field schema reference, see
 [mesoscope-reference.md](references/mesoscope-reference.md).
@@ -33,12 +34,13 @@ For the full per-field schema reference, see
 - Relationship between configuration fields and the binding classes that consume them
 
 **Does not cover:**
-- `ServerConfiguration` authoring (see `/server-configuration`)
-- `MesoscopeExperimentConfiguration` authoring (see `/experiment-configuration`)
-- Task template authoring (see `/task-templates`)
-- Session-level data (see `/session-data`, `/session-descriptors`, `/session-snapshots`)
-- Initial working directory setup (see `/working-directory`)
-- Binding class semantics for cameras and microcontrollers (see the experiment plugin's
+- `ServerConfiguration` authoring (forging plugin `/server-configuration`)
+- `MesoscopeExperimentConfiguration` authoring (configuration plugin `/experiment-configuration`)
+- Task template authoring (configuration plugin `/task-templates`)
+- Session-level data (configuration plugin `/session-data`, `/session-descriptors`;
+  experiment plugin `/session-snapshots`)
+- Initial working directory setup (configuration plugin `/working-directory`)
+- Binding class semantics for cameras and microcontrollers (sibling skills
   `/camera-interface` and `/microcontroller-interface`)
 
 ---
@@ -61,20 +63,27 @@ nested dataclass):
 | `MesoscopeGoogleSheets`          | Sheet IDs for animal metadata, water log, surgery log            |
 | Top-level fields                 | System name, default Unity scene, valve calibration assignments  |
 
-`ServerConfiguration` (remote storage transfer) lives in a sibling YAML file and is owned by
-`/server-configuration`.
+`ServerConfiguration` (remote storage transfer) lives in a sibling YAML file and is owned by the
+forging plugin's `/server-configuration` skill.
 
 ---
 
 ## MCP tool surface
 
+All tools below are hosted on `sl-get mcp` (sollertia-experiment):
+
 | Tool                                        | Purpose                                                               |
 |---------------------------------------------|-----------------------------------------------------------------------|
-| `list_supported_acquisition_systems_tool`   | Lists supported acquisition system names (currently: mesoscope)       |
-| `describe_system_configuration_schema_tool` | Returns the field schema for a given acquisition system               |
+| `describe_system_configuration_schema_tool` | Returns the field schema for MesoscopeSystemConfiguration             |
 | `read_system_configuration_tool`            | Reads the active system configuration YAML from the working directory |
 | `write_system_configuration_tool`           | Writes a new system configuration YAML (exclusive to this skill)      |
+| `validate_system_configuration_tool`        | Validates the loaded system configuration and reports mount status    |
+| `check_system_mounts_tool`                  | Checks every filesystem path declared in the configuration            |
 | `read_session_system_configuration_tool`    | Reads the frozen system configuration captured at session start       |
+
+The companion enumeration `list_supported_acquisition_systems_tool` (on `sl-configure mcp`,
+sollertia-shared-assets) returns the enum values. The CLI entry point for authoring is
+`sl-configure system` hosted by sollertia-experiment.
 
 The write tool accepts the full nested dictionary that maps onto the dataclass tree. It validates the
 shape against the schema before writing and refuses partial updates — to change a single field, read
@@ -86,8 +95,9 @@ first, mutate the dictionary, then write the whole thing back.
 
 ### Step 1: Verify prerequisites
 
-- The `sollertia-shared-assets` MCP server is connected (else hand off to `/mcp-environment-setup`).
-- The working directory is set (else hand off to `/working-directory`).
+- The `sl-get mcp` server (sollertia-experiment) is connected (else hand off to the experiment plugin's
+  `/mcp-environment-setup`).
+- The working directory is set (else hand off to the configuration plugin's `/working-directory`).
 
 ### Step 2: Determine whether to create or modify
 
@@ -97,8 +107,7 @@ an empty / not-found response, you are creating from scratch.
 ### Step 3: Inspect the schema
 
 ```text
-list_supported_acquisition_systems_tool()
-describe_system_configuration_schema_tool(acquisition_system="mesoscope")
+describe_system_configuration_schema_tool()
 ```
 
 The schema response gives you the canonical field names, types, defaults, and units. Use this **and**
@@ -125,8 +134,8 @@ For a new host, the values you cannot guess are:
 
 ```text
 write_system_configuration_tool(
-    acquisition_system="mesoscope",
-    configuration={ ... full nested dict ... }
+    configuration_payload={ ... full nested dict ... },
+    overwrite=True,
 )
 ```
 
@@ -139,8 +148,8 @@ For modification cases, diff the relevant fields against the previous read.
 
 ### Step 7: Hand off for server configuration
 
-If the user is also setting up remote storage transfer, hand off to `/server-configuration`. This skill
-does not write the server configuration file.
+If the user is also setting up remote storage transfer, hand off to the forging plugin's
+`/server-configuration` skill. This skill does not write the server configuration file.
 
 ---
 
@@ -160,36 +169,38 @@ Common modification cases:
 | Mesoscope acquisition path moved | `MesoscopeExternalAssets.<path>` fields                    |
 
 For any change that adds or removes fields (rather than just changing values), the dataclass extension
-itself is a code change to `sollertia-shared-assets`. The experiment plugin's `/camera-interface` and
-`/microcontroller-interface` skills document the dataclass extension procedure and explicitly hand off
-back to this skill for the YAML regeneration step.
+itself is a code change to `sollertia-experiment` (the package that now owns MesoscopeSystemConfiguration
+and its nested hardware dataclasses). The sibling `/camera-interface` and `/microcontroller-interface`
+skills document the dataclass extension procedure and explicitly hand off back to this skill for the YAML
+regeneration step.
 
 ---
 
 ## Verification checklist
 
 ```text
-- [ ] /working-directory has been run on this host
-- [ ] sollertia-shared-assets MCP server is connected
+- [ ] /working-directory has been run on this host (configuration plugin)
+- [ ] sl-get mcp server (sollertia-experiment) is connected
 - [ ] describe_system_configuration_schema_tool was called and used as the source of truth for field names
 - [ ] references/mesoscope-reference.md was consulted for field semantics
 - [ ] Camera indices and microcontroller ports were sourced from /acquisition-system-setup, not guessed
 - [ ] write_system_configuration_tool succeeded without schema errors
 - [ ] read_system_configuration_tool returned the expected configuration after the write
-- [ ] Did not call write_server_configuration_tool — handed off to /server-configuration if needed
+- [ ] Did not call write_server_configuration_tool — handed off to forging plugin /server-configuration if needed
 ```
 
 ---
 
 ## Related skills
 
-| Skill                                          | Relationship                                                        |
-|------------------------------------------------|---------------------------------------------------------------------|
-| `/working-directory`                           | Required prerequisite — must be run first                           |
-| `/mcp-environment-setup`                       | Run first if the MCP server is not connected                        |
-| `/server-configuration`                        | Sibling — owns `ServerConfiguration`                                |
-| `/experiment-configuration`                    | Authored separately, consumes system configuration at runtime       |
-| `/session-data`                                | Sibling — session-level data                                        |
-| experiment plugin `/acquisition-system-setup`  | Source of camera indices and microcontroller ports via discovery    |
-| experiment plugin `/camera-interface`          | Dataclass extension procedure; hands off here for YAML regeneration |
-| experiment plugin `/microcontroller-interface` | Dataclass extension procedure; hands off here for YAML regeneration |
+| Skill                                              | Relationship                                                        |
+|----------------------------------------------------|---------------------------------------------------------------------|
+| configuration plugin `/working-directory`          | Required prerequisite — must be run first                           |
+| this plugin `/mcp-environment-setup`               | Run first if sl-get mcp is not connected                            |
+| forging plugin `/server-configuration`             | Owns `ServerConfiguration` (moved out of the configuration plugin)  |
+| configuration plugin `/experiment-configuration`   | Authored separately, consumes system configuration at runtime       |
+| configuration plugin `/session-data`               | Session-level data                                                  |
+| this plugin `/session-snapshots`                   | Sibling — per-session ZaberPositions and MesoscopePositions         |
+| this plugin `/acquisition-system-setup`            | Source of camera indices and microcontroller ports via discovery    |
+| this plugin `/camera-interface`                    | Dataclass extension procedure; hands off here for YAML regeneration |
+| this plugin `/microcontroller-interface`           | Dataclass extension procedure; hands off here for YAML regeneration |

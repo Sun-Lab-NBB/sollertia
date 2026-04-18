@@ -2,16 +2,16 @@
 name: datasets
 description: >-
   Discovers, reads, and writes dataset-level YAML files (DatasetData, DatasetSession membership) for
-  sollertia-shared-assets via the sl-configure MCP server. Owns the dataset write tools and schema
-  introspection. Use when curating a dataset, adding sessions to an existing dataset, or building
-  tooling that needs dataset-level introspection.
+  sollertia-forgery via the sl-mcp MCP server. Owns the dataset write tools and schema introspection.
+  Use when curating a dataset, adding sessions to an existing dataset, or building tooling that needs
+  dataset-level introspection.
 user-invocable: true
 ---
 
 # Sollertia datasets
 
 Discovers, reads, and writes the dataset-level YAML files that group sessions for downstream analysis
-and sharing. Uses the `sl-configure mcp` MCP server.
+and sharing. Uses the `sl-mcp` MCP server (sollertia-forgery).
 
 ---
 
@@ -84,9 +84,9 @@ describe_dataset_schema_tool()
 
 ### Step 4: Identify member sessions
 
-Use `discover_sessions_tool` (owned by `/project-hierarchy`) to enumerate candidate sessions. Filter by
-project, animal, session type, and date range as needed. Confirm the membership list with the user
-before writing.
+Use `discover_sessions_tool` (owned by `/session-discovery` on the same `sl-mcp` server) to enumerate
+candidate sessions. Filter by project, animal, session type, and date range as needed. Confirm the
+membership list with the user before writing.
 
 ### Step 5: Author the dataset
 
@@ -124,8 +124,8 @@ downstream tooling and analysis notebooks may have references that break silentl
 ## Verification checklist
 
 ```text
-- [ ] /working-directory has been run on this host
-- [ ] sollertia-shared-assets MCP server is connected
+- [ ] /working-directory has been run on this host (configuration plugin)
+- [ ] sollertia-forgery MCP server (sl-mcp) is connected
 - [ ] describe_dataset_schema_tool was used as the source of truth for field names
 - [ ] discover_datasets_tool was called before creating new datasets (avoid duplicates)
 - [ ] Member sessions were discovered via discover_sessions_tool, not guessed
@@ -137,9 +137,9 @@ downstream tooling and analysis notebooks may have references that break silentl
 
 ## Related skills
 
-| Skill                    | Relationship                                                    |
-|--------------------------|-----------------------------------------------------------------|
-| `/working-directory`     | Required prerequisite — must be run first                       |
-| `/mcp-environment-setup` | Run first if the MCP server is not connected                    |
-| `/project-hierarchy`     | Provides `discover_sessions_tool` for dataset membership lookup |
-| `/session-data`          | Sibling — sessions are the membership unit of datasets          |
+| Skill                              | Relationship                                                        |
+|------------------------------------|---------------------------------------------------------------------|
+| `/working-directory`               | Required prerequisite — owned by the configuration plugin           |
+| `/forging-mcp-environment-setup`   | Run first if the sl-mcp server is not connected                     |
+| `/session-discovery`               | Provides `discover_sessions_tool` for dataset membership lookup     |
+| `/session-data`                    | Sibling — sessions are the membership unit of datasets              |

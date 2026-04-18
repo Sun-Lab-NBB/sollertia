@@ -246,13 +246,13 @@ below summarize where each downstream skill picks up after the working directory
 | Downstream skill              | What it needs from this skill                                         |
 |-------------------------------|-----------------------------------------------------------------------|
 | `/mcp-environment-setup`      | (sibling — run first if the MCP server is not connected)              |
-| `/system-configuration`       | Working directory                                                     |
-| `/server-configuration`       | Working directory                                                     |
+| experiment plugin `/system-configuration` | Working directory                                         |
+| forging plugin `/server-configuration` | Working directory                                            |
 | `/task-templates`             | Working directory + task templates directory                          |
 | `/experiment-configuration`   | Working directory                                                     |
 | `/project-hierarchy`          | Working directory                                                     |
 | `/session-data`               | Working directory                                                     |
 | `/session-descriptors`        | Working directory                                                     |
-| `/session-snapshots`          | Working directory                                                     |
+| experiment plugin `/session-snapshots` | Working directory                                            |
 | `/subject-metadata`           | Working directory + Google credentials                                |
-| `/datasets`                   | Working directory                                                     |
+| forging plugin `/datasets`    | Working directory                                                     |

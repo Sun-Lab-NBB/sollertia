@@ -2,9 +2,11 @@
 name: session-snapshots
 description: >-
   Reads and writes the per-session frozen runtime snapshot YAML files (MesoscopeHardwareState,
-  ZaberPositions, MesoscopePositions) via the sl-configure MCP server. Owns the snapshot write tools.
-  Use when repairing a corrupted snapshot, patching positions after manual stage adjustment, or
-  inspecting the runtime context that was captured when a session started.
+  ZaberPositions, MesoscopePositions). The hardware state tool set lives on the sl-configure MCP server
+  (sollertia-shared-assets); the Zaber and mesoscope position tool sets live on the sl-get MCP server
+  (sollertia-experiment). Owns the snapshot write tools. Use when repairing a corrupted snapshot,
+  patching positions after manual stage adjustment, or inspecting the runtime context that was captured
+  when a session started.
 user-invocable: true
 ---
 
@@ -14,6 +16,13 @@ Reads and writes the per-session frozen runtime snapshot YAML files captured at 
 skill is the **exclusive** owner of the three snapshot write tools — no other skill in the marketplace
 may call `write_session_hardware_state_tool`, `write_session_zaber_positions_tool`, or
 `write_session_mesoscope_positions_tool`.
+
+The tools are split across two MCP servers after the recent asset redistribution:
+
+- `sl-configure mcp` (sollertia-shared-assets) hosts the `*_hardware_state_tool` pair, since
+  `MesoscopeHardwareState` is shared between the acquisition runtime and the processing pipeline.
+- `sl-get mcp` (sollertia-experiment) hosts the `*_zaber_positions_tool` and `*_mesoscope_positions_tool`
+  pairs, since `ZaberPositions` and `MesoscopePositions` are owned by the acquisition runtime.
 
 ---
 
@@ -59,14 +68,14 @@ out of sync with reality.
 
 ## MCP tool surface
 
-| Tool                                          | Purpose                                                              |
-|-----------------------------------------------|----------------------------------------------------------------------|
-| `read_session_hardware_state_tool`            | Reads `MesoscopeHardwareState` for a session                         |
-| `write_session_hardware_state_tool`           | Writes (repairs) `MesoscopeHardwareState` (exclusive to this skill)  |
-| `read_session_zaber_positions_tool`           | Reads `ZaberPositions` for a session                                 |
-| `write_session_zaber_positions_tool`          | Writes (patches) `ZaberPositions` (exclusive to this skill)          |
-| `read_session_mesoscope_positions_tool`       | Reads `MesoscopePositions` for a session                             |
-| `write_session_mesoscope_positions_tool`      | Writes (patches) `MesoscopePositions` (exclusive to this skill)      |
+| Tool                                          | MCP server           | Purpose                                                              |
+|-----------------------------------------------|----------------------|----------------------------------------------------------------------|
+| `read_session_hardware_state_tool`            | `sl-configure mcp`   | Reads `MesoscopeHardwareState` for a session                         |
+| `write_session_hardware_state_tool`           | `sl-configure mcp`   | Writes (repairs) `MesoscopeHardwareState` (exclusive to this skill)  |
+| `read_session_zaber_positions_tool`           | `sl-get mcp`         | Reads `ZaberPositions` for a session                                 |
+| `write_session_zaber_positions_tool`          | `sl-get mcp`         | Writes (patches) `ZaberPositions` (exclusive to this skill)          |
+| `read_session_mesoscope_positions_tool`       | `sl-get mcp`         | Reads `MesoscopePositions` for a session                             |
+| `write_session_mesoscope_positions_tool`      | `sl-get mcp`         | Writes (patches) `MesoscopePositions` (exclusive to this skill)      |
 
 ---
 
@@ -75,8 +84,9 @@ out of sync with reality.
 ### Inspecting the runtime context for a session
 
 1. **Verify prerequisites:**
-   - MCP server connected (else `/mcp-environment-setup`).
-   - Working directory set (else `/working-directory`).
+   - Both `sl-configure mcp` (sollertia-shared-assets) and `sl-get mcp` (sollertia-experiment) are
+     connected. Use the corresponding `/mcp-environment-setup` skill in whichever plugin is offline.
+   - Working directory set (else the configuration plugin's `/working-directory`).
 2. **Read the snapshots:**
    ```text
    read_session_hardware_state_tool(session_path="<absolute>")
@@ -125,8 +135,9 @@ three writes are owned here.
 ## Verification checklist
 
 ```text
-- [ ] /working-directory has been run on this host
-- [ ] sollertia-shared-assets MCP server is connected
+- [ ] /working-directory has been run on this host (configuration plugin)
+- [ ] sl-configure mcp (sollertia-shared-assets) is connected
+- [ ] sl-get mcp (sollertia-experiment) is connected
 - [ ] User confirmed the planned snapshot patch (snapshots are historical records)
 - [ ] write_session_*_tool succeeded without errors
 - [ ] read_session_*_tool returned the expected content after every write
@@ -137,12 +148,13 @@ three writes are owned here.
 
 ## Related skills
 
-| Skill                                  | Relationship                                                              |
-|----------------------------------------|---------------------------------------------------------------------------|
-| `/working-directory`                   | Required prerequisite — must be run first                                 |
-| `/mcp-environment-setup`               | Run first if the MCP server is not connected                              |
-| `/session-data`                        | Sibling — owns the `SessionData` marker file                              |
-| `/session-descriptors`                 | Sibling — owns the per-session descriptor files                           |
-| `/system-configuration`                | Provides `read_session_system_configuration_tool` for cross-reference     |
-| `/experiment-configuration`            | Provides `read_session_experiment_configuration_tool` for cross-reference |
-| experiment plugin `/zaber-interface`   | Live Zaber motor configuration during runtime — does not touch snapshots  |
+| Skill                                              | Relationship                                                              |
+|----------------------------------------------------|---------------------------------------------------------------------------|
+| configuration plugin `/working-directory`          | Required prerequisite — must be run first                                 |
+| configuration plugin `/mcp-environment-setup`      | Run first if `sl-configure mcp` is not connected                          |
+| this plugin `/mcp-environment-setup`               | Run first if `sl-get mcp` is not connected                                |
+| configuration plugin `/session-data`               | Owns the `SessionData` marker file                                        |
+| configuration plugin `/session-descriptors`        | Owns the per-session descriptor files                                     |
+| this plugin `/system-configuration`                | Provides `read_session_system_configuration_tool` for cross-reference     |
+| configuration plugin `/experiment-configuration`   | Provides `read_session_experiment_configuration_tool` for cross-reference |
+| this plugin `/zaber-interface`                     | Live Zaber motor configuration during runtime — does not touch snapshots  |

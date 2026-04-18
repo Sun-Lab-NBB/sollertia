@@ -202,16 +202,16 @@ on the `sollertia-shared-assets` MCP server being reachable.
 | Skill                                      | Asset it owns                                          |
 |--------------------------------------------|--------------------------------------------------------|
 | `/working-directory`                       | Working directory, credentials, templates dir path     |
-| `/system-configuration`                    | `MesoscopeSystemConfiguration`                         |
-| `/server-configuration`                    | `ServerConfiguration`                                  |
 | `/task-templates`                          | `TaskTemplate` + trial primitives                      |
 | `/experiment-configuration`                | `MesoscopeExperimentConfiguration` + `ExperimentState` |
 | `/project-hierarchy`                       | Projects (`create_project_tool`)                       |
 | `/session-data`                            | `SessionData` + `SessionTypes`                         |
 | `/session-descriptors`                     | The 4 per-session-type descriptors                     |
-| `/session-snapshots`                       | Frozen hardware state, Zaber, mesoscope positions      |
 | `/subject-metadata`                        | All animal-scoped subject record types                 |
-| `/datasets`                                | `DatasetData` / `DatasetSession`                       |
+| experiment plugin `/system-configuration`  | `MesoscopeSystemConfiguration` (moved out)             |
+| experiment plugin `/session-snapshots`     | Frozen hardware state / Zaber / mesoscope positions    |
+| forging plugin `/server-configuration`     | `ServerConfiguration` (moved out of this plugin)       |
+| forging plugin `/datasets`                 | `DatasetData` / `DatasetSession` (moved out)           |
 | experiment plugin `/mcp-environment-setup` | Equivalent diagnostic for `sl-get` / `sl-manage`       |
 
 ---

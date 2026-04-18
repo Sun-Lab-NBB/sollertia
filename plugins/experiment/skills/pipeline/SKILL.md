@@ -179,16 +179,16 @@ Is the system already configured?
 | You need to…                                       | Use…                                                                           |
 |----------------------------------------------------|--------------------------------------------------------------------------------|
 | Set the working directory or credentials          | configuration plugin `/working-directory`                                       |
-| Author the system configuration YAML              | configuration plugin `/system-configuration`                                    |
-| Author the server (remote transfer) configuration | configuration plugin `/server-configuration`                                    |
+| Author the system configuration YAML              | experiment plugin `/system-configuration`                                    |
+| Author the server (remote transfer) configuration | forging plugin `/server-configuration`                                          |
 | Create a project                                  | configuration plugin `/project-hierarchy`                                       |
 | Author a task template                            | configuration plugin `/task-templates`                                          |
 | Author a per-project experiment configuration     | configuration plugin `/experiment-configuration`                                |
 | Read a session marker / inspect session metadata  | configuration plugin `/session-data`                                            |
 | Read or repair a session descriptor               | configuration plugin `/session-descriptors`                                     |
-| Read or patch a frozen runtime snapshot           | configuration plugin `/session-snapshots`                                       |
+| Read or patch a frozen runtime snapshot           | experiment plugin `/session-snapshots`                                       |
 | Look up animal surgery / implants / drugs         | configuration plugin `/subject-metadata`                                        |
-| Curate or read a dataset                          | configuration plugin `/datasets`                                                |
+| Curate or read a dataset                          | forging plugin `/datasets`                                                      |
 | Discover GenICam cameras                          | `ataraxis@video:camera-setup`                                                   |
 | Test camera acquisition interactively             | `ataraxis@video:camera-setup`                                                   |
 | Discover microcontrollers / verify MQTT           | `ataraxis@communication:microcontroller-setup`                                  |

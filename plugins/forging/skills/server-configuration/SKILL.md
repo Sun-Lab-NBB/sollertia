@@ -1,8 +1,8 @@
 ---
 name: server-configuration
 description: >-
-  Authors and modifies the ServerConfiguration YAML file for sollertia-shared-assets via the sl-configure
-  MCP server. Covers remote storage transfer settings, cloud compute server credentials, and the
+  Authors and modifies the ServerConfiguration YAML file for sollertia-forgery via the sl-mcp MCP
+  server. Covers remote storage transfer settings, cloud compute server credentials, and the
   read/write tool surface for the server configuration. Use when setting up remote data transfer for a new
   Sollertia host or rotating server credentials.
 user-invocable: true
@@ -10,10 +10,9 @@ user-invocable: true
 
 # Sollertia server configuration
 
-Authors and modifies the `ServerConfiguration` YAML file for `sollertia-shared-assets` using the
-`sl-configure mcp` MCP server. This skill is the **exclusive** owner of `ServerConfiguration` reads and
-writes — no other skill in the marketplace may call `read_server_configuration_tool` or
-`write_server_configuration_tool`.
+Authors and modifies the `ServerConfiguration` YAML file for `sollertia-forgery` using the `sl-mcp`
+MCP server. This skill is the **exclusive** owner of `ServerConfiguration` reads and writes — no other
+skill in the marketplace may call `read_server_configuration_tool` or `write_server_configuration_tool`.
 
 ---
 
@@ -64,8 +63,8 @@ whole thing back.
 
 ### Step 1: Verify prerequisites
 
-- The `sollertia-shared-assets` MCP server is connected (else hand off to `/mcp-environment-setup`).
-- The working directory is set (else hand off to `/working-directory`).
+- The `sollertia-forgery` `sl-mcp` server is connected (else hand off to `/forging-mcp-environment-setup`).
+- The working directory is set (else hand off to the configuration plugin's `/working-directory`).
 
 ### Step 2: Determine whether to create or modify
 
@@ -84,7 +83,7 @@ For a new host, the values you cannot guess are:
 ### Step 4: Write the configuration
 
 ```text
-write_server_configuration_tool(configuration={ ... full nested dict ... })
+write_server_configuration_tool(configuration_payload={ ... full nested dict ... }, overwrite=True)
 ```
 
 ### Step 5: Verify
@@ -107,8 +106,8 @@ Call `read_server_configuration_tool` and confirm the returned configuration mat
 ## Verification checklist
 
 ```text
-- [ ] /working-directory has been run on this host
-- [ ] sollertia-shared-assets MCP server is connected
+- [ ] /working-directory has been run on this host (configuration plugin)
+- [ ] sollertia-forgery sl-mcp server is connected
 - [ ] read_server_configuration_tool returned the expected configuration before any write
 - [ ] write_server_configuration_tool succeeded without schema errors
 - [ ] read_server_configuration_tool returned the expected configuration after the write
@@ -120,9 +119,9 @@ Call `read_server_configuration_tool` and confirm the returned configuration mat
 
 ## Related skills
 
-| Skill                                 | Relationship                                                            |
-|---------------------------------------|-------------------------------------------------------------------------|
-| `/working-directory`                  | Required prerequisite — must be run first                               |
-| `/mcp-environment-setup`              | Run first if the MCP server is not connected                            |
-| `/system-configuration`               | Sibling — both configurations live in the same working directory        |
-| experiment plugin `/data-management`  | Triggers remote transfers using the values authored by this skill       |
+| Skill                                    | Relationship                                                            |
+|------------------------------------------|-------------------------------------------------------------------------|
+| `/working-directory` (config plugin)     | Required prerequisite — owned by the configuration plugin               |
+| `/forging-mcp-environment-setup`         | Run first if the sl-mcp server is not connected                         |
+| `/system-configuration` (config plugin)  | Sibling — both configurations live in the same working directory        |
+| experiment plugin `/data-management`     | Triggers remote transfers using the values authored by this skill       |

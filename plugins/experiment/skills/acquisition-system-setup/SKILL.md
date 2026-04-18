@@ -69,7 +69,7 @@ this plugin's `/experiment-mcp-environment-setup`).
 
 | System      | Description                                 | Schema reference                                                              |
 |-------------|---------------------------------------------|-------------------------------------------------------------------------------|
-| `mesoscope` | Two-photon mesoscope with VR behavioral rig | configuration plugin `/system-configuration` (MESOSCOPE_REFERENCE.md companion) |
+| `mesoscope` | Two-photon mesoscope with VR behavioral rig | this plugin `/system-configuration` (MESOSCOPE_REFERENCE.md companion) |
 
 When working with a specific acquisition system, hand off to `/system-configuration` to read the canonical
 field schema. This skill does not duplicate that schema reference.
@@ -313,8 +313,8 @@ hand off to the configuration plugin skill that owns the affected asset.
 | Skill                                            | Relationship                                                       |
 |--------------------------------------------------|--------------------------------------------------------------------|
 | configuration plugin `/working-directory`        | Owns bootstrap state (working dir, credentials, templates dir)     |
-| configuration plugin `/system-configuration`     | Owns `MesoscopeSystemConfiguration` authoring and validation       |
-| configuration plugin `/server-configuration`     | Owns `ServerConfiguration` authoring and validation                |
+| this plugin `/system-configuration`     | Owns `MesoscopeSystemConfiguration` authoring and validation       |
+| forging plugin `/server-configuration`           | Owns `ServerConfiguration` authoring and validation                |
 | configuration plugin `/project-hierarchy`        | Owns project creation                                              |
 | configuration plugin `/task-templates`           | Owns task template authoring                                       |
 | configuration plugin `/experiment-configuration` | Owns per-project experiment configuration authoring                |

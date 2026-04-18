@@ -20,8 +20,10 @@ verification via MCP tool, data querying, and interpretation guidance.
 ## Scope
 
 **Covers:**
-- Per-session output file (`{session_root}/data.feather`) and the dataset-level
-  hierarchy (`{project_root}/{dataset_name}/dataset_data.yaml` + `forging.yaml`)
+- Per-session output files (`{session_root}/data.feather` plus a copy of
+  `experiment_descriptor.yaml`) and the dataset-level hierarchy
+  (`{project_root}/{dataset_name}/dataset.yaml`, `forging_tracker.yaml`, and
+  per-animal `{animal}/surgery_data.yaml` copies)
 - Full column schema: cindra fluorescence + behavior + runtime / experiment
 - Column masking rules (`_mask_non_run_experiment_data`) and conditional columns
 - Fluorescence array interpretation (shape, dtype, cell filtering)
@@ -47,47 +49,62 @@ verification via MCP tool, data querying, and interpretation guidance.
 
 ### Verification tool
 
-| Tool                             | Purpose                                                                          |
-|----------------------------------|----------------------------------------------------------------------------------|
-| `verify_forging_output_tool`     | Loads the dataset marker, checks every session's `data.feather`, reports tracker |
+| Tool                             | Purpose                                                                                                                               |
+|----------------------------------|---------------------------------------------------------------------------------------------------------------------------------------|
+| `verify_forging_output_tool`     | Loads the dataset marker, checks every session's `data.feather` and copied descriptor, checks per-animal surgery copies, reads tracker |
 
 **Parameters:**
 
-| Parameter      | Type  | Default    | Description                                                                               |
-|----------------|-------|------------|-------------------------------------------------------------------------------------------|
-| `dataset_path` | `str` | (required) | Absolute path to the dataset root directory (`{project_root}/{dataset_name}/`, containing `dataset_data.yaml`) |
+| Parameter      | Type  | Default    | Description                                                                                               |
+|----------------|-------|------------|-----------------------------------------------------------------------------------------------------------|
+| `dataset_path` | `str` | (required) | Absolute path to the dataset root directory (`{project_root}/{dataset_name}/`, containing `dataset.yaml`) |
 
 **Return structure:**
 
 ```text
-verified:            Boolean — True when every file is readable AND at least one session exists
+verified:            Boolean — True when every file is valid AND at least one session exists AND at least one animal exists
 dataset_path:        Echo of the input dataset root
-dataset_name:        Name loaded from dataset_data.yaml
+dataset_name:        Name loaded from dataset.yaml
 files[]:             Per-session verification results:
   session_name:      The session's name
   animal:            The session's owning animal name
   file:              Absolute path to {session_path}/data.feather
-  valid:             True if the file could be loaded via Polars IPC
-  columns:           Column names in the DataFrame (when valid)
-  row_count:         Total row count (when valid)
-  error:             Error message (when invalid or missing)
-total_files:         Number of sessions in the dataset (== number of file checks)
-tracker:             {jobs[], summary} loaded from forging.yaml; {} if absent;
+  valid:             True if the feather file AND the companion descriptor are both valid
+  columns:           Column names in the DataFrame (when the feather loaded)
+  row_count:         Total row count (when the feather loaded)
+  error:             Error message (when the feather is invalid or missing)
+  descriptor:        Nested verification of the copied experiment_descriptor.yaml:
+    file:            Absolute path to {session_path}/experiment_descriptor.yaml
+    valid:           True if the file parses as MesoscopeExperimentDescriptor
+    error:           Error message (when missing or unparseable)
+total_files:         Number of sessions in the dataset (== number of per-session checks)
+animals[]:           Per-animal verification of the copied surgery_data.yaml:
+  animal:            The animal name
+  file:              Absolute path to {dataset_root}/{animal}/surgery_data.yaml
+  valid:             True if the file parses as SurgeryData
+  error:             Error message (when missing or unparseable)
+total_animals:       Number of animals in the dataset (== number of surgery checks)
+tracker:             {jobs[], summary} loaded from forging_tracker.yaml; {} if absent;
                      {"error": "..."} if unreadable
-error:               Present only when dataset_path is invalid or dataset_data.yaml cannot be loaded
+error:               Present only when dataset_path is invalid or dataset.yaml cannot be loaded
 ```
 
 The tool walks the dataset's session list (from `DatasetData.sessions`) and checks
 each session's `data.feather` via the shared `analyze_feather_file` helper with
-`max_sample_rows=0`, so verification only costs metadata reads (no full table
+`max_sample_rows=0`, so feather verification only costs metadata reads (no full table
 materialization). A missing `data.feather` is reported as `valid: False` with
-`error: "data.feather not found."` and is enough to set the top-level `verified`
-flag to False.
+`error: "data.feather not found."`. The companion `experiment_descriptor.yaml` copied
+alongside is separately loaded via `MesoscopeExperimentDescriptor.from_yaml`, and any
+feather-only-valid entry is demoted to `valid: False` when the descriptor is missing
+or unparseable. For every unique animal in `DatasetData.animals`, the per-animal
+`{animal}/surgery_data.yaml` is loaded via `SurgeryData.from_yaml` and reported in
+the `animals[]` list. Any invalid feather, descriptor, or surgery file flips the
+top-level `verified` flag to False.
 
-The dataset-level forging tracker (`forging.yaml`) is always attempted alongside. If
-the tracker reports failed or scheduled jobs, that indicates the forging run is
-incomplete regardless of which feathers happen to exist on disk — re-invoke
-`/dataset-forging`.
+The dataset-level forging tracker (`forging_tracker.yaml`) is always attempted
+alongside. If the tracker reports failed or scheduled jobs, that indicates the
+forging run is incomplete regardless of which feathers happen to exist on disk —
+re-invoke `/dataset-forging`.
 
 ### Query tool
 
@@ -156,26 +173,36 @@ Each forged dataset writes into two locations:
 {project_root}/
 ├── {animal_A}/
 │   ├── {session_1}/
-│   │   └── data.feather            ← per-session forged output
+│   │   ├── data.feather                ← per-session forged output
+│   │   └── experiment_descriptor.yaml  ← copied from raw_data/ at assembly
 │   └── {session_2}/
-│       └── data.feather
-└── {dataset_name}/                 ← dataset hierarchy
-    ├── dataset_data.yaml           ← dataset marker (DatasetData)
-    └── forging.yaml                ← forging ProcessingTracker
+│       ├── data.feather
+│       └── experiment_descriptor.yaml
+└── {dataset_name}/                     ← dataset hierarchy
+    ├── dataset.yaml                    ← dataset marker (DatasetData)
+    ├── forging_tracker.yaml            ← forging ProcessingTracker
+    └── {animal_A}/
+        └── surgery_data.yaml           ← copied once per animal at dataset creation
 ```
 
 Key facts:
 
 - **Per-session output:** `{session_path}/data.feather`. The path comes from
   `DatasetSession.session_path.joinpath("data.feather")` inside the pipeline. This is
-  directly under the session root, not under `processed_data/`.
-- **Dataset hierarchy:** `{project_root}/{dataset_name}/` stores only the metadata and
-  tracker. `clean_forging_output_tool` removes this directory but does not touch the
-  per-session `data.feather` files.
+  directly under the session root, not under `processed_data/`. A copy of the
+  session's `experiment_descriptor.yaml` is written next to it so the forged session
+  carries experimenter context (mouse weight, water dispensed/consumed, completion
+  status, notes) without reaching back into the raw session.
+- **Dataset hierarchy:** `{project_root}/{dataset_name}/` stores the metadata
+  (`dataset.yaml`), the processing tracker (`forging_tracker.yaml`), and one
+  `{animal}/surgery_data.yaml` per animal copied from each animal's latest session.
+  `clean_forging_output_tool` removes this directory but does not touch the
+  per-session `data.feather` or `experiment_descriptor.yaml` files.
 - **File format:** uncompressed Arrow IPC, memory-mappable via
   `pl.read_ipc(source, memory_map=True)`.
 - **Cross-session layout:** every session in a dataset emits exactly one
-  `data.feather` with the same column schema modulo conditional columns.
+  `data.feather` (plus the descriptor copy) with the same feather column schema
+  modulo conditional columns.
 
 ---
 
@@ -362,8 +389,8 @@ onto the corresponding `distance_cm` reference vector rather than onto `time_us`
 Dataset Forging Results Audit:
 - [ ] Verified MCP server connectivity (invoked /forging-mcp-environment-setup if unavailable)
 - [ ] Ran get_forging_batch_status_overview_tool to locate completed datasets
-- [ ] Ran verify_forging_output_tool per dataset; confirmed every data.feather is valid
-- [ ] Cross-checked forging.yaml tracker state — no FAILED or lingering SCHEDULED jobs
+- [ ] Ran verify_forging_output_tool per dataset; confirmed every data.feather, companion experiment_descriptor.yaml, and per-animal surgery_data.yaml is valid
+- [ ] Cross-checked forging_tracker.yaml tracker state — no FAILED or lingering SCHEDULED jobs
 - [ ] Queried at least one representative session via query_forging_data_tool to confirm schema
 - [ ] Verified expected conditional columns are present (brake / torque / guidance as applicable)
 - [ ] Confirmed fluorescence arrays load with the expected (frames, rois) shape via Polars
