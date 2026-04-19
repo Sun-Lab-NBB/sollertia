@@ -7,7 +7,7 @@ description: >-
   Use when inspecting an individual session, confirming a session marker file exists, enumerating
   supported session type strings, validating a session's file inventory against its session_type,
   or auditing lifecycle progress across every session under the data root. SessionData is written
-  only by sl-run at runtime — this skill is read-only for that file.
+  only by the acquisition runtime — this skill is read-only for that file.
 user-invocable: true
 ---
 
@@ -19,7 +19,8 @@ MCP server. This skill is the **exclusive** owner of `validate_session_tool`,
 `get_session_status_tool`, and `get_batch_session_status_overview_tool` — no other skill in the
 marketplace may call these.
 
-`SessionData` itself has **no setter**. It is written only by `sl-run` at runtime. The discovery
+`SessionData` itself has **no setter**. It is written only by the acquisition runtime at session
+start. The discovery
 side of "which descriptors exist for a session" is included here as a natural-share query.
 
 ---
@@ -43,7 +44,7 @@ side of "which descriptors exist for a session" is included here as a natural-sh
 - Reading or writing the per-session Zaber and mesoscope-objective position snapshots (see the
   experiment plugin's `/session-snapshots`)
 - Reading the frozen system configuration captured at session start. This is owned by the
-  acquisition runtime (`sl-experiment`); slsa does not currently expose a read tool for it.
+  acquisition runtime (`sollertia-experiment`); slsa does not currently expose a read tool for it.
 - Reading the frozen experiment configuration captured at session start (see
   `/experiment-configuration` for `read_session_experiment_configuration_tool`)
 - Reading subject metadata (see `/subject-metadata`)
@@ -62,10 +63,10 @@ session root):
 
 ```text
 <session>/
-├── raw_data/                                  # acquired data and frozen metadata (written by sl-run)
+├── raw_data/                                  # acquired data and frozen metadata (written by the acquisition runtime)
 │   ├── session_data.yaml                      # SessionData marker (THIS SKILL)
 │   ├── <descriptor>.yaml                      # /session-descriptors (filename per session_type)
-│   ├── system_configuration.yaml              # frozen system config (owned by sl-experiment)
+│   ├── system_configuration.yaml              # frozen system config (owned by sollertia-experiment)
 │   ├── experiment_configuration.yaml          # /experiment-configuration (frozen, experiment sessions only)
 │   ├── hardware_state.yaml                    # /session-hardware-state
 │   ├── zaber_positions.yaml                   # experiment plugin /session-snapshots
@@ -117,7 +118,8 @@ need them. They are read-only and may also be called as natural shares.
 session-level question — not "what is in this descriptor file?" — a descriptor-level question. Other
 skills may call it as a natural share.
 
-`SessionData` is **not writeable** through the slsa MCP layer. It is created by `sl-run` at session
+`SessionData` is **not writeable** through the slsa MCP layer. It is created by the acquisition
+runtime at session
 start and never modified afterward. There is no `write_session_data_tool` and there will not be one.
 
 ---
@@ -147,7 +149,7 @@ start and never modified afterward. There is no `write_session_data_tool` and th
    `read_session_experiment_configuration_tool`.
 
 Note: there is no slsa MCP tool for reading the frozen `system_configuration.yaml` snapshot — the
-system configuration dataclass moved to `sl-experiment` during the asset redistribution. If you need
+system configuration dataclass moved to `sollertia-experiment` during the asset redistribution. If you need
 the frozen system configuration, read the YAML directly or hand off to the experiment plugin.
 
 ### Querying supported session types
@@ -255,4 +257,4 @@ Typical workflow:
 | experiment plugin `/system-configuration`      | Authors the system configuration consumed at session start              |
 | `/experiment-configuration`                    | Owns `read_session_experiment_configuration_tool` (frozen exp config)   |
 | forging plugin `/datasets`                     | Datasets aggregate sessions                                             |
-| experiment plugin `/managing-session-data`     | Preprocesses, migrates, and deletes sessions via `sl-manage` MCP        |
+| experiment plugin `/managing-session-data`     | Preprocesses, migrates, and deletes sessions                            |

@@ -61,12 +61,12 @@ same host. Other MCP tools resolve their default paths against this directory.
 
 The system configuration YAML file captures everything that is host-machine-specific and stable
 across sessions. The dataclass that backs it (e.g. `MesoscopeSystemConfiguration`) lives in the
-acquisition runtime package (`sl-experiment`) — **not in slsa** — because slsa stopped owning
+acquisition runtime package (`sollertia-experiment`) — **not in slsa** — because slsa stopped owning
 system-level hardware configuration during the asset redistribution. For the mesoscope system, the
 file captures local storage paths, camera indices and encoding parameters, microcontroller USB
 ports and hardware calibration data, Zaber motor ports, MQTT broker settings, and Google Sheets
-IDs for animal metadata. The acquisition runtime (`sl-run`) reads this file once at session start
-to initialize the hardware layer.
+IDs for animal metadata. The acquisition runtime reads this file once at session start to
+initialize the hardware layer.
 
 The file lives in the slsa working directory by convention so that other host-local tooling can
 locate it, but its contents are owned and authored by the experiment plugin's `/system-configuration`
@@ -82,7 +82,7 @@ The `ServerConfiguration` YAML file stores the remote server hostname or IP, the
 path on the local machine, the remote storage root where preprocessed sessions are deposited, and
 optional per-project storage path overrides. The dataclass that backs it lives in the
 **sollertia-forgery** package — slsa does not own it. After a session is preprocessed locally, the
-data-management pipeline (`sl-manage`) uses this file to transfer the output to a long-term remote
+data-management pipeline uses this file to transfer the output to a long-term remote
 storage tier (typically a cloud compute server).
 
 The file lives in the slsa working directory by convention so that other host-local tooling can

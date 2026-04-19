@@ -25,9 +25,8 @@ Diagnoses and resolves sollertia-shared-assets MCP server connectivity and envir
 
 **Does not cover:**
 - MCP tool usage for any specific configuration task (see other assets plugin skills)
-- sollertia-experiment `sl-get` / `sl-manage` MCP servers (see the experiment plugin's
-  `/experiment-mcp-environment-setup`)
-- sollertia-forgery `sl-mcp` MCP server (see the forging plugin's `/forging-mcp-environment-setup`)
+- sollertia-experiment MCP servers (see the experiment plugin's `/experiment-mcp-environment-setup`)
+- sollertia-forgery MCP server (see the forging plugin's `/forging-mcp-environment-setup`)
 - Unity Editor or sollertia-unity-tasks installation (see the sollertia-unity-tasks README)
 - Unity Editor relay (`McpBridge`) connectivity diagnostics (see the unity plugin's
   `/unity-mcp-environment-setup`)
@@ -49,8 +48,7 @@ slsa = "sollertia_shared_assets.interfaces.cli:slsa_cli"
 - **Purpose**: Discovery, read, write, and schema introspection of *shared* Sollertia configuration
   and runtime data files — the assets consumed by multiple libraries. Configuration and runtime data
   files exclusive to `sollertia-experiment` and `sollertia-forgery` live in those packages and are
-  served by their own MCP servers: `sl-get` / `sl-manage` (sollertia-experiment) and `sl-mcp`
-  (sollertia-forgery). Also relays Unity Editor operations for the unity plugin's tools.
+  served by their own MCP servers. Also relays Unity Editor operations for the unity plugin's tools.
 
 The server accepts a `--transport` option (defaults to `stdio`). The assets plugin's `plugin.json`
 configures the Claude assistant to launch the server automatically:
@@ -190,8 +188,8 @@ they all depend on the `sollertia-shared-assets` MCP server being reachable.
 | unity plugin `/task-prefabs`                            | Downstream — Unity-relay consumer                       |
 | unity plugin `/scenes`                                  | Downstream — Unity-relay consumer                       |
 | unity plugin `/play-mode`                               | Downstream — Unity-relay consumer                       |
-| experiment plugin `/experiment-mcp-environment-setup`   | Peer — equivalent diagnostic for `sl-get` / `sl-manage` |
-| forging plugin `/forging-mcp-environment-setup`         | Peer — equivalent diagnostic for `sl-mcp`               |
+| experiment plugin `/experiment-mcp-environment-setup`   | Peer — equivalent diagnostic for the experiment plugin's MCP servers |
+| forging plugin `/forging-mcp-environment-setup`         | Peer — equivalent diagnostic for the forging plugin's MCP server     |
 
 ---
 

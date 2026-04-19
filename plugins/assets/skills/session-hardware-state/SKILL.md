@@ -18,9 +18,9 @@ This skill is the **exclusive** owner of `write_session_hardware_state_tool` and
 `describe_session_hardware_state_schema_tool` — no other skill in the marketplace may call these.
 
 `MesoscopeHardwareState` lives in `sollertia-shared-assets` (not the acquisition runtime) because it
-is consumed by both the runtime (`sl-experiment`) and the processing pipeline (`sollertia-forgery`).
-That is why the read/write/describe tools live on the slsa MCP server even though the file is
-written by `sl-run` at session start.
+is consumed by both the acquisition runtime and the processing pipeline. That is why the
+read/write/describe tools live on the slsa MCP server even though the file itself is written by the
+acquisition runtime at session start.
 
 ---
 
@@ -36,8 +36,8 @@ written by `sl-run` at session start.
 - Reading the `SessionData` marker (see `/session-data`)
 - Reading or writing per-session descriptors (see `/session-descriptors`)
 - Reading or writing the Zaber motor position snapshot (`zaber_positions.yaml`) or the mesoscope
-  objective position snapshot (`mesoscope_positions.yaml`) — both live on the `sl-get` MCP server
-  and are owned by the experiment plugin's `/session-snapshots`
+  objective position snapshot (`mesoscope_positions.yaml`) — both are owned by the experiment
+  plugin's `/session-snapshots`
 - Reading the frozen experiment configuration captured at session start (see
   `/experiment-configuration` for `read_session_experiment_configuration_tool`)
 - Reading subject metadata (see `/subject-metadata`)
@@ -49,7 +49,7 @@ written by `sl-run` at session start.
 ## What is `MesoscopeHardwareState`
 
 `MesoscopeHardwareState` is the snapshot of every per-rig hardware module parameter that was active
-when `sl-run` started the session. The file is written **once at session start** by the acquisition
+when the acquisition runtime started the session. The file is written **once at session start** by the acquisition
 runtime and never modified afterward. The processing pipeline reads it to translate raw acquired
 signals back into physical units and to know which modules were used.
 
@@ -121,8 +121,8 @@ needs to inspect hardware state.
    ```
 4. **Build the corrected payload** as a JSON-friendly dict matching the schema. Set fields whose
    modules were not active during the session to `None`.
-5. **Confirm the planned write with the user.** This file is normally written only by `sl-run` at
-   session start; manual edits are irreversible without a backup.
+5. **Confirm the planned write with the user.** This file is normally written only by the
+   acquisition runtime at session start; manual edits are irreversible without a backup.
 6. **Write the corrected snapshot:**
    ```text
    write_session_hardware_state_tool(
