@@ -38,40 +38,51 @@ side of "which descriptors exist for a session" is included here as a natural-sh
 
 **Does not cover:**
 - Reading or writing per-session descriptors (see `/session-descriptors`)
-- Reading or writing per-session frozen runtime snapshots — hardware state, Zaber positions, mesoscope
-  positions (see `/session-snapshots`)
-- Reading the frozen system configuration captured at session start (see `/system-configuration` for
-  `read_session_system_configuration_tool`)
-- Reading the frozen experiment configuration captured at session start (see `/experiment-configuration`
-  for `read_session_experiment_configuration_tool`)
+- Reading or writing the per-session `MesoscopeHardwareState` snapshot (see
+  `/session-hardware-state`)
+- Reading or writing the per-session Zaber and mesoscope-objective position snapshots (see the
+  experiment plugin's `/session-snapshots`)
+- Reading the frozen system configuration captured at session start. This is owned by the
+  acquisition runtime (`sl-experiment`); slsa does not currently expose a read tool for it.
+- Reading the frozen experiment configuration captured at session start (see
+  `/experiment-configuration` for `read_session_experiment_configuration_tool`)
 - Reading subject metadata (see `/subject-metadata`)
 - Discovering projects, animals, or sessions (see `/project-hierarchy`)
-- Datasets that aggregate sessions (see `/datasets`)
+- Datasets that aggregate sessions (see forging plugin's `/datasets`)
 - Initial working directory setup (see `/working-directory`)
-- Preprocessing, deleting, or migrating sessions (experiment plugin `/data-management`)
+- Preprocessing, deleting, or migrating sessions (see the experiment plugin's
+  `/managing-session-data`)
 
 ---
 
 ## Anatomy of a session directory
 
-Every Sollertia session is a directory containing:
+Every Sollertia session is a directory whose YAML files live **inside `raw_data/`** (not at the
+session root):
 
 ```text
-<session-id>/
-├── session_data.yaml                    # SessionData — the canonical marker (THIS SKILL)
-├── <session-type>_descriptor.yaml       # /session-descriptors
-├── system_configuration.yaml            # /system-configuration (frozen)
-├── experiment_configuration.yaml        # /experiment-configuration (frozen, experiment sessions only)
-├── mesoscope_hardware_state.yaml        # /session-snapshots
-├── zaber_positions.yaml                 # /session-snapshots
-├── mesoscope_positions.yaml             # /session-snapshots
-├── raw_data/                            # acquired data (no skill — written by sl-run)
-└── processed_data/                      # populated by experiment plugin /data-management
+<session>/
+├── raw_data/                                  # acquired data and frozen metadata (written by sl-run)
+│   ├── session_data.yaml                      # SessionData marker (THIS SKILL)
+│   ├── <descriptor>.yaml                      # /session-descriptors (filename per session_type)
+│   ├── system_configuration.yaml              # frozen system config (owned by sl-experiment)
+│   ├── experiment_configuration.yaml          # /experiment-configuration (frozen, experiment sessions only)
+│   ├── hardware_state.yaml                    # /session-hardware-state
+│   ├── zaber_positions.yaml                   # experiment plugin /session-snapshots
+│   ├── mesoscope_positions.yaml               # experiment plugin /session-snapshots
+│   ├── nk.bin                                 # incomplete-session marker (removed when runtime initializes)
+│   └── ... acquired data files ...
+└── processed_data/                            # populated by experiment plugin /managing-session-data
 ```
 
-The `SessionData` file is the discovery marker — `discover_sessions_tool` (owned by `/project-hierarchy`)
-walks the working directory tree and recognizes any directory containing a `session_data.yaml`. This
-skill owns reading the marker after it has been discovered.
+`discover_sessions_tool` (owned by `/project-hierarchy`) walks the data root looking for
+`session_data.yaml` markers. The session root is always two directory levels above the marker
+(`<session>/raw_data/session_data.yaml`). This skill owns reading the marker after it has been
+discovered.
+
+Note: the per-session `MesoscopeHardwareState` file is named `hardware_state.yaml`, not
+`mesoscope_hardware_state.yaml`. The mesoscope-experiment descriptor file is named
+`experiment_descriptor.yaml`, not `mesoscope_experiment_descriptor.yaml`.
 
 ---
 
@@ -82,7 +93,7 @@ skill owns reading the marker after it has been discovered.
 | `lick training`          | `lick_training_descriptor.yaml`                   |
 | `run training`           | `run_training_descriptor.yaml`                    |
 | `window checking`        | `window_checking_descriptor.yaml`                 |
-| `mesoscope experiment`   | `mesoscope_experiment_descriptor.yaml`            |
+| `mesoscope experiment`   | `experiment_descriptor.yaml`                      |
 
 ---
 
@@ -129,11 +140,15 @@ start and never modified afterward. There is no `write_session_data_tool` and th
    discover_session_descriptors_tool(session_path="<absolute>")
    ```
 5. **Hand off to `/session-descriptors`** to read the descriptor contents.
-6. **Hand off to `/session-snapshots`** to read the frozen hardware / Zaber / mesoscope positions.
-7. **Hand off to `/system-configuration`** for the frozen system configuration via
-   `read_session_system_configuration_tool`.
+6. **Hand off to `/session-hardware-state`** to read the frozen `MesoscopeHardwareState`.
+7. **Hand off to the experiment plugin's `/session-snapshots`** to read the Zaber and
+   mesoscope-objective position snapshots.
 8. **Hand off to `/experiment-configuration`** for the frozen experiment configuration via
    `read_session_experiment_configuration_tool`.
+
+Note: there is no slsa MCP tool for reading the frozen `system_configuration.yaml` snapshot — the
+system configuration dataclass moved to `sl-experiment` during the asset redistribution. If you need
+the frozen system configuration, read the YAML directly or hand off to the experiment plugin.
 
 ### Querying supported session types
 
@@ -148,9 +163,8 @@ when handing off to `/session-descriptors` to read a descriptor).
 
 ## Session lifecycle status
 
-A Sollertia session moves through a sequence of lifecycle states — acquired, preprocessed,
-transferred to long-term storage, and included in a dataset. This skill exposes three tools that
-report where each session sits in that pipeline.
+A Sollertia session moves through a small set of lifecycle states. This skill exposes three tools
+that report where each session sits in that pipeline.
 
 ### Validating a single session's file inventory
 
@@ -159,10 +173,17 @@ validate_session_tool(session_path="<absolute>")
 ```
 
 Reads the session's `SessionData` marker, determines the expected file inventory from its
-`session_type`, and reports any missing files (descriptor, frozen system / experiment configs,
-hardware / Zaber / mesoscope position snapshots, `raw_data/` contents). Use this before handing off
-to `/data-management` for preprocessing — a session that fails validation cannot be preprocessed
-safely.
+`session_type`, and reports any missing files. The current checks are:
+
+- The descriptor file (filename derived from `session_type`).
+- The frozen `experiment_configuration.yaml` (only required when `session_type` is
+  `mesoscope experiment`).
+- The frozen `system_configuration.yaml`.
+
+Returns `valid` (True / False), an `issues` list, a `summary` (session_name, project, animal,
+session_type, incomplete flag), and the resolved `session_path`. The check does **not** verify
+hardware-state, position snapshots, or the contents of `raw_data/` beyond these files. Use this
+before handing off to the experiment plugin's `/managing-session-data` for preprocessing.
 
 ### Per-session lifecycle status
 
@@ -170,30 +191,36 @@ safely.
 get_session_status_tool(session_path="<absolute>")
 ```
 
-Returns the session's current pipeline stage (e.g., `raw`, `preprocessed`, `transferred`,
-`dataset-member`), along with timestamps for each transition and the set of files that triggered
-each inference. Use this to answer "what has been done to this session so far?" without reading
-every underlying YAML or directory manually.
+Returns the session's coarse-grained status by inspecting two signals only:
+
+- The presence of the `nk.bin` incomplete-session marker in `raw_data/`.
+- Whether `processed_data/` exists and contains any files.
+
+The tool returns `status` (one of `incomplete`, `acquired`, `processed`), the boolean `incomplete`
+and `has_processed_data` flags, and the resolved `session_path`. It does **not** report transferred
+or dataset-member states, does **not** include transition timestamps, and does **not** enumerate
+the files that triggered the inference.
 
 ### Batch status overview
 
 ```text
-get_batch_session_status_overview_tool()
+get_batch_session_status_overview_tool(root_directory="<absolute path to data root>")
 ```
 
-Walks every session under the working directory's data root and returns a summary of lifecycle
-stages across the entire corpus. Use this when auditing readiness for a release, diagnosing stalls
-in a preprocessing pipeline, or reporting progress to a stakeholder. It is a read-only aggregation
-— it does not mutate any session state.
+Walks every session under the supplied data root (the `root_directory` argument is required after
+the asset redistribution) and applies the same coarse `incomplete` / `acquired` / `processed`
+classification per session. Returns `counts` (per-status totals plus an `error` bucket for sessions
+that failed to load), `sessions` (the per-session entries), `total_sessions`, and the resolved
+`root_directory`. It is a read-only aggregation.
 
 Typical workflow:
 
-1. Call `get_batch_session_status_overview_tool()` to get the summary.
+1. Call `get_batch_session_status_overview_tool(root_directory=…)` to get the summary.
 2. For any session in an unexpected state, drill in with `get_session_status_tool(session_path=…)`.
 3. For sessions reported as incomplete, call `validate_session_tool(session_path=…)` to identify
    missing files.
-4. Hand off to `/session-descriptors`, `/session-snapshots`, or experiment plugin's
-   `/data-management` to remediate.
+4. Hand off to `/session-descriptors`, `/session-hardware-state`, the experiment plugin's
+   `/session-snapshots`, or the experiment plugin's `/managing-session-data` to remediate.
 
 ---
 
@@ -205,24 +232,27 @@ Typical workflow:
 - [ ] read_session_data_tool returned an intact marker before any further inspection
 - [ ] Discovered descriptor files via discover_session_descriptors_tool before reading
 - [ ] Did not attempt to write SessionData (not supported)
-- [ ] validate_session_tool was called before handing off to /data-management for preprocessing
-- [ ] Handed off to /session-descriptors, /session-snapshots, /subject-metadata, /system-configuration,
-      or /experiment-configuration for any read that goes deeper than the marker
+- [ ] validate_session_tool was called before handing off to the experiment plugin's
+      /managing-session-data for preprocessing
+- [ ] Handed off to /session-descriptors, /session-hardware-state, /subject-metadata,
+      /experiment-configuration, or the experiment plugin's /session-snapshots for any read that
+      goes deeper than the marker
 ```
 
 ---
 
 ## Related skills
 
-| Skill                                | Relationship                                                              |
-|--------------------------------------|---------------------------------------------------------------------------|
-| `/working-directory`                 | Required prerequisite — must be run first                                 |
-| `/assets-mcp-environment-setup`             | Run first if the MCP server is not connected                              |
-| `/project-hierarchy`                 | Owns `discover_sessions_tool` and the project tree walk                   |
-| `/session-descriptors`               | Sibling — owns the per-session descriptor read/write/schema               |
-| experiment plugin `/session-snapshots` | Owns the frozen hardware / Zaber / mesoscope position snapshots         |
-| `/subject-metadata`                  | Sibling — owns animal-scoped subject records                              |
-| experiment plugin `/system-configuration` | Owns `read_session_system_configuration_tool` (frozen system config)   |
-| `/experiment-configuration`          | Owns `read_session_experiment_configuration_tool` (frozen exp config)     |
-| forging plugin `/datasets`           | Datasets aggregate sessions                                               |
-| experiment plugin `/data-management` | Preprocesses, migrates, and deletes sessions via `sl-manage` MCP          |
+| Skill                                          | Relationship                                                            |
+|------------------------------------------------|-------------------------------------------------------------------------|
+| `/working-directory`                           | Required prerequisite — must be run first                               |
+| `/assets-mcp-environment-setup`                | Run first if the MCP server is not connected                            |
+| `/project-hierarchy`                           | Owns `discover_sessions_tool` and the project tree walk                 |
+| `/session-descriptors`                         | Sibling — owns the per-session descriptor read/write/schema             |
+| `/session-hardware-state`                      | Sibling — owns the per-session `MesoscopeHardwareState` snapshot        |
+| experiment plugin `/session-snapshots`         | Owns the frozen Zaber and mesoscope-objective position snapshots        |
+| `/subject-metadata`                            | Sibling — owns animal-scoped subject records                            |
+| experiment plugin `/system-configuration`      | Authors the system configuration consumed at session start              |
+| `/experiment-configuration`                    | Owns `read_session_experiment_configuration_tool` (frozen exp config)   |
+| forging plugin `/datasets`                     | Datasets aggregate sessions                                             |
+| experiment plugin `/managing-session-data`     | Preprocesses, migrates, and deletes sessions via `sl-manage` MCP        |

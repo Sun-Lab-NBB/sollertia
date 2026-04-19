@@ -30,7 +30,7 @@ call it.
 - Reading or writing `SessionData` (see `/session-data`)
 - Reading or writing session descriptors (see `/session-descriptors`)
 - Reading subject metadata (see `/subject-metadata`)
-- Reading or writing datasets (see `/datasets`)
+- Reading or writing datasets (see forging plugin's `/datasets`)
 - Initial working directory setup (see `/working-directory`)
 
 The `discover_*` tools below are read-only and may be called as **natural shares** by other skills that
@@ -40,28 +40,36 @@ need to enumerate the hierarchy. Only `create_project_tool` is exclusive to this
 
 ## The project hierarchy
 
-A Sollertia working directory contains zero or more projects. Each project is a top-level directory
-under the working directory and has the following nested structure:
+A Sollertia data root (the project hierarchy root, distinct from the slsa working directory) contains
+zero or more projects. Each project is a top-level directory under the data root and has the
+following nested structure:
 
 ```text
-<working-directory>/
+<root-directory>/
 └── <project>/
+    ├── configuration/                          # MesoscopeExperimentConfiguration files
+    │   ├── <experiment-1>.yaml
+    │   └── <experiment-2>.yaml
     ├── <animal-1>/
-    │   ├── <session-1>/        # SessionData lives here
+    │   ├── <session-1>/
+    │   │   └── raw_data/
+    │   │       └── session_data.yaml           # SessionData marker — discovered here
     │   ├── <session-2>/
     │   └── ...
     ├── <animal-2>/
     │   └── ...
-    ├── experiments/             # MesoscopeExperimentConfiguration files
-    │   ├── <experiment-1>.yaml
-    │   └── <experiment-2>.yaml
     └── ...
 ```
+
+The per-project experiment YAML directory is `configuration/`, not `experiments/`. The per-session
+`session_data.yaml` marker lives **inside `<session>/raw_data/`**, not at the session root.
 
 Subjects are a parallel hierarchy that crosses projects — a single animal may participate in multiple
 projects over its lifetime, and `SubjectData` records are keyed by subject ID, not by project.
 
-Datasets are a higher-level grouping that aggregates sessions across projects and animals.
+Datasets are a higher-level grouping that aggregates sessions across projects and animals; a dataset
+is identified by a `dataset.yaml` marker discoverable anywhere under the data root. Datasets are
+owned by the forging plugin's `/datasets` skill.
 
 ---
 
@@ -105,15 +113,20 @@ summary, no need to walk the hierarchy manually.
    - The working directory is set (else `/working-directory`).
 2. **Confirm the project does not already exist:**
    ```text
-   discover_projects_tool()
+   discover_projects_tool(root_directory="<absolute path to data root>")
    ```
 3. **Create the project:**
    ```text
-   create_project_tool(project="<project-name>")
+   create_project_tool(
+       project="<project-name>",
+       root_directory="<absolute path to data root>",
+   )
    ```
+   `root_directory` is required for both calls. The slsa working directory is a separate concept
+   (cache root for platform configuration) and does not implicitly resolve the data root.
 4. **Verify creation:**
    ```text
-   discover_projects_tool()
+   discover_projects_tool(root_directory="<absolute path to data root>")
    ```
 5. **Hand off to `/experiment-configuration`** if the user wants to author an experiment configuration
    for the new project. Project creation does not author any experiment YAML — that is a separate
@@ -123,13 +136,18 @@ summary, no need to walk the hierarchy manually.
 
 1. **Verify the project and animal exist:**
    ```text
-   discover_projects_tool()
-   discover_animals_tool(project="<project>")
+   discover_projects_tool(root_directory="<absolute>")
+   discover_animals_tool(project="<project>", root_directory="<absolute>")
    ```
 2. **List sessions:**
    ```text
-   discover_sessions_tool(project="<project>", animal="<animal>")
+   discover_sessions_tool(
+       root_directory="<absolute>",
+       project="<project>",
+       animal_id="<animal>",
+   )
    ```
+   The animal filter kwarg is `animal_id`, not `animal`.
 3. **Hand off to `/session-data`** to read individual `SessionData` markers, or to `/session-descriptors`
    to read the per-session descriptors.
 
@@ -137,8 +155,9 @@ summary, no need to walk the hierarchy manually.
 
 1. **List subjects:**
    ```text
-   discover_subjects_tool()
+   discover_subjects_tool(root_directory="<absolute>")
    ```
+   `root_directory` is required. Pass `project="<name>"` to scope the listing to a single project.
 2. **Hand off to `/subject-metadata`** to read individual subject records (surgery, implants,
    injections, drugs).
 
@@ -154,8 +173,8 @@ summary, no need to walk the hierarchy manually.
 - [ ] discover_projects_tool returned the new project after creation
 - [ ] Did not call any write_* or set_* tool from this skill — only create_project_tool
 - [ ] Handed off to /experiment-configuration for any experiment authoring
-- [ ] Handed off to /session-data, /session-descriptors, /subject-metadata, or /datasets for any read
-      that goes deeper than the hierarchy itself
+- [ ] Handed off to /session-data, /session-descriptors, /subject-metadata, or forging plugin's
+      /datasets for any read that goes deeper than the hierarchy itself
 ```
 
 ---
@@ -170,4 +189,4 @@ summary, no need to walk the hierarchy manually.
 | `/session-data`                | Reads `SessionData` markers discovered via this skill              |
 | `/session-descriptors`         | Reads per-session descriptors discovered via this skill            |
 | `/subject-metadata`            | Reads subject records discovered via this skill                    |
-| `/datasets`                    | Aggregates sessions discovered via this skill                      |
+| forging plugin `/datasets`     | Aggregates sessions discovered via this skill                      |

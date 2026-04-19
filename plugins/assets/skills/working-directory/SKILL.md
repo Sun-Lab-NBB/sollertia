@@ -29,14 +29,14 @@ configuration or runtime tooling.
 - Explaining what each configurable asset is, why it exists, and when it is needed
 
 **Does not cover:**
-- Authoring system configuration (see `/system-configuration`)
-- Authoring server configuration (see `/server-configuration`)
+- Authoring system configuration (see experiment plugin's `/system-configuration`)
+- Authoring server configuration (see forging plugin's `/server-configuration`)
 - Authoring task templates (see `/task-templates`)
 - Authoring experiment configurations (see `/experiment-configuration`)
 - Creating projects (see `/project-hierarchy`)
-- Reading session-level data (see `/session-data`, `/session-descriptors`, `/session-snapshots`,
-  `/subject-metadata`)
-- Reading datasets (see `/datasets`)
+- Reading session-level data (see `/session-data`, `/session-descriptors`, `/session-hardware-state`,
+  `/subject-metadata`, and experiment plugin's `/session-snapshots`)
+- Reading datasets (see forging plugin's `/datasets`)
 - Diagnosing MCP server connectivity (see `/assets-mcp-environment-setup`)
 
 ---
@@ -59,30 +59,40 @@ same host. Other MCP tools resolve their default paths against this directory.
 
 ### system_configuration.yaml
 
-The system configuration YAML file captures everything that is host-machine-specific and stable across
-sessions. Its schema depends on the acquisition system type — the only currently supported type is
-`MesoscopeSystemConfiguration`, but the design accommodates additional system types. For the mesoscope
-system, this includes local storage paths, camera indices and encoding parameters, microcontroller USB
-ports and hardware calibration data, Zaber motor ports, MQTT broker settings, and Google Sheets IDs for
-animal metadata. The acquisition runtime (`sl-run`) reads this file once at session start to know how
-to talk to every piece of hardware on the rig — without it, the hardware layer cannot be initialized.
+The system configuration YAML file captures everything that is host-machine-specific and stable
+across sessions. The dataclass that backs it (e.g. `MesoscopeSystemConfiguration`) lives in the
+acquisition runtime package (`sl-experiment`) — **not in slsa** — because slsa stopped owning
+system-level hardware configuration during the asset redistribution. For the mesoscope system, the
+file captures local storage paths, camera indices and encoding parameters, microcontroller USB
+ports and hardware calibration data, Zaber motor ports, MQTT broker settings, and Google Sheets
+IDs for animal metadata. The acquisition runtime (`sl-run`) reads this file once at session start
+to initialize the hardware layer.
 
-It is typically authored once when a new acquisition PC is brought online and rarely changed afterward.
-Modifications happen when hardware is swapped (new camera, re-calibrated valve, different USB port
-assignment) or when Google Sheet IDs rotate. Authoring is owned by `/system-configuration`.
+The file lives in the slsa working directory by convention so that other host-local tooling can
+locate it, but its contents are owned and authored by the experiment plugin's `/system-configuration`
+skill. This skill never reads or writes it.
+
+It is typically authored once when a new acquisition PC is brought online and rarely changed
+afterward. Modifications happen when hardware is swapped (new camera, re-calibrated valve, different
+USB port assignment) or when Google Sheet IDs rotate.
 
 ### server_configuration.yaml
 
-The `ServerConfiguration` YAML file stores the remote server hostname or IP, the SSH credentials path
-on the local machine, the remote storage root where preprocessed sessions are deposited, and optional
-per-project storage path overrides. After a session is preprocessed locally, the data management
-pipeline (`sl-manage`) uses this file to transfer the output to a long-term remote storage tier
-(typically a cloud compute server).
+The `ServerConfiguration` YAML file stores the remote server hostname or IP, the SSH credentials
+path on the local machine, the remote storage root where preprocessed sessions are deposited, and
+optional per-project storage path overrides. The dataclass that backs it lives in the
+**sollertia-forgery** package — slsa does not own it. After a session is preprocessed locally, the
+data-management pipeline (`sl-manage`) uses this file to transfer the output to a long-term remote
+storage tier (typically a cloud compute server).
 
-It is authored when a new acquisition PC is connected to a remote server, then updated when the server
-hostname changes, SSH keys are rotated, or the remote storage path moves. It rotates independently of
-the system configuration — the two live side by side in the working directory but have different
-lifecycles. Authoring is owned by `/server-configuration`.
+The file lives in the slsa working directory by convention so that other host-local tooling can
+locate it, but its contents are owned and authored by the forging plugin's `/server-configuration`
+skill. This skill never reads or writes it.
+
+It is authored when a new acquisition PC is connected to a remote server, then updated when the
+server hostname changes, SSH keys are rotated, or the remote storage path moves. It rotates
+independently of the system configuration — the two live side by side in the working directory but
+have different lifecycles.
 
 ### google_credentials.json
 
@@ -202,9 +212,10 @@ inspect or modify any template content from this skill; that is owned by `/task-
 ### Working directory
 
 - **New host:** Always — no other configuration skill can run until the working directory is set.
-- **Relocating the Sollertia data root:** Step 2 to point at the new location. Note that relocating the
-  working directory does **not** migrate the configuration files inside it. The user must either move
-  those files manually or re-author them via `/system-configuration` and `/server-configuration`.
+- **Relocating the Sollertia data root:** Step 2 to point at the new location. Note that relocating
+  the working directory does **not** migrate the configuration files inside it. The user must either
+  move those files manually or re-author them via the experiment plugin's `/system-configuration`
+  and the forging plugin's `/server-configuration`.
 - **MCP tools fail with "working directory not set" or "no working directory":** Steps 1–2 to
   reinitialize. This typically happens after a fresh OS install or if the `platformdirs` persisted path
   was cleared.
@@ -243,16 +254,17 @@ inspect or modify any template content from this skill; that is owned by `/task-
 This skill is a prerequisite for **every** other skill in the assets plugin. The relationships
 below summarize where each downstream skill picks up after the working directory is set.
 
-| Downstream skill              | What it needs from this skill                                         |
-|-------------------------------|-----------------------------------------------------------------------|
-| `/assets-mcp-environment-setup`      | (sibling — run first if the MCP server is not connected)              |
-| experiment plugin `/system-configuration` | Working directory                                         |
-| forging plugin `/server-configuration` | Working directory                                            |
-| `/task-templates`             | Working directory + task templates directory                          |
-| `/experiment-configuration`   | Working directory                                                     |
-| `/project-hierarchy`          | Working directory                                                     |
-| `/session-data`               | Working directory                                                     |
-| `/session-descriptors`        | Working directory                                                     |
-| experiment plugin `/session-snapshots` | Working directory                                            |
-| `/subject-metadata`           | Working directory + Google credentials                                |
-| forging plugin `/datasets`    | Working directory                                                     |
+| Downstream skill                           | What it needs from this skill                              |
+|--------------------------------------------|------------------------------------------------------------|
+| `/assets-mcp-environment-setup`            | (sibling — run first if the MCP server is not connected)   |
+| experiment plugin `/system-configuration`  | Working directory                                          |
+| forging plugin `/server-configuration`     | Working directory                                          |
+| `/task-templates`                          | Working directory + task templates directory               |
+| `/experiment-configuration`                | Working directory                                          |
+| `/project-hierarchy`                       | Working directory                                          |
+| `/session-data`                            | Working directory                                          |
+| `/session-descriptors`                     | Working directory                                          |
+| `/session-hardware-state`                  | Working directory                                          |
+| experiment plugin `/session-snapshots`     | Working directory                                          |
+| `/subject-metadata`                        | Working directory + Google credentials                     |
+| forging plugin `/datasets`                 | Working directory                                          |

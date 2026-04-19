@@ -42,14 +42,14 @@ Reads subject records that live in the project hierarchy and are sourced from Go
 Subject metadata is **animal-scoped**, not session-scoped. A single animal accumulates records across
 its lifetime and across multiple projects:
 
-| Record type  | Dataclass       | Captures                                                        |
-|--------------|-----------------|-----------------------------------------------------------------|
-| Core subject | `SubjectData`   | Subject ID, sex, date of birth, genotype, current weight        |
-| Surgery      | `SurgeryData`   | Surgical procedures (craniotomy, headbar, window implant, etc.) |
-| Implant      | `ImplantData`   | Implanted hardware (electrodes, optical fibers, headbars)       |
-| Injection    | `InjectionData` | Viral / tracer / drug injections                                |
-| Drug         | `DrugData`      | Drug administration records (water restriction, antibiotics)    |
-| Procedure    | `ProcedureData` | Non-surgical procedures performed on the animal                 |
+| Record type  | Dataclass       | Captures                                                                                       |
+|--------------|-----------------|------------------------------------------------------------------------------------------------|
+| Core subject | `SubjectData`   | id, ear-punch, sex, genotype, date of birth, pre-surgery weight, cage, housing location, status |
+| Surgery      | `SurgeryData`   | Aggregate surgery record: subject + procedure + drugs + implants + injections sections         |
+| Implant      | `ImplantData`   | Per-implant: name, target region, manufacturer code, AP/ML/DV stereotactic coordinates         |
+| Injection    | `InjectionData` | Per-injection: name, target, volume (nL), manufacturer code, AP/ML/DV stereotactic coordinates |
+| Drug         | `DrugData`      | Peri-surgical drugs (LRS, ketoprofen, buprenorphine, dexamethasone), each with volume and code |
+| Procedure    | `ProcedureData` | Surgery metadata: start/end timestamps, surgeon, protocol, surgery + post-op notes, quality    |
 
 The records live in the upstream Google Sheets (configured via `/working-directory`'s
 `set_google_credentials_tool`) and are projected through the slsa MCP server as read-only views.
@@ -106,7 +106,7 @@ The discovery side of "which subjects exist" is owned by `/project-hierarchy` vi
    ```text
    read_subject_drugs_tool(subject_id="<id>")
    ```
-2. **Hand off to `/project-hierarchy`** for `discover_sessions_tool(animal="<id>")` to enumerate
+2. **Hand off to `/project-hierarchy`** for `discover_sessions_tool(animal_id="<id>")` to enumerate
    sessions for the same animal.
 3. **Hand off to `/session-data`** to read individual session timestamps.
 4. **Aggregate the cross-reference and report.**

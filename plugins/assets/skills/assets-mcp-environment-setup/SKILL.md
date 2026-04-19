@@ -30,7 +30,7 @@ Diagnoses and resolves sollertia-shared-assets MCP server connectivity and envir
 - sollertia-forgery `sl-mcp` MCP server (see the forging plugin's `/forging-mcp-environment-setup`)
 - Unity Editor or sollertia-unity-tasks installation (see the sollertia-unity-tasks README)
 - Unity Editor relay (`McpBridge`) connectivity diagnostics (see the unity plugin's
-  `/assets-mcp-environment-setup`)
+  `/unity-mcp-environment-setup`)
 
 ---
 
@@ -217,5 +217,5 @@ sollertia-shared-assets MCP environment setup:
 - [ ] Identified environment type (conda, venv, system)
 - [ ] Provided environment-specific resolution steps
 - [ ] Informed user that the assistant must be restarted after environment changes
-- [ ] Handed off to unity plugin's /assets-mcp-environment-setup if the issue is Unity-specific
+- [ ] Handed off to unity plugin's /unity-mcp-environment-setup if the issue is Unity-specific
 ```

@@ -41,7 +41,7 @@ session directory. This skill is the **exclusive** owner of `write_session_descr
 | `lick training`        | `lick_training_descriptor.yaml`        | `LickTrainingDescriptor`        |
 | `run training`         | `run_training_descriptor.yaml`         | `RunTrainingDescriptor`         |
 | `window checking`      | `window_checking_descriptor.yaml`      | `WindowCheckingDescriptor`      |
-| `mesoscope experiment` | `mesoscope_experiment_descriptor.yaml` | `MesoscopeExperimentDescriptor` |
+| `mesoscope experiment` | `experiment_descriptor.yaml`           | `MesoscopeExperimentDescriptor` |
 
 Each descriptor captures the **per-session** metadata that varies between sessions of the same type
 (reward volume actually delivered, water restriction status, observed behavior summary, experimenter
@@ -85,8 +85,14 @@ file exists before reading or writing it.
 5. **Confirm the planned write with the user.** Descriptor edits are irreversible without a backup.
 6. **Write the corrected descriptor:**
    ```text
-   write_session_descriptor_tool(session_path="<absolute>", descriptor={ ... })
+   write_session_descriptor_tool(
+       session_path="<absolute>",
+       descriptor_payload={ ... },
+   )
    ```
+   The kwarg is `descriptor_payload`. The destination filename is determined automatically from the
+   session's `session_type` (loaded from `session_data.yaml`) and the file is written into
+   `<session>/raw_data/`.
 7. **Re-read to verify:**
    ```text
    read_session_descriptor_tool(session_path="<absolute>")
@@ -115,6 +121,7 @@ If you need to know which descriptor file is present (when the session type is u
 - [ ] sollertia-shared-assets MCP server is connected
 - [ ] describe_session_descriptor_schema_tool was called before any write
 - [ ] User confirmed the planned write before it was executed
+- [ ] Payload was passed as descriptor_payload (the correct kwarg name)
 - [ ] write_session_descriptor_tool succeeded without schema errors
 - [ ] read_session_descriptor_tool returned the expected content after the write
 - [ ] Did not touch SessionData, hardware state, Zaber positions, or mesoscope positions from this skill
