@@ -4,7 +4,7 @@ description: >-
   Documents the behavior-processing-specific input artifacts consumed by the sollertia-forgery pipeline:
   the Mesoscope-VR runtime NPZ archive, the ataraxis-video-system camera timestamp feather files, and
   the ataraxis-communication-interface microcontroller module feather files. Delegates session layout,
-  hardware state, and experiment configuration authoring to the configuration plugin. Use when the user
+  hardware state, and experiment configuration authoring to the assets plugin. Use when the user
   asks about upstream handoff, module eligibility, or why a behavior job is missing on disk.
 user-invocable: true
 ---
@@ -15,7 +15,7 @@ Authoritative reference for the **behavior-processing-specific** input artifacts
 archive, the camera timestamp feathers (upstream `ataraxis-video-system`), and the microcontroller
 module feathers (upstream `ataraxis-communication-interface`). This skill only covers artifacts that
 are unique to the behavior subsystem. Session metadata, directory layout, hardware state, and
-experiment configuration are owned by the configuration plugin and are referenced, not redocumented.
+experiment configuration are owned by the assets plugin and are referenced, not redocumented.
 
 ---
 
@@ -417,7 +417,7 @@ Eligibility rule: a module feather produces a job only if its `(type, id)` pair 
 may have feather files for hardware that was not configured for that run.
 
 The `MesoscopeHardwareState` YAML itself is authored and validated via `/configuration:session-snapshots` in the
-configuration plugin. This skill only documents how the behavior pipeline consults specific fields
+assets plugin. This skill only documents how the behavior pipeline consults specific fields
 for module eligibility.
 
 ### Jobs produced

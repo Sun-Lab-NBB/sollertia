@@ -2,7 +2,7 @@
 name: project-hierarchy
 description: >-
   Discovers and creates entries in the Sollertia project hierarchy (projects, animals, experiments,
-  subjects, sessions) via the sl-configure MCP server. Owns create_project_tool. Covers project bootstrap,
+  subjects, sessions) via the slsa MCP server. Owns create_project_tool. Covers project bootstrap,
   hierarchy traversal, and the relationship between projects, animals, sessions, and experiment
   configurations. Use when bootstrapping a new project, enumerating animals or sessions under a project,
   or building tooling that needs to walk the project tree.
@@ -11,7 +11,7 @@ user-invocable: true
 
 # Sollertia project hierarchy
 
-Discovers and creates entries in the Sollertia project hierarchy using the `sl-configure mcp` MCP server.
+Discovers and creates entries in the Sollertia project hierarchy using the `slsa mcp` MCP server.
 This skill is the **exclusive** owner of `create_project_tool` — no other skill in the marketplace may
 call it.
 
@@ -78,6 +78,15 @@ Datasets are a higher-level grouping that aggregates sessions across projects an
 | `discover_subjects_tool`      | Lists all subjects (optionally filtered by project)                      |
 
 These tools may be called by any skill that needs to enumerate the hierarchy. They do not mutate state.
+
+### Aggregation (exclusive to this skill)
+
+| Tool                          | Purpose                                                                                    |
+|-------------------------------|--------------------------------------------------------------------------------------------|
+| `get_project_overview_tool`   | Returns aggregate counts (animals, sessions by type, experiments, datasets) for a project  |
+
+Use this as the starting point when the user asks "what is in project X" — one call, structured
+summary, no need to walk the hierarchy manually.
 
 ### Creation (exclusive to this skill)
 

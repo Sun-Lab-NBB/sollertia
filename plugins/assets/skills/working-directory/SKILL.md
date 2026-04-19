@@ -146,7 +146,7 @@ or expect the file/directory to exist (credentials, templates).
 ## Bootstrap workflow
 
 You SHOULD run this workflow once per host. After it completes, the values are persisted and other
-configuration plugin skills can be used freely.
+assets plugin skills can be used freely.
 
 ### Step 1: Verify MCP connectivity
 
@@ -240,7 +240,7 @@ inspect or modify any template content from this skill; that is owned by `/task-
 
 ## Related skills
 
-This skill is a prerequisite for **every** other skill in the configuration plugin. The relationships
+This skill is a prerequisite for **every** other skill in the assets plugin. The relationships
 below summarize where each downstream skill picks up after the working directory is set.
 
 | Downstream skill              | What it needs from this skill                                         |

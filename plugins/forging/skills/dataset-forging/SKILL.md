@@ -481,7 +481,7 @@ To rebuild only the session set of an existing dataset without deleting first:
 | Behavior tracker not found / ambiguous                        | Rerun `/behavior-processing` for the session                      |
 | Cindra single-recording tracker not found / ambiguous         | Rerun `/cindra:single-recording-processing` for the session       |
 | Cindra multi-day file missing (`cell_fluorescence.npy`, etc.) | Rerun `/cindra:multi-recording-processing` with the same dataset name |
-| Hardware state YAML missing / missing required field          | See `/dataset-forging-input-format` and the configuration plugin  |
+| Hardware state YAML missing / missing required field          | See `/dataset-forging-input-format` and the assets plugin  |
 | Experiment configuration YAML missing                         | See `/dataset-forging-input-format`                               |
 | Experiment descriptor YAML missing                            | See `/dataset-forging-input-format`; add the file under `raw_data/` |
 | Polars / Arrow read errors on a behavior feather              | Rerun `/behavior-processing` — the upstream feather is corrupt    |

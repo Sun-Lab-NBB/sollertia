@@ -2,7 +2,7 @@
 name: subject-metadata
 description: >-
   Reads subject records (SubjectData, SurgeryData, ImplantData, InjectionData, DrugData) via the
-  sl-configure MCP server. Subject metadata is sourced from Google Sheets and is read-only at the slsa
+  slsa MCP server. Subject metadata is sourced from Google Sheets and is read-only at the slsa
   layer. Use when looking up an animal's surgical history, implant details, drug administration, or
   injection records, or when building tooling that needs subject-level introspection.
 user-invocable: true
@@ -11,7 +11,7 @@ user-invocable: true
 # Sollertia subject metadata
 
 Reads subject records that live in the project hierarchy and are sourced from Google Sheets via the
-`sl-configure mcp` MCP server. This skill is the **exclusive** owner of the subject read tools and
+`slsa mcp` MCP server. This skill is the **exclusive** owner of the subject read tools and
 `describe_surgery_schema_tool`.
 
 ---
@@ -24,6 +24,7 @@ Reads subject records that live in the project hierarchy and are sourced from Go
 - Reading implant records (`ImplantData`)
 - Reading injection records (`InjectionData`)
 - Reading drug administration records (`DrugData`)
+- Reading procedure records (`ProcedureData`)
 - Schema introspection for surgery records
 
 **Does not cover:**
@@ -48,6 +49,7 @@ its lifetime and across multiple projects:
 | Implant      | `ImplantData`   | Implanted hardware (electrodes, optical fibers, headbars)       |
 | Injection    | `InjectionData` | Viral / tracer / drug injections                                |
 | Drug         | `DrugData`      | Drug administration records (water restriction, antibiotics)    |
+| Procedure    | `ProcedureData` | Non-surgical procedures performed on the animal                 |
 
 The records live in the upstream Google Sheets (configured via `/working-directory`'s
 `set_google_credentials_tool`) and are projected through the slsa MCP server as read-only views.
@@ -63,6 +65,7 @@ The records live in the upstream Google Sheets (configured via `/working-directo
 | `read_subject_implants_tool`      | All implant records for the subject                           |
 | `read_subject_injections_tool`    | All injection records for the subject                         |
 | `read_subject_drugs_tool`         | All drug administration records for the subject               |
+| `read_subject_procedure_tool`     | Non-surgical procedure records for the subject                |
 | `describe_surgery_schema_tool`    | Returns the schema for `SurgeryData`                          |
 
 The discovery side of "which subjects exist" is owned by `/project-hierarchy` via

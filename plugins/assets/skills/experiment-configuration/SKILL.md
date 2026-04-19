@@ -2,7 +2,7 @@
 name: experiment-configuration
 description: >-
   Authors and modifies per-project MesoscopeExperimentConfiguration YAML files for sollertia-shared-assets
-  via the sl-configure MCP server. Owns the experiment configuration write tool, the
+  via the slsa MCP server. Owns the experiment configuration write tool, the
   create_experiment_config_tool convenience helper, and schema introspection. Use when designing a new
   experiment configuration for a project, customizing trial parameters, or instantiating an existing
   task template into a new experiment.
@@ -12,7 +12,7 @@ user-invocable: true
 # Sollertia experiment configuration
 
 Authors and modifies per-project `MesoscopeExperimentConfiguration` YAML files for
-`sollertia-shared-assets` using the `sl-configure mcp` MCP server. This skill is the **exclusive** owner
+`sollertia-shared-assets` using the `slsa mcp` MCP server. This skill is the **exclusive** owner
 of `write_experiment_configuration_tool`, `create_experiment_config_tool`, and
 `describe_experiment_configuration_schema_tool` — no other skill in the marketplace may call these.
 
@@ -33,8 +33,7 @@ of `write_experiment_configuration_tool`, `create_experiment_config_tool`, and
 - Authoring system-level configuration (see `/system-configuration`)
 - Authoring server configuration (see `/server-configuration`)
 - Creating projects (see `/project-hierarchy`)
-- Verifying that template values match the Unity prefab state (see the experiment plugin's
-  `/configuration-verification`)
+- Verifying that template values match the Unity prefab state (see unity plugin's `/task-prefabs`)
 - Initial working directory setup (see `/working-directory`)
 
 ---
@@ -64,6 +63,7 @@ two are owned by two different skills.
 | `read_experiment_configuration_tool`            | Reads a project's experiment configuration                      |
 | `write_experiment_configuration_tool`           | Writes a new experiment configuration (exclusive to this skill) |
 | `create_experiment_config_tool`                 | Creates a config from a template + parameters (exclusive)       |
+| `validate_experiment_configuration_tool`        | Validates an experiment configuration YAML (exclusive)          |
 | `read_session_experiment_configuration_tool`    | Reads the frozen experiment configuration from a session        |
 
 ---
@@ -138,13 +138,16 @@ write_experiment_configuration_tool(
 )
 ```
 
-### Step 6: Verify
+### Step 6: Validate and verify
 
 ```text
+validate_experiment_configuration_tool(project="<project>", experiment="<experiment-name>")
 read_experiment_configuration_tool(project="<project>", experiment="<experiment-name>")
 ```
 
-Confirm the returned configuration matches your edits.
+`validate_experiment_configuration_tool` checks schema compliance, template-reference validity,
+state-machine integrity (no orphaned states, transitions sum to 1), and per-state parameter bounds.
+Fix any reported errors and re-write before handing off.
 
 ---
 
@@ -191,6 +194,7 @@ not supported by the slsa MCP layer.
 - [ ] Target template exists (handed off to /task-templates if missing)
 - [ ] describe_experiment_configuration_schema_tool was used as the source of truth for field names
 - [ ] write_experiment_configuration_tool succeeded without schema errors
+- [ ] validate_experiment_configuration_tool returned zero errors
 - [ ] read_experiment_configuration_tool returned the expected configuration after the write
 - [ ] State machine transitions form a valid graph (no orphaned states)
 - [ ] Reward volumes and state durations are within plausible biological ranges
@@ -208,5 +212,5 @@ not supported by the slsa MCP layer.
 | `/task-templates`                              | Required upstream — owns template authoring                        |
 | `/project-hierarchy`                           | Required upstream — owns project creation                          |
 | experiment plugin `/system-configuration`      | Owns MesoscopeSystemConfiguration (moved out of this plugin)       |
-| experiment plugin `/configuration-verification`| Validates template values against the Unity prefab state           |
+| unity plugin `/task-prefabs`                   | Validates template values against the Unity prefab state           |
 | experiment plugin `/pipeline`                  | Phase 4 of the experiment lifecycle is owned by this skill         |

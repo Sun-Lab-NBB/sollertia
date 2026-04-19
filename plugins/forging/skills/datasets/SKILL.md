@@ -124,7 +124,7 @@ downstream tooling and analysis notebooks may have references that break silentl
 ## Verification checklist
 
 ```text
-- [ ] /working-directory has been run on this host (configuration plugin)
+- [ ] /working-directory has been run on this host (assets plugin)
 - [ ] sollertia-forgery MCP server (sl-mcp) is connected
 - [ ] describe_dataset_schema_tool was used as the source of truth for field names
 - [ ] discover_datasets_tool was called before creating new datasets (avoid duplicates)
@@ -139,7 +139,7 @@ downstream tooling and analysis notebooks may have references that break silentl
 
 | Skill                              | Relationship                                                        |
 |------------------------------------|---------------------------------------------------------------------|
-| `/working-directory`               | Required prerequisite — owned by the configuration plugin           |
+| `/working-directory`               | Required prerequisite — owned by the assets plugin           |
 | `/forging-mcp-environment-setup`   | Run first if the sl-mcp server is not connected                     |
 | `/session-discovery`               | Provides `discover_sessions_tool` for dataset membership lookup     |
 | `/session-data`                    | Sibling — sessions are the membership unit of datasets              |

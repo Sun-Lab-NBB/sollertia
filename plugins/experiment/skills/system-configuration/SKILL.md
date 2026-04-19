@@ -15,7 +15,7 @@ user-invocable: true
 Authors and modifies the `MesoscopeSystemConfiguration` YAML file for `sollertia-experiment` using
 the `sl-get mcp` MCP server. This skill is the **exclusive** owner of `write_system_configuration_tool`
 and `describe_system_configuration_schema_tool` — no other skill in the marketplace may call these. The
-`list_supported_acquisition_systems_tool` lives on `sl-configure mcp` (sollertia-shared-assets) since the
+`list_supported_acquisition_systems_tool` lives on `slsa mcp` (sollertia-shared-assets) since the
 enum itself remains the shared vocabulary across the platform.
 
 For the full per-field schema reference, see
@@ -35,11 +35,11 @@ For the full per-field schema reference, see
 
 **Does not cover:**
 - `ServerConfiguration` authoring (forging plugin `/server-configuration`)
-- `MesoscopeExperimentConfiguration` authoring (configuration plugin `/experiment-configuration`)
-- Task template authoring (configuration plugin `/task-templates`)
-- Session-level data (configuration plugin `/session-data`, `/session-descriptors`;
+- `MesoscopeExperimentConfiguration` authoring (assets plugin `/experiment-configuration`)
+- Task template authoring (assets plugin `/task-templates`)
+- Session-level data (assets plugin `/session-data`, `/session-descriptors`;
   experiment plugin `/session-snapshots`)
-- Initial working directory setup (configuration plugin `/working-directory`)
+- Initial working directory setup (assets plugin `/working-directory`)
 - Binding class semantics for cameras and microcontrollers (sibling skills
   `/camera-interface` and `/microcontroller-interface`)
 
@@ -81,7 +81,7 @@ All tools below are hosted on `sl-get mcp` (sollertia-experiment):
 | `check_system_mounts_tool`                  | Checks every filesystem path declared in the configuration            |
 | `read_session_system_configuration_tool`    | Reads the frozen system configuration captured at session start       |
 
-The companion enumeration `list_supported_acquisition_systems_tool` (on `sl-configure mcp`,
+The companion enumeration `list_supported_acquisition_systems_tool` (on `slsa mcp`,
 sollertia-shared-assets) returns the enum values. The CLI entry point for authoring is
 `sl-configure system` hosted by sollertia-experiment.
 
@@ -97,7 +97,7 @@ first, mutate the dictionary, then write the whole thing back.
 
 - The `sl-get mcp` server (sollertia-experiment) is connected (else hand off to the experiment plugin's
   `/mcp-environment-setup`).
-- The working directory is set (else hand off to the configuration plugin's `/working-directory`).
+- The working directory is set (else hand off to the assets plugin's `/working-directory`).
 
 ### Step 2: Determine whether to create or modify
 
@@ -179,7 +179,7 @@ regeneration step.
 ## Verification checklist
 
 ```text
-- [ ] /working-directory has been run on this host (configuration plugin)
+- [ ] /working-directory has been run on this host (assets plugin)
 - [ ] sl-get mcp server (sollertia-experiment) is connected
 - [ ] describe_system_configuration_schema_tool was called and used as the source of truth for field names
 - [ ] references/mesoscope-reference.md was consulted for field semantics
@@ -195,11 +195,11 @@ regeneration step.
 
 | Skill                                              | Relationship                                                        |
 |----------------------------------------------------|---------------------------------------------------------------------|
-| configuration plugin `/working-directory`          | Required prerequisite — must be run first                           |
+| assets plugin `/working-directory`          | Required prerequisite — must be run first                           |
 | this plugin `/mcp-environment-setup`               | Run first if sl-get mcp is not connected                            |
-| forging plugin `/server-configuration`             | Owns `ServerConfiguration` (moved out of the configuration plugin)  |
-| configuration plugin `/experiment-configuration`   | Authored separately, consumes system configuration at runtime       |
-| configuration plugin `/session-data`               | Session-level data                                                  |
+| forging plugin `/server-configuration`             | Owns `ServerConfiguration` (moved out of the assets plugin)  |
+| assets plugin `/experiment-configuration`   | Authored separately, consumes system configuration at runtime       |
+| assets plugin `/session-data`               | Session-level data                                                  |
 | this plugin `/session-snapshots`                   | Sibling — per-session ZaberPositions and MesoscopePositions         |
 | this plugin `/acquisition-system-setup`            | Source of camera indices and microcontroller ports via discovery    |
 | this plugin `/camera-interface`                    | Dataclass extension procedure; hands off here for YAML regeneration |

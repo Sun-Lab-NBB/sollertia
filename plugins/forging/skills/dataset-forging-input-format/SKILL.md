@@ -18,7 +18,7 @@ single-recording outputs (upstream `/cindra:single-recording-processing`), and t
 cindra multi-day outputs (upstream `/cindra:multi-recording-processing`). Covers
 session eligibility, the on-disk dataset hierarchy, the required raw-data YAMLs, and
 the cross-library handoff contract. Delegates session layout, hardware state, and
-experiment configuration authoring to the configuration plugin.
+experiment configuration authoring to the assets plugin.
 
 ---
 
@@ -44,9 +44,9 @@ experiment configuration authoring to the configuration plugin.
 
 **Does not cover:**
 - Session directory layout and `raw_data/` / `processed_data/` hierarchy (see
-  `/session-discovery` and the configuration plugin)
-- Hardware state authoring and validation (see the configuration plugin)
-- Experiment configuration authoring and validation (see the configuration plugin)
+  `/session-discovery` and the assets plugin)
+- Hardware state authoring and validation (see the assets plugin)
+- Experiment configuration authoring and validation (see the assets plugin)
 - Batch orchestration workflow (see `/dataset-forging`)
 - Output schemas and interpretation (see `/dataset-forging-results`)
 - Upstream behavior processing workflow (see `/behavior-processing` /
@@ -252,7 +252,7 @@ behavior-dataset assembly time. The forging pipeline consults the following fiel
 | `minimum_brake_strength` | Threshold for deriving the binary `brake` column from brake torque      |
 
 Missing fields raise `ValueError` at assembly time. The YAML itself is authored and
-validated via the configuration plugin — this skill only documents which fields the
+validated via the assets plugin — this skill only documents which fields the
 forging pipeline consumes.
 
 ---
@@ -271,7 +271,7 @@ forging pipeline consults the following structures:
 The runtime state mapping also hardcodes `0 → "idle"` as the default system state.
 
 Missing or malformed files raise at load time. Authoring and validation belong to the
-configuration plugin.
+assets plugin.
 
 ---
 
@@ -290,7 +290,7 @@ behavior work is performed: a missing file raises `FileNotFoundError` with
 contain a 'experiment_descriptor.yaml' file at '{path}'. The experiment descriptor is
 required for every session in a forged dataset."`. Content is not validated by the
 forging pipeline itself (the file is only copied, not read), so authoring and
-validation belong to the configuration plugin.
+validation belong to the assets plugin.
 
 ---
 
@@ -340,10 +340,10 @@ missing `.npy`, or missing `experiment_descriptor.yaml`.
 Dataset Forging Prerequisites:
 - [ ] Every session is MESOSCOPE_EXPERIMENT
 - [ ] Every session shares the same acquisition_system
-- [ ] raw_data/hardware_state.yaml valid per configuration plugin
+- [ ] raw_data/hardware_state.yaml valid per assets plugin
 -   [ ] system_state_codes populated
 -   [ ] minimum_brake_strength set (if brake module present)
-- [ ] raw_data/experiment_configuration.yaml valid per configuration plugin
+- [ ] raw_data/experiment_configuration.yaml valid per assets plugin
 -   [ ] trial_structures defined
 -   [ ] experiment_states defined with experiment_state_code values
 - [ ] raw_data/experiment_descriptor.yaml present on every session

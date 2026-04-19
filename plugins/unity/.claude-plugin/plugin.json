@@ -1,0 +1,8 @@
+{
+  "name": "unity",
+  "version": "1.0.0",
+  "description": "Agentic access to the sollertia-unity-tasks Unity Editor project. Authors task prefabs, manages VR scenes, drives Play Mode, and validates task templates against prefab state via the sollertia-shared-assets MCP server's Unity relay. Requires the assets plugin (for the backing slsa MCP server) and the Unity Editor to be running with the McpBridge plugin loaded.",
+  "repository": "https://github.com/Sun-Lab-NBB/sollertia",
+  "license": "Apache-2.0",
+  "skills": "./skills/"
+}

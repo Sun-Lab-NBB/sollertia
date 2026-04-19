@@ -2,7 +2,7 @@
 name: session-descriptors
 description: >-
   Reads, writes, and validates per-session descriptor YAML files (LickTrainingDescriptor,
-  RunTrainingDescriptor, WindowCheckingDescriptor, MesoscopeExperimentDescriptor) via the sl-configure
+  RunTrainingDescriptor, WindowCheckingDescriptor, MesoscopeExperimentDescriptor) via the slsa
   MCP server. Owns the session descriptor write tools and schema introspection. Use when repairing,
   amending, or inspecting a session descriptor for any of the four supported session types.
 user-invocable: true

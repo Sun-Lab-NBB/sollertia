@@ -132,9 +132,9 @@ For the canonical PC-side implementation pattern, see `ataraxis@communication:mi
    `ataraxis@communication:microcontroller-interface`. Wire it to the new dataclass fields.
 5. **Update the binding class** to instantiate the new ModuleInterface on the correct controller and
    register it in the start/stop lifecycle.
-6. **Hand off to the configuration plugin's `/system-configuration` skill** to regenerate the host machine's
+6. **Hand off to the assets plugin's `/system-configuration` skill** to regenerate the host machine's
    system configuration YAML against the new schema. This skill must not call `write_system_configuration_tool`
-   or invoke `sl-configure` directly — system configuration writes are owned by `/system-configuration`.
+   or invoke `slsa` directly — system configuration writes are owned by `/system-configuration`.
    The hand-off responsibility includes bumping the `sollertia-shared-assets` version pin so older configurations
    no longer load against the new schema.
 7. **Verify** the new module appears in the controller manifest using

@@ -27,7 +27,7 @@ Diagnoses and resolves sollertia-experiment MCP server connectivity and environm
 **Does not cover:**
 - MCP tool usage for Zaber discovery/configuration (see `/zaber-interface`)
 - MCP tool usage for session preprocessing/migration (see `/data-management`)
-- sollertia-shared-assets `sl-configure mcp` server (see the configuration plugin's
+- sollertia-shared-assets `slsa mcp` server (see the assets plugin's
   `/mcp-environment-setup`)
 - sollertia-experiment package development workflows
 
@@ -163,7 +163,7 @@ plugin will automatically reconnect both servers on the next session.
 | Only one of two servers connects         | Plugin manifest stale                           | Update the experiment plugin from the sollertia marketplace        |
 | Import error on `sl-get mcp`             | Version skew with sollertia-shared-assets       | `pip install --upgrade sollertia-experiment sollertia-shared-assets` |
 | Python version mismatch                  | Wrong environment activated                     | Activate environment with Python >=3.14,<3.15                      |
-| Tools fail with "no system configuration"| `sl-configure` working directory not initialized| Run the working-directory skill from the configuration plugin      |
+| Tools fail with "no system configuration"| `slsa` working directory not initialized| Run the working-directory skill from the assets plugin      |
 | Tool fails with Zaber connection error   | Not an environment issue                        | Check `/zaber-interface` for hardware troubleshooting              |
 
 ---
@@ -176,7 +176,7 @@ plugin will automatically reconnect both servers on the next session.
 | `/data-management`                          | Requires `sl-experiment-manage` MCP for preprocess/delete/migrate  |
 | `/system-health-check`                      | Uses both servers as part of the pre-session validation sweep      |
 | `/pipeline`                                 | Orchestrates all phases that depend on MCP server connectivity     |
-| configuration plugin's MCP env setup        | Equivalent diagnostic for the `sl-configure mcp` server            |
+| assets plugin's MCP env setup        | Equivalent diagnostic for the `slsa mcp` server            |
 
 ---
 

@@ -1,0 +1,152 @@
+---
+name: mcp-environment-setup
+description: >-
+  Diagnoses and resolves Unity Editor relay connectivity issues for the sollertia-unity-tasks McpBridge.
+  Covers the HTTP listener on localhost:8090, verifying the Unity Editor is running, confirming the
+  McpBridge script compiled, and testing the relay end-to-end. Use when Unity relay tools fail with
+  "Unity Editor is not reachable", when the Editor has just been opened, or when starting a session
+  that requires the Unity tools in the unity plugin.
+user-invocable: true
+---
+
+# Sollertia Unity MCP environment setup
+
+Diagnoses and resolves Unity Editor relay connectivity for the Unity-family tools exposed by
+`sollertia-shared-assets`. The skill only covers the **Unity-side** wiring — the `slsa mcp` server
+itself is owned by the assets plugin's `/mcp-environment-setup`.
+
+---
+
+## Scope
+
+**Covers:**
+- Verifying the Unity Editor is running with the `sollertia-unity-tasks` project open
+- Verifying the `McpBridge` HTTP listener is active on `localhost:8090`
+- Testing the relay from the command line
+- Diagnosing why Unity relay tools return "Unity Editor is not reachable"
+
+**Does not cover:**
+- Diagnosing `slsa` CLI / `slsa mcp` availability (see assets plugin's `/mcp-environment-setup`)
+- Sollertia working directory setup (see assets plugin's `/working-directory`)
+- Unity Editor installation or project setup (see the `sollertia-unity-tasks` README)
+- Prefab or scene workflows (see `/task-prefabs`, `/scenes`, `/play-mode`)
+
+---
+
+## Architecture
+
+Unity tools are served by the **same** `slsa mcp` MCP server as every other shared-assets tool. The
+server delegates Unity operations over HTTP to an editor-side plugin called `McpBridge`:
+
+```text
+Claude ↔ slsa mcp (stdio) ↔ HTTP POST to localhost:8090 ↔ Unity Editor McpBridge
+```
+
+The `McpBridge` editor plugin ships with `sollertia-unity-tasks`. It starts the HTTP listener on
+`localhost:8090` automatically when the Editor loads the project. The 10 relayed tools are:
+
+| Tool                                  | Owning skill     |
+|---------------------------------------|------------------|
+| `generate_task_prefab_tool`           | `/task-prefabs`  |
+| `inspect_prefab_tool`                 | `/task-prefabs`  |
+| `validate_prefab_against_template_tool` | `/task-prefabs`  |
+| `list_unity_assets_tool`              | `/scenes`        |
+| `list_scenes_tool`                    | `/scenes`        |
+| `open_scene_tool`                     | `/scenes`        |
+| `create_scene_tool`                   | `/scenes`        |
+| `enter_play_mode_tool`                | `/play-mode`     |
+| `exit_play_mode_tool`                 | `/play-mode`     |
+| `get_play_state_tool`                 | `/play-mode`     |
+
+All 10 tools require **both** the `slsa mcp` MCP server to be connected **and** the Unity Editor to
+be running with `sollertia-unity-tasks` open.
+
+---
+
+## Diagnostic workflow
+
+You MUST follow these steps in order when a Unity relay tool returns "Unity Editor is not reachable".
+
+### Step 1: Confirm the slsa MCP server is connected
+
+If the `sollertia-shared-assets` MCP server itself is disconnected, no Unity tool can reach the
+bridge. Hand off to the assets plugin's `/mcp-environment-setup` first.
+
+### Step 2: Confirm the Unity Editor is running
+
+Ask the user to confirm the Unity Editor is open with the `sollertia-unity-tasks` project loaded.
+If not, instruct them to open it and wait for the project to finish loading.
+
+### Step 3: Confirm the McpBridge initialized
+
+In the Unity Console, look for:
+
+```text
+McpBridge: Listening on http://localhost:8090/
+```
+
+If it is absent:
+- The Editor may still be compiling — wait for compilation to finish.
+- The `McpBridge` script may have failed to compile — check the Console for errors and ask the user
+  to resolve them.
+- The Editor may have disabled the plugin — ask the user to re-enable it in `Edit → Preferences →
+  External Tools` (or the McpBridge settings panel, depending on the project version).
+
+### Step 4: Test the bridge from the command line
+
+```bash
+curl -s -X POST http://localhost:8090/ \
+  -H "Content-Type: application/json" \
+  -d '{"tool": "get_play_state", "args": {}}' | python -m json.tool
+```
+
+Expected outcomes:
+
+| Response                         | Meaning                                       | Next step                            |
+|----------------------------------|-----------------------------------------------|--------------------------------------|
+| JSON with `"success": true`      | Bridge healthy                                | Re-run the failing Unity tool        |
+| JSON with `"success": false`     | Bridge reachable but rejected the tool        | Inspect the error message, fix inputs|
+| Connection refused / timeout     | Listener is not running                       | Return to Step 3                     |
+| HTML / unexpected text           | Port 8090 is held by a different process      | Kill the other process, restart Unity|
+
+### Step 5: Verify by retrying a read-only Unity tool
+
+Once curl succeeds, confirm from Claude by invoking `get_play_state_tool` — the cheapest Unity tool
+that exercises the relay. If it returns a structured response, Unity-dependent tools are ready.
+
+---
+
+## Common issues and resolutions
+
+| Symptom                                | Cause                                     | Resolution                                       |
+|----------------------------------------|-------------------------------------------|--------------------------------------------------|
+| "Unity Editor is not reachable"        | Editor not running                        | Open the Editor with `sollertia-unity-tasks`     |
+| "Unity Editor is not reachable"        | McpBridge not loaded                      | Wait for compile, verify Console for listener log|
+| "Unity Editor is not reachable"        | Port 8090 taken by another process        | Free the port, restart the Editor                |
+| "Unity bridge returned invalid JSON"   | McpBridge produced malformed response     | Restart the Unity Editor                         |
+| Slow first call, then works            | Editor warming up after project load      | Expected — retry after ~30 seconds               |
+| Tools work, but prefab/scene paths 404 | Paths are not project-relative            | Use `Assets/...` paths, never absolute paths     |
+
+---
+
+## Verification checklist
+
+```text
+- [ ] slsa mcp server is connected (assets plugin's /mcp-environment-setup)
+- [ ] Unity Editor is running with sollertia-unity-tasks open
+- [ ] Unity Console shows "McpBridge: Listening on http://localhost:8090/"
+- [ ] curl POST to localhost:8090 returns a JSON success response
+- [ ] get_play_state_tool returns a structured response from Claude
+```
+
+---
+
+## Related skills
+
+| Skill                                     | Relationship                                       |
+|-------------------------------------------|----------------------------------------------------|
+| assets plugin `/mcp-environment-setup`    | Run first — owns the slsa MCP server diagnostic    |
+| `/task-prefabs`                           | Consumer — prefab generation / inspection / validation |
+| `/scenes`                                 | Consumer — scene and asset management              |
+| `/play-mode`                              | Consumer — runtime control                         |
+| assets plugin `/task-templates`           | Upstream — prefabs are generated from templates    |

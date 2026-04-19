@@ -64,7 +64,7 @@ whole thing back.
 ### Step 1: Verify prerequisites
 
 - The `sollertia-forgery` `sl-mcp` server is connected (else hand off to `/forging-mcp-environment-setup`).
-- The working directory is set (else hand off to the configuration plugin's `/working-directory`).
+- The working directory is set (else hand off to the assets plugin's `/working-directory`).
 
 ### Step 2: Determine whether to create or modify
 
@@ -106,7 +106,7 @@ Call `read_server_configuration_tool` and confirm the returned configuration mat
 ## Verification checklist
 
 ```text
-- [ ] /working-directory has been run on this host (configuration plugin)
+- [ ] /working-directory has been run on this host (assets plugin)
 - [ ] sollertia-forgery sl-mcp server is connected
 - [ ] read_server_configuration_tool returned the expected configuration before any write
 - [ ] write_server_configuration_tool succeeded without schema errors
@@ -121,7 +121,7 @@ Call `read_server_configuration_tool` and confirm the returned configuration mat
 
 | Skill                                    | Relationship                                                            |
 |------------------------------------------|-------------------------------------------------------------------------|
-| `/working-directory` (config plugin)     | Required prerequisite — owned by the configuration plugin               |
+| `/working-directory` (config plugin)     | Required prerequisite — owned by the assets plugin               |
 | `/forging-mcp-environment-setup`         | Run first if the sl-mcp server is not connected                         |
 | `/system-configuration` (config plugin)  | Sibling — both configurations live in the same working directory        |
 | experiment plugin `/data-management`     | Triggers remote transfers using the values authored by this skill       |

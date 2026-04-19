@@ -5,7 +5,7 @@ description: >-
   microcontrollers, Zaber motors, MQTT brokers, and video runtime requirements via ataraxis-video-system,
   ataraxis-communication-interface, and sl-experiment MCP tools. Use when bringing up a new acquisition PC,
   troubleshooting hardware connectivity, or verifying that the discovered hardware matches the recorded system
-  configuration. Hands off all configuration authoring and bootstrap state setup to the configuration plugin.
+  configuration. Hands off all configuration authoring and bootstrap state setup to the assets plugin.
 user-invocable: true
 ---
 
@@ -13,7 +13,7 @@ user-invocable: true
 
 Discovers, verifies, and reports the hardware connected to a Sollertia data acquisition PC. Focuses exclusively
 on hardware introspection — all configuration file authoring, working directory setup, credential management,
-and project / experiment creation are owned by the configuration plugin and must be invoked by hand-off.
+and project / experiment creation are owned by the assets plugin and must be invoked by hand-off.
 
 ---
 
@@ -28,7 +28,7 @@ and project / experiment creation are owned by the configuration plugin and must
 - Verifying network storage mounts at the OS level
 - Reporting discrepancies between discovered hardware and the active system configuration
 
-**Does not cover** (hand off to the configuration plugin):
+**Does not cover** (hand off to the assets plugin):
 - Setting the working directory, Google credentials, or task templates directory → `/working-directory`
 - Reading, writing, or validating system configuration YAML → `/system-configuration`
 - Reading, writing, or validating server configuration YAML → `/server-configuration`
@@ -41,23 +41,23 @@ and project / experiment creation are owned by the configuration plugin and must
 - Reading subject metadata → `/subject-metadata`
 - Reading or curating datasets → `/datasets`
 
-This skill MUST NOT call any `sl-configure` MCP tool that mutates state. Read-only `read_*` and `discover_*`
-tools from the configuration plugin's MCP server may be called as a "natural share" only when verifying that
+This skill MUST NOT call any `slsa` MCP tool that mutates state. Read-only `read_*` and `discover_*`
+tools from the assets plugin's MCP server may be called as a "natural share" only when verifying that
 discovered hardware matches the recorded configuration.
 
 ---
 
 ## MCP Server Requirements
 
-This skill uses MCP tools from libraries other than `sollertia-shared-assets`. The `sl-configure mcp` server is
-required only because hand-off targets in the configuration plugin depend on it.
+This skill uses MCP tools from libraries other than `sollertia-shared-assets`. The `slsa mcp` server is
+required only because hand-off targets in the assets plugin depend on it.
 
 | Server                  | CLI Command        | Used directly by this skill | Purpose                                          |
 |-------------------------|--------------------|-----------------------------|--------------------------------------------------|
 | ataraxis-video-system   | `axvs mcp`         | yes                         | Camera discovery, runtime requirements, CTI      |
 | ataraxis-comm-interface | `axci mcp`         | yes                         | Microcontroller discovery, MQTT broker check     |
 | sl-experiment           | `sl-get mcp`       | yes                         | Zaber motor discovery                            |
-| sollertia-shared-assets | `sl-configure mcp` | no (hand-off targets only)  | Read-only verification of recorded configuration |
+| sollertia-shared-assets | `slsa mcp` | no (hand-off targets only)  | Read-only verification of recorded configuration |
 
 If a required MCP server is unavailable, hand off to the relevant `mcp-environment-setup` skill in the
 appropriate plugin (`ataraxis@video:mcp-environment-setup`, `ataraxis@communication:mcp-environment-setup`, or
@@ -129,7 +129,7 @@ Use when the user wants to identify connected hardware without modifying any con
 - "What cameras are connected?"
 - "Which serial ports have microcontrollers?"
 - "Are the Zaber motors responding?"
-- Verifying hardware accessibility before invoking the configuration plugin
+- Verifying hardware accessibility before invoking the assets plugin
 - Troubleshooting hardware connectivity
 
 This is the default mode of this skill.
@@ -140,14 +140,14 @@ Use when the user wants to confirm that the discovered hardware matches the reco
 
 **When to use:**
 
-- After completing a configuration plugin authoring workflow
+- After completing a assets plugin authoring workflow
 - Before running a runtime acquisition session
 - After replacing or relocating a piece of hardware
 
 **Verification steps:**
 
 1. Run hardware discovery (Phases 1–2 below).
-2. Hand off to the configuration plugin's `/system-configuration` for a read-only `read_system_configuration_tool`
+2. Hand off to the assets plugin's `/system-configuration` for a read-only `read_system_configuration_tool`
    call to fetch the recorded values.
 3. Compare discovered values against recorded values and report any drift to the user.
 4. If drift exists, hand off to `/system-configuration` to update the recorded values. Do not edit YAML or call
@@ -234,7 +234,7 @@ Do not confuse these device types when reporting discovered hardware.
 
 After discovery completes, report the discovered hardware to the user as a structured table.
 
-**If the user is performing initial bringup**, hand off to the configuration plugin in this order:
+**If the user is performing initial bringup**, hand off to the assets plugin in this order:
 
 1. `/working-directory` — set the working directory, Google credentials, and task templates directory.
 2. `/system-configuration` — author the host machine's system configuration YAML against the discovered
@@ -285,7 +285,7 @@ This skill MUST NOT call `set_working_directory_tool`, `set_google_credentials_t
 | CTI file not configured            | GenTL producer not registered| Hand off to `ataraxis@video:camera-setup` to register the CTI file |
 
 For configuration-file-level errors (working directory not set, schema validation failures, missing projects),
-hand off to the configuration plugin skill that owns the affected asset.
+hand off to the assets plugin skill that owns the affected asset.
 
 ---
 
@@ -301,7 +301,7 @@ hand off to the configuration plugin skill that owns the affected asset.
 - [ ] list_microcontrollers() returned the expected microcontrollers and roles
 - [ ] get_zaber_devices_tool() returned the expected motor groups
 - [ ] Discovered hardware reported to user as a structured table
-- [ ] Did NOT call any sl-configure setter tool from this skill
+- [ ] Did NOT call any slsa setter tool from this skill
 - [ ] Handed off to /working-directory, /system-configuration, /server-configuration, /project-hierarchy,
       /task-templates, or /experiment-configuration for any state mutation
 ```
@@ -312,12 +312,12 @@ hand off to the configuration plugin skill that owns the affected asset.
 
 | Skill                                            | Relationship                                                       |
 |--------------------------------------------------|--------------------------------------------------------------------|
-| configuration plugin `/working-directory`        | Owns bootstrap state (working dir, credentials, templates dir)     |
+| assets plugin `/working-directory`        | Owns bootstrap state (working dir, credentials, templates dir)     |
 | this plugin `/system-configuration`     | Owns `MesoscopeSystemConfiguration` authoring and validation       |
 | forging plugin `/server-configuration`           | Owns `ServerConfiguration` authoring and validation                |
-| configuration plugin `/project-hierarchy`        | Owns project creation                                              |
-| configuration plugin `/task-templates`           | Owns task template authoring                                       |
-| configuration plugin `/experiment-configuration` | Owns per-project experiment configuration authoring                |
+| assets plugin `/project-hierarchy`        | Owns project creation                                              |
+| assets plugin `/task-templates`           | Owns task template authoring                                       |
+| assets plugin `/experiment-configuration` | Owns per-project experiment configuration authoring                |
 | this plugin `/system-health-check`               | Lighter-weight pre-session verification sweep                      |
 | this plugin `/pipeline`                          | Phase 3 (Hardware bringup) is owned by this skill                  |
 | `ataraxis@video:camera-setup`                    | Canonical home for CTI configuration and runtime requirement deep-dives |
