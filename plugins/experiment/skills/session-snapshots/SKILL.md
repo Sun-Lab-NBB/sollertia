@@ -1,68 +1,65 @@
 ---
 name: session-snapshots
 description: >-
-  Reads and writes the per-session frozen runtime snapshot YAML files (MesoscopeHardwareState,
-  ZaberPositions, MesoscopePositions). The hardware state tool set lives on the slsa MCP server
-  (sollertia-shared-assets); the Zaber and mesoscope position tool sets live on the sl-get MCP server
-  (sollertia-experiment). Owns the snapshot write tools. Use when repairing a corrupted snapshot,
-  patching positions after manual stage adjustment, or inspecting the runtime context that was captured
-  when a session started.
+  Reads and writes the per-session frozen position snapshot YAML files (ZaberPositions,
+  MesoscopePositions) on the sl-get MCP server. Owns the position snapshot write tools. Use when
+  inspecting the motor positions captured at session start, patching positions after a manual stage
+  adjustment, or recovering a corrupted positions snapshot. The MesoscopeHardwareState snapshot is
+  owned by the assets plugin's /session-hardware-state skill.
 user-invocable: true
 ---
 
-# Sollertia session snapshots
+# Sollertia session position snapshots
 
-Reads and writes the per-session frozen runtime snapshot YAML files captured at session start. This
-skill is the **exclusive** owner of the three snapshot write tools — no other skill in the marketplace
-may call `write_session_hardware_state_tool`, `write_session_zaber_positions_tool`, or
-`write_session_mesoscope_positions_tool`.
+Reads and writes the per-session frozen position snapshot YAML files (`zaber_positions.yaml` and
+`mesoscope_positions.yaml`) captured at session start by `sl-run`. Uses the `sl-get mcp` MCP server.
+This skill is the **exclusive** owner of `write_session_zaber_positions_tool` and
+`write_session_mesoscope_positions_tool` — no other skill in the marketplace may call these.
 
-The tools are split across two MCP servers after the recent asset redistribution:
-
-- `slsa mcp` (sollertia-shared-assets) hosts the `*_hardware_state_tool` pair, since
-  `MesoscopeHardwareState` is shared between the acquisition runtime and the processing pipeline.
-- `sl-get mcp` (sollertia-experiment) hosts the `*_zaber_positions_tool` and `*_mesoscope_positions_tool`
-  pairs, since `ZaberPositions` and `MesoscopePositions` are owned by the acquisition runtime.
+The third per-session snapshot, `MesoscopeHardwareState`, is **not** covered by this skill. It lives
+on the slsa MCP server (because the dataclass is shared between the acquisition runtime and the
+processing pipeline) and is owned by the **assets plugin's `/session-hardware-state` skill**. Hand
+off there for any read, write, or schema work on `hardware_state.yaml`.
 
 ---
 
 ## Scope
 
 **Covers:**
-- Reading and writing `MesoscopeHardwareState` (frozen hardware state at session start)
 - Reading and writing `ZaberPositions` (frozen Zaber motor positions at session start)
 - Reading and writing `MesoscopePositions` (frozen mesoscope objective positions at session start)
 
 **Does not cover:**
-- Reading the `SessionData` marker file (see `/session-data`)
-- Reading or writing session descriptors (see `/session-descriptors`)
+- Reading or writing `MesoscopeHardwareState` (`hardware_state.yaml`) — owned by the **assets
+  plugin's `/session-hardware-state`**
+- Reading the `SessionData` marker file (see assets plugin `/session-data`)
+- Reading or writing session descriptors (see assets plugin `/session-descriptors`)
 - Reading the frozen system or experiment configuration files at session start (those are read via
-  `/system-configuration` and `/experiment-configuration` `read_session_*` tools)
-- Reading subject metadata (see `/subject-metadata`)
-- Live Zaber motor configuration during runtime (see the experiment plugin's `/zaber-interface`)
-- Initial working directory setup (see `/working-directory`)
+  `/system-configuration` and the assets plugin's `/experiment-configuration` `read_session_*` tools)
+- Reading subject metadata (see assets plugin `/subject-metadata`)
+- Live Zaber motor configuration during runtime (see this plugin's `/zaber-interface`)
+- Initial working directory setup (see assets plugin `/working-directory`)
 
 ---
 
-## What is a session snapshot
+## What is a position snapshot
 
-When `sl-run` starts a runtime acquisition session, it captures the current state of the acquisition
-hardware and the positions of all motorized stages and writes them to YAML files inside the session
+When `sl-run` starts a runtime acquisition session, it captures the positions of all motorized stages
+(Zaber stages and the mesoscope objective) and writes them to YAML files inside the session
 directory. These **frozen snapshots** are used post-hoc to:
 
-- Reproduce the exact hardware configuration that was active during the session
-- Diagnose drift between the recorded state and what the binding class expected
+- Reproduce the exact stage configuration that was active during the session
+- Diagnose drift between the recorded positions and what the binding class expected
 - Recover lost positions after a manual stage adjustment
 
 The snapshots are written **once** at session start by `sl-run` (the runtime, not this skill). This
 skill exists to **read** them for inspection and to **patch** them when a snapshot file is corrupted or
 out of sync with reality.
 
-| Snapshot                 | File                            | Captures                                          |
-|--------------------------|---------------------------------|---------------------------------------------------|
-| `MesoscopeHardwareState` | `mesoscope_hardware_state.yaml` | Microcontroller IDs, camera indices, MQTT topics  |
-| `ZaberPositions`         | `zaber_positions.yaml`          | Headbar / lickport / wheel motor positions in NVM |
-| `MesoscopePositions`     | `mesoscope_positions.yaml`      | Mesoscope objective X/Y/Z and rotation positions  |
+| Snapshot             | File                       | Captures                                          |
+|----------------------|----------------------------|---------------------------------------------------|
+| `ZaberPositions`     | `zaber_positions.yaml`     | Headbar / lickport / wheel motor positions in NVM |
+| `MesoscopePositions` | `mesoscope_positions.yaml` | Mesoscope objective X/Y/Z and rotation positions  |
 
 ---
 
@@ -70,36 +67,33 @@ out of sync with reality.
 
 | Tool                                          | MCP server   | Purpose                                                              |
 |-----------------------------------------------|--------------|----------------------------------------------------------------------|
-| `read_session_hardware_state_tool`            | `slsa mcp`   | Reads `MesoscopeHardwareState` for a session                         |
-| `write_session_hardware_state_tool`           | `slsa mcp`   | Writes (repairs) `MesoscopeHardwareState` (exclusive to this skill)  |
-| `describe_session_hardware_state_schema_tool` | `slsa mcp`   | Returns the schema for `MesoscopeHardwareState` (exclusive to this skill) |
 | `read_session_zaber_positions_tool`           | `sl-get mcp` | Reads `ZaberPositions` for a session                                 |
 | `write_session_zaber_positions_tool`          | `sl-get mcp` | Writes (patches) `ZaberPositions` (exclusive to this skill)          |
 | `read_session_mesoscope_positions_tool`       | `sl-get mcp` | Reads `MesoscopePositions` for a session                             |
 | `write_session_mesoscope_positions_tool`      | `sl-get mcp` | Writes (patches) `MesoscopePositions` (exclusive to this skill)      |
 
-Call `describe_session_hardware_state_schema_tool` before any `write_session_hardware_state_tool`
-invocation — the tool returns the canonical field names and nesting, which you MUST use as the
-source of truth rather than handwritten documentation.
+For the `MesoscopeHardwareState` read/write/describe trio (`read_session_hardware_state_tool`,
+`write_session_hardware_state_tool`, `describe_session_hardware_state_schema_tool`), hand off to the
+**assets plugin's `/session-hardware-state` skill**.
 
 ---
 
 ## Workflows
 
-### Inspecting the runtime context for a session
+### Inspecting position snapshots for a session
 
 1. **Verify prerequisites:**
-   - Both `slsa mcp` (sollertia-shared-assets) and `sl-get mcp` (sollertia-experiment) are
-     connected. Use the corresponding `/experiment-mcp-environment-setup` skill in whichever plugin is offline.
-   - Working directory set (else the assets plugin's `/working-directory`).
+   - `sl-get mcp` (sollertia-experiment) is connected. If not, hand off to
+     `/experiment-mcp-environment-setup`.
+   - Working directory set (else hand off to the assets plugin's `/working-directory`).
 2. **Read the snapshots:**
    ```text
-   read_session_hardware_state_tool(session_path="<absolute>")
    read_session_zaber_positions_tool(session_path="<absolute>")
    read_session_mesoscope_positions_tool(session_path="<absolute>")
    ```
 3. **Report to the user.** Optionally cross-reference with the live system configuration via
-   `/system-configuration` to identify drift.
+   `/system-configuration` to identify drift, or hand off to the assets plugin's
+   `/session-hardware-state` to also pull the hardware state snapshot.
 
 ### Patching `ZaberPositions` after a manual stage adjustment
 
@@ -122,18 +116,21 @@ match reality.
 
 ### Recovering a corrupted snapshot
 
-If a snapshot file fails to parse, the snapshot tool returns an error. To recover:
+If a position snapshot fails to parse, the read tool returns an error. To recover:
 
-1. Read the other two snapshots in the same session to reconstruct context.
-2. Read the frozen system configuration via `/system-configuration` (`read_session_system_configuration_tool`)
-   to recover hardware ID assignments.
-3. Hand the recovery proposal to the user before writing a replacement snapshot.
+1. Read the other position snapshot in the same session to reconstruct context.
+2. Hand off to the assets plugin's `/session-hardware-state` to read `MesoscopeHardwareState` for
+   additional rig context.
+3. Read the frozen system configuration via `/system-configuration`
+   (`read_session_system_configuration_tool`) to recover hardware ID assignments.
+4. Hand the recovery proposal to the user before writing a replacement snapshot.
 
-### Cross-skill snapshot patching
+### Coordinated multi-snapshot patching
 
-If you need to patch all three snapshots together (e.g., after replacing the entire acquisition rig),
-call the three write tools in sequence within this skill. Do not split the work across skills — all
-three writes are owned here.
+If you need to patch position snapshots **and** the hardware state snapshot together (e.g., after
+replacing the entire acquisition rig), patch the position snapshots from this skill and hand off to
+the assets plugin's `/session-hardware-state` for the hardware state write. Do not attempt to call
+`write_session_hardware_state_tool` from this skill — that ownership has moved.
 
 ---
 
@@ -141,11 +138,12 @@ three writes are owned here.
 
 ```text
 - [ ] /working-directory has been run on this host (assets plugin)
-- [ ] slsa mcp (sollertia-shared-assets) is connected
 - [ ] sl-get mcp (sollertia-experiment) is connected
 - [ ] User confirmed the planned snapshot patch (snapshots are historical records)
-- [ ] write_session_*_tool succeeded without errors
-- [ ] read_session_*_tool returned the expected content after every write
+- [ ] write_session_*_positions_tool succeeded without errors
+- [ ] read_session_*_positions_tool returned the expected content after every write
+- [ ] Did not call write_session_hardware_state_tool from this skill — handed off to
+      /session-hardware-state instead
 - [ ] Did not touch SessionData, descriptors, or subject metadata from this skill
 ```
 
@@ -155,11 +153,11 @@ three writes are owned here.
 
 | Skill                                              | Relationship                                                              |
 |----------------------------------------------------|---------------------------------------------------------------------------|
-| assets plugin `/working-directory`          | Required prerequisite — must be run first                                 |
-| assets plugin `/assets-mcp-environment-setup`      | Run first if `slsa mcp` is not connected                          |
-| this plugin `/experiment-mcp-environment-setup`               | Run first if `sl-get mcp` is not connected                                |
-| assets plugin `/session-data`               | Owns the `SessionData` marker file                                        |
-| assets plugin `/session-descriptors`        | Owns the per-session descriptor files                                     |
+| assets plugin `/working-directory`                 | Required prerequisite — must be run first                                 |
+| this plugin `/experiment-mcp-environment-setup`    | Run first if `sl-get mcp` is not connected                                |
+| assets plugin `/session-hardware-state`            | Sibling — owns `MesoscopeHardwareState` (the third per-session snapshot)  |
+| assets plugin `/session-data`                      | Owns the `SessionData` marker file                                        |
+| assets plugin `/session-descriptors`               | Owns the per-session descriptor files                                     |
 | this plugin `/system-configuration`                | Provides `read_session_system_configuration_tool` for cross-reference     |
-| assets plugin `/experiment-configuration`   | Provides `read_session_experiment_configuration_tool` for cross-reference |
+| assets plugin `/experiment-configuration`          | Provides `read_session_experiment_configuration_tool` for cross-reference |
 | this plugin `/zaber-interface`                     | Live Zaber motor configuration during runtime — does not touch snapshots  |

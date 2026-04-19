@@ -47,10 +47,10 @@ Start with a single-call health snapshot of every Sollertia platform configurati
 by `sollertia-shared-assets`:
 
 ```text
-get_acquisition_environment_status_tool()
+get_platform_environment_status_tool()
 ```
 
-This skill is the **exclusive** owner of `get_acquisition_environment_status_tool`. The tool returns
+This skill is the **exclusive** owner of `get_platform_environment_status_tool`. The tool returns
 a structured report covering working directory readiness, Google credentials, task templates
 directory, system configuration presence and validity, and server configuration presence. Use it as
 the first probe — if every component reports healthy, skip the redundant per-component tools below
