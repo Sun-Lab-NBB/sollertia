@@ -64,7 +64,7 @@ dataset is a curated collection of sessions intended to be processed and analyze
 
 ### Step 1: Verify prerequisites
 
-- MCP server connected (else `/mcp-environment-setup`)
+- MCP server connected (else `/forging-mcp-environment-setup`)
 - Working directory set (else `/working-directory`)
 
 ### Step 2: Discover existing datasets

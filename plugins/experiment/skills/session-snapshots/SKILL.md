@@ -90,7 +90,7 @@ source of truth rather than handwritten documentation.
 
 1. **Verify prerequisites:**
    - Both `slsa mcp` (sollertia-shared-assets) and `sl-get mcp` (sollertia-experiment) are
-     connected. Use the corresponding `/mcp-environment-setup` skill in whichever plugin is offline.
+     connected. Use the corresponding `/experiment-mcp-environment-setup` skill in whichever plugin is offline.
    - Working directory set (else the assets plugin's `/working-directory`).
 2. **Read the snapshots:**
    ```text
@@ -156,8 +156,8 @@ three writes are owned here.
 | Skill                                              | Relationship                                                              |
 |----------------------------------------------------|---------------------------------------------------------------------------|
 | assets plugin `/working-directory`          | Required prerequisite — must be run first                                 |
-| assets plugin `/mcp-environment-setup`      | Run first if `slsa mcp` is not connected                          |
-| this plugin `/mcp-environment-setup`               | Run first if `sl-get mcp` is not connected                                |
+| assets plugin `/assets-mcp-environment-setup`      | Run first if `slsa mcp` is not connected                          |
+| this plugin `/experiment-mcp-environment-setup`               | Run first if `sl-get mcp` is not connected                                |
 | assets plugin `/session-data`               | Owns the `SessionData` marker file                                        |
 | assets plugin `/session-descriptors`        | Owns the per-session descriptor files                                     |
 | this plugin `/system-configuration`                | Provides `read_session_system_configuration_tool` for cross-reference     |

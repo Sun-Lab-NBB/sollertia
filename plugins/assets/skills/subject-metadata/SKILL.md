@@ -78,7 +78,7 @@ The discovery side of "which subjects exist" is owned by `/project-hierarchy` vi
 ### Looking up an animal's surgical history before a session
 
 1. **Verify prerequisites:**
-   - MCP server connected (else `/mcp-environment-setup`).
+   - MCP server connected (else `/assets-mcp-environment-setup`).
    - Working directory and Google credentials set (else `/working-directory`).
 2. **Read the subject record:**
    ```text
@@ -143,7 +143,7 @@ If a record needs to be added or corrected:
 | Skill                       | Relationship                                                       |
 |-----------------------------|--------------------------------------------------------------------|
 | `/working-directory`        | Required prerequisite — owns Google credentials path               |
-| `/mcp-environment-setup`    | Run first if the MCP server is not connected                       |
+| `/assets-mcp-environment-setup`    | Run first if the MCP server is not connected                       |
 | `/project-hierarchy`        | Owns `discover_subjects_tool` and the project tree walk            |
 | `/session-data`             | Sibling — owns session-scoped data, this skill owns animal-scoped  |
 | `/session-descriptors`      | Sibling — descriptors capture per-session animal state             |

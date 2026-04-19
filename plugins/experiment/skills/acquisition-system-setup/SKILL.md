@@ -59,9 +59,10 @@ required only because hand-off targets in the assets plugin depend on it.
 | sl-experiment           | `sl-get mcp`       | yes                         | Zaber motor discovery                            |
 | sollertia-shared-assets | `slsa mcp` | no (hand-off targets only)  | Read-only verification of recorded configuration |
 
-If a required MCP server is unavailable, hand off to the relevant `mcp-environment-setup` skill in the
-appropriate plugin (`ataraxis@video:mcp-environment-setup`, `ataraxis@communication:mcp-environment-setup`, or
-this plugin's `/experiment-mcp-environment-setup`).
+If a required MCP server is unavailable, hand off to the appropriate plugin's MCP environment setup
+skill: `ataraxis@video:video-mcp-environment-setup`,
+`ataraxis@communication:communication-mcp-environment-setup`, or this plugin's
+`/experiment-mcp-environment-setup`.
 
 ---
 

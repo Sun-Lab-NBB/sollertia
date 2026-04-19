@@ -91,7 +91,7 @@ and trigger-type enum values, use `list_supported_trial_types_tool` and
 
 ### Step 1: Verify prerequisites
 
-- The `sollertia-shared-assets` MCP server is connected (else hand off to `/mcp-environment-setup`).
+- The `sollertia-shared-assets` MCP server is connected (else hand off to `/assets-mcp-environment-setup`).
 - The task templates directory is set (else hand off to `/working-directory`).
 
 ### Step 2: Discover existing templates
@@ -203,7 +203,7 @@ for instantiating templates into experiment configurations.
 | Skill                                  | Relationship                                                    |
 |----------------------------------------|-----------------------------------------------------------------|
 | `/working-directory`                   | Required prerequisite — owns the templates directory path       |
-| `/mcp-environment-setup`               | Run first if the MCP server is not connected                    |
+| `/assets-mcp-environment-setup`               | Run first if the MCP server is not connected                    |
 | `/experiment-configuration`            | Consumer — instantiates templates into per-project experiments  |
 | unity plugin `/task-prefabs`           | Downstream — generates and validates the Unity prefab           |
 | unity plugin `/scenes`                 | Downstream — places the generated prefab into a Unity scene     |

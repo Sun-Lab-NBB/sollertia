@@ -71,7 +71,7 @@ file exists before reading or writing it.
 ### Repairing a corrupted or stale descriptor
 
 1. **Verify prerequisites:**
-   - MCP server connected (else `/mcp-environment-setup`).
+   - MCP server connected (else `/assets-mcp-environment-setup`).
    - Working directory set (else `/working-directory`).
 2. **Read the existing descriptor:**
    ```text
@@ -127,7 +127,7 @@ If you need to know which descriptor file is present (when the session type is u
 | Skill                    | Relationship                                                          |
 |--------------------------|-----------------------------------------------------------------------|
 | `/working-directory`     | Required prerequisite — must be run first                             |
-| `/mcp-environment-setup` | Run first if the MCP server is not connected                          |
+| `/assets-mcp-environment-setup` | Run first if the MCP server is not connected                          |
 | `/session-data`          | Sibling — owns `SessionData` and `list_supported_session_types_tool`  |
 | experiment plugin `/session-snapshots` | Owns hardware state / Zaber positions / mesoscope positions |
 | `/subject-metadata`      | Sibling — owns subject records                                        |

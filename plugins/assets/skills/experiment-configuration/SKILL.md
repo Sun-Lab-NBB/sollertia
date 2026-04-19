@@ -72,7 +72,7 @@ two are owned by two different skills.
 
 ### Step 1: Verify prerequisites
 
-- MCP server connected (else `/mcp-environment-setup`).
+- MCP server connected (else `/assets-mcp-environment-setup`).
 - Working directory set (else `/working-directory`).
 - The target project exists. If it does not, hand off to `/project-hierarchy` to create it. This skill
   must not call `create_project_tool` directly.
@@ -208,7 +208,7 @@ not supported by the slsa MCP layer.
 | Skill                                          | Relationship                                                       |
 |------------------------------------------------|--------------------------------------------------------------------|
 | `/working-directory`                           | Required prerequisite — must be run first                          |
-| `/mcp-environment-setup`                       | Run first if the MCP server is not connected                       |
+| `/assets-mcp-environment-setup`                       | Run first if the MCP server is not connected                       |
 | `/task-templates`                              | Required upstream — owns template authoring                        |
 | `/project-hierarchy`                           | Required upstream — owns project creation                          |
 | experiment plugin `/system-configuration`      | Owns MesoscopeSystemConfiguration (moved out of this plugin)       |

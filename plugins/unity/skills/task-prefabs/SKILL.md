@@ -32,7 +32,7 @@ marketplace may call these.
 - Authoring per-project experiment configurations (see assets plugin's `/experiment-configuration`)
 - Scene and Unity asset enumeration (see `/scenes`)
 - Entering / exiting Play Mode (see `/play-mode`)
-- Unity Editor bridge diagnostics (see `/mcp-environment-setup`)
+- Unity Editor bridge diagnostics (see `/unity-mcp-environment-setup`)
 
 ---
 
@@ -126,8 +126,8 @@ Templates that do not follow these conventions may still generate prefabs, but d
 
 ### Step 1: Verify prerequisites
 
-- `slsa mcp` server connected (else assets plugin's `/mcp-environment-setup`).
-- Unity Editor running with McpBridge listening (else `/mcp-environment-setup` in this plugin).
+- `slsa mcp` server connected (else assets plugin's `/assets-mcp-environment-setup`).
+- Unity Editor running with McpBridge listening (else `/unity-mcp-environment-setup` in this plugin).
 - Template exists under `Assets/InfiniteCorridorTask/Configurations/<template_name>.yaml`. If not,
   hand off to assets plugin's `/task-templates` to author it first.
 
@@ -260,7 +260,7 @@ fallback path keeps working.
 | `generate_task_prefab_tool` returns "template not found" | Template file missing from `Configurations/`   | Hand off to assets plugin's `/task-templates`   |
 | `validate_prefab_against_template_tool` reports `match: false` | Template or prefab drifted                | Regenerate prefab (Step 2) or fix template      |
 | `inspect_prefab_tool` returns "prefab path missing" | Prefab not saved to `Tasks/`                     | Re-run Step 2 with an explicit `save_path`      |
-| All Unity tools return "Unity Editor is not reachable" | Editor or McpBridge offline                   | `/mcp-environment-setup` in this plugin         |
+| All Unity tools return "Unity Editor is not reachable" | Editor or McpBridge offline                   | `/unity-mcp-environment-setup` in this plugin         |
 | Trigger type mismatch between template and prefab | GUID reference drift                               | Open the prefab in the Editor and re-link zone  |
 
 ---
@@ -284,9 +284,9 @@ fallback path keeps working.
 
 | Skill                                   | Relationship                                              |
 |-----------------------------------------|-----------------------------------------------------------|
-| `/mcp-environment-setup` (this plugin)  | Run first if Unity Editor is unreachable                  |
+| `/unity-mcp-environment-setup` (this plugin)  | Run first if Unity Editor is unreachable                  |
 | `/scenes`                               | Consumer — places the generated prefab into a scene       |
 | `/play-mode`                            | Consumer — exercises the prefab at runtime                |
 | assets plugin `/task-templates`         | Upstream — owns the YAML template the prefab is built from|
 | assets plugin `/experiment-configuration` | Downstream — per-project instantiation of the template  |
-| assets plugin `/mcp-environment-setup`  | Run first — owns the slsa MCP server diagnostic           |
+| assets plugin `/assets-mcp-environment-setup`  | Run first — owns the slsa MCP server diagnostic           |

@@ -116,7 +116,7 @@ start and never modified afterward. There is no `write_session_data_tool` and th
 ### Inspecting a specific session
 
 1. **Verify prerequisites:**
-   - MCP server connected (else `/mcp-environment-setup`).
+   - MCP server connected (else `/assets-mcp-environment-setup`).
    - Working directory set (else `/working-directory`).
 2. **Locate the session.** Hand off to `/project-hierarchy` to call `discover_sessions_tool` with the
    appropriate filters (project, animal, session type, date range).
@@ -217,7 +217,7 @@ Typical workflow:
 | Skill                                | Relationship                                                              |
 |--------------------------------------|---------------------------------------------------------------------------|
 | `/working-directory`                 | Required prerequisite — must be run first                                 |
-| `/mcp-environment-setup`             | Run first if the MCP server is not connected                              |
+| `/assets-mcp-environment-setup`             | Run first if the MCP server is not connected                              |
 | `/project-hierarchy`                 | Owns `discover_sessions_tool` and the project tree walk                   |
 | `/session-descriptors`               | Sibling — owns the per-session descriptor read/write/schema               |
 | experiment plugin `/session-snapshots` | Owns the frozen hardware / Zaber / mesoscope position snapshots         |

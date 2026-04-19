@@ -27,7 +27,7 @@ skill in the marketplace may call `read_server_configuration_tool` or `write_ser
 **Does not cover:**
 - `MesoscopeSystemConfiguration` authoring (see `/system-configuration`)
 - Working directory or credentials setup (see `/working-directory`)
-- Diagnosing MCP server connectivity (see `/mcp-environment-setup`)
+- Diagnosing MCP server connectivity (see `/forging-mcp-environment-setup`)
 
 ---
 

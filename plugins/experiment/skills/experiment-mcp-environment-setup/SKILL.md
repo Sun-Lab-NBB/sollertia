@@ -28,7 +28,7 @@ Diagnoses and resolves sollertia-experiment MCP server connectivity and environm
 - MCP tool usage for Zaber discovery/configuration (see `/zaber-interface`)
 - MCP tool usage for session preprocessing/migration (see `/data-management`)
 - sollertia-shared-assets `slsa mcp` server (see the assets plugin's
-  `/mcp-environment-setup`)
+  `/experiment-mcp-environment-setup`)
 - sollertia-experiment package development workflows
 
 ---
@@ -109,7 +109,7 @@ pip list 2>/dev/null | grep -E "sollertia-experiment|sl-experiment"
 ```
 
 Based on the output, guide the user through the appropriate resolution. The pattern is identical to
-the ataraxis MCP environment setup workflow — see `ataraxis@communication:mcp-environment-setup` for
+the ataraxis MCP environment setup workflow — see `ataraxis@communication:communication-mcp-environment-setup` for
 the full conda / venv / uv decision tree. The only substitution is the package name:
 
 ```bash

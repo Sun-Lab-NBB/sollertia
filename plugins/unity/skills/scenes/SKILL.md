@@ -28,7 +28,7 @@ marketplace may call these.
 **Does not cover:**
 - Generating or validating task prefabs (see `/task-prefabs`)
 - Entering / exiting Play Mode (see `/play-mode`)
-- Unity Editor bridge diagnostics (see `/mcp-environment-setup`)
+- Unity Editor bridge diagnostics (see `/unity-mcp-environment-setup`)
 - Authoring YAML task templates or experiment configurations (see assets plugin)
 
 ---
@@ -52,7 +52,7 @@ before inspection.
 ### Enumerate and switch scenes
 
 1. **Verify prerequisites:** Unity Editor running with McpBridge reachable (else
-   `/mcp-environment-setup`).
+   `/unity-mcp-environment-setup`).
 2. **List scenes:**
    ```text
    list_scenes_tool()
@@ -133,7 +133,7 @@ rejected by the Unity AssetDatabase.
 | `create_scene_tool` fails with "template missing"   | `ExperimentTemplate.unity` absent     | Reinstall the `sollertia-unity-tasks` project   |
 | `create_scene_tool` fails with "prefab not found"   | `task_prefab_path` is wrong           | Generate via `/task-prefabs` first; use project-relative path |
 | `list_unity_assets_tool` returns empty list         | `asset_type` or `search_path` wrong   | Broaden `search_path="Assets"` and confirm type |
-| Unity relay tools all fail                          | McpBridge down                        | `/mcp-environment-setup`                        |
+| Unity relay tools all fail                          | McpBridge down                        | `/unity-mcp-environment-setup`                        |
 
 ---
 
@@ -153,7 +153,7 @@ rejected by the Unity AssetDatabase.
 
 | Skill                                  | Relationship                                              |
 |----------------------------------------|-----------------------------------------------------------|
-| `/mcp-environment-setup` (this plugin) | Run first if Unity Editor is unreachable                  |
+| `/unity-mcp-environment-setup` (this plugin) | Run first if Unity Editor is unreachable                  |
 | `/task-prefabs`                        | Upstream — generates the prefab seeded into a new scene   |
 | `/play-mode`                           | Consumer — typically entered after opening a target scene |
 | assets plugin `/task-templates`        | Upstream — template filename defines the conventional scene name |

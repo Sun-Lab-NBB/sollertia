@@ -1,5 +1,5 @@
 ---
-name: mcp-environment-setup
+name: unity-mcp-environment-setup
 description: >-
   Diagnoses and resolves Unity Editor relay connectivity issues for the sollertia-unity-tasks McpBridge.
   Covers the HTTP listener on localhost:8090, verifying the Unity Editor is running, confirming the
@@ -13,7 +13,7 @@ user-invocable: true
 
 Diagnoses and resolves Unity Editor relay connectivity for the Unity-family tools exposed by
 `sollertia-shared-assets`. The skill only covers the **Unity-side** wiring — the `slsa mcp` server
-itself is owned by the assets plugin's `/mcp-environment-setup`.
+itself is owned by the assets plugin's `/assets-mcp-environment-setup`.
 
 ---
 
@@ -26,7 +26,7 @@ itself is owned by the assets plugin's `/mcp-environment-setup`.
 - Diagnosing why Unity relay tools return "Unity Editor is not reachable"
 
 **Does not cover:**
-- Diagnosing `slsa` CLI / `slsa mcp` availability (see assets plugin's `/mcp-environment-setup`)
+- Diagnosing `slsa` CLI / `slsa mcp` availability (see assets plugin's `/assets-mcp-environment-setup`)
 - Sollertia working directory setup (see assets plugin's `/working-directory`)
 - Unity Editor installation or project setup (see the `sollertia-unity-tasks` README)
 - Prefab or scene workflows (see `/task-prefabs`, `/scenes`, `/play-mode`)
@@ -70,7 +70,7 @@ You MUST follow these steps in order when a Unity relay tool returns "Unity Edit
 ### Step 1: Confirm the slsa MCP server is connected
 
 If the `sollertia-shared-assets` MCP server itself is disconnected, no Unity tool can reach the
-bridge. Hand off to the assets plugin's `/mcp-environment-setup` first.
+bridge. Hand off to the assets plugin's `/assets-mcp-environment-setup` first.
 
 ### Step 2: Confirm the Unity Editor is running
 
@@ -132,7 +132,7 @@ that exercises the relay. If it returns a structured response, Unity-dependent t
 ## Verification checklist
 
 ```text
-- [ ] slsa mcp server is connected (assets plugin's /mcp-environment-setup)
+- [ ] slsa mcp server is connected (assets plugin's /unity-mcp-environment-setup)
 - [ ] Unity Editor is running with sollertia-unity-tasks open
 - [ ] Unity Console shows "McpBridge: Listening on http://localhost:8090/"
 - [ ] curl POST to localhost:8090 returns a JSON success response
@@ -145,7 +145,7 @@ that exercises the relay. If it returns a structured response, Unity-dependent t
 
 | Skill                                     | Relationship                                       |
 |-------------------------------------------|----------------------------------------------------|
-| assets plugin `/mcp-environment-setup`    | Run first — owns the slsa MCP server diagnostic    |
+| assets plugin `/assets-mcp-environment-setup`    | Run first — owns the slsa MCP server diagnostic    |
 | `/task-prefabs`                           | Consumer — prefab generation / inspection / validation |
 | `/scenes`                                 | Consumer — scene and asset management              |
 | `/play-mode`                              | Consumer — runtime control                         |

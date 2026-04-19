@@ -1,5 +1,5 @@
 ---
-name: mcp-environment-setup
+name: assets-mcp-environment-setup
 description: >-
   Diagnoses and resolves sollertia-shared-assets MCP server connectivity issues. Covers environment
   verification, command availability for slsa, Python version checks, dependency validation, and
@@ -25,10 +25,12 @@ Diagnoses and resolves sollertia-shared-assets MCP server connectivity and envir
 
 **Does not cover:**
 - MCP tool usage for any specific configuration task (see other assets plugin skills)
-- sollertia-experiment `sl-get` / `sl-manage` MCP servers (see the experiment plugin's MCP env setup)
+- sollertia-experiment `sl-get` / `sl-manage` MCP servers (see the experiment plugin's
+  `/experiment-mcp-environment-setup`)
+- sollertia-forgery `sl-mcp` MCP server (see the forging plugin's `/forging-mcp-environment-setup`)
 - Unity Editor or sollertia-unity-tasks installation (see the sollertia-unity-tasks README)
 - Unity Editor relay (`McpBridge`) connectivity diagnostics (see the unity plugin's
-  `/mcp-environment-setup`)
+  `/assets-mcp-environment-setup`)
 
 ---
 
@@ -44,8 +46,11 @@ slsa = "sollertia_shared_assets.interfaces.cli:slsa_cli"
 
 - **Server**: `sollertia-shared-assets`
 - **CLI command**: `slsa mcp`
-- **Purpose**: Discovery, read, write, and schema introspection of all Sollertia configuration and
-  runtime data files. Also relays Unity Editor operations for the unity plugin's tools.
+- **Purpose**: Discovery, read, write, and schema introspection of *shared* Sollertia configuration
+  and runtime data files — the assets consumed by multiple libraries. Configuration and runtime data
+  files exclusive to `sollertia-experiment` and `sollertia-forgery` live in those packages and are
+  served by their own MCP servers: `sl-get` / `sl-manage` (sollertia-experiment) and `sl-mcp`
+  (sollertia-forgery). Also relays Unity Editor operations for the unity plugin's tools.
 
 The server accepts a `--transport` option (defaults to `stdio`). The assets plugin's `plugin.json`
 configures the Claude assistant to launch the server automatically:
@@ -78,7 +83,7 @@ Installing the plugin alone registers the MCP server but the server will fail to
 
 The `slsa mcp` server also serves a family of Unity-relay tools (prefab, scene, play-mode). Those
 tools depend on the Unity Editor running with the `McpBridge` plugin loaded. **That diagnostic is
-owned by the unity plugin's `/mcp-environment-setup`** — this skill only covers the slsa CLI /
+owned by the unity plugin's `/unity-mcp-environment-setup`** — this skill only covers the slsa CLI /
 Python environment side of the stack.
 
 ---
@@ -148,22 +153,22 @@ the next session.
 ### Step 7: Hand off if the issue is Unity-specific
 
 If the slsa server itself is healthy but a Unity-relay tool (prefab / scene / play-mode) returns
-"Unity Editor is not reachable", hand off to the unity plugin's `/mcp-environment-setup` — that
+"Unity Editor is not reachable", hand off to the unity plugin's `/unity-mcp-environment-setup` — that
 skill owns the McpBridge / localhost:8090 diagnostic.
 
 ---
 
 ## Common issues and resolutions
 
-| Symptom                              | Cause                             | Resolution                                       |
-|--------------------------------------|-----------------------------------|--------------------------------------------------|
-| `slsa: command not found`            | Environment not activated         | Activate conda/venv and restart                  |
-| `slsa: command not found`            | `sollertia-shared-assets` missing | Install the package (see Step 3)                 |
-| Import error on `slsa mcp`           | `ataraxis-data-structures` skew   | Upgrade the package (see Step 5)                 |
-| Tools fail "no working directory"    | Working directory not initialized | Run `/working-directory` to set it               |
-| Tools fail "templates not set"       | Task templates path not set       | Run `/working-directory`                         |
-| Write tools fail after connect       | Invalid YAML from a previous edit | Use `discover_*` / `read_*` tools                |
-| "Unity Editor is not reachable"      | McpBridge / Editor offline        | Hand off to unity plugin `/mcp-environment-setup`|
+| Symptom                           | Cause                             | Resolution                                      |
+|-----------------------------------|-----------------------------------|-------------------------------------------------|
+| `slsa: command not found`         | Environment not activated         | Activate conda/venv and restart                 |
+| `slsa: command not found`         | `sollertia-shared-assets` missing | Install the package (see Step 3)                |
+| Import error on `slsa mcp`        | `ataraxis-data-structures` skew   | Upgrade the package (see Step 5)                |
+| Tools fail "no working directory" | Working directory not initialized | Run `/working-directory` to set it              |
+| Tools fail "templates not set"    | Task templates path not set       | Run `/working-directory`                        |
+| Write tools fail after connect    | Invalid YAML from a previous edit | Use `discover_*` / `read_*` tools               |
+| "Unity Editor is not reachable"   | McpBridge / Editor offline        | See unity plugin `/unity-mcp-environment-setup` |
 
 ---
 
@@ -172,25 +177,33 @@ skill owns the McpBridge / localhost:8090 diagnostic.
 This skill is a prerequisite for **every** other skill in the assets plugin and the unity plugin —
 they all depend on the `sollertia-shared-assets` MCP server being reachable.
 
-| Skill                                      | Asset it owns                                          |
-|--------------------------------------------|--------------------------------------------------------|
-| `/working-directory`                       | Working directory, credentials, templates dir path     |
-| `/task-templates`                          | `TaskTemplate` + trial primitives                      |
-| `/experiment-configuration`                | `MesoscopeExperimentConfiguration` + `ExperimentState` |
-| `/project-hierarchy`                       | Projects (`create_project_tool`)                       |
-| `/session-data`                            | `SessionData` + `SessionTypes` + session status tools  |
-| `/session-descriptors`                     | The 4 per-session-type descriptors                     |
-| `/subject-metadata`                        | All animal-scoped subject record types                 |
-| unity plugin `/mcp-environment-setup`      | Unity Editor / McpBridge diagnostic                    |
-| unity plugin `/task-prefabs`               | Task prefab generation, inspection, validation         |
-| unity plugin `/scenes`                     | Scene and Unity asset management                       |
-| unity plugin `/play-mode`                  | Unity Editor Play Mode control                         |
-| experiment plugin `/system-configuration`  | `MesoscopeSystemConfiguration` (moved out)             |
-| experiment plugin `/session-snapshots`     | Frozen hardware state / Zaber / mesoscope positions    |
-| experiment plugin `/system-health-check`   | Owns `get_acquisition_environment_status_tool`         |
-| forging plugin `/server-configuration`     | `ServerConfiguration` (moved out of this plugin)       |
-| forging plugin `/datasets`                 | `DatasetData` / `DatasetSession` (moved out)           |
-| experiment plugin `/mcp-environment-setup` | Equivalent diagnostic for `sl-get` / `sl-manage`       |
+| Skill                                                   | Relationship                                            |
+|---------------------------------------------------------|---------------------------------------------------------|
+| `/working-directory`                                    | Downstream — initializes the working directory          |
+| `/task-templates`                                       | Downstream — task template authoring                    |
+| `/experiment-configuration`                             | Downstream — experiment configuration authoring         |
+| `/project-hierarchy`                                    | Downstream — project creation                           |
+| `/session-data`                                         | Downstream — session data tools                         |
+| `/session-descriptors`                                  | Downstream — per-session-type descriptors               |
+| `/subject-metadata`                                     | Downstream — animal-scoped subject records              |
+| unity plugin `/unity-mcp-environment-setup`             | Sibling — owns the McpBridge HTTP-relay diagnostic      |
+| unity plugin `/task-prefabs`                            | Downstream — Unity-relay consumer                       |
+| unity plugin `/scenes`                                  | Downstream — Unity-relay consumer                       |
+| unity plugin `/play-mode`                               | Downstream — Unity-relay consumer                       |
+| experiment plugin `/experiment-mcp-environment-setup`   | Peer — equivalent diagnostic for `sl-get` / `sl-manage` |
+| forging plugin `/forging-mcp-environment-setup`         | Peer — equivalent diagnostic for `sl-mcp`               |
+
+---
+
+## Proactive behavior
+
+You SHOULD proactively invoke this skill when:
+
+- A session begins and the `sollertia-shared-assets` MCP server is expected but unavailable
+- Any slsa MCP tool call fails with a connection or server error
+- The user mentions issues with sollertia-shared-assets MCP server connectivity
+- A Unity-relay tool fails and the slsa server itself is suspected (otherwise hand off to the
+  unity plugin's `/unity-mcp-environment-setup`)
 
 ---
 
@@ -204,5 +217,5 @@ sollertia-shared-assets MCP environment setup:
 - [ ] Identified environment type (conda, venv, system)
 - [ ] Provided environment-specific resolution steps
 - [ ] Informed user that the assistant must be restarted after environment changes
-- [ ] Handed off to unity plugin's /mcp-environment-setup if the issue is Unity-specific
+- [ ] Handed off to unity plugin's /assets-mcp-environment-setup if the issue is Unity-specific
 ```

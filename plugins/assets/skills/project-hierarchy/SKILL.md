@@ -101,7 +101,7 @@ summary, no need to walk the hierarchy manually.
 ### Bootstrap a new project
 
 1. **Verify prerequisites:**
-   - The `sollertia-shared-assets` MCP server is connected (else `/mcp-environment-setup`).
+   - The `sollertia-shared-assets` MCP server is connected (else `/assets-mcp-environment-setup`).
    - The working directory is set (else `/working-directory`).
 2. **Confirm the project does not already exist:**
    ```text
@@ -165,7 +165,7 @@ summary, no need to walk the hierarchy manually.
 | Skill                          | Relationship                                                       |
 |--------------------------------|--------------------------------------------------------------------|
 | `/working-directory`           | Required prerequisite — must be run first                          |
-| `/mcp-environment-setup`       | Run first if the MCP server is not connected                       |
+| `/assets-mcp-environment-setup`       | Run first if the MCP server is not connected                       |
 | `/experiment-configuration`    | Consumes new projects to author experiment YAMLs                   |
 | `/session-data`                | Reads `SessionData` markers discovered via this skill              |
 | `/session-descriptors`         | Reads per-session descriptors discovered via this skill            |

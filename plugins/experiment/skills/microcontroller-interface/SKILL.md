@@ -48,7 +48,7 @@ ataraxis-communication-interface and ataraxis-micro-controller.
 | Hardware discovery / MQTT verification        | `ataraxis@communication:microcontroller-setup`   |
 | Writing PC-side MicroControllerInterface code | `ataraxis@communication:microcontroller-interface` |
 | Implementing a new C++ firmware Module        | `ataraxis@microcontroller:firmware-module`       |
-| Diagnosing MCP server issues                  | `ataraxis@communication:mcp-environment-setup`   |
+| Diagnosing MCP server issues                  | `ataraxis@communication:communication-mcp-environment-setup`   |
 | Log archive layout / extraction config        | `ataraxis@communication:log-input-format`        |
 
 ---

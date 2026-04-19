@@ -43,7 +43,7 @@ binding layer is intentionally thin — all hardware interaction goes through at
 |--------------------------------------------|------------------------------------|
 | Discovering cameras / verifying hardware   | `ataraxis@video:camera-setup`      |
 | Writing or modifying VideoSystem code      | `ataraxis@video:camera-interface`  |
-| Diagnosing MCP server issues               | `ataraxis@video:mcp-environment-setup` |
+| Diagnosing MCP server issues               | `ataraxis@video:video-mcp-environment-setup` |
 | Understanding recorded log archive layout  | `ataraxis@video:log-input-format`  |
 
 ---

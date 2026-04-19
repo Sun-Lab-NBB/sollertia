@@ -30,7 +30,7 @@ these.
   `sollertia-experiment`, not by the Editor
 - Generating or inspecting prefabs (see `/task-prefabs`)
 - Opening or creating scenes (see `/scenes`)
-- Unity Editor bridge diagnostics (see `/mcp-environment-setup`)
+- Unity Editor bridge diagnostics (see `/unity-mcp-environment-setup`)
 
 Play Mode here is an **Editor-side** convenience for developers iterating on a task prefab. It is
 not the path production data acquisition takes.
@@ -70,7 +70,7 @@ to confirm the Editor is in `edit` before performing mutating Unity operations.
 ### Exercise a task prefab in Play Mode
 
 1. **Verify prerequisites:**
-   - Unity Editor running with McpBridge reachable (else `/mcp-environment-setup`).
+   - Unity Editor running with McpBridge reachable (else `/unity-mcp-environment-setup`).
    - The target scene is open — hand off to `/scenes` (`open_scene_tool`) if not.
 2. **Read current state:**
    ```text
@@ -131,7 +131,7 @@ Hand off to the owning skill (`/scenes`, `/task-prefabs`) only after the Editor 
 | `enter_play_mode_tool` returns while `compiling`     | Script recompile in progress              | Wait and re-poll `get_play_state_tool`     |
 | `exit_play_mode_tool` has no effect            | Editor already in `edit`                        | Expected — re-poll to confirm              |
 | Active scene is not the one expected           | A different scene was opened previously         | Hand off to `/scenes` (`open_scene_tool`)  |
-| All tools fail "Unity Editor is not reachable" | McpBridge down                                  | `/mcp-environment-setup`                   |
+| All tools fail "Unity Editor is not reachable" | McpBridge down                                  | `/unity-mcp-environment-setup`                   |
 
 ---
 
@@ -151,7 +151,7 @@ Hand off to the owning skill (`/scenes`, `/task-prefabs`) only after the Editor 
 
 | Skill                                  | Relationship                                      |
 |----------------------------------------|---------------------------------------------------|
-| `/mcp-environment-setup` (this plugin) | Run first if Unity Editor is unreachable          |
+| `/unity-mcp-environment-setup` (this plugin) | Run first if Unity Editor is unreachable          |
 | `/scenes`                              | Upstream — opens the scene to exercise in Play Mode |
 | `/task-prefabs`                        | Upstream — generates the prefab under test        |
-| assets plugin `/mcp-environment-setup` | Upstream — owns the slsa MCP server diagnostic    |
+| assets plugin `/assets-mcp-environment-setup` | Upstream — owns the slsa MCP server diagnostic    |

@@ -96,7 +96,7 @@ first, mutate the dictionary, then write the whole thing back.
 ### Step 1: Verify prerequisites
 
 - The `sl-get mcp` server (sollertia-experiment) is connected (else hand off to the experiment plugin's
-  `/mcp-environment-setup`).
+  `/experiment-mcp-environment-setup`).
 - The working directory is set (else hand off to the assets plugin's `/working-directory`).
 
 ### Step 2: Determine whether to create or modify
@@ -196,7 +196,7 @@ regeneration step.
 | Skill                                              | Relationship                                                        |
 |----------------------------------------------------|---------------------------------------------------------------------|
 | assets plugin `/working-directory`          | Required prerequisite — must be run first                           |
-| this plugin `/mcp-environment-setup`               | Run first if sl-get mcp is not connected                            |
+| this plugin `/experiment-mcp-environment-setup`               | Run first if sl-get mcp is not connected                            |
 | forging plugin `/server-configuration`             | Owns `ServerConfiguration` (moved out of the assets plugin)  |
 | assets plugin `/experiment-configuration`   | Authored separately, consumes system configuration at runtime       |
 | assets plugin `/session-data`               | Session-level data                                                  |

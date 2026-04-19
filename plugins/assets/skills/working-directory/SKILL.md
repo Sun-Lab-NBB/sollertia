@@ -37,7 +37,7 @@ configuration or runtime tooling.
 - Reading session-level data (see `/session-data`, `/session-descriptors`, `/session-snapshots`,
   `/subject-metadata`)
 - Reading datasets (see `/datasets`)
-- Diagnosing MCP server connectivity (see `/mcp-environment-setup`)
+- Diagnosing MCP server connectivity (see `/assets-mcp-environment-setup`)
 
 ---
 
@@ -151,7 +151,7 @@ assets plugin skills can be used freely.
 ### Step 1: Verify MCP connectivity
 
 Confirm the `sollertia-shared-assets` MCP server is connected. If not, hand off to
-`/mcp-environment-setup`.
+`/assets-mcp-environment-setup`.
 
 ### Step 2: Set the working directory
 
@@ -245,7 +245,7 @@ below summarize where each downstream skill picks up after the working directory
 
 | Downstream skill              | What it needs from this skill                                         |
 |-------------------------------|-----------------------------------------------------------------------|
-| `/mcp-environment-setup`      | (sibling — run first if the MCP server is not connected)              |
+| `/assets-mcp-environment-setup`      | (sibling — run first if the MCP server is not connected)              |
 | experiment plugin `/system-configuration` | Working directory                                         |
 | forging plugin `/server-configuration` | Working directory                                            |
 | `/task-templates`             | Working directory + task templates directory                          |
