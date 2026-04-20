@@ -33,7 +33,7 @@ Phase 1: sl-shared-assets (Data Structures)
 ├── 1.4 Export new classes
 └── 1.5 Bump version
 
-Phase 2: sl-experiment (Implementation)
+Phase 2: sollertia-experiment (Implementation)
 ├── 2.1 Add system state to _MesoscopeVRStates enum
 ├── 2.2 Add state transition method to _MesoscopeVRSystem
 ├── 2.3 Add visualizer mode to VisualizerMode enum
@@ -175,11 +175,11 @@ Update `pyproject.toml` version number.
 
 ---
 
-## Phase 2: Implementation (sl-experiment)
+## Phase 2: Implementation (sollertia-experiment)
 
 ### Step 2.1: Add System State
 
-**File:** `sl-experiment/src/sl_experiment/mesoscope_vr/data_acquisition.py`
+**File:** `sollertia-experiment/src/sl_experiment/mesoscope_vr/data_acquisition.py`
 
 Add a new member to the `_MesoscopeVRStates` enumeration:
 
@@ -214,7 +214,7 @@ class _MesoscopeVRStates(IntEnum):
 
 ### Step 2.2: Add State Transition Method
 
-**File:** `sl-experiment/src/sl_experiment/mesoscope_vr/data_acquisition.py`
+**File:** `sollertia-experiment/src/sl_experiment/mesoscope_vr/data_acquisition.py`
 
 Add a method to `_MesoscopeVRSystem` that configures hardware for the new state:
 
@@ -267,7 +267,7 @@ class _MesoscopeVRSystem:
 
 ### Step 2.3: Add Visualizer Mode
 
-**File:** `sl-experiment/src/sl_experiment/mesoscope_vr/visualizers.py`
+**File:** `sollertia-experiment/src/sl_experiment/mesoscope_vr/visualizers.py`
 
 Add a new member to the `VisualizerMode` enumeration:
 
@@ -293,7 +293,7 @@ If your new mode uses the same visualization as an existing mode, you can reuse 
 
 ### Step 2.4: Update _MesoscopeVRSystem Initialization
 
-**File:** `sl-experiment/src/sl_experiment/mesoscope_vr/data_acquisition.py`
+**File:** `sollertia-experiment/src/sl_experiment/mesoscope_vr/data_acquisition.py`
 
 Update the `_MesoscopeVRSystem` class to handle the new session type:
 
@@ -321,7 +321,7 @@ class _MesoscopeVRSystem:
 
 ### Step 2.5: Create Runtime Logic Function
 
-**File:** `sl-experiment/src/sl_experiment/mesoscope_vr/data_acquisition.py`
+**File:** `sollertia-experiment/src/sl_experiment/mesoscope_vr/data_acquisition.py`
 
 Create the main function that orchestrates the session. Follow this pattern:
 
@@ -375,7 +375,7 @@ def new_training_logic(
         message = (
             f"Unable to execute the new training session for the animal {animal_id} participating in the project "
             f"{project_name}. The {system_configuration.name} data acquisition system is not configured to acquire "
-            f"data for this project. Use the 'sl-configure project' command to configure the project before running "
+            f"data for this project. Use the 'sle configure project' command to configure the project before running "
             f"data acquisition sessions."
         )
         console.error(message=message, error=FileNotFoundError)
@@ -566,7 +566,7 @@ def new_training_logic(
 
 ### Step 2.6: Add CLI Command
 
-**File:** `sl-experiment/src/sl_experiment/command_line_interfaces/execute.py`
+**File:** `sollertia-experiment/src/sl_experiment/command_line_interfaces/execute.py`
 
 Add the import and CLI command:
 
@@ -637,7 +637,7 @@ def new_training(
 
 ### Step 2.7: Export from __init__.py
 
-**File:** `sl-experiment/src/sl_experiment/mesoscope_vr/__init__.py`
+**File:** `sollertia-experiment/src/sl_experiment/mesoscope_vr/__init__.py`
 
 ```python
 from .data_acquisition import (
@@ -651,7 +651,7 @@ from .data_acquisition import (
 
 ### Step 2.8: Update Dependencies
 
-**File:** `sl-experiment/pyproject.toml`
+**File:** `sollertia-experiment/pyproject.toml`
 
 ```toml
 dependencies = [
@@ -708,7 +708,7 @@ dependencies = [
 - [ ] MyPy strict passes
 ```
 
-### Phase 2 (sl-experiment)
+### Phase 2 (sollertia-experiment)
 
 ```
 - [ ] Added system state to _MesoscopeVRStates enum

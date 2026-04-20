@@ -15,7 +15,7 @@ Mesoscope-VR supports exactly three hardware categories. New hardware must be ad
 | Microcontrollers  | `MesoscopeMicroControllers`  | Sensors, actuators, digital I/O via Teensy     |
 | External Assets   | `MesoscopeExternalAssets`    | Zaber motors, network services, other devices  |
 
-Each category can have one or more binding classes in sl-experiment. For example, `MesoscopeExternalAssets` currently
+Each category can have one or more binding classes in sollertia-experiment. For example, `MesoscopeExternalAssets` currently
 provides configuration for `ZaberMotors`, but additional binding classes can be added as needed.
 
 **New hardware categories are NOT supported.** All hardware must fit into one of these existing categories.
@@ -56,7 +56,7 @@ and identify configuration values (camera indices, serial ports, etc.).
 |-------------------|-----------------------------|--------------------|
 | Cameras           | ataraxis-video-system       | `axvs mcp`         |
 | Microcontrollers  | ataraxis-comm-interface     | `axci-mcp`         |
-| Zaber motors      | sl-experiment               | `sl-get mcp`       |
+| Zaber motors      | sollertia-experiment               | `sle get mcp`       |
 
 ### Verification Tools by Hardware Type
 
@@ -101,7 +101,7 @@ Phase 1: sl-shared-assets (Configuration)
 ├── 1.2 Export (if adding new classes for complex types)
 └── 1.3 Bump version
 
-Phase 2: sl-experiment (Implementation)
+Phase 2: sollertia-experiment (Implementation)
 ├── 2.1 Extend existing binding class
 ├── 2.2 Integrate into data_acquisition.py lifecycle
 ├── 2.3 Update CLI commands (if needed)
@@ -156,9 +156,9 @@ class MesoscopeCameras:
     """The encoding speed preset used by the new camera."""
 ```
 
-### Phase 2: Implementation (sl-experiment)
+### Phase 2: Implementation (sollertia-experiment)
 
-**File:** `sl-experiment/src/sl_experiment/mesoscope_vr/binding_classes.py`
+**File:** `sollertia-experiment/src/sl_experiment/mesoscope_vr/binding_classes.py`
 
 Extend the `VideoSystems` class:
 
@@ -275,7 +275,7 @@ class MesoscopeMicroControllers:
     """Description of parameter B for the new module."""
 ```
 
-#### Phase 2: Implementation (sl-experiment)
+#### Phase 2: Implementation (sollertia-experiment)
 
 After implementing the firmware module and PC interface class using `/microcontroller-interface` (the interface class
 is created in `shared_components/module_interfaces.py`):
@@ -290,7 +290,7 @@ Integration Steps:
 └── 2.6 Use interface in data_acquisition.py runtime
 ```
 
-**File:** `sl-experiment/src/sl_experiment/mesoscope_vr/binding_classes.py`
+**File:** `sollertia-experiment/src/sl_experiment/mesoscope_vr/binding_classes.py`
 
 ```python
 from sl_experiment.shared_components import (
@@ -397,9 +397,9 @@ class MesoscopeMicroControllers:
     """Description of parameter B for the new module."""
 ```
 
-#### Phase 2: Implementation (sl-experiment)
+#### Phase 2: Implementation (sollertia-experiment)
 
-**File:** `sl-experiment/src/sl_experiment/mesoscope_vr/binding_classes.py`
+**File:** `sollertia-experiment/src/sl_experiment/mesoscope_vr/binding_classes.py`
 
 Add the new controller to `MicroControllerInterfaces`:
 
@@ -459,7 +459,7 @@ class MicroControllerInterfaces:
 
 ### Using the Module in Runtime
 
-**File:** `sl-experiment/src/sl_experiment/mesoscope_vr/data_acquisition.py`
+**File:** `sollertia-experiment/src/sl_experiment/mesoscope_vr/data_acquisition.py`
 
 ```python
 # Enable monitoring (for sensor modules)
@@ -516,7 +516,7 @@ class MesoscopeExternalAssets:
     """Default movement speed for the new motor in mm/s."""
 ```
 
-### Phase 2: Implementation (sl-experiment)
+### Phase 2: Implementation (sollertia-experiment)
 
 External assets have flexible binding options:
 
@@ -700,7 +700,7 @@ Post-Implementation:
 ### External Asset Hardware
 
 ```
-Pre-Implementation (MCP verification via sl-get mcp for Zaber motors):
+Pre-Implementation (MCP verification via sle get mcp for Zaber motors):
 - [ ] Ran get_zaber_devices_tool() and confirmed device is detected (if Zaber)
 - [ ] Recorded device port from discovery output
 - [ ] Verified device axes and capabilities match requirements

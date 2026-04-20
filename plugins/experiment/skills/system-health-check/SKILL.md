@@ -19,8 +19,8 @@ All four MCP servers must be running to perform a complete system health check.
 
 | Server                  | Start Command      | Tools Used                                   |
 |-------------------------|--------------------|----------------------------------------------|
-| sl-experiment           | `sl-get mcp`       | Mount checks, Zaber discovery, projects      |
-| sl-shared-assets        | `sl-configure mcp` | Working directory, credentials, templates    |
+| sollertia-experiment           | `sle get mcp`       | Mount checks, Zaber discovery, projects      |
+| sl-shared-assets        | `slsa mcp` | Working directory, credentials, templates    |
 | ataraxis-video-system   | `axvs mcp`         | Camera discovery, video requirements, CTI    |
 | ataraxis-comm-interface | `axci-mcp`         | Microcontroller discovery, MQTT broker       |
 
@@ -43,6 +43,21 @@ System Health Check Progress:
 
 ### Phase 1: Configuration Prerequisites
 
+Start with a single-call health snapshot of every Sollertia platform configuration component owned
+by `sollertia-shared-assets`:
+
+```text
+get_platform_environment_status_tool()
+```
+
+This skill is the **exclusive** owner of `get_platform_environment_status_tool`. The tool returns
+a structured report covering working directory readiness, Google credentials, task templates
+directory, system configuration presence and validity, and server configuration presence. Use it as
+the first probe — if every component reports healthy, skip the redundant per-component tools below
+and advance to Phase 2.
+
+When any component reports unhealthy, fall back to the per-component tools to localize the fault:
+
 | Check                        | Tool                                | Expected Result                     |
 |------------------------------|-------------------------------------|-------------------------------------|
 | Working directory set        | `get_working_directory_tool`        | Returns valid path                  |
@@ -50,7 +65,7 @@ System Health Check Progress:
 | Task templates directory set | `get_task_templates_directory_tool` | Returns valid path to Unity configs |
 
 **Task templates directory** must point to the `sl-unity-tasks/Assets/InfiniteCorridorTask/Configurations/` folder.
-If `get_task_templates_directory_tool` returns no path or an invalid one, hand off to the configuration plugin's
+If `get_task_templates_directory_tool` returns no path or an invalid one, hand off to the assets plugin's
 `/working-directory` skill to set it. This skill must not call `set_task_templates_directory_tool` directly —
 bootstrap path setters are owned by `/working-directory`.
 

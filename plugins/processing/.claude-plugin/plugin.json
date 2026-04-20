@@ -1,8 +1,0 @@
-{
-  "name": "processing",
-  "version": "0.1.0",
-  "description": "Provides post-acquisition data processing pipeline orchestration skills for the Sollertia platform. Reserved for processing functionality that is being absorbed into other Sollertia libraries.",
-  "repository": "https://github.com/Sun-Lab-NBB/sollertia",
-  "license": "Apache-2.0",
-  "skills": "./skills/"
-}

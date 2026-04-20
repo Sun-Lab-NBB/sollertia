@@ -21,13 +21,13 @@ ordering, handoff conditions to phase-specific skills, and the boundary between 
 **Covers:**
 - Canonical pipeline phase ordering for a Sollertia experiment
 - Handoff conditions to phase-specific experiment skills
-- Where the configuration plugin and ataraxis plugins fit into the pipeline
+- Where the assets plugin and ataraxis plugins fit into the pipeline
 - The configuration-time vs runtime boundary
 
 **Does not cover:**
 - Detailed tool usage for any individual phase (see phase-specific skills)
 - MCP server connectivity (see `/experiment-mcp-environment-setup`)
-- Authoring system / experiment / session YAML files (see configuration plugin skills)
+- Authoring system / experiment / session YAML files (see assets plugin skills)
 - Post-acquisition data analysis (see processing plugin)
 
 **Handoff rules:** This skill dispatches to phase-specific skills at each stage. Always invoke the
@@ -42,18 +42,18 @@ runtime acquisition is fully deterministic and AI-independent.
 
 | Phase                                | AI-assisted? | Where it lives                                |
 |--------------------------------------|--------------|-----------------------------------------------|
-| Working directory + credentials      | yes          | configuration plugin (`sl-configure mcp`)     |
-| System configuration authoring       | yes          | configuration plugin (`sl-configure mcp`)     |
-| Hardware bringup and verification    | yes          | experiment plugin (`sl-get mcp` + ataraxis)   |
-| Experiment design (templates, states)| yes          | configuration plugin (`sl-configure mcp`)     |
-| Pre-session health check             | yes          | experiment plugin (`sl-get mcp` + ataraxis)   |
+| Working directory + credentials      | yes          | assets plugin (`slsa mcp`)     |
+| System configuration authoring       | yes          | assets plugin (`slsa mcp`)     |
+| Hardware bringup and verification    | yes          | experiment plugin (`sle get mcp` + ataraxis)   |
+| Experiment design (templates, states)| yes          | assets plugin (`slsa mcp`)     |
+| Pre-session health check             | yes          | experiment plugin (`sle get mcp` + ataraxis)   |
 | **Runtime data acquisition**         | **no**       | sollertia-experiment Python entry points only |
-| Post-acquisition preprocessing       | yes          | experiment plugin (`sl-manage mcp`)           |
-| Data management (migrate / delete)   | yes          | experiment plugin (`sl-manage mcp`)           |
+| Post-acquisition preprocessing       | yes          | experiment plugin (`sle manage mcp`)           |
+| Data management (migrate / delete)   | yes          | experiment plugin (`sle manage mcp`)           |
 | Post-acquisition data analysis       | yes          | processing plugin                             |
 
 The MCP tool surface intentionally has no "start a recording session" tool. Runtime is launched only
-through the `sl-run` CLI, which reads validated configuration files written during the AI-assisted
+through the `sle run` CLI, which reads validated configuration files written during the AI-assisted
 phases.
 
 ---
@@ -64,14 +64,14 @@ phases.
 Working      System         Hardware       Experiment     Pre-session    Runtime        Post-process    Handoff to
 Directory →  Configuration →  Bringup    →  Design      →  Health Check →  Acquisition →  & Manage    →  Processing
     |              |              |              |              |              |              |              |
-configuration  configuration  /acquisition-  configuration  /system-       (sl-run CLI,   /data-         processing
+configuration  configuration  /acquisition-  configuration  /system-       (sle run CLI,   /data-         processing
  /working-     /system-       system-setup    /experiment-   health-       no MCP)         management    plugin
   directory     configuration                  configuration  check
 ```
 
 ### Phase 1: Working directory and credentials
 
-- **Plugin / Skill:** configuration plugin → `/working-directory`
+- **Plugin / Skill:** assets plugin → `/working-directory`
 - **Actions:** Set the local Sollertia working directory; configure Google Sheets credentials and task
   templates directory.
 - **Handoff condition:** `read_working_directory_tool` returns the expected path.
@@ -79,8 +79,8 @@ configuration  configuration  /acquisition-  configuration  /system-       (sl-r
 
 ### Phase 2: System configuration
 
-- **Plugin / Skill:** configuration plugin → `/system-configuration`
-- **Actions:** Generate or edit `MesoscopeSystemConfiguration` YAML via the `sl-configure mcp` write
+- **Plugin / Skill:** assets plugin → `/system-configuration`
+- **Actions:** Generate or edit `MesoscopeSystemConfiguration` YAML via the `slsa mcp` write
   tools. Author cameras, microcontrollers, file system paths, Google Sheets, external assets, server
   configuration.
 - **Handoff condition:** `read_system_configuration_tool` returns a valid configuration; the config
@@ -100,16 +100,16 @@ configuration  configuration  /acquisition-  configuration  /system-       (sl-r
 
 ### Phase 4: Experiment authoring
 
-This phase is split across three configuration plugin skills, invoked in dependency order. Each skill
+This phase is split across three assets plugin skills, invoked in dependency order. Each skill
 owns exactly one slsa asset and the others must hand off to it.
 
-- **Step 4a — `/project-hierarchy` (configuration plugin):** Create the project under which the
+- **Step 4a — `/project-hierarchy` (assets plugin):** Create the project under which the
   experiment will live, if it does not already exist. Owns `create_project_tool`.
-- **Step 4b — `/task-templates` (configuration plugin):** Author or load the task template that
+- **Step 4b — `/task-templates` (assets plugin):** Author or load the task template that
   defines the VR environment, cue catalog, segments, and trial structure. Owns `write_template_tool`.
-  Hand off to the experiment plugin's `/configuration-verification` if the template targets a Unity
-  scene.
-- **Step 4c — `/experiment-configuration` (configuration plugin):** Instantiate the template into a
+  Hand off to the unity plugin's `/task-prefabs` if the template targets a Unity scene (prefab
+  generation and zone validation).
+- **Step 4c — `/experiment-configuration` (assets plugin):** Instantiate the template into a
   per-project experiment configuration, populate the state machine, and customize state durations,
   trial weights, and reward volumes. Owns `write_experiment_configuration_tool` and
   `create_experiment_config_tool`.
@@ -125,8 +125,8 @@ owns exactly one slsa asset and the others must hand off to it.
 
 ### Phase 6: Runtime acquisition (no AI)
 
-- **Plugin / Skill:** none — invoked directly via the `sl-run` CLI by the experimenter.
-- **Actions:** `sl-run` reads the validated system + experiment configuration files, dispatches a
+- **Plugin / Skill:** none — invoked directly via the `sle run` CLI by the experimenter.
+- **Actions:** `sle run` reads the validated system + experiment configuration files, dispatches a
   hardware-deterministic acquisition session, writes raw data + descriptors into the session directory.
 - **Handoff condition:** Session terminates cleanly; `session_data.yaml` and the appropriate descriptor
   file (lick training / run training / window checking / mesoscope experiment) exist on disk.
@@ -156,7 +156,7 @@ owns exactly one slsa asset and the others must hand off to it.
 
 ```
 Is the system already configured?
-├─ no  → start at Phase 1 (configuration plugin /working-directory)
+├─ no  → start at Phase 1 (assets plugin /working-directory)
 └─ yes
     └─ Is the hardware verified for this session?
         ├─ no  → /system-health-check
@@ -165,7 +165,7 @@ Is the system already configured?
                 ├─ no  → /project-hierarchy → /task-templates → /experiment-configuration
                 └─ yes
                     └─ Is a session already recorded?
-                        ├─ no  → user runs `sl-run` (no AI involvement)
+                        ├─ no  → user runs `sle run` (no AI involvement)
                         └─ yes
                             └─ Is preprocessing complete?
                                 ├─ no  → /data-management
@@ -178,17 +178,17 @@ Is the system already configured?
 
 | You need to…                                       | Use…                                                                           |
 |----------------------------------------------------|--------------------------------------------------------------------------------|
-| Set the working directory or credentials          | configuration plugin `/working-directory`                                       |
-| Author the system configuration YAML              | configuration plugin `/system-configuration`                                    |
-| Author the server (remote transfer) configuration | configuration plugin `/server-configuration`                                    |
-| Create a project                                  | configuration plugin `/project-hierarchy`                                       |
-| Author a task template                            | configuration plugin `/task-templates`                                          |
-| Author a per-project experiment configuration     | configuration plugin `/experiment-configuration`                                |
-| Read a session marker / inspect session metadata  | configuration plugin `/session-data`                                            |
-| Read or repair a session descriptor               | configuration plugin `/session-descriptors`                                     |
-| Read or patch a frozen runtime snapshot           | configuration plugin `/session-snapshots`                                       |
-| Look up animal surgery / implants / drugs         | configuration plugin `/subject-metadata`                                        |
-| Curate or read a dataset                          | configuration plugin `/datasets`                                                |
+| Set the working directory or credentials          | assets plugin `/working-directory`                                       |
+| Author the system configuration YAML              | experiment plugin `/system-configuration`                                    |
+| Author the server (remote transfer) configuration | forging plugin `/server-configuration`                                          |
+| Create a project                                  | assets plugin `/project-hierarchy`                                       |
+| Author a task template                            | assets plugin `/task-templates`                                          |
+| Author a per-project experiment configuration     | assets plugin `/experiment-configuration`                                |
+| Read a session marker / inspect session metadata  | assets plugin `/session-data`                                            |
+| Read or repair a session descriptor               | assets plugin `/session-descriptors`                                     |
+| Read or patch a frozen runtime snapshot           | experiment plugin `/session-snapshots`                                       |
+| Look up animal surgery / implants / drugs         | assets plugin `/subject-metadata`                                        |
+| Curate or read a dataset                          | forging plugin `/datasets`                                                      |
 | Discover GenICam cameras                          | `ataraxis@video:camera-setup`                                                   |
 | Test camera acquisition interactively             | `ataraxis@video:camera-setup`                                                   |
 | Discover microcontrollers / verify MQTT           | `ataraxis@communication:microcontroller-setup`                                  |
@@ -197,7 +197,9 @@ Is the system already configured?
 | Write firmware for a new module                   | `ataraxis@microcontroller:firmware-module`                                      |
 | Discover or configure Zaber motors                | `/zaber-interface`                                                              |
 | Modify the Mesoscope-VR system itself             | `/modifying-mesoscope-vr-system`                                                |
-| Verify Unity task template values           | `/configuration-verification`                     |
+| Generate / verify Unity task prefab from template | unity plugin `/task-prefabs`                                              |
+| Open / create a Unity scene                       | unity plugin `/scenes`                                                    |
+| Enter / exit Unity Play Mode                      | unity plugin `/play-mode`                                                 |
 
 ---
 
@@ -208,6 +210,6 @@ Pipeline orchestration:
 - [ ] Identified the current phase and the next handoff condition
 - [ ] Confirmed the relevant phase-specific skill was invoked (not duplicated inline)
 - [ ] Did not attempt to run a runtime acquisition session through MCP tools
-- [ ] Cross-plugin handoffs to ataraxis or configuration plugin are explicit, not implicit
+- [ ] Cross-plugin handoffs to ataraxis or assets plugin are explicit, not implicit
 - [ ] Handoff condition for the current phase is satisfied before advancing to the next
 ```

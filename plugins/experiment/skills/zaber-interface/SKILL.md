@@ -34,9 +34,9 @@ For system-specific integration (modifying sl-shared-assets configuration, integ
 
 ### Step 0: Hardware Verification
 
-Use the sl-experiment MCP server for Zaber discovery. Start the server with:
+Use the sollertia-experiment MCP server for Zaber discovery. Start the server with:
 ```bash
-sl-get mcp
+sle get mcp
 ```
 
 **MCP Tool for Verification:**
@@ -72,9 +72,9 @@ If motors are not detected:
 
 | File                                                              | What to Check                            |
 |-------------------------------------------------------------------|------------------------------------------|
-| `sl-experiment/src/sl_experiment/mesoscope_vr/zaber_bindings.py`  | ZaberConnection/Device/Axis patterns     |
-| `sl-experiment/src/sl_experiment/mesoscope_vr/binding_classes.py` | ZaberMotors binding class implementation |
-| `sl-experiment pyproject.toml`                                    | Current zaber-motion version dependency  |
+| `sollertia-experiment/src/sl_experiment/mesoscope_vr/zaber_bindings.py`  | ZaberConnection/Device/Axis patterns     |
+| `sollertia-experiment/src/sl_experiment/mesoscope_vr/binding_classes.py` | ZaberMotors binding class implementation |
+| `sollertia-experiment pyproject.toml`                                    | Current zaber-motion version dependency  |
 
 ---
 

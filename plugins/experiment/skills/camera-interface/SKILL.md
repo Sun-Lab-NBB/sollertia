@@ -43,7 +43,7 @@ binding layer is intentionally thin — all hardware interaction goes through at
 |--------------------------------------------|------------------------------------|
 | Discovering cameras / verifying hardware   | `ataraxis@video:camera-setup`      |
 | Writing or modifying VideoSystem code      | `ataraxis@video:camera-interface`  |
-| Diagnosing MCP server issues               | `ataraxis@video:mcp-environment-setup` |
+| Diagnosing MCP server issues               | `ataraxis@video:video-mcp-environment-setup` |
 | Understanding recorded log archive layout  | `ataraxis@video:log-input-format`  |
 
 ---
@@ -114,9 +114,9 @@ Key Sollertia-specific rules:
 4. **Allocate a system ID** from the 50–99 range (next free is 63 at the time of writing).
 5. **Extend the binding class** in `sollertia-experiment` to instantiate a third VideoSystem using the new
    fields. Follow the existing face/body lifecycle pattern.
-6. **Hand off to the configuration plugin's `/system-configuration` skill** to regenerate the host machine's
+6. **Hand off to the assets plugin's `/system-configuration` skill** to regenerate the host machine's
    system configuration YAML against the new schema. This skill must not call `write_system_configuration_tool`
-   or invoke `sl-configure` directly — system configuration writes are owned by `/system-configuration`.
+   or invoke `slsa` directly — system configuration writes are owned by `/system-configuration`.
    The hand-off responsibility includes bumping the `sollertia-shared-assets` version pin so older configurations
    no longer load against the new schema.
 

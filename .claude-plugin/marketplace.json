@@ -5,9 +5,14 @@
   },
   "plugins": [
     {
-      "name": "configuration",
-      "source": "./plugins/configuration",
-      "description": "Provides configuration authoring, session and dataset management, and metadata discovery skills for sollertia-shared-assets. Includes MCP bindings for reading, writing, and validating Sollertia platform configuration and runtime data files."
+      "name": "assets",
+      "source": "./plugins/assets",
+      "description": "Provides configuration authoring, session and subject metadata discovery skills for sollertia-shared-assets. Includes MCP bindings for reading, writing, and validating every Sollertia platform shared asset (configuration files, session YAMLs, subject records, and task templates). Backed by the sollertia-shared-assets MCP server (slsa)."
+    },
+    {
+      "name": "unity",
+      "source": "./plugins/unity",
+      "description": "Provides Unity Editor integration skills for the sollertia-unity-tasks project. Authors task prefabs, manages VR scenes, drives Play Mode, and validates task templates against prefab state. Uses the Unity relay served by the assets plugin's slsa MCP server and the McpBridge editor plugin."
     },
     {
       "name": "experiment",
@@ -15,9 +20,9 @@
       "description": "Provides acquisition system setup, experiment design, system health checks, hardware interface, and runtime data management skills for sollertia-experiment. Includes MCP bindings for Zaber motor management, session preprocessing, and animal migration."
     },
     {
-      "name": "processing",
-      "source": "./plugins/processing",
-      "description": "Provides post-acquisition data processing pipeline orchestration skills for the Sollertia platform. Reserved for processing functionality that is being absorbed into other Sollertia libraries."
+      "name": "forging",
+      "source": "./plugins/forging",
+      "description": "Umbrella plugin for sollertia-forgery skill systems. Currently ships the behavior processing subsystem (session discovery, batch preparation and execution, output verification, and feather data querying) and is structured to accommodate future forging, managing, and analysis subsystems. Backed by the sollertia-forgery MCP server (sl-mcp)."
     }
   ]
 }
