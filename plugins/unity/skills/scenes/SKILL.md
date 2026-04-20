@@ -151,9 +151,10 @@ rejected by the Unity AssetDatabase.
 
 ## Related skills
 
-| Skill                                  | Relationship                                              |
-|----------------------------------------|-----------------------------------------------------------|
-| `/unity-mcp-environment-setup` (this plugin) | Run first if Unity Editor is unreachable                  |
-| `/task-prefabs`                        | Upstream — generates the prefab seeded into a new scene   |
-| `/play-mode`                           | Consumer — typically entered after opening a target scene |
-| assets plugin `/task-templates`        | Upstream — template filename defines the conventional scene name |
+| Skill                                         | Relationship                                              |
+|-----------------------------------------------|-----------------------------------------------------------|
+| `/unity-mcp-environment-setup` (this plugin)  | Run first if Unity Editor is unreachable                  |
+| `/task-prefabs` (this plugin)                 | Upstream — generates the prefab seeded into a new scene   |
+| `/scene-setup` (this plugin)                  | Consumer — configures the scene for runtime after opening |
+| `/play-mode` (this plugin)                    | Consumer — typically entered after opening a target scene |
+| assets plugin `/task-templates`               | Upstream — template filename defines the conventional scene name |

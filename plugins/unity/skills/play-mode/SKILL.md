@@ -149,9 +149,11 @@ Hand off to the owning skill (`/scenes`, `/task-prefabs`) only after the Editor 
 
 ## Related skills
 
-| Skill                                  | Relationship                                      |
-|----------------------------------------|---------------------------------------------------|
-| `/unity-mcp-environment-setup` (this plugin) | Run first if Unity Editor is unreachable          |
-| `/scenes`                              | Upstream — opens the scene to exercise in Play Mode |
-| `/task-prefabs`                        | Upstream — generates the prefab under test        |
-| assets plugin `/assets-mcp-environment-setup` | Upstream — owns the slsa MCP server diagnostic    |
+| Skill                                         | Relationship                                             |
+|-----------------------------------------------|----------------------------------------------------------|
+| `/unity-mcp-environment-setup` (this plugin)  | Run first if Unity Editor is unreachable                 |
+| `/scenes` (this plugin)                       | Upstream — opens the scene to exercise in Play Mode      |
+| `/scene-setup` (this plugin)                  | Upstream — must pass the pre-Play Mode checklist first   |
+| `/task-prefabs` (this plugin)                 | Upstream — generates the prefab under test               |
+| `/mqtt-contract` (this plugin)                | Reference for topics that drive runtime behavior         |
+| assets plugin `/assets-mcp-environment-setup` | Upstream — owns the slsa MCP server diagnostic           |

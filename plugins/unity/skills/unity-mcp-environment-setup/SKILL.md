@@ -129,6 +129,59 @@ that exercises the relay. If it returns a structured response, Unity-dependent t
 
 ---
 
+## Editor-side foot-guns
+
+These failure modes are silent from the MCP side — the relay simply appears unreachable. Check them before deeper
+debugging when the Unity tools stop responding after a recently healthy session.
+
+### Silent failure after a compile error
+
+`McpBridge` is declared `[InitializeOnLoad]`, so it restarts every time Unity reloads its assemblies. If **any** script
+in the project fails to compile (including a file unrelated to the bridge), the reload aborts and the listener never
+starts. From the MCP side this looks identical to "Editor not running."
+
+- Check the Unity Console for compile errors — fix them first.
+- The listener log (`McpBridge: Listening on http://localhost:8090/`) will reappear on the next successful reload.
+
+### Moving McpBridge.cs under an assembly definition
+
+`McpBridge.cs` lives at `Assets/InfiniteCorridorTask/Scripts/Editor/` without an enclosing `.asmdef`, so it compiles
+into the default editor assembly. Adding an `.asmdef` to that folder (or any ancestor) without also referencing the
+project's runtime and editor assemblies will break `McpBridge`'s `using SL.Config;` / `using SL.Tasks;` statements and
+it will stop listening.
+
+- If an `.asmdef` is introduced, the bridge's references (`SL.Config`, `SL.Tasks`, `UnityEditor`,
+  `UnityEditor.SceneManagement`) must be declared in its `references` array.
+- Easiest safe path: leave the Editor folder outside any `.asmdef` — the project has worked this way since bridge
+  inception.
+
+### Second Unity instance stealing the port
+
+`HttpListener` claims `localhost:8090` exclusively. If a second Unity Editor starts with the same project path or a
+copy of the repo, its bridge call fails silently in the second Editor's Console:
+
+```text
+McpBridge: Failed to start HTTP listener: Failed to listen on prefix 'http://localhost:8090/' because it conflicts
+with an existing registration on the machine.
+```
+
+The MCP tools continue to work against the **first** Editor, which is rarely what the user intended. Close the
+duplicate Editor; only one Unity Editor may own the bridge at a time.
+
+### Domain reload mid-tool-call
+
+Unity triggers a domain reload after scripts recompile. If `generate_task_prefab_tool` or `create_scene_tool` is
+invoked during a reload, the HTTP request may succeed from the OS but the response never arrives. Wait for
+`get_play_state_tool` to return `state == "edit"` (not `"compiling"`) before issuing mutating tool calls.
+
+### Editor lost focus while headless
+
+On Linux specifically, if the Editor loses OS focus at the moment a `Poll()` tick would have run, the listener can
+fall behind. The current implementation uses `EditorApplication.update` which is throttled while unfocused. Tools
+still work, but first-call latency can stretch to several seconds. Re-focus the Editor window if calls time out.
+
+---
+
 ## Verification checklist
 
 ```text
@@ -143,10 +196,14 @@ that exercises the relay. If it returns a structured response, Unity-dependent t
 
 ## Related skills
 
-| Skill                                     | Relationship                                       |
-|-------------------------------------------|----------------------------------------------------|
-| assets plugin `/assets-mcp-environment-setup`    | Run first — owns the slsa MCP server diagnostic    |
-| `/task-prefabs`                           | Consumer — prefab generation / inspection / validation |
-| `/scenes`                                 | Consumer — scene and asset management              |
-| `/play-mode`                              | Consumer — runtime control                         |
-| assets plugin `/task-templates`           | Upstream — prefabs are generated from templates    |
+| Skill                                         | Relationship                                           |
+|-----------------------------------------------|--------------------------------------------------------|
+| assets plugin `/assets-mcp-environment-setup` | Run first — owns the slsa MCP server diagnostic        |
+| `/task-prefabs` (this plugin)                 | Consumer — prefab generation / inspection / validation |
+| `/scenes` (this plugin)                       | Consumer — scene and asset management                  |
+| `/play-mode` (this plugin)                    | Consumer — runtime control                             |
+| `/scene-setup` (this plugin)                  | Consumer — Editor-time scene configuration             |
+| `/task-generator` (this plugin)               | Reference for the `CreateTask` pipeline internals      |
+| `/mqtt-contract` (this plugin)                | Reference for MQTT topics crossing this relay's tools  |
+| `/gimbl-framework` (this plugin)              | Reference for the GIMBL VR framework                   |
+| assets plugin `/task-templates`               | Upstream — prefabs are generated from templates        |

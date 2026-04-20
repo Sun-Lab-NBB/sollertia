@@ -191,6 +191,149 @@ manually — the validator is the single source of truth. Restore connectivity v
 
 ---
 
+## End-to-end task authoring workflow
+
+Use this composite flow when a user asks for "a new task" rather than a single-step operation. Each step is owned by
+a different skill; this section is the canonical ordering.
+
+| Step | Skill (owner)                           | Action                                                                    |
+|------|-----------------------------------------|---------------------------------------------------------------------------|
+| 1    | assets `/task-templates`                | Author `Assets/InfiniteCorridorTask/Configurations/<name>.yaml`           |
+| 2    | `/task-prefabs` (this skill)            | `generate_task_prefab_tool(template_name="<name>")`                       |
+| 3    | `/task-prefabs` (this skill)            | `inspect_prefab_tool(prefab_path=…)` — sanity-check hierarchy             |
+| 4    | `/task-prefabs` (this skill)            | `validate_prefab_against_template_tool(template_name="<name>")`           |
+| 5    | `/scenes`                               | `create_scene_tool(scene_name="<name>", task_prefab_path=…)`              |
+| 6    | `/scenes`                               | `open_scene_tool(scene_path=…)` to switch the Editor                      |
+| 7    | `/scene-setup`                          | Configure Display rig and optional `SimulatedLinearTreadmill`             |
+| 8    | `/play-mode`                            | `enter_play_mode_tool()` → exercise → `exit_play_mode_tool()`             |
+| 9    | assets `/experiment-configuration`      | (Optional) Bind the template to a per-project experiment configuration    |
+
+Checkpoints between steps:
+
+- **Step 2 → 3:** stop if `generate_task_prefab_tool` returns `success: false`. Common cause is a mistyped
+  `template_name` or a malformed YAML header.
+- **Step 3 → 4:** stop if the hierarchy contradicts the template (e.g. missing corridor count). Fix the template,
+  regenerate (Step 2), do not hand-patch the prefab.
+- **Step 4 → 5:** stop if any segment reports `match: false`. Regenerate from the template or correct the template;
+  never ship a task prefab with drift.
+- **Step 7 → 8:** stop if a display panel is missing — Play Mode without displays throws runtime null-reference
+  errors in `ActorObject.Display`.
+
+---
+
+## Template / prefab round-trip invariants
+
+The same values live in two places: the YAML template and the generated Unity prefab. These invariants determine which
+side is authoritative and how drift is resolved.
+
+### Fields that flow YAML → prefab (at generation)
+
+| Template field                      | Becomes                                                                |
+|-------------------------------------|------------------------------------------------------------------------|
+| `cues[].name`                       | `Cue_<name>.prefab` file name and material name                        |
+| `cues[].texture`                    | Main texture on the `Cue_<name>` material                              |
+| `cues[].length_cm` + `cm_per_unity_unit` | Cue quad mesh scale (Z axis)                                      |
+| `segments[].name`                   | `<segment-name>.prefab` file name                                      |
+| `segments[].cue_sequence`           | Ordered cue instances along Z inside the segment                       |
+| `vr_environment.padding_prefab_name`| Padding prefab loaded and appended past every corridor                 |
+| `vr_environment.segments_per_corridor` | Depth parameter for the `Corridor<indices>` hierarchy under the task|
+| `vr_environment.cm_per_unity_unit`  | Conversion factor for **all** cm-valued fields below                   |
+| `trial_structures[].trigger_type`   | Selects `StimulusTriggerZone.prefab` vs `OccupancyTriggerZone.prefab`  |
+| `trial_structures[].stimulus_trigger_zone_start_cm` / `_end_cm` | Root `BoxCollider.size.z` and `.center.z`  |
+| `trial_structures[].stimulus_location_cm` | Child `GuidanceRegion` / `OccupancyRegion` collider center       |
+| `trial_structures[].show_stimulus_collision_boundary` | `StimulusTriggerZone.showBoundary` on the root    |
+
+### Fields authored only in the prefab
+
+These have no YAML representation and are set by hand in the Editor when authoring a segment prefab for the first time:
+
+- Floor and wall mesh scale, material references, and colliders
+- Camera rig (owned by `ExperimentTemplate.unity`, not by segment prefabs)
+- Reset zone position inside each segment (placed automatically by `CreateTask` at local Z = 1)
+- `ResetZone.prefab`, `StimulusTriggerZone.prefab`, `OccupancyTriggerZone.prefab` internal hierarchies (the template
+  references them by trigger type, but not their contents)
+
+### Fields the validator compares (prefab → YAML)
+
+`validate_prefab_against_template_tool` reads the generated prefab back and re-derives values to compare against the
+template. These are the only fields it asserts round-trip equality on:
+
+| Validated field           | Tolerance |
+|---------------------------|-----------|
+| `zone_z` (center)         | ±0.01 Unity units |
+| `zone_size` (collider Z)  | ±0.01 Unity units |
+
+Other fields (cue lengths, materials, segment length) are **not** round-trip validated by the tool. If you change a
+cue length, you must regenerate the prefab — nothing will tell you the prefab is stale.
+
+### Which side wins on drift
+
+Use this decision table when `validate_prefab_against_template_tool` reports `match: false`:
+
+| Situation                                                    | Authoritative | Action                                                 |
+|--------------------------------------------------------------|---------------|--------------------------------------------------------|
+| You just edited the template and the prefab hasn't been regenerated | Template | Run `generate_task_prefab_tool` again                 |
+| You just edited the segment prefab by hand in the Editor     | Prefab        | Update the template via assets `/task-templates`       |
+| Both were edited in parallel                                 | Template      | Regenerate; re-apply prefab edits manually afterward   |
+| Neither was edited recently                                  | Template      | Treat drift as a bug; regenerate and investigate why   |
+
+Rule of thumb: **the template is the source of truth**. Only promote the prefab to authoritative when you deliberately
+hand-edited a segment prefab to explore a design before updating the template.
+
+---
+
+## Reading inspect_prefab_tool output
+
+`inspect_prefab_tool` returns a recursive JSON hierarchy. The top-level object is the task prefab; its children are
+`Corridor<indices>` objects, each containing segment instances. Within each first-segment instance of a corridor, the
+stimulus zone hierarchy varies by `trigger_type`. Use the following shapes to interpret the JSON.
+
+### Lick mode (trigger_type == "lick")
+
+```text
+<SegmentName>
+└── StimulusTriggerZone              ← collider_size.z = zone width
+    │                                  components: ["StimulusTriggerZone", "BoxCollider", "MeshRenderer"]
+    └── GuidanceRegion               ← collider_center.z offset = stimulus_location - zone_center
+                                       components: ["GuidanceZone", "BoxCollider"]
+```
+
+Key markers:
+- Root has `StimulusTriggerZone` in `components` and a `BoxCollider` of size.z ≈ `(zone_end - zone_start) / cm_per_unit`.
+- Exactly one child named `GuidanceRegion` with `GuidanceZone` in components.
+- `MeshRenderer` on the root is only visible when `showBoundary == true` (template field
+  `show_stimulus_collision_boundary`).
+
+### Occupancy mode (trigger_type == "occupancy")
+
+```text
+<SegmentName>
+└── StimulusTriggerZone              ← collider is the boundary past the occupancy range
+    ├── OccupancyRegion              ← collider covers the wait range (offset by center.z)
+    │                                  components: ["OccupancyZone", "BoxCollider"]
+    └── OccupancyGuidanceRegion      ← placed at the downstream end of the occupancy range
+                                       components: ["OccupancyGuidanceZone", "BoxCollider"]
+```
+
+Key markers:
+- Root has `StimulusTriggerZone` in `components`. Its position is the stimulus boundary — this is **past** the
+  occupancy waiting range by design.
+- Two children: `OccupancyRegion` (wait zone) and `OccupancyGuidanceRegion` (guidance activation near the boundary).
+- If only one child exists, the prefab is miswired. Regenerate from the template.
+
+### Disarmed segments (not the first segment of a corridor)
+
+`CreateTask` strips zones from segments at corridor depth > 0 because they are visual-only. An `inspect_prefab_tool`
+result where every `Segment_*` under a corridor except the first has no `StimulusTriggerZone` child is expected
+behavior, not a bug.
+
+### Components you should ignore
+
+`MeshFilter`, `MeshRenderer`, `BoxCollider` without one of the zone scripts, `Transform` — these are either visual
+geometry (floor, walls, cue quads) or the standard Unity components every GameObject carries.
+
+---
+
 ## Zone behavior reference
 
 Both trigger zone prefabs use `StimulusTriggerZone.cs` as the root script. Behavior is determined by
@@ -259,11 +402,15 @@ Template fields:
 
 ## Related skills
 
-| Skill                                   | Relationship                                              |
-|-----------------------------------------|-----------------------------------------------------------|
+| Skill                                         | Relationship                                              |
+|-----------------------------------------------|-----------------------------------------------------------|
 | `/unity-mcp-environment-setup` (this plugin)  | Run first if Unity Editor is unreachable                  |
-| `/scenes`                               | Consumer — places the generated prefab into a scene       |
-| `/play-mode`                            | Consumer — exercises the prefab at runtime                |
-| assets plugin `/task-templates`         | Upstream — owns the YAML template the prefab is built from|
-| assets plugin `/experiment-configuration` | Downstream — per-project instantiation of the template  |
-| assets plugin `/assets-mcp-environment-setup`  | Run first — owns the slsa MCP server diagnostic           |
+| `/scenes` (this plugin)                       | Consumer — places the generated prefab into a scene       |
+| `/play-mode` (this plugin)                    | Consumer — exercises the prefab at runtime                |
+| `/scene-setup` (this plugin)                  | Consumer — configures displays / controller before Play Mode |
+| `/task-generator` (this plugin)               | Reference for the `CreateTask` pipeline this tool invokes |
+| `/mqtt-contract` (this plugin)                | Reference for MQTT topics wired by generated zone scripts |
+| `/gimbl-framework` (this plugin)              | Reference for `ActorObject` coordinate frame usage        |
+| assets plugin `/task-templates`               | Upstream — owns the YAML template the prefab is built from|
+| assets plugin `/experiment-configuration`     | Downstream — per-project instantiation of the template    |
+| assets plugin `/assets-mcp-environment-setup` | Run first — owns the slsa MCP server diagnostic           |
