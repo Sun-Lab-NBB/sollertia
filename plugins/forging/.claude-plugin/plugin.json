@@ -1,7 +1,7 @@
 {
   "name": "forging",
   "version": "1.0.0",
-  "description": "Agentic access to the sollertia-forgery library. Composes and dispatches remote SLURM jobs across the lab's data management, processing, and analysis pipelines. Delegates session and configuration concerns to the assets plugin and consumes upstream inputs from the ataraxis marketplace's video and communication plugins. Backed by the sollertia-forgery MCP server (sl-mcp).",
+  "description": "Agentic access to the sollertia-forgery library. Composes and dispatches remote SLURM jobs across the Sollertia data management, processing, and analysis pipelines. Delegates session and configuration concerns to the assets plugin and consumes upstream inputs from the ataraxis marketplace's video and communication plugins. Backed by the sollertia-forgery MCP server (sl-mcp).",
   "repository": "https://github.com/Sun-Lab-NBB/sollertia",
   "license": "Apache-2.0",
   "skills": "./skills/",

@@ -33,26 +33,30 @@ Reads subject records that live in the project hierarchy and are sourced from Go
 - Discovering subjects (see `/project-hierarchy` for `discover_subjects_tool`)
 - Reading session-level data (see `/session-data` for `SessionData`, `/session-descriptors` for
   per-session descriptors, `/session-snapshots` for runtime snapshots)
-- Initial working directory setup (see `/working-directory`)
 
 ---
 
 ## Subject metadata model
 
-Subject metadata is **animal-scoped**, not session-scoped. A single animal accumulates records across
-its lifetime and across multiple projects:
+Subject metadata is **animal-scoped**, not session-scoped. A single animal accumulates records
+across its lifetime within whichever project currently owns it (each animal belongs to exactly
+one project at a time — see `/project-hierarchy` for the constraint). When an animal is
+migrated between projects, its metadata moves with it.
 
-| Record type  | Dataclass       | Captures                                                                                       |
-|--------------|-----------------|------------------------------------------------------------------------------------------------|
+| Record type  | Dataclass       | Captures                                                                                        |
+|--------------|-----------------|-------------------------------------------------------------------------------------------------|
 | Core subject | `SubjectData`   | id, ear-punch, sex, genotype, date of birth, pre-surgery weight, cage, housing location, status |
-| Surgery      | `SurgeryData`   | Aggregate surgery record: subject + procedure + drugs + implants + injections sections         |
-| Implant      | `ImplantData`   | Per-implant: name, target region, manufacturer code, AP/ML/DV stereotactic coordinates         |
-| Injection    | `InjectionData` | Per-injection: name, target, volume (nL), manufacturer code, AP/ML/DV stereotactic coordinates |
-| Drug         | `DrugData`      | Peri-surgical drugs (LRS, ketoprofen, buprenorphine, dexamethasone), each with volume and code |
-| Procedure    | `ProcedureData` | Surgery metadata: start/end timestamps, surgeon, protocol, surgery + post-op notes, quality    |
+| Surgery      | `SurgeryData`   | Aggregate surgery record: subject + procedure + drugs + implants + injections sections          |
+| Implant      | `ImplantData`   | Per-implant: name, target region, manufacturer code, AP/ML/DV stereotactic coordinates          |
+| Injection    | `InjectionData` | Per-injection: name, target, volume (nL), manufacturer code, AP/ML/DV stereotactic coordinates  |
+| Drug         | `DrugData`      | Peri-surgical drugs (LRS, ketoprofen, buprenorphine, dexamethasone), each with volume and code  |
+| Procedure    | `ProcedureData` | Surgery metadata: start/end timestamps, surgeon, protocol, surgery + post-op notes, quality     |
 
-The records live in the upstream Google Sheets (configured via `/working-directory`'s
-`set_google_credentials_tool`) and are projected through the slsa MCP server as read-only views.
+The authoritative source for these records is the upstream Google Sheets, but the slsa MCP
+layer **does not query Google Sheets at runtime**. It reads the cached `SurgeryData` YAML
+files written to disk by the acquisition runtime's preprocessing step. To modify a record,
+edit the row in the source Google Sheet and let the next preprocessing run refresh the
+cached YAML.
 
 ---
 
@@ -79,7 +83,11 @@ The discovery side of "which subjects exist" is owned by `/project-hierarchy` vi
 
 1. **Verify prerequisites:**
    - MCP server connected (else `/assets-mcp-environment-setup`).
-   - Working directory and Google credentials set (else `/working-directory`).
+   - Cached `SurgeryData` YAMLs exist on disk for the target subject under either
+     `<root>/<project>/<subject>/`, `<root>/<project>/surgery_data/`, `<root>/surgery_data/`,
+     or the slsa working directory's `surgery_data/`. The slsa subject reads do not call
+     Google Sheets — they read from these on-disk caches, which are populated by the
+     acquisition runtime's preprocessing step.
 2. **Read the subject record:**
    ```text
    read_subject_tool(subject_id="<id>")
@@ -120,18 +128,21 @@ This skill does **not** support writing subject records. The slsa MCP server has
 
 If a record needs to be added or corrected:
 
-1. Direct the user to the relevant Google Sheet (configured via `/working-directory`).
+1. Direct the user to the relevant upstream Google Sheet.
 2. Edit the row in the sheet directly.
-3. Re-call `read_subject_*_tool` to confirm the change is visible to slsa.
+3. Re-run preprocessing for a session belonging to that animal so the cached `SurgeryData`
+   YAML is refreshed (the acquisition runtime's preprocessing step is what writes the cache).
+4. Re-call `read_subject_*_tool` to confirm the change is visible to slsa.
 
 ---
 
 ## Verification checklist
 
 ```text
-- [ ] /working-directory has been run on this host
-- [ ] Google credentials are set (else read tools fail with "credentials not set")
 - [ ] sollertia-shared-assets MCP server is connected
+- [ ] Cached SurgeryData YAML exists for the target subject under one of the resolver's
+      candidate paths (project subtree, project surgery_data/, root surgery_data/, or slsa
+      working directory's surgery_data/)
 - [ ] discover_subjects_tool was called via /project-hierarchy when enumeration was needed
 - [ ] Did not attempt to write any subject record from this skill (not supported)
 ```
@@ -140,10 +151,9 @@ If a record needs to be added or corrected:
 
 ## Related skills
 
-| Skill                       | Relationship                                                       |
-|-----------------------------|--------------------------------------------------------------------|
-| `/working-directory`        | Required prerequisite — owns Google credentials path               |
-| `/assets-mcp-environment-setup`    | Run first if the MCP server is not connected                       |
-| `/project-hierarchy`        | Owns `discover_subjects_tool` and the project tree walk            |
-| `/session-data`             | Sibling — owns session-scoped data, this skill owns animal-scoped  |
-| `/session-descriptors`      | Sibling — descriptors capture per-session animal state             |
+| Skill                           | Relationship                                                      |
+|---------------------------------|-------------------------------------------------------------------|
+| `/assets-mcp-environment-setup` | Run first if the MCP server is not connected                      |
+| `/project-hierarchy`            | Owns `discover_subjects_tool` and the project tree walk           |
+| `/session-data`                 | Sibling — owns session-scoped data, this skill owns animal-scoped |
+| `/session-descriptors`          | Sibling — descriptors capture per-session animal state            |

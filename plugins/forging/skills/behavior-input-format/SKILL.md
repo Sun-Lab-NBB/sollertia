@@ -237,7 +237,7 @@ messages.
 
 **Code-prefixed payload layouts:**
 
-| Code | Name (sl-experiment enum)    | Payload layout                                         | Bytes |
+| Code | Name (sollertia-experiment enum)    | Payload layout                                         | Bytes |
 |------|------------------------------|--------------------------------------------------------|-------|
 | 1    | `SYSTEM_STATE`               | `[1: uint8][state_code: uint8]`                        | 2     |
 | 2    | `RUNTIME_STATE`              | `[2: uint8][state_code: uint8]`                        | 2     |
@@ -246,7 +246,7 @@ messages.
 | 5    | `DISTANCE_SNAPSHOT`          | `[5: uint8][traveled_distance: 8 bytes little-endian]` | 9     |
 
 **SYSTEM_STATE / RUNTIME_STATE:** The trailing `state_code` byte is the numeric code of the
-destination state. State enums live in sl-experiment and are not interpreted by forgery — codes
+destination state. State enums live in sollertia-experiment and are not interpreted by forgery — codes
 are stored verbatim in `system_state_data.feather` / `runtime_state_data.feather` for downstream
 consumers to resolve.
 

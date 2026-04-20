@@ -1,26 +1,43 @@
 ---
 name: session-hardware-state
 description: >-
-  Reads, writes, and validates the per-session MesoscopeHardwareState YAML file via the slsa MCP
-  server. Owns write_session_hardware_state_tool and describe_session_hardware_state_schema_tool.
-  Use when inspecting the hardware configuration that was active when a session was acquired,
-  repairing a corrupted hardware-state snapshot, or amending hardware-state fields after a manual
-  reconciliation. The Zaber and mesoscope-objective position snapshots are owned by the experiment
-  plugin's /session-snapshots skill.
+  Reads, writes, and validates the per-session, system-specific hardware-state YAML file via the
+  slsa MCP server. Currently the only concrete schema is MesoscopeHardwareState, but the pattern
+  generalizes to any acquisition system. Owns write_session_hardware_state_tool and
+  describe_session_hardware_state_schema_tool. Use when inspecting the hardware configuration that
+  was active when a session was acquired, repairing a corrupted hardware-state snapshot, or
+  amending hardware-state fields after a manual reconciliation. The Zaber and mesoscope-objective
+  position snapshots are owned by the experiment plugin's /session-snapshots skill.
 user-invocable: true
 ---
 
 # Sollertia session hardware state
 
-Reads, writes, and validates the per-session `MesoscopeHardwareState` YAML file (`hardware_state.yaml`)
-that lives inside every Sollertia session's `raw_data/` directory. Uses the `slsa mcp` MCP server.
-This skill is the **exclusive** owner of `write_session_hardware_state_tool` and
-`describe_session_hardware_state_schema_tool` — no other skill in the marketplace may call these.
+Reads, writes, and validates the per-session, **system-specific** hardware-state YAML file that
+the acquisition runtime writes inside a Sollertia session's `raw_data/` directory. Uses the
+`slsa mcp` MCP server. This skill is the **exclusive** owner of `write_session_hardware_state_tool`
+and `describe_session_hardware_state_schema_tool` — no other skill in the marketplace may call
+these.
 
-`MesoscopeHardwareState` lives in `sollertia-shared-assets` (not the acquisition runtime) because it
-is consumed by both the acquisition runtime and the processing pipeline. That is why the
-read/write/describe tools live on the slsa MCP server even though the file itself is written by the
-acquisition runtime at session start.
+Every acquisition system stores a per-session snapshot of its active hardware-module parameters
+under the same canonical filename (`hardware_state.yaml` inside `raw_data/`). Each system
+defines its own schema dataclass; today the only concrete subclass is **`MesoscopeHardwareState`**
+(used by the Mesoscope-VR system), so the slsa MCP tools currently bind to that schema. Future
+acquisition systems would add their own hardware-state classes following the same shape — the
+skill's role would extend to those without changing its conceptual contract. The remainder of
+this skill describes the pattern using the mesoscope schema as the worked example.
+
+The file exists for **acquisition session types whose runtime exercises hardware modules**. On
+Mesoscope-VR that means mesoscope-experiment, lick-training, and run-training sessions;
+window-checking sessions never produce a `hardware_state.yaml` because their code path does not
+exercise hardware modules, and `validate_session_tool` does not include this file in its
+required-file inventory check. Reading the snapshot for such a session will fail with a
+missing-file error — that is expected, not a corrupted session.
+
+The hardware-state dataclass lives in `sollertia-shared-assets` (not the acquisition runtime)
+because it is consumed by **both** the acquisition runtime and the downstream processing
+pipeline. That is why the read/write/describe tools live on the slsa MCP server even though the
+file itself is written by the acquisition runtime at session start.
 
 ---
 
@@ -46,12 +63,13 @@ acquisition runtime at session start.
 
 ---
 
-## What is `MesoscopeHardwareState`
+## What is a hardware-state snapshot
 
-`MesoscopeHardwareState` is the snapshot of every per-rig hardware module parameter that was active
-when the acquisition runtime started the session. The file is written **once at session start** by the acquisition
-runtime and never modified afterward. The processing pipeline reads it to translate raw acquired
-signals back into physical units and to know which modules were used.
+A hardware-state snapshot captures the per-rig hardware module parameters that were active when
+the acquisition runtime started the session. The file is written **once at session start** by
+the acquisition runtime and never modified afterward. Downstream processing pipelines read it to
+translate raw acquired signals back into physical units and to know which modules were
+exercised. The schema below is `MesoscopeHardwareState` — the current concrete instance:
 
 | Field                           | Captures                                                                |
 |---------------------------------|-------------------------------------------------------------------------|
@@ -67,8 +85,27 @@ signals back into physical units and to know which modules were used.
 | `delivered_gas_puffs`           | Whether the session delivered any gas puffs to the animal               |
 | `system_state_codes`            | Mapping of integer system-state codes to human-readable state names     |
 
-Every field defaults to `None`. A `None` value means "the corresponding hardware module was not used
-by the executed runtime" — not "missing data."
+Every field defaults to `None`. A `None` value means "the corresponding hardware module was not
+used by the executed runtime" — not "missing data."
+
+### Per-session-type field population (Mesoscope-VR example)
+
+Which fields end up populated vs. left `None` is **deterministic per session type**, not a
+property of the rig the session ran on. The Mesoscope-VR runtime writes a different subset for
+each session type — other acquisition systems will define their own per-session-type
+populations against their own hardware-state schema:
+
+| Session type           | Populated fields                                                                                                                                                             | Left as `None`                                                                                                               |
+|------------------------|------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|------------------------------------------------------------------------------------------------------------------------------|
+| `mesoscope experiment` | All 11 fields. `recorded_mesoscope_ttl=True`. `delivered_gas_puffs` is computed from whether any `GasPuffTrial` exists in the experiment configuration's `trial_structures`. | None — every field is set.                                                                                                   |
+| `lick training`        | `torque_per_adc_unit`, `lick_threshold`, `valve_scale_coefficient`, `valve_nonlinearity_exponent`, `delivered_gas_puffs=False`, `system_state_codes`.                        | `cm_per_pulse`, `maximum_brake_strength`, `minimum_brake_strength`, `screens_initially_on`, `recorded_mesoscope_ttl`.        |
+| `run training`         | `cm_per_pulse`, `lick_threshold`, `valve_scale_coefficient`, `valve_nonlinearity_exponent`, `delivered_gas_puffs=False`, `system_state_codes`.                               | `maximum_brake_strength`, `minimum_brake_strength`, `torque_per_adc_unit`, `screens_initially_on`, `recorded_mesoscope_ttl`. |
+| `window checking`      | (no file produced — see top of skill)                                                                                                                                        | n/a                                                                                                                          |
+
+When repairing or amending a snapshot via `write_session_hardware_state_tool`, set fields that
+the matching session type leaves as `None` to `None` in the payload. Setting them to a numeric
+value would imply the hardware module was used when in fact it wasn't, and that misinforms the
+processing pipeline's eligibility checks.
 
 ---
 
@@ -78,18 +115,24 @@ by the executed runtime" — not "missing data."
 <session>/raw_data/hardware_state.yaml
 ```
 
-The filename is `hardware_state.yaml` (no `mesoscope_` prefix). The file lives **inside `raw_data/`**,
-not at the session root.
-
 ---
 
 ## MCP tool surface
 
-| Tool                                            | Purpose                                                               |
-|-------------------------------------------------|-----------------------------------------------------------------------|
-| `read_session_hardware_state_tool`              | Reads `hardware_state.yaml` for a session                             |
-| `write_session_hardware_state_tool`             | Writes (or repairs) `hardware_state.yaml` (exclusive to this skill)   |
-| `describe_session_hardware_state_schema_tool`   | Returns the `MesoscopeHardwareState` schema (exclusive to this skill) |
+| Tool                                          | Purpose                                                                                         |
+|-----------------------------------------------|-------------------------------------------------------------------------------------------------|
+| `read_session_hardware_state_tool`            | Reads `hardware_state.yaml` for a session                                                       |
+| `write_session_hardware_state_tool`           | Writes (or repairs) `hardware_state.yaml` (exclusive). Defaults to `overwrite=True` — see below |
+| `describe_session_hardware_state_schema_tool` | Returns the canonical filename and the active hardware-state schema (exclusive)                 |
+
+All `session_path` arguments accept **either the session root directory or its `raw_data/`
+subdirectory** — the resolver normalizes both forms to the canonical session root before any
+tool runs.
+
+`describe_session_hardware_state_schema_tool` returns `hardware_state_filename` (the canonical
+YAML filename for this snapshot) and `schema` (the dataclass field schema). The
+`hardware_state_filename` is useful when the caller wants to construct a path under `raw_data/`
+without re-consulting this skill.
 
 `read_session_hardware_state_tool` is documented here and other skills should hand off when they
 need to read the snapshot. It is read-only and may be called as a natural share by any skill that
@@ -101,9 +144,8 @@ needs to inspect hardware state.
 
 ### Inspecting the hardware state for a session
 
-1. **Verify prerequisites:**
-   - MCP server connected (else hand off to `/assets-mcp-environment-setup`).
-   - Working directory set (else hand off to `/working-directory`).
+1. **Verify prerequisites:** MCP server connected (else hand off to
+   `/assets-mcp-environment-setup`).
 2. **Locate the session.** Hand off to `/project-hierarchy` for `discover_sessions_tool` if needed.
 3. **Read the snapshot:**
    ```text
@@ -122,16 +164,20 @@ needs to inspect hardware state.
 4. **Build the corrected payload** as a JSON-friendly dict matching the schema. Set fields whose
    modules were not active during the session to `None`.
 5. **Confirm the planned write with the user.** This file is normally written only by the
-   acquisition runtime at session start; manual edits are irreversible without a backup.
+   acquisition runtime at session start. `write_session_hardware_state_tool` defaults to
+   `overwrite=True`, so it silently clobbers the existing snapshot with no backup. If the user
+   wants the call to refuse-on-existing instead, pass `overwrite=False` explicitly in Step 6.
 6. **Write the corrected snapshot:**
    ```text
    write_session_hardware_state_tool(
        session_path="<absolute>",
        hardware_state_payload={ ... },
+       overwrite=True,   # default; set to False to refuse-on-existing
    )
    ```
-   The kwarg is `hardware_state_payload`. The destination file is always
-   `<session>/raw_data/hardware_state.yaml` (not configurable).
+   The kwargs are `session_path`, `hardware_state_payload`, and the keyword-only `overwrite`
+   (default `True`). The destination file is always `<session>/raw_data/hardware_state.yaml`
+   (not configurable).
 7. **Re-read to verify:**
    ```text
    read_session_hardware_state_tool(session_path="<absolute>")
@@ -148,11 +194,14 @@ write replaces the entire file.
 ## Verification checklist
 
 ```text
-- [ ] /working-directory has been run on this host
 - [ ] sollertia-shared-assets MCP server is connected
+- [ ] Confirmed the session type is mesoscope-experiment, lick-training, or run-training
+      (window-checking sessions have no hardware_state.yaml by design)
 - [ ] describe_session_hardware_state_schema_tool was called before any write
-- [ ] User confirmed the planned write before it was executed
+- [ ] Fields the session type leaves as None per the population table were set to None in the payload
+- [ ] User confirmed the planned write — including awareness that overwrite defaults to True
 - [ ] Payload was passed as hardware_state_payload (the correct kwarg name)
+- [ ] If refuse-on-existing semantics were required, overwrite=False was passed explicitly
 - [ ] write_session_hardware_state_tool succeeded without schema errors
 - [ ] read_session_hardware_state_tool returned the expected content after the write
 - [ ] Did not touch SessionData, descriptors, Zaber positions, or mesoscope positions from this skill
@@ -162,12 +211,11 @@ write replaces the entire file.
 
 ## Related skills
 
-| Skill                                     | Relationship                                                            |
-|-------------------------------------------|-------------------------------------------------------------------------|
-| `/working-directory`                      | Required prerequisite — must be run first                               |
-| `/assets-mcp-environment-setup`           | Run first if the MCP server is not connected                            |
-| `/session-data`                           | Sibling — owns `SessionData` and the session anatomy                    |
-| `/session-descriptors`                    | Sibling — owns the per-session-type descriptor read/write/schema        |
-| `/experiment-configuration`               | Owns `read_session_experiment_configuration_tool` (frozen experiment)   |
-| `/project-hierarchy`                      | Provides `discover_sessions_tool` to locate sessions                    |
-| experiment plugin `/session-snapshots`    | Sibling — owns the Zaber and mesoscope-objective position snapshots     |
+| Skill                                     | Relationship                                                           |
+|-------------------------------------------|------------------------------------------------------------------------|
+| `/assets-mcp-environment-setup`           | Run first if the MCP server is not connected                           |
+| `/session-data`                           | Sibling — owns `SessionData` and the session anatomy                   |
+| `/session-descriptors`                    | Sibling — owns the per-session-type descriptor read/write/schema       |
+| `/experiment-configuration`               | Owns `read_session_experiment_configuration_tool` (frozen experiment)  |
+| `/project-hierarchy`                      | Provides `discover_sessions_tool` to locate sessions                   |
+| experiment plugin `/session-snapshots`    | Sibling — owns the Zaber and mesoscope-objective position snapshots    |

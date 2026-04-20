@@ -19,7 +19,7 @@ All four MCP servers must be running to perform a complete system health check.
 
 | Server                  | Start Command      | Tools Used                                   |
 |-------------------------|--------------------|----------------------------------------------|
-| sl-experiment           | `sl-get mcp`       | Mount checks, Zaber discovery, projects      |
+| sollertia-experiment           | `sle get mcp`       | Mount checks, Zaber discovery, projects      |
 | sl-shared-assets        | `slsa mcp` | Working directory, credentials, templates    |
 | ataraxis-video-system   | `axvs mcp`         | Camera discovery, video requirements, CTI    |
 | ataraxis-comm-interface | `axci-mcp`         | Microcontroller discovery, MQTT broker       |

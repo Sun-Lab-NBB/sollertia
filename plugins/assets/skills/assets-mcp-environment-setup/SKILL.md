@@ -175,21 +175,21 @@ skill owns the McpBridge / localhost:8090 diagnostic.
 This skill is a prerequisite for **every** other skill in the assets plugin and the unity plugin —
 they all depend on the `sollertia-shared-assets` MCP server being reachable.
 
-| Skill                                                   | Relationship                                            |
-|---------------------------------------------------------|---------------------------------------------------------|
-| `/working-directory`                                    | Downstream — initializes the working directory          |
-| `/task-templates`                                       | Downstream — task template authoring                    |
-| `/experiment-configuration`                             | Downstream — experiment configuration authoring         |
-| `/project-hierarchy`                                    | Downstream — project creation                           |
-| `/session-data`                                         | Downstream — session data tools                         |
-| `/session-descriptors`                                  | Downstream — per-session-type descriptors               |
-| `/subject-metadata`                                     | Downstream — animal-scoped subject records              |
-| unity plugin `/unity-mcp-environment-setup`             | Sibling — owns the McpBridge HTTP-relay diagnostic      |
-| unity plugin `/task-prefabs`                            | Downstream — Unity-relay consumer                       |
-| unity plugin `/scenes`                                  | Downstream — Unity-relay consumer                       |
-| unity plugin `/play-mode`                               | Downstream — Unity-relay consumer                       |
-| experiment plugin `/experiment-mcp-environment-setup`   | Peer — equivalent diagnostic for the experiment plugin's MCP servers |
-| forging plugin `/forging-mcp-environment-setup`         | Peer — equivalent diagnostic for the forging plugin's MCP server     |
+| Skill                                                 | Relationship                                                         |
+|-------------------------------------------------------|----------------------------------------------------------------------|
+| `/working-directory`                                  | Downstream — initializes the working directory                       |
+| `/task-templates`                                     | Downstream — task template authoring                                 |
+| `/experiment-configuration`                           | Downstream — experiment configuration authoring                      |
+| `/project-hierarchy`                                  | Downstream — project creation                                        |
+| `/session-data`                                       | Downstream — session data tools                                      |
+| `/session-descriptors`                                | Downstream — per-session-type descriptors                            |
+| `/subject-metadata`                                   | Downstream — animal-scoped subject records                           |
+| unity plugin `/unity-mcp-environment-setup`           | Sibling — owns the McpBridge HTTP-relay diagnostic                   |
+| unity plugin `/task-prefabs`                          | Downstream — Unity-relay consumer                                    |
+| unity plugin `/scenes`                                | Downstream — Unity-relay consumer                                    |
+| unity plugin `/play-mode`                             | Downstream — Unity-relay consumer                                    |
+| experiment plugin `/experiment-mcp-environment-setup` | Peer — equivalent diagnostic for the experiment plugin's MCP servers |
+| forging plugin `/forging-mcp-environment-setup`       | Peer — equivalent diagnostic for the forging plugin's MCP server     |
 
 ---
 

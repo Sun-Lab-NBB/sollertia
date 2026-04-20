@@ -44,16 +44,16 @@ runtime acquisition is fully deterministic and AI-independent.
 |--------------------------------------|--------------|-----------------------------------------------|
 | Working directory + credentials      | yes          | assets plugin (`slsa mcp`)     |
 | System configuration authoring       | yes          | assets plugin (`slsa mcp`)     |
-| Hardware bringup and verification    | yes          | experiment plugin (`sl-get mcp` + ataraxis)   |
+| Hardware bringup and verification    | yes          | experiment plugin (`sle get mcp` + ataraxis)   |
 | Experiment design (templates, states)| yes          | assets plugin (`slsa mcp`)     |
-| Pre-session health check             | yes          | experiment plugin (`sl-get mcp` + ataraxis)   |
+| Pre-session health check             | yes          | experiment plugin (`sle get mcp` + ataraxis)   |
 | **Runtime data acquisition**         | **no**       | sollertia-experiment Python entry points only |
-| Post-acquisition preprocessing       | yes          | experiment plugin (`sl-manage mcp`)           |
-| Data management (migrate / delete)   | yes          | experiment plugin (`sl-manage mcp`)           |
+| Post-acquisition preprocessing       | yes          | experiment plugin (`sle manage mcp`)           |
+| Data management (migrate / delete)   | yes          | experiment plugin (`sle manage mcp`)           |
 | Post-acquisition data analysis       | yes          | processing plugin                             |
 
 The MCP tool surface intentionally has no "start a recording session" tool. Runtime is launched only
-through the `sl-run` CLI, which reads validated configuration files written during the AI-assisted
+through the `sle run` CLI, which reads validated configuration files written during the AI-assisted
 phases.
 
 ---
@@ -64,7 +64,7 @@ phases.
 Working      System         Hardware       Experiment     Pre-session    Runtime        Post-process    Handoff to
 Directory →  Configuration →  Bringup    →  Design      →  Health Check →  Acquisition →  & Manage    →  Processing
     |              |              |              |              |              |              |              |
-configuration  configuration  /acquisition-  configuration  /system-       (sl-run CLI,   /data-         processing
+configuration  configuration  /acquisition-  configuration  /system-       (sle run CLI,   /data-         processing
  /working-     /system-       system-setup    /experiment-   health-       no MCP)         management    plugin
   directory     configuration                  configuration  check
 ```
@@ -125,8 +125,8 @@ owns exactly one slsa asset and the others must hand off to it.
 
 ### Phase 6: Runtime acquisition (no AI)
 
-- **Plugin / Skill:** none — invoked directly via the `sl-run` CLI by the experimenter.
-- **Actions:** `sl-run` reads the validated system + experiment configuration files, dispatches a
+- **Plugin / Skill:** none — invoked directly via the `sle run` CLI by the experimenter.
+- **Actions:** `sle run` reads the validated system + experiment configuration files, dispatches a
   hardware-deterministic acquisition session, writes raw data + descriptors into the session directory.
 - **Handoff condition:** Session terminates cleanly; `session_data.yaml` and the appropriate descriptor
   file (lick training / run training / window checking / mesoscope experiment) exist on disk.
@@ -165,7 +165,7 @@ Is the system already configured?
                 ├─ no  → /project-hierarchy → /task-templates → /experiment-configuration
                 └─ yes
                     └─ Is a session already recorded?
-                        ├─ no  → user runs `sl-run` (no AI involvement)
+                        ├─ no  → user runs `sle run` (no AI involvement)
                         └─ yes
                             └─ Is preprocessing complete?
                                 ├─ no  → /data-management

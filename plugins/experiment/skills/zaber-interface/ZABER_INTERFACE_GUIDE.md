@@ -1,6 +1,6 @@
 # Zaber Motor API Reference
 
-Complete API reference for the Zaber motor binding classes used in sl-experiment.
+Complete API reference for the Zaber motor binding classes used in sollertia-experiment.
 
 ---
 

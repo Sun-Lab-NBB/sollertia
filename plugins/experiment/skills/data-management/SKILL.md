@@ -1,26 +1,26 @@
 ---
 name: managing-session-data
 description: >-
-  Guides agents through managing acquisition session data using the sl-manage MCP server. Covers preprocessing sessions
+  Guides agents through managing acquisition session data using the sle manage MCP server. Covers preprocessing sessions
   (single, by animal, by project, or all available), transferring animals between projects with health checks, and
   deleting sessions with mandatory user confirmation. Use when users ask to preprocess, migrate, or delete session data.
 ---
 
 # Managing Session Data
 
-Guides agents through managing acquisition session data using MCP tools from the sl-manage MCP server. Supports session
+Guides agents through managing acquisition session data using MCP tools from the sle manage MCP server. Supports session
 preprocessing, animal migration between projects, and session deletion with mandatory safety confirmations.
 
 ---
 
 ## MCP Server Requirements
 
-This skill requires the sl-manage MCP server for management operations and the sl-get MCP server for discovery.
+This skill requires the sle manage MCP server for management operations and the sle get MCP server for discovery.
 
 | Server    | CLI Command     | Purpose                                           |
 |-----------|-----------------|---------------------------------------------------|
-| sl-manage | `sl-manage mcp` | Session preprocessing, deletion, animal migration |
-| sl-get    | `sl-get mcp`    | Project listing, session discovery                |
+| sle manage | `sle manage mcp` | Session preprocessing, deletion, animal migration |
+| sle get    | `sle get mcp`    | Project listing, session discovery                |
 
 If a required MCP server is unavailable, inform the user which server is needed and the command to start it.
 
@@ -30,19 +30,19 @@ If a required MCP server is unavailable, inform the user which server is needed 
 
 **Verification workflow:**
 
-1. **Test sl-get connectivity**: Run `get_projects_tool()` as a connectivity check
-   - If successful: sl-get MCP server is running
-   - If fails: Inform user to start with `sl-get mcp`
+1. **Test sle get connectivity**: Run `get_projects_tool()` as a connectivity check
+   - If successful: sle get MCP server is running
+   - If fails: Inform user to start with `sle get mcp`
 
-2. **Test sl-manage connectivity** (before preprocessing/deletion/migration): Attempt the operation
-   - If the tool fails with a connection error: Inform user to start with `sl-manage mcp`
+2. **Test sle manage connectivity** (before preprocessing/deletion/migration): Attempt the operation
+   - If the tool fails with a connection error: Inform user to start with `sle manage mcp`
 
 **Verification checklist for each workflow:**
 
 ```text
 MCP Server Verification:
-- [ ] Attempted get_projects_tool() to verify sl-get MCP server
-- [ ] If using management tools: confirmed sl-manage MCP server is running
+- [ ] Attempted get_projects_tool() to verify sle get MCP server
+- [ ] If using management tools: confirmed sle manage MCP server is running
 - [ ] Reported any connection failures with start commands
 ```
 
@@ -73,7 +73,7 @@ failed operations partway through a workflow.
 
 ## Available MCP Tools
 
-### Management Tools (sl-manage MCP)
+### Management Tools (sle manage MCP)
 
 | Tool                      | Purpose                                               |
 |---------------------------|-------------------------------------------------------|
@@ -81,7 +81,7 @@ failed operations partway through a workflow.
 | `delete_session_tool`     | Removes a session from all storage locations          |
 | `migrate_animal_tool`     | Transfers all sessions for an animal between projects |
 
-### Discovery Tools (sl-get MCP)
+### Discovery Tools (sle get MCP)
 
 | Tool                | Purpose                                  |
 |---------------------|------------------------------------------|

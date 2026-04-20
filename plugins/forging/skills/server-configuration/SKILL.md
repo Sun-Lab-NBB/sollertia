@@ -22,7 +22,7 @@ skill in the marketplace may call `read_server_configuration_tool` or `write_ser
 - Authoring `ServerConfiguration`
 - Reading the active `ServerConfiguration`
 - The relationship between server configuration and the remote storage transfer pipeline used by
-  `sl-manage` after a session is preprocessed
+  `sle manage` after a session is preprocessed
 
 **Does not cover:**
 - `MesoscopeSystemConfiguration` authoring (see `/system-configuration`)

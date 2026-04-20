@@ -18,7 +18,7 @@ and sharing. Uses the `sl-mcp` MCP server (sollertia-forgery).
 ## Scope
 
 **Covers:**
-- Discovering datasets across projects
+- Discovering datasets under a `datasets_root` (optionally filtered by project)
 - Reading the `DatasetData` marker file
 - Writing or amending dataset membership (`DatasetSession`)
 - Schema introspection for dataset YAML files
@@ -27,7 +27,6 @@ and sharing. Uses the `sl-mcp` MCP server (sollertia-forgery).
 - Authoring system or experiment configuration (see `/system-configuration`,
   `/experiment-configuration`)
 - Authoring per-session metadata (see `/session-data`)
-- Initial working directory setup (see `/working-directory`)
 - Post-acquisition processing of dataset contents (deferred to the processing plugin)
 
 ---
@@ -40,8 +39,8 @@ A dataset is a directory containing a `dataset.yaml` marker file. The marker cap
 - The list of `DatasetSession` entries — each entry references a session by canonical path / ID
 - Optional dataset-level metadata (acquisition date range, intended use, sharing status)
 
-`discover_datasets_tool` walks the working directory and recognizes any directory containing a
-`dataset.yaml` marker.
+`discover_datasets_tool` walks the `datasets_root` argument it is called with and recognizes
+any directory containing a `dataset.yaml` marker.
 
 Datasets are **a higher-level grouping than sessions**. Where a session is a single recording, a
 dataset is a curated collection of sessions intended to be processed and analyzed together (e.g.,
@@ -53,7 +52,7 @@ dataset is a curated collection of sessions intended to be processed and analyze
 
 | Tool                            | Purpose                                                                |
 |---------------------------------|------------------------------------------------------------------------|
-| `discover_datasets_tool`        | Lists all datasets under the working directory (filterable by project) |
+| `discover_datasets_tool`        | Lists all datasets under the supplied `datasets_root` (filterable by project) |
 | `read_dataset_tool`             | Reads the `DatasetData` marker for a given dataset                     |
 | `write_dataset_tool`            | Writes a new dataset marker or overwrites an existing one              |
 | `describe_dataset_schema_tool`  | Returns the field schema for `DatasetData` and `DatasetSession`        |
@@ -65,12 +64,11 @@ dataset is a curated collection of sessions intended to be processed and analyze
 ### Step 1: Verify prerequisites
 
 - MCP server connected (else `/forging-mcp-environment-setup`)
-- Working directory set (else `/working-directory`)
 
 ### Step 2: Discover existing datasets
 
 ```text
-discover_datasets_tool()
+discover_datasets_tool(datasets_root="<absolute path to datasets root>")
 ```
 
 If a dataset already covers the sessions the user wants to group, prefer reading and amending it
@@ -124,7 +122,6 @@ downstream tooling and analysis notebooks may have references that break silentl
 ## Verification checklist
 
 ```text
-- [ ] /working-directory has been run on this host (assets plugin)
 - [ ] sollertia-forgery MCP server (sl-mcp) is connected
 - [ ] describe_dataset_schema_tool was used as the source of truth for field names
 - [ ] discover_datasets_tool was called before creating new datasets (avoid duplicates)
@@ -139,7 +136,6 @@ downstream tooling and analysis notebooks may have references that break silentl
 
 | Skill                              | Relationship                                                        |
 |------------------------------------|---------------------------------------------------------------------|
-| `/working-directory`               | Required prerequisite — owned by the assets plugin           |
 | `/forging-mcp-environment-setup`   | Run first if the sl-mcp server is not connected                     |
 | `/session-discovery`               | Provides `discover_sessions_tool` for dataset membership lookup     |
 | `/session-data`                    | Sibling — sessions are the membership unit of datasets              |

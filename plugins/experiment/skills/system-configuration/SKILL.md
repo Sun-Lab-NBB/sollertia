@@ -2,7 +2,7 @@
 name: system-configuration
 description: >-
   Authors and modifies the MesoscopeSystemConfiguration YAML file for sollertia-experiment via the
-  sl-get MCP server. Owns the system configuration write tool and schema introspection. Covers the
+  sle get MCP server. Owns the system configuration write tool and schema introspection. Covers the
   full nested dataclass tree (file system, microcontrollers, cameras, external assets, Google Sheets) and
   the relationship between configuration fields and the binding classes that consume them. Use when
   generating or editing the system configuration for a new Sollertia host or modifying calibration values
@@ -13,7 +13,7 @@ user-invocable: true
 # Sollertia system configuration
 
 Authors and modifies the `MesoscopeSystemConfiguration` YAML file for `sollertia-experiment` using
-the `sl-get mcp` MCP server. This skill is the **exclusive** owner of `write_system_configuration_tool`
+the `sle get mcp` MCP server. This skill is the **exclusive** owner of `write_system_configuration_tool`
 and `describe_system_configuration_schema_tool` — no other skill in the marketplace may call these. The
 `list_supported_acquisition_systems_tool` lives on `slsa mcp` (sollertia-shared-assets) since the
 enum itself remains the shared vocabulary across the platform.
@@ -48,7 +48,7 @@ For the full per-field schema reference, see
 ## What lives in the system configuration
 
 The system configuration captures everything that is **host-machine-specific** and **stable across
-sessions**. It is read once at the start of every runtime session by `sl-run`. It does not contain
+sessions**. It is read once at the start of every runtime session by `sle run`. It does not contain
 per-session metadata, per-experiment task structure, or remote storage transfer settings.
 
 For the Mesoscope-VR system, the configuration is composed of these top-level sections (each is its own
@@ -70,7 +70,7 @@ forging plugin's `/server-configuration` skill.
 
 ## MCP tool surface
 
-All tools below are hosted on `sl-get mcp` (sollertia-experiment):
+All tools below are hosted on `sle get mcp` (sollertia-experiment):
 
 | Tool                                        | Purpose                                                               |
 |---------------------------------------------|-----------------------------------------------------------------------|
@@ -83,7 +83,7 @@ All tools below are hosted on `sl-get mcp` (sollertia-experiment):
 
 The companion enumeration `list_supported_acquisition_systems_tool` (on `slsa mcp`,
 sollertia-shared-assets) returns the enum values. The CLI entry point for authoring is
-`sl-configure system` hosted by sollertia-experiment.
+`sle configure system` hosted by sollertia-experiment.
 
 The write tool accepts the full nested dictionary that maps onto the dataclass tree. It validates the
 shape against the schema before writing and refuses partial updates — to change a single field, read
@@ -95,7 +95,7 @@ first, mutate the dictionary, then write the whole thing back.
 
 ### Step 1: Verify prerequisites
 
-- The `sl-get mcp` server (sollertia-experiment) is connected (else hand off to the experiment plugin's
+- The `sle get mcp` server (sollertia-experiment) is connected (else hand off to the experiment plugin's
   `/experiment-mcp-environment-setup`).
 - The working directory is set (else hand off to the assets plugin's `/working-directory`).
 
@@ -180,7 +180,7 @@ regeneration step.
 
 ```text
 - [ ] /working-directory has been run on this host (assets plugin)
-- [ ] sl-get mcp server (sollertia-experiment) is connected
+- [ ] sle get mcp server (sollertia-experiment) is connected
 - [ ] describe_system_configuration_schema_tool was called and used as the source of truth for field names
 - [ ] references/mesoscope-reference.md was consulted for field semantics
 - [ ] Camera indices and microcontroller ports were sourced from /acquisition-system-setup, not guessed
@@ -196,7 +196,7 @@ regeneration step.
 | Skill                                              | Relationship                                                        |
 |----------------------------------------------------|---------------------------------------------------------------------|
 | assets plugin `/working-directory`          | Required prerequisite — must be run first                           |
-| this plugin `/experiment-mcp-environment-setup`               | Run first if sl-get mcp is not connected                            |
+| this plugin `/experiment-mcp-environment-setup`               | Run first if sle get mcp is not connected                            |
 | forging plugin `/server-configuration`             | Owns `ServerConfiguration` (moved out of the assets plugin)  |
 | assets plugin `/experiment-configuration`   | Authored separately, consumes system configuration at runtime       |
 | assets plugin `/session-data`               | Session-level data                                                  |

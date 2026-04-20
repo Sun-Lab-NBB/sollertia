@@ -157,7 +157,10 @@ inspect_prefab_tool(prefab_path="Assets/InfiniteCorridorTask/Tasks/<template-nam
 
 Verify the hierarchy matches the template — cue count, segment order, trial zones.
 
-### Step 4: Validate zone geometry
+### Step 4: Validate zone geometry (required)
+
+Programmatic validation is **mandatory**. Do not declare the prefab ready for downstream consumers
+until `validate_prefab_against_template_tool` has been run and every segment reports `match: true`.
 
 ```text
 validate_prefab_against_template_tool(template_name="<template-name>")
@@ -173,6 +176,12 @@ A `match: false` result means either the template or the prefab drifted. Resolve
 1. If the prefab is authoritative (freshly generated), update the template via assets plugin's
    `/task-templates`.
 2. If the template is authoritative (hand-edited), regenerate the prefab in Step 2.
+
+If the tool itself cannot run (Unity Editor offline, McpBridge unreachable, or `slsa mcp` down),
+**stop and warn the user**. Do not attempt to reconstruct the values by reading prefab YAML
+manually — the validator is the single source of truth. Restore connectivity via
+`/unity-mcp-environment-setup` (Unity side) or assets plugin's `/assets-mcp-environment-setup`
+(slsa side), then re-run this step before handing off.
 
 ### Step 5: Hand off
 
@@ -201,8 +210,6 @@ Template fields:
 - `stimulus_location_cm`: position inside the trigger zone range.
 - `trigger_type: "lick"`.
 
-GUID: `e502aa673cd52774593125318db2aeb3`.
-
 ### Occupancy mode (`OccupancyTriggerZone.prefab`)
 
 Structure: `StimulusTriggerZone` (boundary collider) → `OccupancyRegion` (`OccupancyZone.cs`,
@@ -220,36 +227,6 @@ Template fields:
 - `stimulus_location_cm`: boundary position (derived from the root collider). This is **outside**
   the waiting range by design.
 - `trigger_type: "occupancy"`.
-
-GUID: `3d9e6b3219444f94e85ebcb948ade18a`.
-
----
-
-## Range formulas
-
-- StimulusTriggerZone: `(zone_z ± size/2) × cm_per_unity_unit`
-- OccupancyTriggerZone occupancy range: `(zone_z + occupancy_center ± occupancy_size/2) × cm_per_unity_unit`
-- OccupancyTriggerZone boundary range: `(zone_z + boundary_center ± boundary_size/2) × cm_per_unity_unit`
-
-`zone_z` is `m_LocalPosition.z` on the zone GameObject; collider sizes and centers are read from
-the `BoxCollider` component fields `m_Size.z` and `m_Center.z`.
-
----
-
-## Manual verification (fallback when the MCP tool is unavailable)
-
-When `validate_prefab_against_template_tool` cannot run (Unity Editor offline, McpBridge broken),
-fall back to reading the `.prefab` YAML directly:
-
-1. Read `Assets/InfiniteCorridorTask/Prefabs/<segment>.prefab` with the `Read` tool.
-2. Extract the zone prefab GUID from the `PrefabInstance` block (`m_SourcePrefab` / `guid:`).
-3. Match against the two GUIDs above to determine the zone type.
-4. Extract `m_LocalPosition.z` and `m_Size.z` from the zone GameObject.
-5. Apply the range formulas to reconstruct the expected template values.
-
-Pre-baked reference values for the standard lab templates live alongside this skill in
-`EXPECTED_VALUES.md`. Update that file whenever a template or a segment prefab is modified so the
-fallback path keeps working.
 
 ---
 

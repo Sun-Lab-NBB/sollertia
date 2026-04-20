@@ -3,7 +3,7 @@ name: discovering-acquisition-system-hardware
 description: >-
   Discovers, verifies, and reports the hardware connected to a Sollertia data acquisition PC. Covers cameras,
   microcontrollers, Zaber motors, MQTT brokers, and video runtime requirements via ataraxis-video-system,
-  ataraxis-communication-interface, and sl-experiment MCP tools. Use when bringing up a new acquisition PC,
+  ataraxis-communication-interface, and sollertia-experiment MCP tools. Use when bringing up a new acquisition PC,
   troubleshooting hardware connectivity, or verifying that the discovered hardware matches the recorded system
   configuration. Hands off all configuration authoring and bootstrap state setup to the assets plugin.
 user-invocable: true
@@ -56,7 +56,7 @@ required only because hand-off targets in the assets plugin depend on it.
 |-------------------------|--------------------|-----------------------------|--------------------------------------------------|
 | ataraxis-video-system   | `axvs mcp`         | yes                         | Camera discovery, runtime requirements, CTI      |
 | ataraxis-comm-interface | `axci mcp`         | yes                         | Microcontroller discovery, MQTT broker check     |
-| sl-experiment           | `sl-get mcp`       | yes                         | Zaber motor discovery                            |
+| sollertia-experiment           | `sle get mcp`       | yes                         | Zaber motor discovery                            |
 | sollertia-shared-assets | `slsa mcp` | no (hand-off targets only)  | Read-only verification of recorded configuration |
 
 If a required MCP server is unavailable, hand off to the appropriate plugin's MCP environment setup
@@ -294,7 +294,7 @@ hand off to the assets plugin skill that owns the affected asset.
 
 ```text
 - [ ] Network storage mounts verified at the OS level
-- [ ] Required MCP servers (ataraxis video, ataraxis comm, sl-experiment) confirmed reachable
+- [ ] Required MCP servers (ataraxis video, ataraxis comm, sollertia-experiment) confirmed reachable
 - [ ] check_runtime_requirements() reported FFMPEG and GPU OK
 - [ ] CTI file status confirmed (if using Harvesters cameras)
 - [ ] check_mqtt_broker() reported broker reachable

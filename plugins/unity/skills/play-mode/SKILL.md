@@ -26,7 +26,7 @@ these.
 - Gating other Unity operations on the Editor's play state
 
 **Does not cover:**
-- Runtime data acquisition outside the Editor — that is driven by the `sl-run` CLI in
+- Runtime data acquisition outside the Editor — that is driven by the `sle run` CLI in
   `sollertia-experiment`, not by the Editor
 - Generating or inspecting prefabs (see `/task-prefabs`)
 - Opening or creating scenes (see `/scenes`)
@@ -118,7 +118,7 @@ Hand off to the owning skill (`/scenes`, `/task-prefabs`) only after the Editor 
   already `edit` — these are no-ops but pollute the transcript.
 - Always confirm the final state with `get_play_state_tool` after a transition — Play Mode entry
   can fail silently if the active scene has compile errors.
-- Play Mode is **Editor-scoped**. It does not interact with `sl-run`, `sl-manage`, or the
+- Play Mode is **Editor-scoped**. It does not interact with `sle run`, `sle manage`, or the
   acquisition rig. Data generated during Play Mode is not recorded anywhere.
 
 ---

@@ -1,7 +1,7 @@
 # Mesoscope system configuration reference
 
 Detailed documentation of all configuration parameters for the `mesoscope` (Two-photon Random Access Mesoscope with
-Virtual Reality) acquisition system, based on actual usage in the sl-experiment codebase.
+Virtual Reality) acquisition system, based on actual usage in the sollertia-experiment codebase.
 
 ---
 
@@ -16,7 +16,7 @@ meaningful defaults.
 |----------------|----------------------------------------------------|
 | Type           | `str` (path)                                       |
 | Default        | `""` (empty - must be configured)                  |
-| Used by        | `MesoscopeData` class in sl-experiment             |
+| Used by        | `MesoscopeData` class in sollertia-experiment             |
 | Discovery tool | None (user-provided)                               |
 
 **What it controls:**
@@ -79,7 +79,7 @@ meaningful defaults.
 |----------------|----------------------------------------------------|
 | Type           | `str` (path)                                       |
 | Default        | `""` (empty - must be configured)                  |
-| Used by        | `_ScanImagePCData` class in sl-experiment          |
+| Used by        | `_ScanImagePCData` class in sollertia-experiment          |
 | Discovery tool | None (user-provided)                               |
 
 **What it controls:**
@@ -97,7 +97,7 @@ meaningful defaults.
 
 ## Google Sheets configuration
 
-Google Sheet identifiers for lab records. Used during data preprocessing (post-session), not during acquisition.
+Google Sheet identifiers for Sollertia records. Used during data preprocessing (post-session), not during acquisition.
 
 ### surgery_sheet_id
 
@@ -449,7 +449,7 @@ Zaber motor controllers and MQTT broker settings.
 | `lickport_port` | `/dev/ttyUSB1` | Lickport motors (Z, Y, X axes)           |
 | `wheel_port`    | `/dev/ttyUSB2` | Wheel motor (X-axis horizontal position) |
 
-**Discovery tool:** `get_zaber_devices_tool()` from sl-experiment
+**Discovery tool:** `get_zaber_devices_tool()` from sollertia-experiment
 
 **What they control:**
 - Serial port connections to three independent Zaber motor controller groups
@@ -489,7 +489,7 @@ Zaber motor controllers and MQTT broker settings.
 - For local Unity instances, use the default `127.0.0.1:1883`
 - For remote Unity PCs, configure the appropriate network address
 
-**MQTT topics used by sl-experiment:**
+**MQTT topics used by sollertia-experiment:**
 - `CUE_SEQUENCE`: Wall cue sequence from VR
 - `UNITY_TERMINATION`: Signal to end task
 - `UNITY_STARTUP`: Startup handshake

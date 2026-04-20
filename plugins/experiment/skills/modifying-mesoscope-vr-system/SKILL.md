@@ -7,7 +7,7 @@ description: >-
 
 # Modifying the Mesoscope-VR System
 
-This skill guides modifications to the Mesoscope-VR acquisition system in sl-experiment. It routes to specialized
+This skill guides modifications to the Mesoscope-VR acquisition system in sollertia-experiment. It routes to specialized
 guides based on the type of modification.
 
 ---
@@ -81,7 +81,7 @@ Use this skill when:
 └─────────────────────────────────┬──────────────────────────────────────────────┘
                                   │ imports configuration
 ┌─────────────────────────────────▼──────────────────────────────────────────────┐
-│                              sl-experiment                                     │
+│                              sollertia-experiment                                     │
 │  ┌──────────────────────────────────────────────────────────────────────────┐  │
 │  │  binding_classes.py                                                      │  │
 │  │  ──────────────────                                                      │  │
@@ -134,9 +134,9 @@ Follow the **Cross-Referenced Library Verification** procedure in `CLAUDE.md`:
 | sl-shared-assets | `configuration/mesoscope_descriptors.py`            | Descriptor dataclass structure        |
 | sl-shared-assets | `data/session_data.py`                              | SessionTypes enumeration              |
 | sl-shared-assets | `configuration/configuration_utilities.py`          | Registry patterns                     |
-| sl-experiment    | `mesoscope_vr/binding_classes.py`                   | Binding class patterns                |
-| sl-experiment    | `mesoscope_vr/data_acquisition.py`                  | Lifecycle integration                 |
-| sl-experiment    | `mesoscope_vr/visualizers.py`                       | Visualization patterns                |
+| sollertia-experiment    | `mesoscope_vr/binding_classes.py`                   | Binding class patterns                |
+| sollertia-experiment    | `mesoscope_vr/data_acquisition.py`                  | Lifecycle integration                 |
+| sollertia-experiment    | `mesoscope_vr/visualizers.py`                       | Visualization patterns                |
 
 ### Pre-Implementation Hardware Verification
 
@@ -148,7 +148,7 @@ Use MCP tools to confirm hardware connectivity before writing integration code:
 |------------------|------------------------------|----------------------------|-------------------------|
 | Cameras          | `/camera-interface`          | `list_cameras()`           | ataraxis-video-system   |
 | Microcontrollers | `/microcontroller-interface` | `list_microcontrollers()`  | ataraxis-comm-interface |
-| Zaber motors     | `/zaber-interface`           | `get_zaber_devices_tool()` | sl-experiment           |
+| Zaber motors     | `/zaber-interface`           | `get_zaber_devices_tool()` | sollertia-experiment           |
 
 **Verification workflow:**
 
@@ -169,7 +169,7 @@ code for hardware that cannot be verified leads to untestable integration.
 Covers adding physical hardware components to the mesoscope-vr system:
 
 - Configuration dataclasses in sl-shared-assets
-- Binding classes in sl-experiment
+- Binding classes in sollertia-experiment
 - Integration into `_MesoscopeVRSystem` lifecycle
 - Microcontroller module integration patterns
 - System ID allocation
