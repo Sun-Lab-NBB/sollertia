@@ -42,11 +42,8 @@ start. The discovery side of "which descriptors exist for a session" is included
   `/session-hardware-state`)
 - Reading or writing the per-session Zaber and mesoscope-objective position snapshots (see the
   experiment plugin's `/session-snapshots`)
-- Reading the frozen system configuration captured at session start. The
-  `MesoscopeSystemConfiguration` dataclass moved out of `sollertia-shared-assets` into
-  `sollertia-experiment` (the acquisition runtime is its only consumer), and **no MCP tool — in
-  slsa or in sollertia-experiment — currently reads the frozen `system_configuration.yaml`
-  snapshot**. Read the YAML directly if you need its contents.
+- Reading the frozen system configuration captured at session start (see the experiment plugin's
+  `/system-configuration`)
 - Reading the frozen experiment configuration captured at session start (see
   `/experiment-configuration` for `read_session_experiment_configuration_tool`)
 - Reading subject metadata (see `/subject-metadata`)
@@ -199,11 +196,8 @@ runtime at session start and never modified afterward. There is no `write_sessio
    mesoscope-objective position snapshots.
 8. **Hand off to `/experiment-configuration`** for the frozen experiment configuration via
    `read_session_experiment_configuration_tool`.
-
-Note: no MCP tool — in slsa or in `sollertia-experiment` — currently reads the frozen
-`system_configuration.yaml` snapshot. The `MesoscopeSystemConfiguration` dataclass moved into
-`sollertia-experiment` because the acquisition runtime is its only consumer, but no read wrapper
-was added on either side. If you need the frozen system configuration, read the YAML directly.
+9. **Hand off to the experiment plugin's `/system-configuration`** for the frozen
+   `system_configuration.yaml` snapshot.
 
 ### Querying supported session types
 
