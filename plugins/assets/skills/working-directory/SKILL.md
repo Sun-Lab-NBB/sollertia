@@ -110,17 +110,20 @@ authored by `/experiment-configuration`.
 
 ## MCP tool surface
 
-| Tool                                  | Purpose                                                           |
-|---------------------------------------|-------------------------------------------------------------------|
-| `set_working_directory_tool`          | Sets the local Sollertia working directory                        |
-| `read_working_directory_tool`         | Reads the currently configured working directory                  |
-| `set_google_credentials_tool`         | Sets the path to the Google Sheets credentials JSON file          |
-| `read_google_credentials_tool`        | Reads the currently configured Google credentials path            |
-| `set_task_templates_directory_tool`   | Sets the directory holding YAML task templates                    |
-| `read_task_templates_directory_tool`  | Reads the currently configured task templates directory           |
+| Tool                                     | Purpose                                                                          |
+|------------------------------------------|----------------------------------------------------------------------------------|
+| `set_working_directory_tool`             | Sets the local Sollertia working directory                                       |
+| `read_working_directory_tool`            | Reads the currently configured working directory                                 |
+| `set_google_credentials_tool`            | Sets the path to the Google Sheets credentials JSON file                         |
+| `read_google_credentials_tool`           | Reads the currently configured Google credentials path                           |
+| `set_task_templates_directory_tool`      | Sets the directory holding YAML task templates                                   |
+| `read_task_templates_directory_tool`     | Reads the currently configured task templates directory                          |
+| `get_platform_environment_status_tool`   | Reports `ok` / `configured` status for all three paths in a single health report |
 
 All `set_*` tools accept absolute paths and create the directory if it does not exist (working directory)
-or expect the file/directory to exist (credentials, templates).
+or expect the file/directory to exist (credentials, templates). Use
+`get_platform_environment_status_tool` as a one-call health check before handing off to any downstream
+configuration skill.
 
 ---
 
@@ -216,6 +219,7 @@ inspect or modify any template content from this skill; that is owned by `/task-
 - [ ] Google credentials path is set if the project requires Sheets access
 - [ ] Task templates directory is set and discoverable
 - [ ] discover_templates_tool returns at least the templates the user expects (or empty if none yet)
+- [ ] get_platform_environment_status_tool returns overall_ok=True for every required component
 ```
 
 ---

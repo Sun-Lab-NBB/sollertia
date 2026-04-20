@@ -80,83 +80,26 @@ A project bundles three kinds of state:
 
 ### How a project is represented across destinations
 
-The slsa MCP tools in this skill operate on **one destination at a time** — whichever
-`root_directory` is passed. But the same canonical project exists, with the same internal
-shape, across multiple destinations during its lifecycle. The destination model below describes
-the canonical roles a destination can play; an acquisition system declares its own concrete set
-of destinations and binds each one to a configured filesystem path. The Mesoscope-VR system —
-currently the only one defined — happens to instantiate this model with **two acquisition
-machines and two long-term storage destinations**, but other systems will compose differently
-(e.g. a single acquisition machine with one storage tier).
+The slsa MCP tools operate on **one destination at a time** — whichever `root_directory` is
+passed. The same canonical project exists across multiple destinations (acquisition machines,
+storage tiers) during its lifecycle, but **every destination uses the identical
+`<root>/<project>/<animal>/<session>/` shape**, so tools that walk the hierarchy can be pointed
+at any destination's root with no schema change.
 
-#### Primary acquisition machine
+Two slsa-side caveats matter when reasoning across destinations:
 
-The machine that runs the acquisition runtime and owns the authoring tier of the project
-hierarchy. Sessions are **created here** under `<root>/<project>/<animal>/<session>/raw_data/`,
-populated as data is acquired, then handed off to the long-term storage destinations during
-preprocessing. Once preprocessing succeeds and the transfer is verified, the local copy is
-deleted from this machine — it does not retain sessions long-term. This is also where
-per-project `configuration/` (experiment-config YAMLs) lives; the frozen per-session copy
-travels with each session into `raw_data/`, so storage destinations do not need a separate
-project-level `configuration/` directory.
+- **`persistent_data/` directories live only on acquisition machines** at
+  `<root>/<project>/<animal>/persistent_data/` (cross-session calibration state, descriptor
+  seeds, position snapshots — see `/session-data`). They sit at the animal level and do not
+  appear in `discover_sessions_tool` output.
+- **`configuration/` lives only at the primary acquisition machine's project root by default**;
+  storage destinations rely on the per-session frozen copy under `raw_data/`.
 
-This destination also carries a per-animal `persistent_data/` slot at
-`<root>/<project>/<animal>/persistent_data/` that survives across sessions (descriptor
-parameters from the previous session, position snapshots, window screenshots — see
-`/session-data` for what these seed in the next session). The persistent slot sits at the
-animal level, not under any session, so it does not appear in `discover_sessions_tool` output.
-
-In Mesoscope-VR this role is played by the **VRPC**.
-
-#### Secondary acquisition machines (system-specific)
-
-Some acquisition systems require additional machines that hold subsystem-specific assets the
-primary acquisition machine then pulls into the session's `raw_data/` during preprocessing.
-These secondary machines may carry their own per-animal `persistent_data/` slots for subsystem
-calibration files that survive across sessions but are not part of the main project hierarchy.
-
-In Mesoscope-VR this role is played by the **ScanImage PC**, which holds the mesoscope frame
-staging area plus per-animal motion-estimator and ROI calibration files. Other acquisition
-systems may have zero, one, or several such secondary machines depending on how their hardware
-is split across hosts.
-
-#### Hot storage tier
-
-A long-term storage destination intended to be the working copy that downstream processing
-pipelines read from and write into. Receives the preprocessed `raw_data/` per session from the
-primary acquisition machine, and accumulates `processed_data/` outputs as processing pipelines
-populate them in place (see `/session-data` for the lifecycle of `processed_data/`).
-
-In Mesoscope-VR this role is played by the **compute server**.
-
-#### Cold storage tier
-
-A long-term storage destination intended as a backup of the raw acquired data. Receives the
-same preprocessed `raw_data/` as the hot storage tier, in parallel during the preprocessing
-transfer. Not used as a source by processing pipelines — it exists to survive a hot-storage
-failure.
-
-In Mesoscope-VR this role is played by the **NAS**.
-
-#### Invariants across all destinations
-
-- **Every destination uses the identical `<root>/<project>/<animal>/<session>/` shape.** The
-  `<root>` path differs per destination, but the relative structure inside each project is
-  always the same. Tools that walk the hierarchy can be pointed at any destination's root with
-  no schema change.
-- **`persistent_data/` directories live only on acquisition machines** (primary and any
-  secondary), since they hold cross-session calibration state that is only meaningful to the
-  acquisition runtime. Storage destinations don't carry `persistent_data/`.
-- **`configuration/` lives only at the primary acquisition machine's project root by default**.
-  Storage destinations rely on the per-session frozen copy under `raw_data/` for any
-  configuration metadata they need.
-- **The slsa MCP tools have no concept of multi-destination mirroring.** When you call
-  `discover_projects_tool(root_directory=<X>)`, you see only what is on `X`. To audit the same
-  project across destinations, call the tools once per destination root.
-
-The project shape (`<root>/<project>/<animal>/<session>/`) is acquisition-system-agnostic and
-should remain stable as additional systems are added; what varies between systems is the set of
-destinations they declare and which configured filesystem path each role binds to.
+The concrete set of destinations a system declares (acquisition machines, hot/cold storage
+tiers) and which filesystem path each binds to is **system-specific** and owned by the
+experiment plugin's `/system-configuration` and `/managing-session-data`. Defer to those skills
+for the Mesoscope-VR topology (VRPC, ScanImage PC, compute server, NAS) and for any additional
+acquisition system that registers its own destinations.
 
 ---
 

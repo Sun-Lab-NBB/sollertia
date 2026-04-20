@@ -69,24 +69,13 @@ A hardware-state snapshot captures the per-rig hardware module parameters that w
 the acquisition runtime started the session. The file is written **once at session start** by
 the acquisition runtime and never modified afterward. Downstream processing pipelines read it to
 translate raw acquired signals back into physical units and to know which modules were
-exercised. The schema below is `MesoscopeHardwareState` — the current concrete instance:
+exercised.
 
-| Field                           | Captures                                                                |
-|---------------------------------|-------------------------------------------------------------------------|
-| `cm_per_pulse`                  | Encoder pulses → centimeters conversion                                 |
-| `maximum_brake_strength`        | Brake torque (N·cm) when fully engaged                                  |
-| `minimum_brake_strength`        | Brake torque (N·cm) when fully disengaged                               |
-| `lick_threshold`                | 12-bit ADC threshold for lick detection                                 |
-| `valve_scale_coefficient`       | Power-law scale for water-valve open-time → dispensed volume            |
-| `valve_nonlinearity_exponent`   | Power-law exponent for the same relationship                            |
-| `torque_per_adc_unit`           | Torque sensor 12-bit ADC → N·cm conversion                              |
-| `screens_initially_on`          | Initial state of the VR screens at session start                        |
-| `recorded_mesoscope_ttl`        | Whether the session recorded mesoscope brain-activity data              |
-| `delivered_gas_puffs`           | Whether the session delivered any gas puffs to the animal               |
-| `system_state_codes`            | Mapping of integer system-state codes to human-readable state names     |
-
-Every field defaults to `None`. A `None` value means "the corresponding hardware module was not
-used by the executed runtime" — not "missing data."
+For the canonical field list and types call `describe_session_hardware_state_schema_tool` — do
+not rely on handwritten field tables that may drift from the slsa source of truth. Every field
+defaults to `None`, and a `None` value means **"the corresponding hardware module was not used
+by the executed runtime"** — not "missing data." That semantic is the load-bearing convention
+for downstream pipelines and is preserved when you write or amend a snapshot below.
 
 ### Per-session-type field population (Mesoscope-VR example)
 

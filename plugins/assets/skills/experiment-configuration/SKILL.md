@@ -170,6 +170,7 @@ configuration captures that whole arc by chaining states with different guidance
 | `create_experiment_config_tool`                 | Creates a config from a template + parameters (exclusive)       |
 | `validate_experiment_configuration_tool`        | Validates an experiment configuration YAML (exclusive)          |
 | `read_session_experiment_configuration_tool`    | Reads the frozen experiment configuration from a session        |
+| `list_supported_acquisition_systems_tool`       | Enumerates the `AcquisitionSystems` enum values                 |
 
 ---
 

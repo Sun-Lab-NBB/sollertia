@@ -146,12 +146,10 @@ canonical session root before any tool runs.
 
 ## SessionTypes
 
-| `SessionTypes` value     | Descriptor file (owned by `/session-descriptors`) |
-|--------------------------|---------------------------------------------------|
-| `lick training`          | `lick_training_descriptor.yaml`                   |
-| `run training`           | `run_training_descriptor.yaml`                    |
-| `window checking`        | `window_checking_descriptor.yaml`                 |
-| `mesoscope experiment`   | `experiment_descriptor.yaml`                      |
+The canonical `SessionTypes` enum values are `lick training`, `run training`, `window checking`,
+and `mesoscope experiment`. Use `list_supported_session_types_tool` for the authoritative list
+(it also returns each type's descriptor filename and dataclass). Per-type descriptor file
+mapping and schemas are owned by `/session-descriptors`.
 
 ---
 
