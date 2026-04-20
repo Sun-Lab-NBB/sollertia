@@ -65,7 +65,7 @@ canonical reference, this section is not.
 All four descriptors carry the same four **common fields**:
 
 - **`experimenter`** — the supervising experimenter's ID.
-- **`mouse_weight_g`** — the animal's weight at the start of the session.
+- **`animal_weight_g`** — the animal's weight at the start of the session.
 - **`incomplete`** — flips to `False` on a successful acquisition. Distinct from the `nk.bin`
   initialization marker described in `/session-data`; this flag persists as the durable
   completeness record.

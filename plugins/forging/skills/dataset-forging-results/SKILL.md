@@ -191,7 +191,7 @@ Key facts:
   `DatasetSession.session_path.joinpath("data.feather")` inside the pipeline. This is
   directly under the session root, not under `processed_data/`. A copy of the
   session's `experiment_descriptor.yaml` is written next to it so the forged session
-  carries experimenter context (mouse weight, water dispensed/consumed, completion
+  carries experimenter context (animal weight, water dispensed/consumed, completion
   status, notes) without reaching back into the raw session.
 - **Dataset hierarchy:** `{project_root}/{dataset_name}/` stores the metadata
   (`dataset.yaml`), the processing tracker (`forging_tracker.yaml`), and one

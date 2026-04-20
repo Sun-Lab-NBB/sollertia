@@ -342,8 +342,8 @@ first. See `/dataset-forging-input-format` for per-file details on upstream prer
 
    | Dataset               | Sessions | Succeeded | Failed | Scheduled |
    |-----------------------|----------|-----------|--------|-----------|
-   | mouse_001_week1       | 7        | 0         | 0      | 7         |
-   | mouse_002_week1       | 7        | 2         | 1      | 4         |
+   | animal_001_week1       | 7        | 0         | 0      | 7         |
+   | animal_002_week1       | 7        | 2         | 1      | 4         |
    ```
 
 4. **Confirm resource allocation** — Present the default worker budget (`-1` =
@@ -403,16 +403,16 @@ workers share no state.
 When presenting per-session status:
 
 ```text
-**Forging Status** — dataset `mouse_001_week1`
+**Forging Status** — dataset `animal_001_week1`
 
 Summary: 5/7 jobs complete | 1 running | 1 queued | 0 failed
 
 | Session                       | Status    | Duration |
 |-------------------------------|-----------|----------|
-| mouse_001_2026-03-04_exp_01   | SUCCEEDED | 42.7s    |
-| mouse_001_2026-03-05_exp_01   | SUCCEEDED | 39.1s    |
-| mouse_001_2026-03-06_exp_01   | RUNNING   | 12.4s    |
-| mouse_001_2026-03-07_exp_01   | SCHEDULED | --       |
+| animal_001_2026-03-04_exp_01   | SUCCEEDED | 42.7s    |
+| animal_001_2026-03-05_exp_01   | SUCCEEDED | 39.1s    |
+| animal_001_2026-03-06_exp_01   | RUNNING   | 12.4s    |
+| animal_001_2026-03-07_exp_01   | SCHEDULED | --       |
 ```
 
 For multi-dataset overview via `get_forging_batch_status_overview_tool`:
@@ -422,9 +422,9 @@ For multi-dataset overview via `get_forging_batch_status_overview_tool`:
 
 | Dataset          | Status    | Succeeded | Failed | Running | Scheduled |
 |------------------|-----------|-----------|--------|---------|-----------|
-| mouse_001_week1  | completed | 7         | 0      | 0       | 0         |
-| mouse_002_week1  | running   | 3         | 1      | 2       | 1         |
-| mouse_003_week1  | scheduled | 0         | 0      | 0       | 7         |
+| animal_001_week1  | completed | 7         | 0      | 0       | 0         |
+| animal_002_week1  | running   | 3         | 1      | 2       | 1         |
+| animal_003_week1  | scheduled | 0         | 0      | 0       | 7         |
 ```
 
 ---

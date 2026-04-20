@@ -318,7 +318,7 @@ USB ports and hardware calibration parameters for the three microcontroller boar
 **What they control:**
 - `wheel_diameter_cm`: Physical wheel diameter, converts encoder pulses to distance traveled
 - `wheel_encoder_ppr`: Encoder resolution in Pulses Per Revolution
-- `wheel_encoder_report_cw/ccw`: Which rotation directions to report (mouse wheels typically CCW only)
+- `wheel_encoder_report_cw/ccw`: Which rotation directions to report (running wheels typically CCW only)
 - `wheel_encoder_delta_threshold_pulse`: Minimum pulse change before reporting (filters noise)
 - `wheel_encoder_polling_delay_us`: Time between encoder reads in microseconds
 
@@ -544,7 +544,7 @@ These parameters have sensible defaults that work for most setups:
 | `body_camera_quantization`  | Cameras          | `20`     | Good quality/size balance     |
 | `body_camera_preset`        | Cameras          | `7`      | Good encoding efficiency      |
 | `keepalive_interval_ms`     | Microcontrollers | `500`    | Responsive failure detection  |
-| `wheel_diameter_cm`         | Microcontrollers | `15.03`  | Standard mouse wheel          |
+| `wheel_diameter_cm`         | Microcontrollers | `15.03`  | Standard running wheel        |
 | `wheel_encoder_ppr`         | Microcontrollers | `8192`   | High-resolution encoder       |
 | `lick_threshold_adc`        | Microcontrollers | `600`    | Typical lick detection        |
 | `sensor_polling_delay_ms`   | Microcontrollers | `1`      | 1 kHz sampling rate           |

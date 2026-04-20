@@ -215,9 +215,9 @@ The workflow uses a **prepare-then-execute** model:
 
    | Session                       | Runtime | Camera | MCU | Total |
    |-------------------------------|---------|--------|-----|-------|
-   | mouse_001_2026-03-04_lick_01  | 1       | 2      | 5   | 8     |
-   | mouse_001_2026-03-05_run_01   | 1       | 2      | 5   | 8     |
-   | mouse_002_2026-03-06_exp_01   | 1       | 2      | 5   | 8     |
+   | animal_001_2026-03-04_lick_01  | 1       | 2      | 5   | 8     |
+   | animal_001_2026-03-05_run_01   | 1       | 2      | 5   | 8     |
+   | animal_002_2026-03-06_exp_01   | 1       | 2      | 5   | 8     |
    ```
 
 4. **Confirm resource allocation** — Present the default worker budget (`-1` = auto-resolve using
@@ -281,11 +281,11 @@ Summary: 18/24 jobs complete | 2 running | 4 queued | 0 failed
 
 | Session                       | Job                             | Status    | Duration |
 |-------------------------------|---------------------------------|-----------|----------|
-| mouse_001_2026-03-04_lick_01  | runtime_processing:1            | SUCCEEDED | 12.5s    |
-| mouse_001_2026-03-04_lick_01  | microcontroller_processing:101-2-1 | SUCCEEDED | 3.1s     |
-| mouse_001_2026-03-04_lick_01  | camera_processing:51            | SUCCEEDED | 0.1s     |
-| mouse_001_2026-03-05_run_01   | runtime_processing:1            | RUNNING   | 4.8s     |
-| mouse_002_2026-03-06_exp_01   | runtime_processing:1            | SCHEDULED | --       |
+| animal_001_2026-03-04_lick_01  | runtime_processing:1            | SUCCEEDED | 12.5s    |
+| animal_001_2026-03-04_lick_01  | microcontroller_processing:101-2-1 | SUCCEEDED | 3.1s     |
+| animal_001_2026-03-04_lick_01  | camera_processing:51            | SUCCEEDED | 0.1s     |
+| animal_001_2026-03-05_run_01   | runtime_processing:1            | RUNNING   | 4.8s     |
+| animal_002_2026-03-06_exp_01   | runtime_processing:1            | SCHEDULED | --       |
 ```
 
 For multi-session overview via `get_batch_status_overview_tool`:
@@ -295,9 +295,9 @@ For multi-session overview via `get_batch_status_overview_tool`:
 
 | Session root                                         | Status    | Succeeded | Failed | Running | Scheduled |
 |------------------------------------------------------|-----------|-----------|--------|---------|-----------|
-| /data/projects/my_project/mouse_001/2026-03-04_lick_01 | completed | 8         | 0      | 0       | 0         |
-| /data/projects/my_project/mouse_001/2026-03-05_run_01  | running   | 3         | 0      | 2       | 3         |
-| /data/projects/my_project/mouse_002/2026-03-06_exp_01  | scheduled | 0         | 0      | 0       | 8         |
+| /data/projects/my_project/animal_001/2026-03-04_lick_01 | completed | 8         | 0      | 0       | 0         |
+| /data/projects/my_project/animal_001/2026-03-05_run_01  | running   | 3         | 0      | 2       | 3         |
+| /data/projects/my_project/animal_002/2026-03-06_exp_01  | scheduled | 0         | 0      | 0       | 8         |
 ```
 
 ---

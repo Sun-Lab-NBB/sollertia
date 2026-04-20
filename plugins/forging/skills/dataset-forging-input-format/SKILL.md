@@ -281,7 +281,7 @@ assets plugin.
 `data.feather` at the end of each session assembly (the copy is placed directly under
 the session root, next to `data.feather`). The file is parsed as
 `MesoscopeExperimentDescriptor` and carries experimenter-authored runtime context —
-`experimenter`, `mouse_weight_g`, dispensed / consumed water volumes, the `incomplete`
+`experimenter`, `animal_weight_g`, dispensed / consumed water volumes, the `incomplete`
 completion flag, and `experimenter_notes`.
 
 Presence is verified up front inside `_assemble_session_dataset`, before any cindra or
