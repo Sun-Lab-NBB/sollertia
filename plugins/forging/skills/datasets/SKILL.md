@@ -82,7 +82,7 @@ describe_dataset_schema_tool()
 
 ### Step 4: Identify member sessions
 
-Use `discover_sessions_tool` (owned by `/session-discovery` on the same `sl-mcp` server) to enumerate
+Use `discover_sessions_tool` (owned by the assets plugin's `/session-discovery` on the same `sl-mcp` server) to enumerate
 candidate sessions. Filter by project, animal, session type, and date range as needed. Confirm the
 membership list with the user before writing.
 
@@ -134,8 +134,8 @@ downstream tooling and analysis notebooks may have references that break silentl
 
 ## Related skills
 
-| Skill                              | Relationship                                                        |
-|------------------------------------|---------------------------------------------------------------------|
-| `/forging-mcp-environment-setup`   | Run first if the sl-mcp server is not connected                     |
-| `/session-discovery`               | Provides `discover_sessions_tool` for dataset membership lookup     |
-| `/session-data`                    | Sibling — sessions are the membership unit of datasets              |
+| Skill                                | Relationship                                                          |
+|--------------------------------------|-----------------------------------------------------------------------|
+| `/forging-mcp-environment-setup`     | Run first if the sl-mcp server is not connected                       |
+| assets plugin `/session-discovery`   | Provides `discover_sessions_tool` for dataset membership lookup       |
+| `/session-data`                      | Sibling — sessions are the membership unit of datasets                |

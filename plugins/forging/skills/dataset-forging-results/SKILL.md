@@ -34,7 +34,7 @@ verification via MCP tool, data querying, and interpretation guidance.
 **Does not cover:**
 - Batch processing workflow (see `/dataset-forging`)
 - Input data format (see `/dataset-forging-input-format`)
-- Session discovery (see `/session-discovery`)
+- Session discovery (see the assets plugin's `/session-discovery`)
 - MCP server connectivity (see `/forging-mcp-environment-setup`)
 - Upstream behavior feather schemas (see `/behavior-results`)
 - Upstream cindra output schemas (see `/cindra:single-recording-results` and

@@ -25,7 +25,7 @@ off to downstream skills for output verification and querying.
 - Progress monitoring, cancellation, cleanup, failed-job reset, and cross-dataset overview
 
 **Does not cover:**
-- Session discovery and filtering (see `/session-discovery`)
+- Session discovery and filtering (see the assets plugin's `/session-discovery`)
 - Upstream input file formats and cross-library handoff (see `/dataset-forging-input-format`)
 - Output verification, schemas, or interpretation (see `/dataset-forging-results`)
 - MCP server connectivity (see `/forging-mcp-environment-setup`)
@@ -34,7 +34,7 @@ off to downstream skills for output verification and querying.
   `/cindra:multi-recording-processing`)
 
 **Handoff rules:** If MCP tools are unavailable, invoke `/forging-mcp-environment-setup`.
-If the user has not yet run session discovery, invoke `/session-discovery` first. After
+If the user has not yet run session discovery, invoke the assets plugin's `/session-discovery` first. After
 all jobs complete successfully, hand off to `/dataset-forging-results` to verify and
 query outputs.
 
@@ -49,7 +49,7 @@ You MUST use the sollertia-forgery MCP tools for all forging operations. Do not 
 `sollertia_forgery.forging.pipeline` directly or invoke the `sl-forge` CLI — those
 bypass the background execution manager and the progress/timing monitoring surface.
 
-You MUST have confirmed session names and a project root from `/session-discovery`
+You MUST have confirmed session names and a project root from the assets plugin's `/session-discovery`
 before calling `prepare_forging_batch_tool`. Do not guess, infer, or discover paths from
 within this skill.
 
@@ -303,7 +303,7 @@ Only one execution session can be active at a time.
 ### Pre-processing checklist
 
 ```text
-- [ ] Confirmed session names and project_root from /session-discovery
+- [ ] Confirmed session names and project_root from the assets plugin's /session-discovery
 - [ ] Every session in the batch is MESOSCOPE_EXPERIMENT
 - [ ] /behavior-processing has completed for every session (behavior feathers present)
 - [ ] /cindra:single-recording-processing has completed for every session
@@ -319,7 +319,7 @@ first. See `/dataset-forging-input-format` for per-file details on upstream prer
 ### Workflow steps
 
 1. **Receive confirmed inputs** — Get session names, project root, and the target
-   dataset name(s) from the user. Session names come from `/session-discovery`.
+   dataset name(s) from the user. Session names come from the assets plugin's `/session-discovery`.
 
 2. **Prepare batch** — Call `prepare_forging_batch_tool` with the list of dataset
    specifications. Inspect the result:
@@ -332,7 +332,7 @@ first. See `/dataset-forging-input-format` for per-file details on upstream prer
      `MESOSCOPE_EXPERIMENT`; remove it from the batch.
    - `invalid_datasets[].error` starting with `"Unable to resolve the directory for session"`
      → session name does not resolve under `project_root`; cross-check with
-     `/session-discovery`.
+     the assets plugin's `/session-discovery`.
 
 3. **Present discovered jobs** — For each dataset in the manifest, show the session
    count and any pre-existing SUCCEEDED / FAILED counts. Format suggestion:
@@ -476,35 +476,35 @@ To rebuild only the session set of an existing dataset without deleting first:
 
 ### Per-job failure routing
 
-| Error pattern                                                 | Action                                                            |
-|---------------------------------------------------------------|-------------------------------------------------------------------|
-| Behavior tracker not found / ambiguous                        | Rerun `/behavior-processing` for the session                      |
-| Cindra single-recording tracker not found / ambiguous         | Rerun `/cindra:single-recording-processing` for the session       |
-| Cindra multi-day file missing (`cell_fluorescence.npy`, etc.) | Rerun `/cindra:multi-recording-processing` with the same dataset name |
-| Hardware state YAML missing / missing required field          | See `/dataset-forging-input-format` and the assets plugin  |
-| Experiment configuration YAML missing                         | See `/dataset-forging-input-format`                               |
-| Experiment descriptor YAML missing                            | See `/dataset-forging-input-format`; add the file under `raw_data/` |
-| Polars / Arrow read errors on a behavior feather              | Rerun `/behavior-processing` — the upstream feather is corrupt    |
-| MCP tools unavailable                                         | Invoke `/forging-mcp-environment-setup`                           |
-| Out of memory                                                 | Reduce `worker_budget`                                            |
-| Corrupt tracker                                               | `clean_forging_output_tool` → re-prepare                          |
+| Error pattern                                                   | Action                                                                |
+|-----------------------------------------------------------------|-----------------------------------------------------------------------|
+| Behavior tracker not found / ambiguous                          | Rerun `/behavior-processing` for the session                          |
+| Cindra single-recording tracker not found / ambiguous           | Rerun `/cindra:single-recording-processing` for the session           |
+| Cindra multi-day file missing (`cell_fluorescence.npy`, etc.)   | Rerun `/cindra:multi-recording-processing` with the same dataset name |
+| Hardware state YAML missing / missing required field            | See `/dataset-forging-input-format` and the assets plugin             |
+| Experiment configuration YAML missing                           | See `/dataset-forging-input-format`                                   |
+| Experiment descriptor YAML missing                              | See `/dataset-forging-input-format`; add the file under `raw_data/`   |
+| Polars / Arrow read errors on a behavior feather                | Rerun `/behavior-processing` — the upstream feather is corrupt        |
+| MCP tools unavailable                                           | Invoke `/forging-mcp-environment-setup`                               |
+| Out of memory                                                   | Reduce `worker_budget`                                                |
+| Corrupt tracker                                                 | `clean_forging_output_tool` → re-prepare                              |
 
 ---
 
 ## Related skills
 
-| Skill                                       | Relationship                                                              |
-|---------------------------------------------|---------------------------------------------------------------------------|
-| `/forging-mcp-environment-setup`            | Prerequisite: MCP server connectivity                                     |
-| `/session-discovery`                        | Upstream: session discovery and filtering                                 |
-| `/dataset-forging-input-format`             | Reference: upstream artifacts and session / dataset layout                |
-| `/dataset-forging-results`                  | Downstream: output verification, schemas, and querying                    |
-| `/behavior-processing`                      | Upstream: produces behavior feathers consumed by forging                  |
-| `/behavior-results`                         | Upstream reference: schema of the behavior feathers consumed here         |
-| `/cindra:single-recording-processing`       | Upstream: produces single-recording cindra outputs consumed here          |
-| `/cindra:multi-recording-processing`        | Upstream: produces multi-day cindra outputs (dataset name must match)     |
-| `/cindra:single-recording-results`          | Upstream reference: schemas of the cindra single-recording outputs        |
-| `/cindra:multi-recording-results`           | Upstream reference: schemas of the cindra multi-day outputs               |
+| Skill                                           | Relationship                                                                  |
+|-------------------------------------------------|-------------------------------------------------------------------------------|
+| `/forging-mcp-environment-setup`                | Prerequisite: MCP server connectivity                                         |
+| assets plugin `/session-discovery`              | Upstream: session discovery and filtering                                     |
+| `/dataset-forging-input-format`                 | Reference: upstream artifacts and session / dataset layout                    |
+| `/dataset-forging-results`                      | Downstream: output verification, schemas, and querying                        |
+| `/behavior-processing`                          | Upstream: produces behavior feathers consumed by forging                      |
+| `/behavior-results`                             | Upstream reference: schema of the behavior feathers consumed here             |
+| `/cindra:single-recording-processing`           | Upstream: produces single-recording cindra outputs consumed here              |
+| `/cindra:multi-recording-processing`            | Upstream: produces multi-day cindra outputs (dataset name must match)         |
+| `/cindra:single-recording-results`              | Upstream reference: schemas of the cindra single-recording outputs            |
+| `/cindra:multi-recording-results`               | Upstream reference: schemas of the cindra multi-day outputs                   |
 
 ---
 
@@ -513,7 +513,7 @@ To rebuild only the session set of an existing dataset without deleting first:
 ```text
 Dataset Forging Workflow:
 - [ ] Verified MCP server connectivity (invoked /forging-mcp-environment-setup if unavailable)
-- [ ] Received confirmed session names and project_root from /session-discovery
+- [ ] Received confirmed session names and project_root from the assets plugin's /session-discovery
 - [ ] Confirmed every session is MESOSCOPE_EXPERIMENT
 - [ ] Confirmed upstream /behavior-processing and /cindra:* outputs exist
 - [ ] Prepared batch via prepare_forging_batch_tool

@@ -154,15 +154,21 @@ anywhere under the data root. Datasets are owned by the forging plugin's `/datas
 
 ### Discovery (read-only — natural shares)
 
-| Tool                          | Purpose                                                                                          |
-|-------------------------------|--------------------------------------------------------------------------------------------------|
-| `discover_projects_tool`      | Lists all projects under the data root, with `animal_count` and `experiment_count` per project   |
-| `discover_animals_tool`       | Lists animals within a project, with per-animal `session_count`                                  |
-| `discover_sessions_tool`      | Walks the data root and lists sessions (filterable by `project`, `animal_id`, `session_type`)    |
-| `discover_experiments_tool`   | Lists experiment configurations under a project                                                  |
-| `discover_subjects_tool`      | Lists all subjects (optionally filtered by project)                                              |
+| Tool                        | Purpose                                                                                        |
+|-----------------------------|------------------------------------------------------------------------------------------------|
+| `discover_projects_tool`    | Lists all projects under the data root, with `animal_count` and `experiment_count` per project |
+| `discover_animals_tool`     | Lists animals within a project, with per-animal `session_count`                                |
+| `discover_sessions_tool`    | Lists sessions under the data root (filterable by `project`, `animal_id`, and `session_types`) |
+| `discover_experiments_tool` | Lists experiment configurations under a project                                                |
+| `discover_subjects_tool`    | Lists all subjects (optionally filtered by project)                                            |
 
 These tools may be called by any skill that needs to enumerate the hierarchy. They do not mutate state.
+
+`discover_sessions_tool` also emits a flat `session_paths` list of eligible session roots that
+downstream batch pipelines consume directly. For date-range and animal-level filtering workflows
+that chain into the sollertia-forgery batch pipelines, defer to `/session-discovery` instead — that
+skill owns the discover → filter → hand-off pattern and documents every filter parameter and return
+key in full.
 
 ### Aggregation (exclusive to this skill)
 
@@ -227,8 +233,9 @@ summary, no need to walk the hierarchy manually.
    The animal **filter kwarg** is `animal_id`. The corresponding key in each returned session
    summary dict is `animal` (not `animal_id`) — relevant if you re-filter the response in
    downstream code.
-3. **Hand off to `/session-data`** to read individual `SessionData` markers, or to `/session-descriptors`
-   to read the per-session descriptors.
+3. **Hand off to `/session-data`** to read individual `SessionData` markers, to `/session-descriptors`
+   to read the per-session descriptors, or to `/session-discovery` when the workflow needs date-range
+   filtering and a flat `session_paths` handoff to a batch pipeline.
 
 ### Audit subjects across projects
 
@@ -259,11 +266,12 @@ summary, no need to walk the hierarchy manually.
 
 ## Related skills
 
-| Skill                           | Relationship                                            |
-|---------------------------------|---------------------------------------------------------|
-| `/assets-mcp-environment-setup` | Run first if the MCP server is not connected            |
-| `/experiment-configuration`     | Consumes new projects to author experiment YAMLs        |
-| `/session-data`                 | Reads `SessionData` markers discovered via this skill   |
-| `/session-descriptors`          | Reads per-session descriptors discovered via this skill |
-| `/subject-metadata`             | Reads subject records discovered via this skill         |
-| forging plugin `/datasets`      | Aggregates sessions discovered via this skill           |
+| Skill                           | Relationship                                                          |
+|---------------------------------|-----------------------------------------------------------------------|
+| `/assets-mcp-environment-setup` | Run first if the MCP server is not connected                          |
+| `/experiment-configuration`     | Consumes new projects to author experiment YAMLs                      |
+| `/session-discovery`            | Wraps `discover_sessions_tool` with date filtering and batch hand-off |
+| `/session-data`                 | Reads `SessionData` markers discovered via this skill                 |
+| `/session-descriptors`          | Reads per-session descriptors discovered via this skill               |
+| `/subject-metadata`             | Reads subject records discovered via this skill                       |
+| forging plugin `/datasets`      | Aggregates sessions discovered via this skill                         |

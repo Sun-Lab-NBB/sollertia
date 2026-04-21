@@ -44,7 +44,7 @@ experiment configuration authoring to the assets plugin.
 
 **Does not cover:**
 - Session directory layout and `raw_data/` / `processed_data/` hierarchy (see
-  `/session-discovery` and the assets plugin)
+  assets plugin's `/session-discovery` and related skills)
 - Hardware state authoring and validation (see the assets plugin)
 - Experiment configuration authoring and validation (see the assets plugin)
 - Batch orchestration workflow (see `/dataset-forging`)
@@ -80,7 +80,7 @@ calling `prepare_forging_batch_tool`.
 | `RUN_TRAINING`         | no                   | Behavior processing runs, but forging refuses               |
 | Anything else          | no                   | Refused at dataset creation                                 |
 
-Use `/session-discovery` with `session_types=["mesoscope_experiment"]` to discover
+Use the assets plugin's `/session-discovery` with `session_types=["mesoscope experiment"]` to discover
 forgeable sessions.
 
 Eligibility is re-validated on every prepare call that hits a fresh dataset (existing
@@ -98,7 +98,7 @@ The forging pipeline expects the canonical sollertia project layout:
 ├── {animal_name_A}/
 │   ├── {session_name_1}/
 │   │   ├── raw_data/
-│   │   │   ├── session_data.yaml            ← session marker (see /session-discovery)
+│   │   │   ├── session_data.yaml            ← session marker (see the assets plugin's /session-discovery)
 │   │   │   ├── hardware_state.yaml          ← required here
 │   │   │   ├── experiment_configuration.yaml ← required here
 │   │   │   ├── session_descriptor.yaml   ← required here (copied to output)
@@ -364,16 +364,16 @@ Dataset Forging Prerequisites:
 
 ## Related skills
 
-| Skill                                  | Relationship                                                                |
-|----------------------------------------|-----------------------------------------------------------------------------|
-| `/forging-mcp-environment-setup`       | Prerequisite: MCP server connectivity                                       |
-| `/session-discovery`                   | Upstream: session discovery and filtering                                   |
-| `/dataset-forging`                     | Downstream: consumes the inputs documented here                             |
-| `/dataset-forging-results`             | Downstream: documents the output derived from these inputs                  |
-| `/behavior-processing`                 | Upstream producer of behavior feathers                                      |
-| `/behavior-input-format`               | Reference: upstream-of-upstream input format for behavior feathers          |
-| `/behavior-results`                    | Reference: schema of the behavior feathers consumed here                    |
-| `/cindra:single-recording-processing`  | Upstream producer of cindra single-recording outputs                        |
-| `/cindra:multi-recording-processing`   | Upstream producer of cindra multi-day outputs                               |
-| `/cindra:single-recording-results`     | Reference: schemas of the cindra single-recording outputs                   |
-| `/cindra:multi-recording-results`      | Reference: schemas of the cindra multi-day outputs                          |
+| Skill                                    | Relationship                                                                  |
+|------------------------------------------|-------------------------------------------------------------------------------|
+| `/forging-mcp-environment-setup`         | Prerequisite: MCP server connectivity                                         |
+| assets plugin `/session-discovery`       | Upstream: session discovery and filtering                                     |
+| `/dataset-forging`                       | Downstream: consumes the inputs documented here                               |
+| `/dataset-forging-results`               | Downstream: documents the output derived from these inputs                    |
+| `/behavior-processing`                   | Upstream producer of behavior feathers                                        |
+| `/behavior-input-format`                 | Reference: upstream-of-upstream input format for behavior feathers            |
+| `/behavior-results`                      | Reference: schema of the behavior feathers consumed here                      |
+| `/cindra:single-recording-processing`    | Upstream producer of cindra single-recording outputs                          |
+| `/cindra:multi-recording-processing`     | Upstream producer of cindra multi-day outputs                                 |
+| `/cindra:single-recording-results`       | Reference: schemas of the cindra single-recording outputs                     |
+| `/cindra:multi-recording-results`        | Reference: schemas of the cindra multi-day outputs                            |
