@@ -156,6 +156,14 @@ and a `summary` with counts for each status category.
 Loads `SessionData` for each session to resolve `raw_data_path`, then removes the tracker YAML
 and its `.lock` file. Refuses to run while an execution session is active.
 
+**Do not call this tool unless the user explicitly requests tracker cleanup.** The tracker YAML
+is the on-disk source of truth consumed by `generate_project_manifest_tool` to populate the
+`integrity` flag. Because the manifest uses a dependency cascade (`integrity=false` forces
+`cindra`, `behavior`, and `video` to `false` regardless of their own tracker state), deleting
+checksum trackers before the manifest is generated produces a manifest that misrepresents the
+entire project as unprocessed. Preserve trackers by default; only clean on explicit user request,
+and prefer to do so after `/project-manifest` has been generated.
+
 ### Project-wide overview
 
 | Tool                                        | Purpose                                             |
@@ -215,7 +223,11 @@ status. Does not require an active execution session — reads directly from on-
    Optionally call `get_checksum_timing_tool` for elapsed time and throughput.
 
 6. **Handle completion:**
-   - All `SUCCEEDED` → clean trackers if desired, then regenerate manifest via `/project-manifest`
+   - All `SUCCEEDED` → **leave trackers in place** and regenerate the project manifest via
+     `/project-manifest`. Do NOT call `clean_checksum_tracker_tool` unless the user explicitly
+     requests it; the manifest reads these trackers to set `integrity=true`, and cleaning them
+     first cascades `behavior`, `cindra`, and `video` to `false` in the manifest output
+     regardless of their actual processing state.
    - Some `FAILED` → inspect `error_message`, reset with `reset_checksum_jobs_tool`, re-prepare,
      and re-execute
    - Active session died → cancel, clean, re-prepare from scratch
@@ -297,6 +309,6 @@ Checksum Verification:
 - [ ] Verified no active checksum session before dispatch
 - [ ] Executed jobs and monitored until all reached terminal state
 - [ ] Investigated and retried failed jobs if needed
-- [ ] Cleaned tracker files after completion (if appropriate)
+- [ ] Preserved tracker files (DO NOT clean unless the user explicitly requested it — trackers feed the project manifest)
 - [ ] Regenerated project manifest via /project-manifest to update integrity status
 ```
