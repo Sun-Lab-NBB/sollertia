@@ -119,16 +119,40 @@ session root):
 <session>/
 ├── raw_data/                                  # acquired data and frozen metadata (written by the acquisition runtime)
 │   ├── session_data.yaml                      # SessionData marker (THIS SKILL)
-│   ├── <descriptor>.yaml                      # /session-descriptors (filename per session_type)
+│   ├── session_descriptor.yaml                # /session-descriptors (per-session-type dataclass, flat filename)
+│   ├── surgery_metadata.yaml                  # /subject-metadata
 │   ├── system_configuration.yaml              # frozen system config (owned by sollertia-experiment)
 │   ├── experiment_configuration.yaml          # /experiment-configuration (frozen, experiment sessions only)
 │   ├── hardware_state.yaml                    # /session-hardware-state
 │   ├── zaber_positions.yaml                   # experiment plugin /session-snapshots
 │   ├── mesoscope_positions.yaml               # experiment plugin /session-snapshots
-│   ├── nk.bin                                 # incomplete-session marker (removed when runtime initializes)
+│   ├── ax_checksum.txt                        # raw_data integrity checksum (/managing-session-data)
+│   ├── checksum_processing_tracker.yaml       # checksum resolution tracker (/managing-session-data)
+│   ├── nk.bin                                 # incomplete-session marker (deprecated; completeness now read from the descriptor)
 │   └── ... acquired data files ...
 └── processed_data/                            # populated by experiment plugin /managing-session-data
 ```
+
+### Path-resolution properties on `SessionData`
+
+Python code that needs a per-session file path should read it directly from the `SessionData`
+instance rather than concatenating filenames by hand. The shared-assets library packages every
+canonical session filename and directory into three enums (`RawDataFiles`, `Directories`,
+`ProcessingTrackers`) and exposes each as a property on `SessionData`:
+
+- Raw-data files: `session_data_path`, `session_descriptor_path`, `surgery_metadata_path`,
+  `hardware_state_path`, `experiment_configuration_path`, `system_configuration_path`,
+  `checksum_path`, `checksum_tracker_path`.
+- Raw-data subdirectories: `raw_camera_data_path`, `raw_behavior_data_path`,
+  `raw_microcontroller_data_path`, `raw_mesoscope_data_path`.
+- Processed-data subdirectories: `behavior_data_path`, `cindra_data_path`, `camera_timestamps_path`,
+  `camera_data_path`, `microcontroller_data_path`.
+- Processing trackers: `behavior_tracker_path`, `camera_tracker_path`, `video_tracker_path`,
+  `microcontroller_tracker_path`, `cindra_single_recording_tracker_path`.
+- Cindra layout: `cindra_multi_recording_path`.
+
+All properties return a `Path` unconditionally; callers check existence with `.exists()` when the
+path is conditional (experiment-only files, not-yet-produced outputs, forward-looking pipelines).
 
 `discover_sessions_tool` (owned by `/project-hierarchy`) walks the data root looking for
 `session_data.yaml` markers. The session root is always two directory levels above the marker

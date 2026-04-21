@@ -37,12 +37,19 @@ session directory. This skill is the **exclusive** owner of `write_session_descr
 
 ## Session types and descriptor classes
 
-| `SessionTypes` value   | Descriptor file                        | Descriptor dataclass            |
-|------------------------|----------------------------------------|---------------------------------|
-| `lick training`        | `lick_training_descriptor.yaml`        | `LickTrainingDescriptor`        |
-| `run training`         | `run_training_descriptor.yaml`         | `RunTrainingDescriptor`         |
-| `window checking`      | `window_checking_descriptor.yaml`      | `WindowCheckingDescriptor`      |
-| `mesoscope experiment` | `experiment_descriptor.yaml`           | `MesoscopeExperimentDescriptor` |
+Every session's descriptor is stored at a single canonical path — `{raw_data}/session_descriptor.yaml`
+— regardless of session type. The YAML parses into a session-type-specific descriptor dataclass:
+
+| `SessionTypes` value   | Descriptor dataclass            |
+|------------------------|---------------------------------|
+| `lick training`        | `LickTrainingDescriptor`        |
+| `run training`         | `RunTrainingDescriptor`         |
+| `window checking`      | `WindowCheckingDescriptor`      |
+| `mesoscope experiment` | `MesoscopeExperimentDescriptor` |
+
+The per-type filenames (`lick_training_descriptor.yaml`, `run_training_descriptor.yaml`,
+`experiment_descriptor.yaml`, `window_checking_descriptor.yaml`) belong to sollertia-experiment's
+persistent cache hierarchy and do not appear inside session data.
 
 Each descriptor captures the **per-session** metadata that varies between sessions of the same type
 (reward volume actually delivered, water restriction status, observed behavior summary, experimenter
