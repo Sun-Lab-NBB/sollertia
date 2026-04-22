@@ -150,22 +150,19 @@ the animal got — not an input to numerical processing.
 
 | Tool                                      | Purpose                                                                                                   |
 |-------------------------------------------|-----------------------------------------------------------------------------------------------------------|
-| `read_session_descriptor_tool`            | Reads the descriptor file for a session                                                                   |
+| `read_session_descriptor_tool`            | Reads a descriptor file at an explicit path, parsing it with the class for the given `session_type`       |
 | `write_session_descriptor_tool`           | Writes (or repairs) a descriptor file (exclusive to this skill). Defaults to `overwrite=True` — see below |
-| `describe_session_descriptor_schema_tool` | Returns the canonical descriptor filename and field schema for a given session type                       |
+| `describe_session_descriptor_schema_tool` | Returns the field schema for the descriptor dataclass of a given session type                             |
 
-All `session_path` arguments accept **either the session root directory or its `raw_data/`
-subdirectory** — the resolver normalizes both forms to the canonical session root before any
-tool runs.
-
-The discovery side of "which descriptors exist in a session directory" is owned by `/session-data`
-(`discover_session_descriptors_tool`). Call it as a natural share when you need to confirm a descriptor
-file exists before reading or writing it.
+Both read and write tools take an explicit `file_path` and `session_type` — path resolution is
+the caller's responsibility. The canonical on-disk path is always
+`<session>/raw_data/session_descriptor.yaml`; `session_type` selects the parsing dataclass via
+`DESCRIPTOR_REGISTRY`. To discover session roots, hand off to `/project-hierarchy` for
+`discover_sessions_tool`; to confirm a descriptor file is actually present, hand off to
+`/session-data` for `discover_session_descriptors_tool`.
 
 `describe_session_descriptor_schema_tool` returns two keys: `session_type` (the validated
-enum value) and `schema` (the field schema of the session-type's descriptor dataclass). The
-on-disk path is always `<session>/raw_data/session_descriptor.yaml` — this is fixed, not
-returned by the tool.
+enum value) and `schema` (the field schema of the session-type's descriptor dataclass).
 
 ---
 
@@ -174,34 +171,44 @@ returned by the tool.
 ### Repairing a corrupted or stale descriptor
 
 1. **Verify prerequisites:** MCP server connected (else `/assets-mcp-environment-setup`).
-2. **Read the existing descriptor:**
+2. **Resolve the descriptor path.** Construct it as `<session>/raw_data/session_descriptor.yaml`
+   from the session root (e.g. from `discover_sessions_tool` output). You also need the session's
+   `session_type` — read it via `/session-data`'s `read_session_data_tool` if you don't already
+   know it.
+3. **Read the existing descriptor:**
    ```text
-   read_session_descriptor_tool(session_path="<absolute>")
+   read_session_descriptor_tool(
+       file_path="<session>/raw_data/session_descriptor.yaml",
+       session_type="<type>",
+   )
    ```
-3. **Inspect the schema for the session type:**
+4. **Inspect the schema for the session type:**
    ```text
    describe_session_descriptor_schema_tool(session_type="<type>")
    ```
-4. **Build the corrected descriptor dictionary** based on the schema and the values you can recover.
-5. **Confirm the planned write with the user.** `write_session_descriptor_tool` defaults to
+5. **Build the corrected descriptor dictionary** based on the schema and the values you can recover.
+6. **Confirm the planned write with the user.** `write_session_descriptor_tool` defaults to
    `overwrite=True`, so it silently clobbers the existing descriptor file with no backup. If
    the user wants the call to refuse-on-existing instead, pass `overwrite=False` explicitly in
-   Step 6.
-6. **Write the corrected descriptor:**
+   Step 7.
+7. **Write the corrected descriptor:**
    ```text
    write_session_descriptor_tool(
-       session_path="<absolute>",
+       file_path="<session>/raw_data/session_descriptor.yaml",
+       session_type="<type>",
        descriptor_payload={ ... },
        overwrite=True,   # default; set to False to refuse-on-existing
    )
    ```
-   The kwargs are `session_path`, `descriptor_payload`, and the keyword-only `overwrite` (default
-   `True`). The destination filename is determined automatically from the session's
-   `session_type` (loaded from `session_data.yaml`) and the file is written into
-   `<session>/raw_data/`.
-7. **Re-read to verify:**
+   The kwargs are `file_path`, `session_type`, `descriptor_payload`, and the keyword-only
+   `overwrite` (default `True`). The tool does not look at `session_data.yaml`; you choose both
+   the destination path and the parsing class via `session_type`.
+8. **Re-read to verify:**
    ```text
-   read_session_descriptor_tool(session_path="<absolute>")
+   read_session_descriptor_tool(
+       file_path="<session>/raw_data/session_descriptor.yaml",
+       session_type="<type>",
+   )
    ```
 
 ### Amending a descriptor with post-hoc data
@@ -212,11 +219,14 @@ water volume delivered after a manual recount). Always confirm with the user bef
 ### Inspecting a descriptor without modification
 
 ```text
-read_session_descriptor_tool(session_path="<absolute>")
+read_session_descriptor_tool(
+    file_path="<session>/raw_data/session_descriptor.yaml",
+    session_type="<type>",
+)
 ```
 
-If you need to know which descriptor file is present (when the session type is unknown), hand off to
-`/session-data` to call `discover_session_descriptors_tool` first.
+If you don't know the session type, hand off to `/session-data` to call `read_session_data_tool`
+first — its returned payload includes `session_type`.
 
 ---
 
@@ -224,6 +234,8 @@ If you need to know which descriptor file is present (when the session type is u
 
 ```text
 - [ ] sollertia-shared-assets MCP server is connected
+- [ ] File path was constructed as <session>/raw_data/session_descriptor.yaml
+- [ ] session_type was passed to both the read and the write tools
 - [ ] describe_session_descriptor_schema_tool was called before any write
 - [ ] User confirmed the planned write — including awareness that overwrite defaults to True
 - [ ] Payload was passed as descriptor_payload (the correct kwarg name)

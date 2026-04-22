@@ -81,23 +81,24 @@ revision, acquire a new session for the same animal and read that session's snap
 
 | Tool                            | Purpose                                                                       |
 |---------------------------------|-------------------------------------------------------------------------------|
-| `read_subject_surgery_tool`     | Loads the full `SurgeryData` payload for a session (exclusive to this skill)  |
+| `read_subject_surgery_tool`     | Loads the full `SurgeryData` payload from a file path (exclusive to this skill) |
 | `describe_surgery_schema_tool`  | Returns the `SurgeryData` schema with nested section schemas (exclusive)      |
 
 The discovery side of "which subjects exist" is owned by `/project-hierarchy` via
 `discover_subjects_tool`; call it as a natural share when you need to enumerate animals before
 reading their surgery snapshots.
 
-`read_subject_surgery_tool` takes a `session_path` and reads
-`<session>/raw_data/surgery_metadata.yaml`. Accepts either the session root or its `raw_data/`
-subdirectory — the helper normalizes both forms.
+`read_subject_surgery_tool` takes an explicit `file_path` — path resolution is the caller's
+responsibility. The canonical on-disk path is `<session>/raw_data/surgery_metadata.yaml`.
 
 Section projection is a **caller-side** operation. The returned `data` dict has the five
 top-level keys `subject`, `procedure`, `drugs`, `implants`, `injections` — pick the one you
 need. Examples:
 
 ```python
-# After read_subject_surgery_tool(session_path="/data/MyProject/A01/2026-04-20-15-30-00-000000") succeeds:
+# After read_subject_surgery_tool(
+#     file_path="/data/MyProject/A01/2026-04-20-15-30-00-000000/raw_data/surgery_metadata.yaml",
+# ) succeeds:
 response["data"]["subject"]      # SubjectData section (dict)
 response["data"]["procedure"]    # ProcedureData section (dict)
 response["data"]["drugs"]        # DrugData section (dict)
@@ -115,22 +116,24 @@ response["data"]["injections"]   # list[InjectionData dict]
    - MCP server connected (else `/assets-mcp-environment-setup`).
    - The target session exists and `raw_data/surgery_metadata.yaml` is present inside it.
      Confirm via `discover_session_descriptors_tool` (owned by `/session-data`) if in doubt.
-2. **Read the full SurgeryData record:**
+2. **Construct the file path** as `<session>/raw_data/surgery_metadata.yaml`. The session root
+   comes from `discover_sessions_tool` (owned by `/project-hierarchy`); the filename is fixed.
+3. **Read the full SurgeryData record:**
    ```text
-   read_subject_surgery_tool(session_path="<absolute path to session root>")
+   read_subject_surgery_tool(file_path="<session>/raw_data/surgery_metadata.yaml")
    ```
-3. **Project the section(s) the user asked about** from `response["data"]`. For implants,
+4. **Project the section(s) the user asked about** from `response["data"]`. For implants,
    read `response["data"]["implants"]`; for drugs, `response["data"]["drugs"]`; and so on.
-4. **Report to the user.**
+5. **Report to the user.**
 
 ### Auditing all subjects across a project
 
 1. **Hand off to `/project-hierarchy`** for
    `discover_subjects_tool(project="<project>", root_directory="<absolute>")` to enumerate
    animals.
-2. **For each subject**, hand off to `/project-hierarchy` /`/session-discovery` to pick one of
-   its sessions (typically the most recent), then call
-   `read_subject_surgery_tool(session_path=<session path>)`.
+2. **For each subject**, hand off to `/project-hierarchy` / `/session-discovery` to pick one of
+   its sessions (typically the most recent), construct its surgery-metadata path, then call
+   `read_subject_surgery_tool(file_path=<session>/raw_data/surgery_metadata.yaml)`.
 3. **Project and aggregate** the sections you need across subjects, then report.
 
 ### Cross-referencing drug administration with session timing
@@ -139,7 +142,7 @@ response["data"]["injections"]   # list[InjectionData dict]
    `/session-discovery`.
 2. **Read the surgery snapshot:**
    ```text
-   read_subject_surgery_tool(session_path="<absolute>")
+   read_subject_surgery_tool(file_path="<session>/raw_data/surgery_metadata.yaml")
    ```
    Extract `response["data"]["drugs"]`.
 3. **Hand off to `/project-hierarchy`** for `discover_sessions_tool(animal_id="<id>", ...)` to
@@ -171,7 +174,7 @@ If a record needs to be added or corrected:
 - [ ] sollertia-shared-assets MCP server is connected
 - [ ] The target session's raw_data/surgery_metadata.yaml exists (confirmed via
       discover_session_descriptors_tool or by inspecting the session directory)
-- [ ] read_subject_surgery_tool was called with a session_path (not with subject_id)
+- [ ] file_path was constructed as <session>/raw_data/surgery_metadata.yaml (absolute path)
 - [ ] Section extraction was done caller-side from response["data"]["<section>"] — did not
       look for a per-section MCP tool (none exist)
 - [ ] discover_subjects_tool was called via /project-hierarchy when enumeration was needed

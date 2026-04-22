@@ -159,12 +159,18 @@ trial subclass in the per-project experiment configuration via `/experiment-conf
 | Tool                                  | Purpose                                                                       |
 |---------------------------------------|-------------------------------------------------------------------------------|
 | `discover_templates_tool`             | Lists all task templates in the configured templates directory                |
-| `read_template_tool`                  | Reads an existing template by name                                            |
+| `read_template_tool`                  | Reads an existing template at an explicit path                                |
 | `write_template_tool`                 | Writes a new template or overwrites an existing one (exclusive to this skill) |
 | `describe_template_schema_tool`       | Returns the field schema for `TaskTemplate` (exclusive to this skill)         |
 | `validate_template_tool`              | Validates a template against its schema and cross-reference constraints       |
 | `list_supported_trial_types_tool`     | Enumerates trial classes supported by experiment configurations (exclusive)   |
 | `list_supported_trigger_types_tool`   | Enumerates the `TriggerType` enum values (exclusive)                          |
+
+`read_template_tool`, `write_template_tool`, and `validate_template_tool` take an explicit
+`file_path` — path resolution is the caller's responsibility. The canonical home for templates is
+the directory set via `/working-directory`'s `set_task_templates_directory_tool`, and
+`discover_templates_tool()` returns each template's absolute path, which is what you pass to the
+other three tools.
 
 ---
 
@@ -181,8 +187,10 @@ trial subclass in the per-project experiment configuration via `/experiment-conf
 discover_templates_tool()
 ```
 
-If a similar template already exists, prefer reading it (`read_template_tool`) and modifying a copy.
-Avoid creating near-duplicates.
+If a similar template already exists, prefer reading it (`read_template_tool(file_path=...)`) and
+modifying a copy. Avoid creating near-duplicates. The response includes each template's absolute
+`path` — capture it to pass into `read_template_tool` / `write_template_tool` /
+`validate_template_tool`.
 
 ### Step 3: Inspect the schema and enums
 
@@ -217,17 +225,21 @@ they are added per-experiment by `/experiment-configuration`.
 
 ### Step 5: Write, validate, and re-read
 
+Use `read_task_templates_directory_tool` (from `/working-directory`) or `discover_templates_tool`
+to learn the canonical templates directory, then construct the destination file path as
+`<templates-directory>/<template-name>.yaml`:
+
 ```text
 write_template_tool(
-    template_name="<template-name>",
+    file_path="<templates-directory>/<template-name>.yaml",
     template_payload={ ... full nested dict ... },
     overwrite=False,
 )
-validate_template_tool(template_name="<template-name>")
-read_template_tool(template_name="<template-name>")
+validate_template_tool(file_path="<templates-directory>/<template-name>.yaml")
+read_template_tool(file_path="<templates-directory>/<template-name>.yaml")
 ```
 
-The kwargs are `template_name` and `template_payload` (the latter accepts a JSON-friendly dict).
+The kwargs are `file_path` and `template_payload` (the latter accepts a JSON-friendly dict).
 Pass `overwrite=True` only when intentionally replacing an existing template.
 
 `validate_template_tool` loads the template through `TaskTemplate.from_yaml`, which triggers
@@ -302,7 +314,8 @@ for instantiating templates into experiment configurations.
 - [ ] discover_templates_tool was called before creating a new template (avoid duplicates)
 - [ ] describe_template_schema_tool was used as the source of truth for field names
 - [ ] list_supported_trial_types_tool / list_supported_trigger_types_tool consulted for enum values
-- [ ] Payload was passed as template_payload and name as template_name (correct kwarg names)
+- [ ] file_path was constructed as <templates-directory>/<template-name>.yaml (absolute path)
+- [ ] Payload was passed as template_payload (the correct kwarg name)
 - [ ] write_template_tool succeeded without schema errors
 - [ ] validate_template_tool returned valid=True with no issues
 - [ ] read_template_tool returned the expected content after the write

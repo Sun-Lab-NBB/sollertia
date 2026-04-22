@@ -108,17 +108,16 @@ processing pipeline's eligibility checks.
 
 | Tool                                          | Purpose                                                                                         |
 |-----------------------------------------------|-------------------------------------------------------------------------------------------------|
-| `read_session_hardware_state_tool`            | Reads `hardware_state.yaml` for a session                                                       |
+| `read_session_hardware_state_tool`            | Reads a `hardware_state.yaml` file at an explicit path                                          |
 | `write_session_hardware_state_tool`           | Writes (or repairs) `hardware_state.yaml` (exclusive). Defaults to `overwrite=True` — see below |
 | `describe_session_hardware_state_schema_tool` | Returns the active hardware-state schema (exclusive)                                            |
 
-All `session_path` arguments accept **either the session root directory or its `raw_data/`
-subdirectory** — the resolver normalizes both forms to the canonical session root before any
-tool runs.
+Both read and write tools take an explicit `file_path` — path resolution is the caller's
+responsibility. The canonical on-disk path is always `<session>/raw_data/hardware_state.yaml`. To
+discover session roots, hand off to `/project-hierarchy` for `discover_sessions_tool`.
 
 `describe_session_hardware_state_schema_tool` returns a single key, `schema` (the dataclass
-field schema). The on-disk path is always `<session>/raw_data/hardware_state.yaml` — this is
-fixed, not returned by the tool.
+field schema).
 
 `read_session_hardware_state_tool` is documented here and other skills should hand off when they
 need to read the snapshot. It is read-only and may be called as a natural share by any skill that
@@ -132,10 +131,11 @@ needs to inspect hardware state.
 
 1. **Verify prerequisites:** MCP server connected (else hand off to
    `/assets-mcp-environment-setup`).
-2. **Locate the session.** Hand off to `/project-hierarchy` for `discover_sessions_tool` if needed.
+2. **Locate the session.** Hand off to `/project-hierarchy` for `discover_sessions_tool` if needed,
+   then construct the file path as `<session>/raw_data/hardware_state.yaml`.
 3. **Read the snapshot:**
    ```text
-   read_session_hardware_state_tool(session_path="<absolute>")
+   read_session_hardware_state_tool(file_path="<session>/raw_data/hardware_state.yaml")
    ```
 4. **Interpret `None` fields as "module not used by this runtime"**, not as missing data.
 
@@ -156,17 +156,17 @@ needs to inspect hardware state.
 6. **Write the corrected snapshot:**
    ```text
    write_session_hardware_state_tool(
-       session_path="<absolute>",
+       file_path="<session>/raw_data/hardware_state.yaml",
        hardware_state_payload={ ... },
        overwrite=True,   # default; set to False to refuse-on-existing
    )
    ```
-   The kwargs are `session_path`, `hardware_state_payload`, and the keyword-only `overwrite`
-   (default `True`). The destination file is always `<session>/raw_data/hardware_state.yaml`
-   (not configurable).
+   The kwargs are `file_path`, `hardware_state_payload`, and the keyword-only `overwrite`
+   (default `True`). The tool writes wherever `file_path` points; the canonical location is
+   `<session>/raw_data/hardware_state.yaml`.
 7. **Re-read to verify:**
    ```text
-   read_session_hardware_state_tool(session_path="<absolute>")
+   read_session_hardware_state_tool(file_path="<session>/raw_data/hardware_state.yaml")
    ```
 
 ### Amending a hardware-state snapshot with reconciled data
@@ -181,6 +181,7 @@ write replaces the entire file.
 
 ```text
 - [ ] sollertia-shared-assets MCP server is connected
+- [ ] File path was constructed as <session>/raw_data/hardware_state.yaml
 - [ ] Confirmed the session type is mesoscope-experiment, lick-training, or run-training
       (window-checking sessions have no hardware_state.yaml by design)
 - [ ] describe_session_hardware_state_schema_tool was called before any write

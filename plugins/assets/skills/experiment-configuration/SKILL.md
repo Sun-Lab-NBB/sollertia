@@ -173,20 +173,34 @@ configuration captures that whole arc by chaining states with different guidance
 
 ---
 
+## Path conventions
+
+All read / write / validate / create tools in this skill take **explicit file paths**. The caller
+resolves the path; the tools never consult `root_directory`, a project name, an experiment name, or
+a template name. The canonical paths are:
+
+| Asset                                         | Canonical path                                                 |
+|-----------------------------------------------|----------------------------------------------------------------|
+| Per-project experiment configuration          | `<root>/<project>/configuration/<experiment>.yaml`             |
+| Task template                                 | `<templates-directory>/<template-name>.yaml`                   |
+| Per-session frozen experiment-config snapshot | `<session>/raw_data/experiment_configuration.yaml`             |
+
+Use `discover_experiments_tool(root_directory=..., project=...)` to enumerate existing configs and
+their absolute paths; use `discover_templates_tool()` to enumerate template paths.
+
+---
+
 ## Authoring an experiment configuration
 
 ### Step 1: Verify prerequisites
 
 - MCP server connected (else `/assets-mcp-environment-setup`).
-- The slsa task templates directory is set (via `/working-directory`) **only if you plan to use
-  `create_experiment_config_tool`** — that tool resolves the template by name from the
-  configured templates directory. The other tools in this skill (write/read/validate/discover
-  experiment configurations) take `root_directory` and `template`/`experiment` as explicit
-  arguments and never consult the slsa working directory.
-- The target project exists. If it does not, hand off to `/project-hierarchy` to create it. This skill
-  must not call `create_project_tool` directly.
-- The target task template exists. If it does not, hand off to `/task-templates` to author it. This
-  skill must not call `write_template_tool` directly.
+- The target project directory exists (i.e. `<root>/<project>/configuration/` is on disk). If it
+  doesn't, hand off to `/project-hierarchy` to create it — this skill must not call
+  `create_project_tool` directly.
+- The target task template exists at a known path. If it doesn't, hand off to `/task-templates`
+  to author it — this skill must not call `write_template_tool` directly. The templates directory
+  can be enumerated via `discover_templates_tool`, which also returns absolute paths.
 
 ### Step 2: Discover existing experiments under the project
 
@@ -197,10 +211,9 @@ discover_experiments_tool(
 )
 ```
 
-`root_directory` is required for every read/write/validate/create call — the active system
-configuration moved out of `sollertia-shared-assets` and into the acquisition runtime package
-(`sollertia-experiment`), so slsa can no longer auto-resolve the data root. If a similar experiment already
-exists, prefer reading it (`read_experiment_configuration_tool`) and modifying a copy.
+`discover_experiments_tool` returns every experiment's absolute `path`, which is what you'll pass
+to the read/write/validate tools below. If a similar experiment already exists, prefer reading it
+and modifying a copy.
 
 ### Step 3: Inspect the experiment configuration schema
 
@@ -212,24 +225,24 @@ Use the schema as the source of truth for field names and nesting.
 
 ### Step 4: Use create_experiment_config_tool for the standard path
 
-For most cases, the convenience tool handles template loading, default state-machine population, and
-per-project file placement in one call:
+For most cases, the convenience tool handles template loading and default state-machine
+population in one call. Pass the destination file path and the template path explicitly:
 
 ```text
 create_experiment_config_tool(
-    project="<project>",
-    experiment="<experiment-name>",
-    template="<template-name>",
-    root_directory="<absolute path to data root>",
+    file_path="<root>/<project>/configuration/<experiment>.yaml",
+    template_path="<templates-directory>/<template-name>.yaml",
     state_count=1,
     overwrite=False,
+    # unity_scene_name defaults to Path(template_path).stem, i.e. the template's filename
+    # without the .yaml extension. Override if the project uses a different scene name.
 )
 ```
 
-This loads the named template via `TaskTemplate.from_yaml`, builds the configuration with
-`create_experiment_configuration` (system fixed to `MESOSCOPE_VR`, `unity_scene_name` defaulted to
-the template name), then calls `populate_default_experiment_states` with `state_count` to seed the
-`experiment_states` dict with default-valued runtime states.
+This loads the template via `TaskTemplate.from_yaml`, builds the configuration with
+`create_experiment_configuration` (system fixed to `MESOSCOPE_VR`), then calls
+`populate_default_experiment_states` with `state_count` to seed the `experiment_states` dict
+with default-valued runtime states.
 
 ### Step 5: Customize state machine and trial parameters
 
@@ -237,9 +250,7 @@ Read the just-created configuration:
 
 ```text
 read_experiment_configuration_tool(
-    project="<project>",
-    experiment="<experiment-name>",
-    root_directory="<absolute>",
+    file_path="<root>/<project>/configuration/<experiment>.yaml",
 )
 ```
 
@@ -271,10 +282,8 @@ Then write it back:
 
 ```text
 write_experiment_configuration_tool(
-    project="<project>",
-    experiment="<experiment-name>",
+    file_path="<root>/<project>/configuration/<experiment>.yaml",
     configuration_payload={ ... },
-    root_directory="<absolute>",
     overwrite=True,
 )
 ```
@@ -285,14 +294,10 @@ The kwarg is `configuration_payload` (not `configuration`).
 
 ```text
 validate_experiment_configuration_tool(
-    project="<project>",
-    experiment="<experiment-name>",
-    root_directory="<absolute>",
+    file_path="<root>/<project>/configuration/<experiment>.yaml",
 )
 read_experiment_configuration_tool(
-    project="<project>",
-    experiment="<experiment-name>",
-    root_directory="<absolute>",
+    file_path="<root>/<project>/configuration/<experiment>.yaml",
 )
 ```
 
@@ -321,17 +326,19 @@ failure it returns an `issues` list. Fix any reported issues and re-write.
 
 ## Reading the frozen configuration from a session
 
-After a session has run, the experiment configuration that was active at session start is captured as a
-frozen YAML inside the session directory. To read it:
+After a session has run, the experiment configuration that was active at session start is captured
+as a frozen YAML at `<session>/raw_data/experiment_configuration.yaml`. To read it:
 
 ```text
-read_session_experiment_configuration_tool(session_path="<absolute>")
+read_session_experiment_configuration_tool(
+    file_path="<session>/raw_data/experiment_configuration.yaml",
+)
 ```
 
-This is a read-only operation. Do not attempt to write to the frozen file — modifying historical session
-metadata is the responsibility of `/session-snapshots` (which deals with hardware snapshots, not the
-experiment config). If a frozen experiment config needs to be amended for some reason, that is currently
-not supported by the slsa MCP layer.
+This is a read-only operation. Do not attempt to write to the frozen file — modifying historical
+session metadata is the responsibility of `/session-snapshots` (which deals with hardware
+snapshots, not the experiment config). If a frozen experiment config needs to be amended for some
+reason, that is currently not supported by the sollertia-shared-assets MCP layer.
 
 ---
 
@@ -339,7 +346,7 @@ not supported by the slsa MCP layer.
 
 | Goal                                  | Pattern                                                                                                                                                                                                                                                                                                   |
 |---------------------------------------|-----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
-| Reuse a template across projects      | Call `create_experiment_config_tool` per project, then override per-project fields                                                                                                                                                                                                                        |
+| Reuse a template across projects      | Call `create_experiment_config_tool` per project (one `file_path` per destination), then override per-project fields                                                                                                                                                                                      |
 | Change reward volume for a trial type | Edit `trial_structures["<trial>"].reward_size_ul` for `WaterRewardTrial` entries                                                                                                                                                                                                                          |
 | Change gas-puff duration              | Edit `trial_structures["<trial>"].puff_duration_ms` for `GasPuffTrial` entries                                                                                                                                                                                                                            |
 | Adjust a state's duration             | Edit `experiment_states["<state-key>"].state_duration_s` (state machine is a dict)                                                                                                                                                                                                                        |
@@ -348,9 +355,10 @@ not supported by the slsa MCP layer.
 
 ### Migrating an experiment to a new template
 
-1. Read the old configuration with `read_experiment_configuration_tool` (pass `root_directory`).
+1. Read the old configuration with `read_experiment_configuration_tool(file_path=...)`.
 2. If the new template does not exist, hand off to `/task-templates` to author it.
-3. Call `create_experiment_config_tool` with the new template name and `root_directory`.
+3. Call `create_experiment_config_tool(file_path=..., template_path=...)` pointing at the new
+   template.
 4. Port the customizations (state durations, per-trial reward sizes, puff and occupancy durations,
    guidance counters) over manually.
 
@@ -360,11 +368,10 @@ not supported by the slsa MCP layer.
 
 ```text
 - [ ] sollertia-shared-assets MCP server is connected
-- [ ] If using create_experiment_config_tool, /working-directory has set the templates directory
-- [ ] Target project exists (handed off to /project-hierarchy if missing)
-- [ ] Target template exists (handed off to /task-templates if missing)
+- [ ] Target project directory exists (handed off to /project-hierarchy if missing)
+- [ ] Target template exists (handed off to /task-templates if missing) and template_path is known
 - [ ] describe_experiment_configuration_schema_tool was used as the source of truth for field names
-- [ ] root_directory was passed to every read/write/validate/create call
+- [ ] file_path was passed to every read/write/validate/create call (absolute path)
 - [ ] Payload was passed as configuration_payload (the correct kwarg name)
 - [ ] write_experiment_configuration_tool succeeded without schema errors
 - [ ] validate_experiment_configuration_tool returned valid=True with no issues
@@ -379,12 +386,12 @@ not supported by the slsa MCP layer.
 
 ## Related skills
 
-| Skill                                     | Relationship                                                                                                                                         |
-|-------------------------------------------|------------------------------------------------------------------------------------------------------------------------------------------------------|
-| `/working-directory`                      | Required only when calling `create_experiment_config_tool` (provides the templates directory). All other tools here take `root_directory` explicitly |
-| `/assets-mcp-environment-setup`           | Run first if the MCP server is not connected                                                                                                         |
-| `/task-templates`                         | Required upstream — owns template authoring                                                                                                          |
-| `/project-hierarchy`                      | Required upstream — owns project creation                                                                                                            |
-| experiment plugin `/system-configuration` | Owns MesoscopeSystemConfiguration (moved out of this plugin)                                                                                         |
-| unity plugin `/task-prefabs`              | Validates template values against the Unity prefab state                                                                                             |
-| experiment plugin `/experiment-pipeline`  | Phase 4 of the experiment lifecycle is owned by this skill                                                                                           |
+| Skill                                     | Relationship                                                                                                      |
+|-------------------------------------------|-------------------------------------------------------------------------------------------------------------------|
+| `/working-directory`                      | Provides the templates directory so `/task-templates` knows where to enumerate; this skill needs only absolute paths |
+| `/assets-mcp-environment-setup`           | Run first if the MCP server is not connected                                                                      |
+| `/task-templates`                         | Required upstream — owns template authoring and exposes `discover_templates_tool` for absolute template paths     |
+| `/project-hierarchy`                      | Required upstream — owns project creation                                                                         |
+| experiment plugin `/system-configuration` | Owns MesoscopeSystemConfiguration (moved out of this plugin)                                                      |
+| unity plugin `/task-prefabs`              | Validates template values against the Unity prefab state                                                          |
+| experiment plugin `/experiment-pipeline`  | Phase 4 of the experiment lifecycle is owned by this skill                                                        |
