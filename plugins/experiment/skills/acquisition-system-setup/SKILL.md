@@ -1,11 +1,11 @@
 ---
 name: discovering-acquisition-system-hardware
 description: >-
-  Discovers, verifies, and reports the hardware connected to a Sollertia data acquisition PC. Covers cameras,
-  microcontrollers, Zaber motors, MQTT brokers, and video runtime requirements via ataraxis-video-system,
-  ataraxis-communication-interface, and sollertia-experiment MCP tools. Use when bringing up a new acquisition PC,
-  troubleshooting hardware connectivity, or verifying that the discovered hardware matches the recorded system
-  configuration. Hands off all configuration authoring and bootstrap state setup to the assets plugin.
+  Discovers, verifies, and reports the hardware connected to a Sollertia acquisition PC
+  (cameras, microcontrollers, Zaber motors, MQTT brokers) via the sollertia-experiment,
+  ataraxis-video-system, and ataraxis-communication-interface MCP tools. Use when bringing up
+  a new acquisition PC, troubleshooting hardware connectivity, or verifying discovered
+  hardware against the recorded system configuration.
 user-invocable: true
 ---
 

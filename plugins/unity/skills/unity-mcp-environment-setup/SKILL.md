@@ -1,11 +1,10 @@
 ---
 name: unity-mcp-environment-setup
 description: >-
-  Diagnoses and resolves Unity Editor relay connectivity issues for the sollertia-unity-tasks McpBridge.
-  Covers the HTTP listener on localhost:8090, verifying the Unity Editor is running, confirming the
-  McpBridge script compiled, and testing the relay end-to-end. Use when Unity relay tools fail with
-  "Unity Editor is not reachable", when the Editor has just been opened, or when starting a session
-  that requires the Unity tools in the unity plugin.
+  Diagnoses and resolves Unity Editor relay connectivity issues for the sollertia-unity-tasks
+  `McpBridge` (HTTP listener on localhost:8090, Editor running, script compiled). Use when
+  Unity relay tools fail with "Unity Editor is not reachable" or when starting a session that
+  needs the Unity tools.
 user-invocable: true
 ---
 

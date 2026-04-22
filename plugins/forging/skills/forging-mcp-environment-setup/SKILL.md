@@ -1,11 +1,9 @@
 ---
 name: forging-mcp-environment-setup
 description: >-
-  Diagnoses and resolves sollertia-forgery MCP server connectivity issues. Covers environment
-  verification, command availability, Python version checks, dependency validation, and conda/pip/uv
-  environment configuration. Use when MCP tools are unavailable, when the sollertia-forgery MCP server
-  fails to start, when the user reports connection issues, or when starting a session that requires
-  MCP tools.
+  Diagnoses and resolves sollertia-forgery MCP server connectivity issues (environment,
+  command availability, Python version, dependencies). Use when the MCP tools are
+  unavailable, the server fails to start, or a new session needs sollertia-forgery tools.
 user-invocable: true
 ---
 

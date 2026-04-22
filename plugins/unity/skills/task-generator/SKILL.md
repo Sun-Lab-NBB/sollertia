@@ -1,11 +1,10 @@
 ---
 name: task-generator
 description: >-
-  Documents the CreateTask.cs editor pipeline that builds cue, segment, and task prefabs from YAML task templates,
-  plus the hand-authored anatomy of segment and zone prefabs. Covers generation order, cue and segment prefab
-  synthesis, zone placement math, and constraints on extending the pipeline. Use when modifying CreateTask.cs, adding
-  a new zone type, hand-authoring a new segment prefab, introducing a new cue texture, or diagnosing why a generated
-  prefab's geometry disagrees with expectations.
+  Documents the `CreateTask.cs` editor pipeline that builds cue, segment, and task prefabs
+  from YAML task templates, plus the hand-authored anatomy of segment and zone prefabs. Use
+  when modifying `CreateTask.cs`, adding a new zone type, hand-authoring a segment prefab, or
+  diagnosing generated-prefab geometry mismatches.
 user-invocable: true
 ---
 

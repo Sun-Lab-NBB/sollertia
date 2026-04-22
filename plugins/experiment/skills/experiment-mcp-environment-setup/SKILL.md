@@ -1,11 +1,10 @@
 ---
 name: experiment-mcp-environment-setup
 description: >-
-  Diagnoses and resolves sollertia-experiment MCP server connectivity issues. Covers environment
-  verification, command availability for sle get and sle manage, Python version checks, dependency
-  validation, and conda/pip/uv environment configuration. Use when sollertia-experiment MCP tools are
-  unavailable, when the server fails to start, or when starting a session that requires sle get or
-  sle manage MCP tools.
+  Diagnoses and resolves sollertia-experiment MCP server connectivity issues (environment,
+  `sle get` / `sle manage` command availability, Python version, dependencies). Use when the
+  MCP tools are unavailable, the server fails to start, or a new session needs
+  sollertia-experiment tools.
 user-invocable: true
 ---
 

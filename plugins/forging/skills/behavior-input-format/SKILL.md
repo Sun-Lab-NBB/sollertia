@@ -1,11 +1,10 @@
 ---
 name: behavior-input-format
 description: >-
-  Documents the behavior-processing-specific input artifacts consumed by the sollertia-forgery pipeline:
-  the Mesoscope-VR runtime NPZ archive, the ataraxis-video-system camera timestamp feather files, and
-  the ataraxis-communication-interface microcontroller module feather files. Delegates session layout,
-  hardware state, and experiment configuration authoring to the assets plugin. Use when the user
-  asks about upstream handoff, module eligibility, or why a behavior job is missing on disk.
+  Documents the behavior-processing input artifacts consumed by the sollertia-forgery pipeline:
+  the Mesoscope-VR runtime NPZ archive, ataraxis-video-system camera-timestamp feathers, and
+  ataraxis-communication-interface microcontroller feathers. Use when the user asks about
+  upstream handoff, module eligibility, or why a behavior job is missing on disk.
 user-invocable: true
 ---
 

@@ -1,10 +1,10 @@
 ---
 name: experiment-pipeline
 description: >-
-  End-to-end orchestration guide for the Sollertia experiment lifecycle. Covers canonical phase ordering
-  with handoff conditions from system bringup through experiment design, runtime acquisition, and
-  post-acquisition handoff to processing. Use when planning a full Sollertia data collection workflow,
-  setting up a new acquisition system, or deciding which experiment skill to invoke at each step.
+  End-to-end orchestration guide for the Sollertia experiment lifecycle: phase ordering and
+  handoff conditions from system bringup through experiment design, runtime acquisition, and
+  post-acquisition handoff. Use when planning a full data collection workflow or deciding
+  which experiment skill to invoke next.
 user-invocable: true
 ---
 

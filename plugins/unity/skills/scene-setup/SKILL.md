@@ -1,11 +1,10 @@
 ---
 name: scene-setup
 description: >-
-  Guides Editor-side scene configuration for sollertia-unity-tasks: Display rig assignment across the three-monitor
-  VR setup, SimulatedLinearTreadmill installation for keyboard testing without hardware, and UI-lick-reward feedback
-  canvas usage. Use when preparing a freshly created scene for Play Mode, when a task fails with missing display /
-  controller errors, when swapping between hardware and simulated treadmill, or when the experimenter needs on-screen
-  lick and stimulus feedback.
+  Guides Editor-side scene configuration for sollertia-unity-tasks: three-monitor Display rig
+  assignment, SimulatedLinearTreadmill for keyboard testing, and the UI lick-reward feedback
+  canvas. Use when preparing a new scene for Play Mode, swapping hardware for the simulated
+  treadmill, or fixing missing display / controller errors.
 user-invocable: true
 ---
 

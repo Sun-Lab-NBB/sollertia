@@ -1,11 +1,11 @@
 ---
 name: gimbl-framework
 description: >-
-  Reference for the GIMBL VR framework inlined under Assets/Gimbl/ in sollertia-unity-tasks. Covers the ActorObject,
-  ControllerObject hierarchy (LinearTreadmill, SimulatedLinearTreadmill), DisplayObject rig, and MQTTClient /
-  MQTTChannel classes. Use when reading or modifying code that instantiates GIMBL components, when deciding whether a
-  behavior lives in GIMBL or in the Sun Lab task layer, when wiring a new script to the MQTT broker, or when
-  diagnosing null-reference errors during scene initialization.
+  Reference for the GIMBL VR framework inlined under `Assets/Gimbl/` in sollertia-unity-tasks:
+  ActorObject, ControllerObject (LinearTreadmill, SimulatedLinearTreadmill), DisplayObject
+  rig, MQTTClient / MQTTChannel. Use when reading or modifying code that instantiates GIMBL
+  components, wiring a new script to the MQTT broker, or diagnosing null-reference errors
+  during scene init.
 user-invocable: true
 ---
 

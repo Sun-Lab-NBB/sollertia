@@ -1,12 +1,10 @@
 ---
 name: system-configuration
 description: >-
-  Authors and modifies the MesoscopeSystemConfiguration YAML file for sollertia-experiment via the
-  sle get MCP server. Owns the system configuration write tool and schema introspection. Covers the
-  full nested dataclass tree (file system, microcontrollers, cameras, external assets, Google Sheets) and
-  the relationship between configuration fields and the binding classes that consume them. Use when
-  generating or editing the system configuration for a new Sollertia host or modifying calibration values
-  for an existing host. Companion file references/mesoscope-reference.md documents every field in detail.
+  Authors and modifies the MesoscopeSystemConfiguration YAML via the `sle get` MCP server.
+  Owns the system configuration write tool and schema introspection. Use when generating or
+  editing the system configuration for a new Sollertia host or modifying calibration values
+  for an existing host.
 user-invocable: true
 ---
 

@@ -1,10 +1,10 @@
 ---
 name: datasets
 description: >-
-  Discovers, reads, and writes dataset-level YAML files (DatasetData, DatasetSession membership) for
-  sollertia-forgery via the sl-mcp MCP server. Owns the dataset write tools and schema introspection.
-  Use when curating a dataset, adding sessions to an existing dataset, or building tooling that needs
-  dataset-level introspection.
+  Discovers, reads, and writes dataset-level YAML files (DatasetData, DatasetSession
+  membership) for sollertia-forgery via the `sl-mcp` MCP server. Owns the dataset write tools
+  and schema introspection. Use when curating a dataset, adding sessions, or introspecting
+  dataset structure.
 user-invocable: true
 ---
 

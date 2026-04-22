@@ -2,11 +2,10 @@
 name: sollertia-microcontroller-interface
 description: >-
   Documents how Sollertia experiment binding classes wrap ataraxis-communication-interface
-  MicroControllerInterface and ModuleInterface instances for the Mesoscope-VR acquisition system. Covers
-  MesoscopeMicroControllers configuration semantics, controller role assignment (actor/sensor/encoder),
-  and binding class lifecycle. Use when adding or modifying microcontroller modules for a Sollertia
-  experiment. Delegates to ataraxis communication and microcontroller skills for low-level API and
-  firmware development.
+  MicroControllerInterface and ModuleInterface instances for the Mesoscope-VR system. Covers
+  MesoscopeMicroControllers configuration, actor/sensor/encoder role assignment, and
+  binding-class lifecycle. Use when adding or modifying microcontroller modules; delegates
+  low-level API and firmware work to the ataraxis communication skills.
 user-invocable: true
 ---
 

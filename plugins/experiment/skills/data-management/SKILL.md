@@ -1,9 +1,10 @@
 ---
 name: managing-session-data
 description: >-
-  Guides agents through managing acquisition session data using the sle manage MCP server. Covers preprocessing sessions
-  (single, by animal, by project, or all available), transferring animals between projects with health checks, and
-  deleting sessions with mandatory user confirmation. Use when users ask to preprocess, migrate, or delete session data.
+  Manages acquisition session data via the `sle manage` MCP server: preprocessing sessions
+  (single, by animal, by project, or all), transferring animals between projects, and deleting
+  sessions with mandatory confirmation. Use when the user asks to preprocess, migrate, or
+  delete session data.
 ---
 
 # Managing Session Data

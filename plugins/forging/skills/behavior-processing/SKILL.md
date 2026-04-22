@@ -1,10 +1,10 @@
 ---
 name: behavior-processing
 description: >-
-  Orchestrates batch behavior processing via the sollertia-forgery MCP server: batch preparation, job
-  execution, progress monitoring, cancellation, retry, and cleanup. Use when processing confirmed
-  session paths through the runtime / camera / microcontroller job pipeline, or managing behavior
-  processing jobs across sessions.
+  Orchestrates batch behavior processing via the sollertia-forgery MCP server (batch
+  preparation, job execution, progress monitoring, cancellation, retry, cleanup). Use when
+  processing confirmed session paths through the runtime / camera / microcontroller pipeline
+  or managing behavior-processing jobs across sessions.
 user-invocable: true
 ---
 

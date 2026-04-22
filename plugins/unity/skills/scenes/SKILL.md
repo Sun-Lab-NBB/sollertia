@@ -1,10 +1,10 @@
 ---
 name: scenes
 description: >-
-  Manages Unity scenes and asset enumeration for the sollertia-unity-tasks project via the slsa MCP
-  server's Unity relay. Owns list_scenes_tool, open_scene_tool, create_scene_tool, and
-  list_unity_assets_tool. Use when listing or switching between scenes, creating a new scene from
-  a task prefab, or enumerating prefabs, materials, or other Unity assets in the project.
+  Manages Unity scenes and asset enumeration for sollertia-unity-tasks via the
+  sollertia-shared-assets MCP server's Unity relay. Owns list_scenes_tool, open_scene_tool,
+  create_scene_tool, and list_unity_assets_tool. Use when listing or switching scenes,
+  creating a scene from a task prefab, or enumerating project assets.
 user-invocable: true
 ---
 

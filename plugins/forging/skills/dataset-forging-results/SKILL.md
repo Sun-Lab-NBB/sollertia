@@ -1,11 +1,10 @@
 ---
 name: dataset-forging-results
 description: >-
-  Complete reference for dataset-forging output data formats, per-session
-  `data.feather` discovery, dataset-level tracker state, output verification, and data
-  querying. Use when evaluating forged dataset outputs, when the user asks about
-  fluorescence array shapes, trial masking semantics, or when auditing forged datasets
-  before downstream analysis.
+  Reference for dataset-forging output formats, per-session `data.feather` discovery,
+  dataset-level tracker state, and output verification. Use when evaluating forged datasets,
+  when the user asks about fluorescence array shapes or trial masking semantics, or when
+  auditing datasets before downstream analysis.
 user-invocable: true
 ---
 

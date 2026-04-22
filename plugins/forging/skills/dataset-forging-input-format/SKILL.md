@@ -1,12 +1,11 @@
 ---
 name: dataset-forging-input-format
 description: >-
-  Documents the forging-pipeline-specific inputs: session eligibility, dataset
-  hierarchy, the behavior-processing tracker and feather files consumed during
-  assembly, the cindra single-recording outputs, the cindra multi-day outputs, and the
-  required hardware state / experiment configuration YAMLs. Use when the user asks why
-  a forging job failed during prepare or execution, how datasets map to project
-  directories, or which upstream pipelines must complete before forging.
+  Documents the forging-pipeline inputs: session eligibility, dataset hierarchy,
+  behavior-processing tracker and feathers, cindra single- and multi-recording outputs, and
+  required hardware-state / experiment-configuration YAMLs. Use when the user asks why a
+  forging job failed, how datasets map to directories, or which upstream pipelines must
+  complete first.
 user-invocable: true
 ---
 

@@ -1,11 +1,10 @@
 ---
 name: checksum-verification
 description: >-
-  Orchestrates batch checksum verification and regeneration via the sollertia-forgery MCP server:
-  batch preparation, job execution, progress monitoring, cancellation, retry, cleanup, and
-  project-wide status overview. Use when verifying or regenerating data integrity checksums for
-  one or more sessions, checking checksum status across a project, or managing checksum tracker
-  lifecycle.
+  Orchestrates batch checksum verification and regeneration via the sollertia-forgery MCP
+  server (batch prep, execution, progress, cancel, retry, cleanup, project-wide overview).
+  Use when verifying or regenerating data-integrity checksums or managing checksum-tracker
+  lifecycle across a project.
 user-invocable: true
 ---
 

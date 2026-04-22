@@ -1,11 +1,10 @@
 ---
 name: project-manifest
 description: >-
-  Documents the Sollertia project manifest file contents, column semantics, and status flag
-  dependencies. Guides use of sollertia-forgery MCP tools for reading, generating, and cleaning
-  manifest files. Use when answering questions about project state, session processing status,
-  experimenter notes, multi-recording dataset membership, or when generating or regenerating a
-  manifest.
+  Documents the Sollertia project manifest file (contents, columns, status flag dependencies)
+  and the sollertia-forgery MCP tools for reading, generating, and cleaning manifests. Use
+  when answering questions about project state, session processing status, or when generating
+  a manifest.
 user-invocable: true
 ---
 

@@ -1,11 +1,10 @@
 ---
 name: task-prefabs
 description: >-
-  Generates, inspects, and validates Unity task prefabs for the sollertia-unity-tasks project from
-  YAML task templates. Owns generate_task_prefab_tool, inspect_prefab_tool, and
-  validate_prefab_against_template_tool. Use when a new task template needs a matching Unity prefab,
-  when verifying that prefab zone positions match template values, or when auditing prefab hierarchy
-  and colliders.
+  Generates, inspects, and validates Unity task prefabs for sollertia-unity-tasks from YAML
+  task templates. Owns generate_task_prefab_tool, inspect_prefab_tool, and
+  validate_prefab_against_template_tool. Use when a template needs a matching prefab, when
+  verifying zone positions match template values, or auditing prefab hierarchy and colliders.
 user-invocable: true
 ---
 

@@ -1,10 +1,10 @@
 ---
 name: sollertia-camera-interface
 description: >-
-  Documents how Sollertia experiment binding classes wrap ataraxis-video-system VideoSystem instances for
-  the Mesoscope-VR acquisition system. Covers MesoscopeCameras configuration semantics, system ID
-  allocation for face/body cameras, and binding class lifecycle. Use when adding or modifying camera
-  acquisition for a Sollertia experiment. Delegates to ataraxis video skills for low-level VideoSystem API.
+  Documents how Sollertia experiment binding classes wrap ataraxis-video-system VideoSystem
+  instances for the Mesoscope-VR system. Covers MesoscopeCameras configuration, face/body
+  camera system ID allocation, and binding-class lifecycle. Use when adding or modifying
+  camera acquisition; delegates low-level VideoSystem API to the ataraxis video skills.
 user-invocable: true
 ---
 

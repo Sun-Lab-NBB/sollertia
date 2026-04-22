@@ -1,10 +1,10 @@
 ---
 name: behavior-results
 description: >-
-  Complete reference for behavior processing output data formats, feather file discovery, output
-  verification, and data querying. Use when evaluating behavior processing results, when the user
-  asks about runtime state data, trial data, camera timestamps, or microcontroller feather contents,
-  or when auditing completed sessions for downstream analysis.
+  Reference for behavior-processing output formats, feather file discovery, and output
+  verification. Use when evaluating behavior-processing results, when the user asks about
+  runtime state, trial data, camera timestamps, or microcontroller feather contents, or when
+  auditing completed sessions for downstream analysis.
 user-invocable: true
 ---
 

@@ -1,11 +1,10 @@
 ---
 name: mqtt-contract
 description: >-
-  Documents every MQTT topic the sollertia-unity-tasks project publishes or subscribes to, plus payload shape,
-  direction, and owning script. Covers the bidirectional contract between Unity and sollertia-experiment. Use when
-  authoring or modifying MQTT wiring in Unity scripts, when diagnosing a missed message between Unity and
-  sollertia-experiment, when adding a new trigger zone or UI listener, or when the user asks which topic a given
-  behavior uses.
+  Documents every MQTT topic sollertia-unity-tasks publishes or subscribes to — payload shape,
+  direction, owning script — covering the bidirectional contract with sollertia-experiment.
+  Use when authoring or modifying MQTT wiring, diagnosing a missed message, or adding a new
+  trigger zone or UI listener.
 user-invocable: true
 ---
 

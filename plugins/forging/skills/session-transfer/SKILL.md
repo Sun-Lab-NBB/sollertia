@@ -1,10 +1,10 @@
 ---
 name: session-transfer
 description: >-
-  Orchestrates batch session transfer and deletion via the sollertia-forgery MCP server: batch
-  preparation, job execution, progress monitoring, cancellation, retry, and cleanup. Use when
-  transferring sessions to an archive location, deleting sessions, or managing transfer tracker
-  lifecycle. Requires confirmed session paths from the assets plugin's /session-discovery.
+  Orchestrates batch session transfer and deletion via the sollertia-forgery MCP server
+  (batch prep, execution, progress, cancel, retry, cleanup). Use when transferring sessions
+  to archive, deleting sessions, or managing transfer-tracker lifecycle. Consumes confirmed
+  session paths from `/session-discovery`.
 user-invocable: true
 ---
 

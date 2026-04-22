@@ -1,11 +1,10 @@
 ---
 name: dataset-forging
 description: >-
-  Orchestrates batch dataset forging (per-session analysis-ready feather assembly) via the
-  sollertia-forgery MCP server: dataset resolution, batch preparation, job execution,
-  progress monitoring, cancellation, retry, and cleanup. Use when assembling a
-  `data.feather` per session from already-processed behavior and cindra outputs, or when
-  managing forging jobs across a set of sessions that form a dataset.
+  Orchestrates batch dataset forging (per-session `data.feather` assembly) via the
+  sollertia-forgery MCP server (dataset resolution, batch prep, execution, progress, cancel,
+  retry, cleanup). Use when assembling analysis-ready feathers from processed behavior and
+  cindra outputs or managing forging jobs across a dataset.
 user-invocable: true
 ---
 
