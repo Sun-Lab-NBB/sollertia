@@ -1,12 +1,10 @@
 ---
 name: session-discovery
 description: >-
-  Guides use of sollertia-shared-assets MCP tools for discovering Sollertia sessions under a project
-  root and filtering them by date range, animal, or session name. Produces confirmed session path
-  lists consumed by every downstream batch skill across the sollertia-forgery plugin. Use when
-  locating sessions ahead of checksum verification, transfer, manifest generation, behavior or dataset
-  processing, or any workflow that starts from a set of discovered sessions; also use when filtering
-  a previously discovered session list.
+  Discovers Sollertia sessions under a project root and filters by date range, animal, or
+  session name via the sollertia-shared-assets MCP server. Produces `session_paths` lists
+  consumed by downstream batch skills. Use when locating sessions ahead of any batch workflow
+  or filtering a previously discovered list.
 user-invocable: true
 ---
 
@@ -83,7 +81,7 @@ sessions[]:              Per-session entries:
   session_path:          Absolute path to the session root directory
   raw_data_path:         Absolute path to the session's raw_data subdirectory
   processed_data_path:   Absolute path to the session's processed_data subdirectory
-  incomplete:            True if the session still has an nk.bin acquisition marker
+  uninitialized:         True if the session still has the nk.bin marker (acquisition runtime did not finish initializing the session; data is trash). Distinct from the descriptor's `incomplete` field (runtime issue with real data) — the descriptor field is not read by `discover_sessions_tool`; use `get_session_status_tool` for that.
   eligible:              True if the session matches the session_types filter (or no filter applied)
   error:                 (only on load failure) human-readable error message
 session_paths:           Flat list of eligible session root paths (pass to downstream batch tools)
@@ -177,15 +175,19 @@ downstream skill:
 
 ## Error routing
 
-| Error                                | Resolution                                                     |
-|--------------------------------------|----------------------------------------------------------------|
-| `Directory does not exist`           | Verify the root directory path with the user                   |
-| `Path is not a directory`            | The path points to a file; ask for the correct directory       |
-| `Permission denied during search`    | Filesystem ACLs block recursion; resolve or try a subdirectory |
-| `Invalid session type in filter`     | Check the session type string against valid enum values        |
-| `Failed to load session: <reason>`   | Session metadata is corrupt or missing                         |
-| `sessions=[]` or `total_eligible=0`  | No markers found or no eligible types; verify the search root  |
-| MCP tool unavailable                 | Invoke `/assets-mcp-environment-setup`                         |
+The strings below are the literal messages the library emits via `resolve_root_directory` and
+the discovery / filter tools; match against the `error` field of the response.
+
+| Error message                                                 | Resolution                                                         |
+|---------------------------------------------------------------|--------------------------------------------------------------------|
+| `Root directory does not exist: <path>`                       | Verify the root directory path with the user                       |
+| `Root directory is not a directory: <path>`                   | Path points at a file or symlink; ask for the directory            |
+| `Project '<name>' not found at <path>`                        | Verify the project argument against `discover_projects_tool`       |
+| `Animal '<id>' not found at <path>`                           | Verify the animal_id argument against `discover_animals_tool`      |
+| `Invalid session type in filter: <exc>. Valid values: ...`    | Check the session type string against the enum values in the error |
+| `Failed to load session: <reason>` (per-entry, in `sessions`) | Session marker is corrupt or missing required keys                 |
+| `sessions=[]` or `total_eligible=0` (no error, empty result)  | No markers matched; verify the search root or filter criteria      |
+| MCP tool call raises at the transport layer                   | Invoke `/assets-mcp-environment-setup`                             |
 
 ---
 

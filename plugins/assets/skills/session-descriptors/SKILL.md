@@ -1,10 +1,10 @@
 ---
 name: session-descriptors
 description: >-
-  Reads, writes, and validates per-session descriptor YAML files (LickTrainingDescriptor,
-  RunTrainingDescriptor, WindowCheckingDescriptor, MesoscopeExperimentDescriptor) via the slsa
-  MCP server. Owns the session descriptor write tools and schema introspection. Use when repairing,
-  amending, or inspecting a session descriptor for any of the four supported session types.
+  Reads, writes, and validates per-session descriptor YAMLs (LickTraining, RunTraining,
+  WindowChecking, MesoscopeExperiment descriptors) via the sollertia-shared-assets MCP server.
+  Owns write_session_descriptor_tool and describe_session_descriptor_schema_tool. Use when
+  repairing, amending, or inspecting a descriptor for any of the four session types.
 user-invocable: true
 ---
 
@@ -47,9 +47,9 @@ Every session's descriptor is stored at a single canonical path — `{raw_data}/
 | `window checking`      | `WindowCheckingDescriptor`      |
 | `mesoscope experiment` | `MesoscopeExperimentDescriptor` |
 
-The per-type filenames (`lick_training_descriptor.yaml`, `run_training_descriptor.yaml`,
-`experiment_descriptor.yaml`, `window_checking_descriptor.yaml`) belong to sollertia-experiment's
-persistent cache hierarchy and do not appear inside session data.
+The library's `DESCRIPTOR_REGISTRY` maps `SessionTypes` → descriptor class; the descriptor path
+inside any session's `raw_data/` is always `session_descriptor.yaml` and only the parsing class
+varies by session type.
 
 Each descriptor captures the **per-session** metadata that varies between sessions of the same type
 (reward volume actually delivered, water restriction status, observed behavior summary, experimenter
@@ -69,30 +69,43 @@ canonical reference, this section is not.
 
 ### Field categories
 
-All four descriptors carry the same four **common fields**:
+All four descriptors share only **three** common fields:
 
 - **`experimenter`** — the supervising experimenter's ID.
-- **`animal_weight_g`** — the animal's weight at the start of the session.
-- **`incomplete`** — flips to `False` on a successful acquisition. Distinct from the `nk.bin`
-  initialization marker described in `/session-data`; this flag persists as the durable
-  completeness record.
+- **`incomplete`** — defaults to `True` and flips to `False` on a clean session end. This is
+  the durable **data-quality** signal: `incomplete=True` means the session ran past
+  initialization but hit a runtime issue and may have data gaps — the session still holds
+  real data and should not be purged. Distinct from the `nk.bin` **uninitialized** marker
+  described in `/session-data`: `nk.bin` presence means the runtime never finished
+  initializing the session at all, so there is no data of value and the session is a purge
+  target. The two signals are orthogonal and are surfaced as independent keys (`uninitialized`
+  and `incomplete`) by every status-reporting MCP tool.
 - **`experimenter_notes`** — runtime notes. The acquisition runtime requires the default
   placeholder text be replaced before a session is signed off, so a non-default value is the
   expected steady state.
 
-Beyond the common four, each descriptor adds session-type-specific data:
+The three **non-window-checking** descriptors (`LickTrainingDescriptor`,
+`RunTrainingDescriptor`, `MesoscopeExperimentDescriptor`) additionally share:
 
-| Descriptor                      | Categories of additional data                                                                                                                 |
-|---------------------------------|-----------------------------------------------------------------------------------------------------------------------------------------------|
-| `LickTrainingDescriptor`        | Lick-training reward schedule, training-time and water caps, runtime-recorded water totals, unconsumed-reward limit                           |
-| `RunTrainingDescriptor`         | Run-training thresholds (speed and duration with per-step increments and idle tolerance), reward schedule and water caps, water totals, limit |
-| `MesoscopeExperimentDescriptor` | Runtime-recorded water totals and unconsumed-reward limit (reward schedule and zone params live on the experiment configuration)              |
-| `WindowCheckingDescriptor`      | Just `surgery_quality` (integer 0–3 grading the cranial-window surgery)                                                                       |
+- **`animal_weight_g`** — the animal's weight at the start of the session.
+- **`maximum_unconsumed_rewards`** — cap on consecutive unclaimed water rewards before
+  delivery is paused.
+- **Runtime-recorded water totals** — four float fields that distinguish water delivered
+  during active runtime, water dispensed while paused, any post-session top-up the
+  experimenter administered manually, and the target volume the animal should have received.
+  Inspect the schema for exact field names.
 
-The three non-window-checking descriptors all carry the same set of runtime-recorded water
-totals, distinguishing water delivered during active runtime, water dispensed while paused,
-any post-session top-up the experimenter administered manually, and the target volume the
-animal should have received. Inspect the schema for exact field names.
+`WindowCheckingDescriptor` does **not** carry `animal_weight_g`, `maximum_unconsumed_rewards`,
+or water totals — its only session-type-specific field is `surgery_quality`.
+
+Beyond the shared fields above, each descriptor adds session-type-specific data:
+
+| Descriptor                      | Additional data                                                                                                                   |
+|---------------------------------|-----------------------------------------------------------------------------------------------------------------------------------|
+| `LickTrainingDescriptor`        | Lick-training reward schedule (reward size, tone duration, min/max reward delay) and training-time / water caps                   |
+| `RunTrainingDescriptor`         | Run-training thresholds (initial and final speed + duration, per-step increments, idle tolerance), reward schedule and water caps |
+| `MesoscopeExperimentDescriptor` | No additional fields beyond the non-window-checking shared set (reward schedule and zone params live on the experiment config)    |
+| `WindowCheckingDescriptor`      | `surgery_quality` (integer 0–3 grading the cranial-window surgery)                                                                |
 
 ### Lifecycle (high level)
 
@@ -149,10 +162,10 @@ The discovery side of "which descriptors exist in a session directory" is owned 
 (`discover_session_descriptors_tool`). Call it as a natural share when you need to confirm a descriptor
 file exists before reading or writing it.
 
-`describe_session_descriptor_schema_tool` returns `session_type`, `descriptor_filename` (the
-canonical YAML filename for that session type — same value as the table above), and `schema`
-(the dataclass field schema). The `descriptor_filename` is useful when the caller wants to
-construct a path under `raw_data/` without re-consulting this skill's mapping table.
+`describe_session_descriptor_schema_tool` returns two keys: `session_type` (the validated
+enum value) and `schema` (the field schema of the session-type's descriptor dataclass). The
+on-disk path is always `<session>/raw_data/session_descriptor.yaml` — this is fixed, not
+returned by the tool.
 
 ---
 

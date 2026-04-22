@@ -1,11 +1,10 @@
 ---
 name: project-hierarchy
 description: >-
-  Discovers and creates entries in the Sollertia project hierarchy (projects, animals, experiments,
-  subjects, sessions) via the slsa MCP server. Owns create_project_tool. Covers project bootstrap,
-  hierarchy traversal, and the relationship between projects, animals, sessions, and experiment
-  configurations. Use when bootstrapping a new project, enumerating animals or sessions under a project,
-  or building tooling that needs to walk the project tree.
+  Discovers and creates entries in the Sollertia project hierarchy (projects, animals,
+  experiments, subjects, sessions) via the sollertia-shared-assets MCP server. Owns
+  create_project_tool. Use when bootstrapping a new project, enumerating animals or sessions
+  under a project, or walking the project tree.
 user-invocable: true
 ---
 

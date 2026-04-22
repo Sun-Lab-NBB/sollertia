@@ -1,12 +1,11 @@
 ---
 name: task-templates
 description: >-
-  Authors, modifies, and validates reusable TaskTemplate YAML files in the task templates directory
-  via the slsa MCP server. Covers VR environment definition, cue catalogs, segment composition,
-  trial primitives, trial structure, the schema and validation tools, and the trial/trigger-type
-  enum introspection helpers. Use when designing a new behavioral task template, modifying an
-  existing template, validating a template, or preparing templates for use by per-project
-  experiment configurations.
+  Authors, modifies, and validates reusable TaskTemplate YAMLs (VR environment, cue catalog,
+  segment composition, trial primitives) via the sollertia-shared-assets MCP server. Owns
+  write_template_tool, validate_template_tool, and the schema / trial / trigger-type
+  introspection helpers. Use when designing or modifying a task template or preparing it for
+  per-project experiment configurations.
 user-invocable: true
 ---
 
@@ -144,10 +143,14 @@ trial subclass in the per-project experiment configuration via `/experiment-conf
   template generation — long before any experiment-config trial subclass exists. The trigger
   type is therefore the template's contract with Unity; the per-trial subclass is the
   experiment config's contract with the runtime's stimulus delivery code.
-- **`cue_offset_cm` is on the template (not the experiment config)** because the cue-origin
-  position relative to the corridor's spawn point is an attribute of the corridor geometry
-  itself; it must be identical across every Unity-spawned corridor instance, and projects
-  reusing the same paradigm must not be able to redefine it.
+- **`cue_offset_cm` is authored on the template and flows through to the experiment
+  configuration at creation time.** The field lives on both `TaskTemplate` and
+  `MesoscopeExperimentConfiguration`, but the template is the authoritative source —
+  `_create_mesoscope_experiment_config` (in `configuration_utilities.py`) copies it into every
+  new experiment configuration so the frozen session-time snapshot can stand alone. The
+  cue-origin position relative to the corridor's spawn point is an attribute of the corridor
+  geometry itself, so every Unity-spawned corridor instance sees the same value; projects
+  reusing the same paradigm should not redefine it on the experiment-config side.
 
 ---
 

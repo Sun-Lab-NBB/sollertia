@@ -1,13 +1,10 @@
 ---
 name: working-directory
 description: >-
-  Initializes the local Sollertia working directory and the Google Sheets credentials and task templates
-  directory paths for sollertia-shared-assets. Covers the set/read MCP tools, expected directory layout,
-  the bootstrap order required before any other configuration work, and detailed what/why/when context
-  for every configurable asset (working directory, Google credentials, task templates directory, and the
-  configuration files that live inside the working directory). Use when setting up Sollertia on a new
-  host, when the configuration MCP tools fail with "working directory not set", when relocating the
-  Sollertia data root, or when the user asks what an asset is, why it exists, or when to configure it.
+  Initializes the local Sollertia working directory, Google Sheets credentials path, and task
+  templates directory via the sollertia-shared-assets MCP server. Prerequisite for every other
+  assets-plugin skill. Use when setting up Sollertia on a new host, relocating the data root,
+  or when configuration tools fail because the working directory is not set.
 user-invocable: true
 ---
 
@@ -121,7 +118,8 @@ authored by `/experiment-configuration`.
 | `get_platform_environment_status_tool`   | Reports `ok` / `configured` status for all three paths in a single health report |
 
 All `set_*` tools accept absolute paths and create the directory if it does not exist (working directory)
-or expect the file/directory to exist (credentials, templates). Use
+or expect the file/directory to exist (credentials, templates). `set_google_credentials_tool` additionally
+requires the credentials path to end in `.json` (the helper rejects other extensions outright). Use
 `get_platform_environment_status_tool` as a one-call health check before handing off to any downstream
 configuration skill.
 

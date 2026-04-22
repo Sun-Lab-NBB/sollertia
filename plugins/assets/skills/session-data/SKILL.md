@@ -1,13 +1,11 @@
 ---
 name: session-data
 description: >-
-  Reads the canonical SessionData marker file for a Sollertia session via the slsa MCP server,
-  exposes the SessionTypes enum surface, and reports per-session and batch-wide lifecycle status.
-  Owns validate_session_tool, get_session_status_tool, and get_batch_session_status_overview_tool.
-  Use when inspecting an individual session, confirming a session marker file exists, enumerating
-  supported session type strings, validating a session's file inventory against its session_type,
-  or auditing lifecycle progress across every session under the data root. SessionData is written
-  only by the acquisition runtime — this skill is read-only for that file.
+  Reads SessionData markers and reports per-session and batch-wide lifecycle status via the
+  sollertia-shared-assets MCP server. Owns validate_session_tool, get_session_status_tool, and
+  get_batch_session_status_overview_tool. Use when inspecting a session, validating its file
+  inventory against session_type, or auditing lifecycle progress across every session under
+  the data root.
 user-invocable: true
 ---
 
@@ -99,14 +97,28 @@ error. For the catalog of which pipelines write where, defer to the owning skill
 plugin's processing skills, cindra plugin's processing skills, the upstream ataraxis log-processing
 skills) — they own their respective output paths and tracker conventions.
 
-### The `nk.bin` initialization marker
+### Two independent "not-healthy" signals: `nk.bin` (uninitialized) vs. descriptor `incomplete`
 
-The acquisition runtime writes a zero-byte `nk.bin` file inside `raw_data/` when a session is
-first created and removes it once acquisition has progressed past the point where the session
-should be preserved. The presence of `nk.bin` therefore identifies an incomplete session that is
-safe to purge; its absence identifies a real acquired session that must be preserved.
-`get_session_status_tool` and `get_batch_session_status_overview_tool` use this marker as their
-sole "incomplete" signal.
+A session can fail to be a clean acquisition in two completely different ways. The slsa status
+tools surface both as independent flags; do not conflate them.
+
+- **`nk.bin` marker (uninitialized).** A zero-byte `nk.bin` file inside `raw_data/` is written
+  by `SessionData.create()` at session creation and removed by `mark_runtime_initialized()`
+  once the acquisition runtime has finished creating its per-session snapshots and
+  initializing instruments. While this marker is present the session holds **no data of
+  value** — it is a trash target and is safe to purge. Its absence means the session made it
+  past initialization, not that acquisition went cleanly.
+- **Descriptor `incomplete` field.** Every descriptor dataclass (`LickTrainingDescriptor`,
+  `RunTrainingDescriptor`, `MesoscopeExperimentDescriptor`, `WindowCheckingDescriptor`)
+  carries a boolean `incomplete` field, default `True`, that the acquisition runtime flips to
+  `False` on a clean session end. A session with `incomplete=True` **has real data** — it ran
+  past initialization — but something went wrong during the run and the data may have gaps.
+  Static processing pipelines should skip it or handle it manually rather than delete it.
+
+The two signals are reported as separate keys everywhere they surface: `uninitialized` (from
+`nk.bin`) and `incomplete` (from the descriptor's field). `get_session_status_tool` and
+`get_batch_session_status_overview_tool` check both; `validate_session_tool` reports both in
+its summary; `get_project_overview_tool` keeps independent counts for each.
 
 ---
 
@@ -128,7 +140,7 @@ session root):
 │   ├── mesoscope_positions.yaml               # experiment plugin /session-snapshots
 │   ├── ax_checksum.txt                        # raw_data integrity checksum (/managing-session-data)
 │   ├── checksum_processing_tracker.yaml       # checksum resolution tracker (/managing-session-data)
-│   ├── nk.bin                                 # incomplete-session marker (deprecated; completeness now read from the descriptor)
+│   ├── nk.bin                                 # uninitialized-session marker (present until the runtime finishes session init; absence ≠ clean acquisition — see the descriptor's `incomplete` field for that)
 │   └── ... acquired data files ...
 └── processed_data/                            # populated by experiment plugin /managing-session-data
 ```
@@ -143,6 +155,9 @@ canonical session filename and directory into three enums (`RawDataFiles`, `Dire
 - Raw-data files: `session_data_path`, `session_descriptor_path`, `surgery_metadata_path`,
   `hardware_state_path`, `experiment_configuration_path`, `system_configuration_path`,
   `checksum_path`, `checksum_tracker_path`.
+- Raw-data Mesoscope-VR snapshots (authoring owned by the experiment plugin's
+  `/session-snapshots`, but the `Path` properties exist on `SessionData` for read access):
+  `zaber_positions_path`, `mesoscope_positions_path`, `window_screenshot_path`.
 - Raw-data subdirectories: `raw_camera_data_path`, `raw_behavior_data_path`,
   `raw_microcontroller_data_path`, `raw_mesoscope_data_path`.
 - Processed-data subdirectories: `behavior_data_path`, `cindra_data_path`, `camera_timestamps_path`,
@@ -236,8 +251,27 @@ when handing off to `/session-descriptors` to read a descriptor).
 
 ## Session lifecycle status
 
-A Sollertia session moves through a small set of lifecycle states. This skill exposes three tools
-that report where each session sits in that pipeline.
+A Sollertia session moves through a small set of lifecycle states. This skill exposes three
+tools that report where each session sits. All three distinguish the two orthogonal
+"not-healthy" signals described above (`nk.bin` ≠ descriptor `incomplete`) — treat them as
+independent flags, not two names for the same thing.
+
+### Status values
+
+`get_session_status_tool` and `get_batch_session_status_overview_tool` collapse the flag
+combination into a single `status` enum with the following precedence (highest wins):
+
+| `status`        | Meaning                                                                                                       |
+|-----------------|---------------------------------------------------------------------------------------------------------------|
+| `uninitialized` | `nk.bin` present. Session never finished runtime init; no data of value. Safe to purge.                       |
+| `error`         | `nk.bin` absent but the descriptor YAML cannot be loaded (missing, malformed, wrong schema). State unknown.   |
+| `incomplete`    | Descriptor loaded and its `incomplete` field is True. Session ran but had runtime issues; data may have gaps. |
+| `processed`     | Clean session (descriptor `incomplete=False`) with at least one file under `processed_data/`.                 |
+| `acquired`      | Clean session (descriptor `incomplete=False`) with no `processed_data/` contents yet.                         |
+
+In addition to `status`, both tools return the independent boolean flags `uninitialized`,
+`incomplete` (nullable — `None` when the descriptor cannot be loaded), and `has_processed_data`
+so callers can compose their own logic.
 
 ### Validating a single session's file inventory
 
@@ -248,15 +282,17 @@ validate_session_tool(session_path="<absolute>")
 Reads the session's `SessionData` marker, determines the expected file inventory from its
 `session_type`, and reports any missing files. The current checks are:
 
-- The descriptor file (filename derived from `session_type`).
+- The descriptor file (canonical `session_descriptor.yaml` under `raw_data/`).
 - The frozen `experiment_configuration.yaml` (only required when `session_type` is
   `mesoscope experiment`).
 - The frozen `system_configuration.yaml`.
 
-Returns `valid` (True / False), an `issues` list, a `summary` (session_name, project, animal,
-session_type, incomplete flag), and the resolved `session_path`. The check does **not** verify
-hardware-state, position snapshots, or the contents of `raw_data/` beyond these files. Use this
-before handing off to the experiment plugin's `/managing-session-data` for preprocessing.
+Returns `valid` (True / False), an `issues` list, a `summary` (`session_name`, `project`,
+`animal`, `session_type`, `uninitialized` flag from `nk.bin`, `incomplete` flag from the
+descriptor — `None` when the descriptor cannot be loaded), and the resolved `session_path`.
+The check does **not** verify hardware-state, position snapshots, or the contents of
+`raw_data/` beyond these files. Use this before handing off to the experiment plugin's
+`/managing-session-data` for preprocessing.
 
 ### Per-session lifecycle status
 
@@ -264,15 +300,21 @@ before handing off to the experiment plugin's `/managing-session-data` for prepr
 get_session_status_tool(session_path="<absolute>")
 ```
 
-Returns the session's coarse-grained status by inspecting two signals only:
+Inspects three signals to derive the session's status: the `nk.bin` marker (uninitialized),
+the descriptor's `incomplete` field, and the `processed_data/` population. Returns:
 
-- The presence of the `nk.bin` incomplete-session marker in `raw_data/`.
-- Whether `processed_data/` exists and contains any files.
+- `status`: one of `uninitialized`, `error`, `incomplete`, `processed`, `acquired` (see the
+  precedence table above).
+- `uninitialized`: boolean — `nk.bin` present.
+- `incomplete`: boolean or `None` — the descriptor's field, or `None` when the descriptor
+  could not be loaded (in which case `status` is `"error"`).
+- `has_processed_data`: boolean.
+- `session_path`: resolved session root.
+- `error_detail`: present only when `status` is `"error"`; describes the descriptor load
+  failure.
 
-The tool returns `status` (one of `incomplete`, `acquired`, `processed`), the boolean `incomplete`
-and `has_processed_data` flags, and the resolved `session_path`. It does **not** report transferred
-or dataset-member states, does **not** include transition timestamps, and does **not** enumerate
-the files that triggered the inference.
+The tool does **not** report transferred or dataset-member states, does **not** include
+transition timestamps, and does **not** enumerate the files that triggered the inference.
 
 ### Batch status overview
 
@@ -280,21 +322,29 @@ the files that triggered the inference.
 get_batch_session_status_overview_tool(root_directory="<absolute path to data root>")
 ```
 
-Walks every session under the supplied data root and applies the same coarse `incomplete` /
-`acquired` / `processed` classification per session. The `root_directory` argument is required
-(slsa no longer auto-resolves a data root after the system configuration moved to
-`sollertia-experiment`). Returns `counts` (per-status totals plus an `error` bucket for sessions
-that failed to load), `sessions` (the per-session entries), `total_sessions`, and the resolved
-`root_directory`. It is a read-only aggregation.
+Walks every session under the supplied data root and applies the same classification per
+session. The `root_directory` argument is required (slsa no longer auto-resolves a data root
+after the system configuration moved to `sollertia-experiment`). Returns:
+
+- `counts`: a dict with keys `uninitialized`, `incomplete`, `acquired`, `processed`, and
+  `error` — per-status totals.
+- `sessions`: per-session entries each carrying `session_name`, `project`, `animal`,
+  `session_type`, `session_path`, `status`, `uninitialized`, `incomplete`,
+  `has_processed_data`.
+- `total_sessions`, `root_directory`.
+
+It is a read-only aggregation.
 
 Typical workflow:
 
-1. Call `get_batch_session_status_overview_tool(root_directory=…)` to get the summary.
-2. For any session in an unexpected state, drill in with `get_session_status_tool(session_path=…)`.
-3. For sessions reported as incomplete, call `validate_session_tool(session_path=…)` to identify
-   missing files.
-4. Hand off to `/session-descriptors`, `/session-hardware-state`, the experiment plugin's
-   `/session-snapshots`, or the experiment plugin's `/managing-session-data` to remediate.
+1. Call `get_batch_session_status_overview_tool(root_directory=…)` for the summary.
+2. For any session in an unexpected state, drill in with
+   `get_session_status_tool(session_path=…)`.
+3. For sessions reported as `uninitialized`, coordinate purging via the experiment plugin's
+   `/managing-session-data` — these have no data of value.
+4. For sessions reported as `incomplete` or `error`, call `validate_session_tool(session_path=…)`
+   to identify missing files, then hand off to `/session-descriptors`, `/session-hardware-state`,
+   the experiment plugin's `/session-snapshots`, or `/managing-session-data` to remediate.
 
 ---
 

@@ -1,13 +1,12 @@
 ---
 name: experiment-configuration
 description: >-
-  Authors and modifies per-project, system-specific experiment configuration YAML files for
-  sollertia-shared-assets via the slsa MCP server. Currently the only concrete subclass is
-  MesoscopeExperimentConfiguration, but the factory registry is designed for additional
-  acquisition systems. Owns the experiment configuration write tool, the
-  create_experiment_config_tool convenience helper, and schema introspection. Use when designing a new
-  experiment configuration for a project, customizing trial parameters, or instantiating an existing
-  task template into a new experiment.
+  Authors per-project experiment configuration YAMLs (currently only
+  MesoscopeExperimentConfiguration) via the sollertia-shared-assets MCP server. Owns
+  write_experiment_configuration_tool, create_experiment_config_tool,
+  validate_experiment_configuration_tool, and schema introspection. Use when creating a new
+  experiment configuration, customizing trial parameters, or instantiating a task template
+  for a project.
 user-invocable: true
 ---
 

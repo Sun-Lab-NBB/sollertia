@@ -1,13 +1,11 @@
 ---
 name: session-hardware-state
 description: >-
-  Reads, writes, and validates the per-session, system-specific hardware-state YAML file via the
-  slsa MCP server. Currently the only concrete schema is MesoscopeHardwareState, but the pattern
-  generalizes to any acquisition system. Owns write_session_hardware_state_tool and
-  describe_session_hardware_state_schema_tool. Use when inspecting the hardware configuration that
-  was active when a session was acquired, repairing a corrupted hardware-state snapshot, or
-  amending hardware-state fields after a manual reconciliation. The Zaber and mesoscope-objective
-  position snapshots are owned by the experiment plugin's /session-snapshots skill.
+  Reads, writes, and validates per-session hardware-state YAMLs (currently
+  MesoscopeHardwareState only) via the sollertia-shared-assets MCP server. Owns
+  write_session_hardware_state_tool and describe_session_hardware_state_schema_tool. Use when
+  inspecting the hardware configuration active at acquisition, repairing a corrupted snapshot,
+  or amending hardware-state fields.
 user-invocable: true
 ---
 
@@ -112,16 +110,15 @@ processing pipeline's eligibility checks.
 |-----------------------------------------------|-------------------------------------------------------------------------------------------------|
 | `read_session_hardware_state_tool`            | Reads `hardware_state.yaml` for a session                                                       |
 | `write_session_hardware_state_tool`           | Writes (or repairs) `hardware_state.yaml` (exclusive). Defaults to `overwrite=True` — see below |
-| `describe_session_hardware_state_schema_tool` | Returns the canonical filename and the active hardware-state schema (exclusive)                 |
+| `describe_session_hardware_state_schema_tool` | Returns the active hardware-state schema (exclusive)                                            |
 
 All `session_path` arguments accept **either the session root directory or its `raw_data/`
 subdirectory** — the resolver normalizes both forms to the canonical session root before any
 tool runs.
 
-`describe_session_hardware_state_schema_tool` returns `hardware_state_filename` (the canonical
-YAML filename for this snapshot) and `schema` (the dataclass field schema). The
-`hardware_state_filename` is useful when the caller wants to construct a path under `raw_data/`
-without re-consulting this skill.
+`describe_session_hardware_state_schema_tool` returns a single key, `schema` (the dataclass
+field schema). The on-disk path is always `<session>/raw_data/hardware_state.yaml` — this is
+fixed, not returned by the tool.
 
 `read_session_hardware_state_tool` is documented here and other skills should hand off when they
 need to read the snapshot. It is read-only and may be called as a natural share by any skill that
