@@ -153,5 +153,5 @@ the assets plugin's `/session-hardware-state` for the hardware state write. Do n
 | assets plugin `/session-data`                      | Owns the `SessionData` marker file                                        |
 | assets plugin `/session-descriptors`               | Owns the per-session descriptor files                                     |
 | this plugin `/system-configuration`                | Provides `read_session_system_configuration_tool` for cross-reference     |
-| assets plugin `/experiment-configuration`          | Provides `read_session_experiment_configuration_tool` for cross-reference |
+| assets plugin `/experiment-configuration`          | Provides `read_experiment_configuration_tool` for cross-reference (accepts session snapshot path) |
 | this plugin `/zaber-interface`                     | Live Zaber motor configuration during runtime — does not touch snapshots  |

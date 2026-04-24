@@ -138,8 +138,8 @@ source project to the destination project.
 
 The `SubjectData` dataclass schema itself carries only an `id` field (no project field), but the
 on-disk hierarchy is always `<root>/<project>/<subject>/...`, and the project ↔ subject binding
-is determined by which project subdirectory the animal data lives under. `discover_subjects_tool`
-returns a `projects: list[str]` per subject as a defensive measure: in healthy state every entry
+is determined by which project subdirectory the animal data lives under. `discover_animals_tool`
+returns a `projects: list[str]` per animal as a defensive measure: in healthy state every entry
 will have a list of length one.
 
 Datasets are a higher-level grouping that aggregates sessions across animals **within a single
@@ -156,10 +156,9 @@ anywhere under the data root. Datasets are owned by the forging plugin's `/datas
 | Tool                        | Purpose                                                                                        |
 |-----------------------------|------------------------------------------------------------------------------------------------|
 | `discover_projects_tool`    | Lists all projects under the data root, with `animal_count` and `experiment_count` per project |
-| `discover_animals_tool`     | Lists animals within a project, with per-animal `session_count`                                |
+| `discover_animals_tool`     | Lists animals under the data root (optionally scoped to a single project); per-animal entries carry `projects`, `paths`, and aggregated `session_count` |
 | `discover_sessions_tool`    | Lists sessions under the data root (filterable by `project`, `animal_id`, and `session_types`) |
 | `discover_experiments_tool` | Lists experiment configurations under a project                                                |
-| `discover_subjects_tool`    | Lists all subjects (optionally filtered by project)                                            |
 
 These tools may be called by any skill that needs to enumerate the hierarchy. They do not mutate state.
 
@@ -219,7 +218,7 @@ summary, no need to walk the hierarchy manually.
 1. **Verify the project and animal exist:**
    ```text
    discover_projects_tool(root_directory="<absolute>")
-   discover_animals_tool(project="<project>", root_directory="<absolute>")
+   discover_animals_tool(root_directory="<absolute>", project="<project>")
    ```
 2. **List sessions:**
    ```text
@@ -236,13 +235,16 @@ summary, no need to walk the hierarchy manually.
    to read the per-session descriptors, or to `/session-discovery` when the workflow needs date-range
    filtering and a flat `session_paths` handoff to a batch pipeline.
 
-### Audit subjects across projects
+### Audit animals across projects
 
-1. **List subjects:**
+1. **List animals:**
    ```text
-   discover_subjects_tool(root_directory="<absolute>")
+   discover_animals_tool(root_directory="<absolute>")
    ```
    `root_directory` is required. Pass `project="<name>"` to scope the listing to a single project.
+   With no `project`, animals that appear under multiple project directories collapse into a
+   single entry with a `projects` list of length > 1 — a healthy data root has every list of
+   length one, so a longer list flags a hierarchy-state issue.
 2. **Hand off to `/subject-metadata`** to read individual subject records (surgery, implants,
    injections, drugs).
 

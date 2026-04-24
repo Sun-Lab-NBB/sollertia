@@ -43,7 +43,7 @@ start. The discovery side of "which descriptors exist for a session" is included
 - Reading the frozen system configuration captured at session start (see the experiment plugin's
   `/system-configuration`)
 - Reading the frozen experiment configuration captured at session start (see
-  `/experiment-configuration` for `read_session_experiment_configuration_tool`)
+  `/experiment-configuration` for `read_experiment_configuration_tool`)
 - Reading subject metadata (see `/subject-metadata`)
 - Discovering projects, animals, or sessions (see `/project-hierarchy`)
 - Datasets that aggregate sessions (see forging plugin's `/datasets`)
@@ -234,7 +234,7 @@ runtime at session start and never modified afterward. There is no `write_sessio
 7. **Hand off to the experiment plugin's `/session-snapshots`** to read the Zaber and
    mesoscope-objective position snapshots.
 8. **Hand off to `/experiment-configuration`** for the frozen experiment configuration via
-   `read_session_experiment_configuration_tool`.
+   `read_experiment_configuration_tool` (pass the session snapshot path).
 9. **Hand off to the experiment plugin's `/system-configuration`** for the frozen
    `system_configuration.yaml` snapshot.
 
@@ -375,6 +375,6 @@ Typical workflow:
 | experiment plugin `/session-snapshots`     | Owns the frozen Zaber and mesoscope-objective position snapshots      |
 | `/subject-metadata`                        | Sibling — owns animal-scoped subject records                          |
 | experiment plugin `/system-configuration`  | Authors the system configuration consumed at session start            |
-| `/experiment-configuration`                | Owns `read_session_experiment_configuration_tool` (frozen exp config) |
+| `/experiment-configuration`                | Owns `read_experiment_configuration_tool` (reads both project source and frozen session snapshot) |
 | forging plugin `/datasets`                 | Datasets aggregate sessions                                           |
 | experiment plugin `/managing-session-data` | Preprocesses, migrates, and deletes sessions                          |

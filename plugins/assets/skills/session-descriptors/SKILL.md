@@ -154,12 +154,15 @@ the animal got — not an input to numerical processing.
 | `write_session_descriptor_tool`           | Writes (or repairs) a descriptor file (exclusive to this skill). Defaults to `overwrite=True` — see below |
 | `describe_session_descriptor_schema_tool` | Returns the field schema for the descriptor dataclass of a given session type                             |
 
-Both read and write tools take an explicit `file_path` and `session_type` — path resolution is
-the caller's responsibility. The canonical on-disk path is always
+Read, write, and describe tools all take an explicit `session_type` — path resolution and class
+selection are the caller's responsibility. The canonical on-disk path is always
 `<session>/raw_data/session_descriptor.yaml`; `session_type` selects the parsing dataclass via
-`DESCRIPTOR_REGISTRY`. To discover session roots, hand off to `/project-hierarchy` for
-`discover_sessions_tool`; to confirm a descriptor file is actually present, hand off to
-`/session-data` for `discover_session_descriptors_tool`.
+`DESCRIPTOR_REGISTRY`. To enumerate valid values call `list_supported_session_types_tool`. To
+discover session roots, hand off to `/project-hierarchy` for `discover_sessions_tool`; to confirm a
+descriptor file is actually present, hand off to `/session-data` for
+`discover_session_descriptors_tool`. If you don't know the session type for a given session, hand
+off to `/session-data` to call `read_session_data_tool` first — its returned payload includes
+`session_type`.
 
 `describe_session_descriptor_schema_tool` returns two keys: `session_type` (the validated
 enum value) and `schema` (the field schema of the session-type's descriptor dataclass).

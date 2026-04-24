@@ -34,8 +34,8 @@ No other skill in the marketplace may call these tools.
 - Authoring per-project experiment configurations (currently only `MesoscopeExperimentConfiguration`)
 - Experiment state machines (`ExperimentState`, `populate_default_experiment_states`)
 - Schema introspection for experiment configurations
-- Reading the frozen experiment configuration captured at session start
-  (`read_session_experiment_configuration_tool`)
+- Reading the frozen experiment configuration captured at session start (pass the per-session
+  snapshot path to `read_experiment_configuration_tool`)
 - Instantiating an existing task template into a new experiment configuration
 
 **Does not cover:**
@@ -164,11 +164,10 @@ configuration captures that whole arc by chaining states with different guidance
 |-------------------------------------------------|-----------------------------------------------------------------|
 | `discover_experiments_tool`                     | Lists experiment configurations under a project                 |
 | `describe_experiment_configuration_schema_tool` | Returns the field schema for the experiment dataclass           |
-| `read_experiment_configuration_tool`            | Reads a project's experiment configuration                      |
+| `read_experiment_configuration_tool`            | Reads an experiment configuration YAML from any canonical location (project source or per-session frozen snapshot) |
 | `write_experiment_configuration_tool`           | Writes a new experiment configuration (exclusive to this skill) |
 | `create_experiment_config_tool`                 | Creates a config from a template + parameters (exclusive)       |
 | `validate_experiment_configuration_tool`        | Validates an experiment configuration YAML (exclusive)          |
-| `read_session_experiment_configuration_tool`    | Reads the frozen experiment configuration from a session        |
 | `list_supported_acquisition_systems_tool`       | Enumerates the `AcquisitionSystems` enum values                 |
 
 ---
@@ -330,7 +329,7 @@ After a session has run, the experiment configuration that was active at session
 as a frozen YAML at `<session>/raw_data/experiment_configuration.yaml`. To read it:
 
 ```text
-read_session_experiment_configuration_tool(
+read_experiment_configuration_tool(
     file_path="<session>/raw_data/experiment_configuration.yaml",
 )
 ```

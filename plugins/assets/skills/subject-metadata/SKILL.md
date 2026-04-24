@@ -12,8 +12,8 @@ user-invocable: true
 # Sollertia subject metadata
 
 Reads and amends `SurgeryData` YAML files via the `slsa mcp` MCP server. This skill is the
-**exclusive** owner of `read_subject_surgery_tool`, `write_subject_surgery_tool`, and
-`describe_surgery_schema_tool`.
+**exclusive** owner of `read_surgery_data_tool`, `write_surgery_data_tool`, and
+`describe_surgery_data_schema_tool`.
 
 Surgery metadata is treated as a **monolithic single-file record**. One `SurgeryData` YAML
 carries every section (subject, procedure, drugs, implants, injections); there are no
@@ -26,11 +26,11 @@ whether that path points at a session snapshot, a dataset-level copy, or an ad-h
 ## Scope
 
 **Covers:**
-- Reading any `surgery_metadata.yaml` (full `SurgeryData` payload) via `read_subject_surgery_tool`
-- Amending any `surgery_metadata.yaml` in place via `write_subject_surgery_tool` (validated
+- Reading any `surgery_metadata.yaml` (full `SurgeryData` payload) via `read_surgery_data_tool`
+- Amending any `surgery_metadata.yaml` in place via `write_surgery_data_tool` (validated
   full-record replacement; does not propagate to the upstream Google Sheet or to any other
   copy of the same file)
-- Schema introspection via `describe_surgery_schema_tool`
+- Schema introspection via `describe_surgery_data_schema_tool`
 - The relationship between the nested sections (`SubjectData`, `ProcedureData`, `DrugData`,
   `ImplantData`, `InjectionData`) and the containing `SurgeryData` record
 - Guidance on where `surgery_metadata.yaml` is expected to live (session snapshot and dataset
@@ -38,7 +38,7 @@ whether that path points at a session snapshot, a dataset-level copy, or an ad-h
 
 **Does not cover:**
 - Durable corrections to an animal's surgical record. The authoritative source of truth is the
-  upstream Google Sheet; `write_subject_surgery_tool` only amends the one file at the path the
+  upstream Google Sheet; `write_surgery_data_tool` only amends the one file at the path the
   caller supplies. For a correction that should apply to every future session, edit the
   Google Sheet directly and let the next acquisition run capture the updated snapshot.
 - Propagating an amendment from one copy of the file to another. Session snapshots and the
@@ -48,7 +48,7 @@ whether that path points at a session snapshot, a dataset-level copy, or an ad-h
   it back whole.
 - Resolving the canonical path for you. The caller (or a collaborating skill) supplies the
   absolute `file_path`; this skill only reads and writes.
-- Discovering subjects (see `/project-hierarchy` for `discover_subjects_tool`)
+- Discovering animals (see `/project-hierarchy` for `discover_animals_tool`)
 - Reading session-level data (see `/session-data`, `/session-descriptors`,
   `/session-hardware-state`, and the experiment plugin's `/session-snapshots`)
 - Dataset assembly and dataset-level surgery path resolution (see the forging plugin's
@@ -61,9 +61,9 @@ whether that path points at a session snapshot, a dataset-level copy, or an ad-h
 ### What's in the file
 
 A `surgery_metadata.yaml` file is the complete record of a **surgical intervention performed
-on a research animal prior to data acquisition** — everything the lab needs to know about what
-was done to the animal, by whom, when, with which drugs, and what was implanted or injected
-where. One file per animal-surgery, aggregating every surgery-time fact into five sections.
+on a research animal prior to data acquisition** — what was done to the animal, by whom, when, 
+with which drugs, and what was implanted or injected where. One file per animal-surgery, 
+aggregating every surgery-time fact into five sections.
 
 The library defines five nested dataclasses that become sections of that one file — none of
 them is an independent on-disk artifact:
@@ -102,7 +102,7 @@ that callers must respect when reading values or constructing a write payload.
   status, location_housed, protocol, surgeon, notes) — strings except `id` and `cage` which
   are integers.
 
-For the full field list with types, call `describe_surgery_schema_tool`; the runtime schema is
+For the full field list with types, call `describe_surgery_data_schema_tool`; the runtime schema is
 always authoritative over this summary.
 
 ### Scope and provenance
@@ -120,16 +120,16 @@ into several canonical locations. All of them hold the same schema and are read/
 same two tools; this skill does not distinguish between them beyond helping the caller resolve
 the right path.
 
-| Location                                              | Populated by                                                         | Discovery path                                                                  |
-|-------------------------------------------------------|----------------------------------------------------------------------|---------------------------------------------------------------------------------|
-| `<session>/raw_data/surgery_metadata.yaml`            | Acquisition runtime at session start (snapshot of the Google Sheet)  | `SessionData.surgery_metadata_path`; `discover_session_descriptors_tool` lists it under kind `surgery_metadata` |
-| `<dataset_root>/<animal>/surgery_metadata.yaml`       | Forging pipeline (`shutil.copy2` from the animal's latest session)   | `DatasetData.surgery_paths` (owned by the forging plugin's `/datasets` skill)   |
+| Location                                        | Populated by                                                        | Discovery path                                                                                                  |
+|-------------------------------------------------|---------------------------------------------------------------------|-----------------------------------------------------------------------------------------------------------------|
+| `<session>/raw_data/surgery_metadata.yaml`      | Acquisition runtime at session start (snapshot of the Google Sheet) | `SessionData.surgery_metadata_path`; `discover_session_descriptors_tool` lists it under kind `surgery_metadata` |
+| `<dataset_root>/<animal>/surgery_metadata.yaml` | Forging pipeline (`shutil.copy2` from the animal's latest session)  | `DatasetData.surgery_paths` (owned by the forging plugin's `/datasets` skill)                                   |
 
 Other locations are possible — the tools take any absolute path — but these are the two
 populated automatically. All copies are **snapshots** of the Google Sheet state at the moment
 their pipeline ran; none is a live view.
 
-Snapshots are not strictly immutable: `write_subject_surgery_tool` can amend any one file in
+Snapshots are not strictly immutable: `write_surgery_data_tool` can amend any one file in
 place. That amendment is local to the one file whose path was passed — it does not flow back
 to the Google Sheet, and it does not update any sibling copy (e.g., writing the session
 snapshot does not update the dataset copy, and vice versa). For a correction that should
@@ -141,11 +141,11 @@ apply everywhere, edit the Google Sheet and let downstream pipelines re-capture 
 
 | Tool                            | Purpose                                                                             |
 |---------------------------------|-------------------------------------------------------------------------------------|
-| `read_subject_surgery_tool`     | Loads the full `SurgeryData` payload from a file path (exclusive to this skill)     |
-| `write_subject_surgery_tool`    | Writes a validated full `SurgeryData` payload to a file path (exclusive)            |
-| `describe_surgery_schema_tool`  | Returns the `SurgeryData` schema with nested section schemas (exclusive)            |
+| `read_surgery_data_tool`     | Loads the full `SurgeryData` payload from a file path (exclusive to this skill)     |
+| `write_surgery_data_tool`    | Writes a validated full `SurgeryData` payload to a file path (exclusive)            |
+| `describe_surgery_data_schema_tool`  | Returns the `SurgeryData` schema with nested section schemas (exclusive)            |
 
-Both `read_subject_surgery_tool` and `write_subject_surgery_tool` take an explicit `file_path`
+Both `read_surgery_data_tool` and `write_surgery_data_tool` take an explicit `file_path`
 — path resolution is the caller's responsibility. See **Known file locations** above for the
 two canonical paths and which neighboring skill owns each.
 
@@ -154,9 +154,9 @@ Path-resolution hand-offs:
   `/session-data` (`discover_session_descriptors_tool`) to confirm the file is present.
 - Dataset per-animal copy → the forging plugin's `/datasets` skill, which owns
   `DatasetData.surgery_paths` and can hand back the per-animal path mapping.
-- Enumerating animals → `/project-hierarchy` (`discover_subjects_tool`).
+- Enumerating animals → `/project-hierarchy` (`discover_animals_tool`).
 
-`write_subject_surgery_tool` also accepts `surgery_payload: dict[str, Any]` (the full record —
+`write_surgery_data_tool` also accepts `surgery_payload: dict[str, Any]` (the full record —
 all five sections) and a keyword-only `overwrite: bool = True`. The payload is validated against
 `SurgeryData` before anything is written, so a bad payload fails without touching the file.
 There is no partial-update tool; to change a single field, read the current file, mutate the
@@ -167,7 +167,7 @@ top-level keys `subject`, `procedure`, `drugs`, `implants`, `injections` — pic
 need. Examples:
 
 ```python
-# After read_subject_surgery_tool(file_path="<absolute path to surgery_metadata.yaml>")
+# After read_surgery_data_tool(file_path="<absolute path to surgery_metadata.yaml>")
 # succeeds:
 response["data"]["subject"]      # SubjectData section (dict)
 response["data"]["procedure"]    # ProcedureData section (dict)
@@ -197,7 +197,7 @@ depending on where the file lives; the read/write step is the same everywhere.
    - **Ad-hoc location** → the user supplies the path directly.
 3. **Read the full SurgeryData record:**
    ```text
-   read_subject_surgery_tool(file_path="<absolute path>")
+   read_surgery_data_tool(file_path="<absolute path>")
    ```
 4. **Project the section(s) the user asked about** from `response["data"]`. For implants,
    read `response["data"]["implants"]`; for drugs, `response["data"]["drugs"]`; and so on.
@@ -213,14 +213,14 @@ warranted or not available yet. The amendment affects only the one file whose pa
 2. **Read the current record** so you mutate a validated baseline rather than constructing one
    from scratch:
    ```text
-   read_subject_surgery_tool(file_path="<absolute path>")
+   read_surgery_data_tool(file_path="<absolute path>")
    ```
 3. **Mutate the returned `response["data"]` dict** in memory. Change only the fields that
    need correcting; keep every other section intact — the write tool validates and replaces
    the full record.
 4. **Write the corrected payload back to the same path:**
    ```text
-   write_subject_surgery_tool(
+   write_surgery_data_tool(
        file_path="<absolute path>",
        surgery_payload=<mutated dict>,
    )
@@ -234,19 +234,19 @@ warranted or not available yet. The amendment affects only the one file whose pa
 ### Auditing subjects across a project
 
 1. **Hand off to `/project-hierarchy`** for
-   `discover_subjects_tool(project="<project>", root_directory="<absolute>")` to enumerate
+   `discover_animals_tool(root_directory="<absolute>", project="<project>")` to enumerate
    animals.
 2. **For each animal**, resolve a surgery file for it (typically its most recent session's
    snapshot via `/project-hierarchy` / `/session-discovery`, or a dataset copy via the
    forging plugin's `/datasets`).
-3. **Read the record:** `read_subject_surgery_tool(file_path=<resolved path>)`.
+3. **Read the record:** `read_surgery_data_tool(file_path=<resolved path>)`.
 4. **Project and aggregate** the sections you need, then report.
 
 ### Cross-referencing drug administration with session timing
 
 1. **Resolve one surgery file** for the animal (session snapshot via `/session-discovery`, or
    dataset copy via `/datasets`).
-2. **Read it:** `read_subject_surgery_tool(file_path="<absolute path>")`; extract
+2. **Read it:** `read_surgery_data_tool(file_path="<absolute path>")`; extract
    `response["data"]["drugs"]`.
 3. **Hand off to `/project-hierarchy`** for `discover_sessions_tool(animal_id="<id>", ...)` to
    enumerate the animal's sessions.
@@ -260,13 +260,13 @@ warranted or not available yet. The amendment affects only the one file whose pa
 The two write paths are not interchangeable — pick the one that matches the durability you
 need.
 
-| Scenario                                                                                      | Use                                                                                        |
-|-----------------------------------------------------------------------------------------------|--------------------------------------------------------------------------------------------|
-| One session's snapshot has a data-entry error; re-acquiring the session is overkill           | `write_subject_surgery_tool` on the session file                                           |
-| A dataset's per-animal copy is wrong (e.g., it picked up a bad session snapshot)              | `write_subject_surgery_tool` on the dataset file                                           |
-| The same field is wrong in both the session snapshot and the dataset copy                     | `write_subject_surgery_tool` against each file separately — there is no propagation        |
-| A field is wrong for the animal itself and should be right for every future capture           | Edit the upstream Google Sheet; next session acquisition (and downstream dataset forge) captures the fix |
-| Both a past file and future captures need fixing                                              | Do both — write tool for the existing file(s), sheet for future captures                   |
+| Scenario                                                                            | Use                                                                                                      |
+|-------------------------------------------------------------------------------------|----------------------------------------------------------------------------------------------------------|
+| One session's snapshot has a data-entry error; re-acquiring the session is overkill | `write_surgery_data_tool` on the session file                                                         |
+| A dataset's per-animal copy is wrong (e.g., it picked up a bad session snapshot)    | `write_surgery_data_tool` on the dataset file                                                         |
+| The same field is wrong in both the session snapshot and the dataset copy           | `write_surgery_data_tool` against each file separately — there is no propagation                      |
+| A field is wrong for the animal itself and should be right for every future capture | Edit the upstream Google Sheet; next session acquisition (and downstream dataset forge) captures the fix |
+| Both a past file and future captures need fixing                                    | Do both — write tool for the existing file(s), sheet for future captures                                 |
 
 The sollertia-shared-assets MCP layer does not query Google Sheets at runtime and will never
 push an amendment back upstream; copies stay separate until the next capture.
@@ -286,9 +286,9 @@ push an amendment back upstream; copies stay separate until the next capture.
 - [ ] file_path passed to the tool is absolute
 - [ ] Section extraction was done caller-side from response["data"]["<section>"] — did not
       look for a per-section MCP tool (none exist)
-- [ ] discover_subjects_tool was called via /project-hierarchy when enumeration was needed
+- [ ] discover_animals_tool was called via /project-hierarchy when enumeration was needed
 - [ ] If writing: the full SurgeryData payload (all five sections) was supplied to
-      write_subject_surgery_tool — no partial-update path exists
+      write_surgery_data_tool — no partial-update path exists
 - [ ] If writing: the user was told which single copy was amended and that the change does
       not propagate to sibling copies or to the upstream Google Sheet
 ```
@@ -300,7 +300,7 @@ push an amendment back upstream; copies stay separate until the next capture.
 | Skill                           | Relationship                                                                                           |
 |---------------------------------|--------------------------------------------------------------------------------------------------------|
 | `/assets-mcp-environment-setup` | Run first if the MCP server is not connected                                                           |
-| `/project-hierarchy`            | Owns `discover_subjects_tool` and the project tree walk                                                |
+| `/project-hierarchy`            | Owns `discover_animals_tool` and the project tree walk                                                 |
 | `/session-discovery`            | Resolves session roots for session-snapshot paths                                                      |
 | `/session-data`                 | Owns `discover_session_descriptors_tool` that classifies `surgery_metadata.yaml` under a session       |
 | `/session-descriptors`          | Sibling — descriptors capture per-session runtime state (separate from surgery data)                   |

@@ -54,7 +54,7 @@ file itself is written by the acquisition runtime at session start.
   objective position snapshot (`mesoscope_positions.yaml`) — both are owned by the experiment
   plugin's `/session-snapshots`
 - Reading the frozen experiment configuration captured at session start (see
-  `/experiment-configuration` for `read_session_experiment_configuration_tool`)
+  `/experiment-configuration` for `read_experiment_configuration_tool`)
 - Reading subject metadata (see `/subject-metadata`)
 - Discovering sessions (see `/project-hierarchy` for `discover_sessions_tool`)
 - Initial working directory setup (see `/working-directory`)
@@ -108,16 +108,19 @@ processing pipeline's eligibility checks.
 
 | Tool                                          | Purpose                                                                                         |
 |-----------------------------------------------|-------------------------------------------------------------------------------------------------|
-| `read_session_hardware_state_tool`            | Reads a `hardware_state.yaml` file at an explicit path                                          |
+| `read_session_hardware_state_tool`            | Reads a `hardware_state.yaml` file at an explicit path, parsing it with the class for the given `acquisition_system` |
 | `write_session_hardware_state_tool`           | Writes (or repairs) `hardware_state.yaml` (exclusive). Defaults to `overwrite=True` — see below |
-| `describe_session_hardware_state_schema_tool` | Returns the active hardware-state schema (exclusive)                                            |
+| `describe_session_hardware_state_schema_tool` | Returns the hardware-state schema for a given acquisition system (exclusive)                    |
 
-Both read and write tools take an explicit `file_path` — path resolution is the caller's
-responsibility. The canonical on-disk path is always `<session>/raw_data/hardware_state.yaml`. To
-discover session roots, hand off to `/project-hierarchy` for `discover_sessions_tool`.
+Read, write, and describe tools all take an explicit `acquisition_system` — path resolution and
+class selection are the caller's responsibility. The canonical on-disk path is always
+`<session>/raw_data/hardware_state.yaml`; `acquisition_system` selects the parsing dataclass via
+`HARDWARE_STATE_REGISTRY` (today only `mesoscope` is registered). To enumerate valid values call
+`list_supported_acquisition_systems_tool`. To discover session roots, hand off to
+`/project-hierarchy` for `discover_sessions_tool`.
 
-`describe_session_hardware_state_schema_tool` returns a single key, `schema` (the dataclass
-field schema).
+`describe_session_hardware_state_schema_tool` returns `acquisition_system` (the validated enum
+value) and `schema` (the dataclass field schema). `acquisition_system` defaults to `"mesoscope"`.
 
 `read_session_hardware_state_tool` is documented here and other skills should hand off when they
 need to read the snapshot. It is read-only and may be called as a natural share by any skill that
@@ -135,7 +138,10 @@ needs to inspect hardware state.
    then construct the file path as `<session>/raw_data/hardware_state.yaml`.
 3. **Read the snapshot:**
    ```text
-   read_session_hardware_state_tool(file_path="<session>/raw_data/hardware_state.yaml")
+   read_session_hardware_state_tool(
+       file_path="<session>/raw_data/hardware_state.yaml",
+       acquisition_system="<system>",
+   )
    ```
 4. **Interpret `None` fields as "module not used by this runtime"**, not as missing data.
 
@@ -145,7 +151,7 @@ needs to inspect hardware state.
 2. **Read the existing snapshot** (if recoverable) with `read_session_hardware_state_tool`.
 3. **Inspect the schema:**
    ```text
-   describe_session_hardware_state_schema_tool()
+   describe_session_hardware_state_schema_tool(acquisition_system="<system>")
    ```
 4. **Build the corrected payload** as a JSON-friendly dict matching the schema. Set fields whose
    modules were not active during the session to `None`.
@@ -157,16 +163,20 @@ needs to inspect hardware state.
    ```text
    write_session_hardware_state_tool(
        file_path="<session>/raw_data/hardware_state.yaml",
+       acquisition_system="<system>",
        hardware_state_payload={ ... },
        overwrite=True,   # default; set to False to refuse-on-existing
    )
    ```
-   The kwargs are `file_path`, `hardware_state_payload`, and the keyword-only `overwrite`
-   (default `True`). The tool writes wherever `file_path` points; the canonical location is
-   `<session>/raw_data/hardware_state.yaml`.
+   The kwargs are `file_path`, `acquisition_system`, `hardware_state_payload`, and the
+   keyword-only `overwrite` (default `True`). The tool writes wherever `file_path` points;
+   the canonical location is `<session>/raw_data/hardware_state.yaml`.
 7. **Re-read to verify:**
    ```text
-   read_session_hardware_state_tool(file_path="<session>/raw_data/hardware_state.yaml")
+   read_session_hardware_state_tool(
+       file_path="<session>/raw_data/hardware_state.yaml",
+       acquisition_system="<system>",
+   )
    ```
 
 ### Amending a hardware-state snapshot with reconciled data
@@ -203,6 +213,6 @@ write replaces the entire file.
 | `/assets-mcp-environment-setup`           | Run first if the MCP server is not connected                           |
 | `/session-data`                           | Sibling — owns `SessionData` and the session anatomy                   |
 | `/session-descriptors`                    | Sibling — owns the per-session-type descriptor read/write/schema       |
-| `/experiment-configuration`               | Owns `read_session_experiment_configuration_tool` (frozen experiment)  |
+| `/experiment-configuration`               | Owns `read_experiment_configuration_tool` (reads both project source and frozen session snapshot) |
 | `/project-hierarchy`                      | Provides `discover_sessions_tool` to locate sessions                   |
 | experiment plugin `/session-snapshots`    | Sibling — owns the Zaber and mesoscope-objective position snapshots    |
