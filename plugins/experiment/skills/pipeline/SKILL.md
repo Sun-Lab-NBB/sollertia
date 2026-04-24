@@ -103,8 +103,10 @@ configuration  configuration  /acquisition-  configuration  /system-       (sle 
 This phase is split across three assets plugin skills, invoked in dependency order. Each skill
 owns exactly one slsa asset and the others must hand off to it.
 
-- **Step 4a — `/project-hierarchy` (assets plugin):** Create the project under which the
-  experiment will live, if it does not already exist. Owns `create_project_tool`.
+- **Step 4a — `/project-hierarchy` (assets plugin):** Confirm the project under which the
+  experiment will live exists on disk (read-only via `get_data_root_overview_tool`). Project
+  directories are created implicitly when the first session lands there via the experiment
+  plugin's `/managing-session-data` — there is no dedicated project-creation MCP tool.
 - **Step 4b — `/task-templates` (assets plugin):** Author or load the task template that
   defines the VR environment, cue catalog, segments, and trial structure. Owns `write_template_tool`.
   Hand off to the unity plugin's `/task-prefabs` if the template targets a Unity scene (prefab

@@ -160,15 +160,15 @@ configuration captures that whole arc by chaining states with different guidance
 
 ## MCP tool surface
 
-| Tool                                            | Purpose                                                         |
-|-------------------------------------------------|-----------------------------------------------------------------|
-| `discover_experiments_tool`                     | Lists experiment configurations under a project                 |
-| `describe_experiment_configuration_schema_tool` | Returns the field schema for the experiment dataclass           |
+| Tool                                            | Purpose                                                                                                            |
+|-------------------------------------------------|--------------------------------------------------------------------------------------------------------------------|
+| `discover_experiments_tool`                     | Lists experiment configurations under a project                                                                    |
+| `describe_experiment_configuration_schema_tool` | Returns the field schema for the experiment dataclass                                                              |
 | `read_experiment_configuration_tool`            | Reads an experiment configuration YAML from any canonical location (project source or per-session frozen snapshot) |
-| `write_experiment_configuration_tool`           | Writes a new experiment configuration (exclusive to this skill) |
-| `create_experiment_config_tool`                 | Creates a config from a template + parameters (exclusive)       |
-| `validate_experiment_configuration_tool`        | Validates an experiment configuration YAML (exclusive)          |
-| `list_supported_acquisition_systems_tool`       | Enumerates the `AcquisitionSystems` enum values                 |
+| `write_experiment_configuration_tool`           | Writes a new experiment configuration (exclusive to this skill)                                                    |
+| `create_experiment_config_tool`                 | Creates a config from a template + parameters (exclusive)                                                          |
+| `validate_experiment_configuration_tool`        | Validates an experiment configuration YAML (exclusive)                                                             |
+| `list_supported_acquisition_systems_tool`       | Enumerates the `AcquisitionSystems` enum values                                                                    |
 
 ---
 
@@ -194,9 +194,11 @@ their absolute paths; use `discover_templates_tool()` to enumerate template path
 ### Step 1: Verify prerequisites
 
 - MCP server connected (else `/assets-mcp-environment-setup`).
-- The target project directory exists (i.e. `<root>/<project>/configuration/` is on disk). If it
-  doesn't, hand off to `/project-hierarchy` to create it — this skill must not call
-  `create_project_tool` directly.
+- The target project directory exists (i.e. `<root>/<project>/configuration/` is on disk).
+  Project directories are created implicitly by the experiment plugin's session-creation flow
+  (via `SessionData.create`), so if the project is missing the user has no sessions there yet
+  and should be directed to the experiment plugin's `/managing-session-data` to create the
+  first session; this skill does not create project directories on its own.
 - The target task template exists at a known path. If it doesn't, hand off to `/task-templates`
   to author it — this skill must not call `write_template_tool` directly. The templates directory
   can be enumerated via `discover_templates_tool`, which also returns absolute paths.
@@ -378,19 +380,19 @@ reason, that is currently not supported by the sollertia-shared-assets MCP layer
 - [ ] experiment_states was treated as a dict (string keys), not a list (integer indices)
 - [ ] No reference to a non-existent trial_weights or water_reward_volume_uL field
 - [ ] Reward sizes (reward_size_ul) and state durations are within plausible biological ranges
-- [ ] Did not call create_project_tool or write_template_tool from this skill
+- [ ] Did not call write_template_tool from this skill
 ```
 
 ---
 
 ## Related skills
 
-| Skill                                     | Relationship                                                                                                      |
-|-------------------------------------------|-------------------------------------------------------------------------------------------------------------------|
+| Skill                                     | Relationship                                                                                                         |
+|-------------------------------------------|----------------------------------------------------------------------------------------------------------------------|
 | `/working-directory`                      | Provides the templates directory so `/task-templates` knows where to enumerate; this skill needs only absolute paths |
-| `/assets-mcp-environment-setup`           | Run first if the MCP server is not connected                                                                      |
-| `/task-templates`                         | Required upstream — owns template authoring and exposes `discover_templates_tool` for absolute template paths     |
-| `/project-hierarchy`                      | Required upstream — owns project creation                                                                         |
-| experiment plugin `/system-configuration` | Owns MesoscopeSystemConfiguration (moved out of this plugin)                                                      |
-| unity plugin `/task-prefabs`              | Validates template values against the Unity prefab state                                                          |
-| experiment plugin `/experiment-pipeline`  | Phase 4 of the experiment lifecycle is owned by this skill                                                        |
+| `/assets-mcp-environment-setup`           | Run first if the MCP server is not connected                                                                         |
+| `/task-templates`                         | Required upstream — owns template authoring and exposes `discover_templates_tool` for absolute template paths        |
+| `/project-hierarchy`                      | Required upstream — owns project creation                                                                            |
+| experiment plugin `/system-configuration` | Owns MesoscopeSystemConfiguration (moved out of this plugin)                                                         |
+| unity plugin `/task-prefabs`              | Validates template values against the Unity prefab state                                                             |
+| experiment plugin `/experiment-pipeline`  | Phase 4 of the experiment lifecycle is owned by this skill                                                           |

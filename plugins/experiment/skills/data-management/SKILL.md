@@ -207,9 +207,10 @@ cloud compute server).
 
 The migration tool enforces these health checks automatically:
 
-1. **Target project must exist** - If missing, hand off to the assets plugin's `/project-hierarchy`
-   skill to create it. This skill must not call `create_project_tool` directly — project creation is owned
-   by `/project-hierarchy`.
+1. **Target project must exist** - Project directories are created implicitly by the first
+   session created under them (via `SessionData.create`). If the destination project has no
+   sessions yet, create one there before attempting migration. There is no dedicated
+   project-creation MCP tool.
 2. **All local sessions must be preprocessed** - No unprocessed sessions can exist on the VRPC for the source animal
 3. **Source animal must have sessions on the server** - Migration pulls data from the cloud compute server
 
@@ -398,9 +399,9 @@ Glob("{root_directory}/**/session_data.yaml")            # All sessions
 ### Migration
 
 ```text
-# Verify target project exists; if missing, hand off to the
-# assets plugin's /project-hierarchy skill before
-# proceeding. Do not call create_project_tool from this skill.
+# Verify target project exists. Projects are created implicitly when the first session
+# lands under them; if the destination project has no sessions yet, create one there
+# before migrating. There is no dedicated project-creation MCP tool.
 
 # Migrate animal once both projects exist
 migrate_animal_tool(source_project="old", destination_project="new", animal_id="12345")

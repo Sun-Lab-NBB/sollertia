@@ -48,7 +48,7 @@ whether that path points at a session snapshot, a dataset-level copy, or an ad-h
   it back whole.
 - Resolving the canonical path for you. The caller (or a collaborating skill) supplies the
   absolute `file_path`; this skill only reads and writes.
-- Discovering animals (see `/project-hierarchy` for `discover_animals_tool`)
+- Discovering animals (see `/project-hierarchy` for `get_data_root_overview_tool`)
 - Reading session-level data (see `/session-data`, `/session-descriptors`,
   `/session-hardware-state`, and the experiment plugin's `/session-snapshots`)
 - Dataset assembly and dataset-level surgery path resolution (see the forging plugin's
@@ -122,7 +122,7 @@ the right path.
 
 | Location                                        | Populated by                                                        | Discovery path                                                                                                  |
 |-------------------------------------------------|---------------------------------------------------------------------|-----------------------------------------------------------------------------------------------------------------|
-| `<session>/raw_data/surgery_metadata.yaml`      | Acquisition runtime at session start (snapshot of the Google Sheet) | `SessionData.surgery_metadata_path`; `discover_session_descriptors_tool` lists it under kind `surgery_metadata` |
+| `<session>/raw_data/surgery_metadata.yaml`      | Acquisition runtime at session start (snapshot of the Google Sheet) | `SessionData.surgery_metadata_path`; `inspect_sessions_tool` lists it under kind `SURGERY_METADATA` in `raw_data_files` |
 | `<dataset_root>/<animal>/surgery_metadata.yaml` | Forging pipeline (`shutil.copy2` from the animal's latest session)  | `DatasetData.surgery_paths` (owned by the forging plugin's `/datasets` skill)                                   |
 
 Other locations are possible — the tools take any absolute path — but these are the two
@@ -151,10 +151,10 @@ two canonical paths and which neighboring skill owns each.
 
 Path-resolution hand-offs:
 - Session snapshot → `/project-hierarchy` + `/session-discovery` for session roots;
-  `/session-data` (`discover_session_descriptors_tool`) to confirm the file is present.
+  `/session-data` (`inspect_sessions_tool`) to confirm the file is present.
 - Dataset per-animal copy → the forging plugin's `/datasets` skill, which owns
   `DatasetData.surgery_paths` and can hand back the per-animal path mapping.
-- Enumerating animals → `/project-hierarchy` (`discover_animals_tool`).
+- Enumerating animals → `/project-hierarchy` (`get_data_root_overview_tool`).
 
 `write_surgery_data_tool` also accepts `surgery_payload: dict[str, Any]` (the full record —
 all five sections) and a keyword-only `overwrite: bool = True`. The payload is validated against
@@ -189,7 +189,7 @@ depending on where the file lives; the read/write step is the same everywhere.
    target `surgery_metadata.yaml` exists at the path you are about to pass.
 2. **Resolve the `file_path`** using the hand-off that matches the container:
    - **Session snapshot** → session root from `/project-hierarchy` or `/session-discovery`;
-     optionally confirm the file is present via `discover_session_descriptors_tool`
+     optionally confirm the file is present via `inspect_sessions_tool`
      (`/session-data`). Path is `<session>/raw_data/surgery_metadata.yaml`.
    - **Dataset per-animal copy** → hand off to the forging plugin's `/datasets` skill for the
      mapping from animal id → path (exposed as `DatasetData.surgery_paths`). Path is
@@ -234,8 +234,8 @@ warranted or not available yet. The amendment affects only the one file whose pa
 ### Auditing subjects across a project
 
 1. **Hand off to `/project-hierarchy`** for
-   `discover_animals_tool(root_directory="<absolute>", project="<project>")` to enumerate
-   animals.
+   `get_data_root_overview_tool(root_directory="<absolute>")` and pick the animals from
+   `response["projects"][<project>].animals`.
 2. **For each animal**, resolve a surgery file for it (typically its most recent session's
    snapshot via `/project-hierarchy` / `/session-discovery`, or a dataset copy via the
    forging plugin's `/datasets`).
@@ -248,8 +248,8 @@ warranted or not available yet. The amendment affects only the one file whose pa
    dataset copy via `/datasets`).
 2. **Read it:** `read_surgery_data_tool(file_path="<absolute path>")`; extract
    `response["data"]["drugs"]`.
-3. **Hand off to `/project-hierarchy`** for `discover_sessions_tool(animal_id="<id>", ...)` to
-   enumerate the animal's sessions.
+3. **Hand off to `/project-hierarchy`** for `get_data_root_overview_tool(root_directory="<absolute>")`
+   and filter the flat `sessions` list by `animal == "<id>"` to enumerate the animal's sessions.
 4. **Hand off to `/session-data`** to read individual session timestamps.
 5. **Aggregate the cross-reference and report.**
 
@@ -281,12 +281,12 @@ push an amendment back upstream; copies stay separate until the next capture.
       session snapshots, forging plugin's /datasets for dataset per-animal copies, or the
       user directly for ad-hoc paths
 - [ ] The target surgery_metadata.yaml exists at the resolved path (confirmed via
-      discover_session_descriptors_tool for session snapshots, DatasetData.surgery_paths for
+      inspect_sessions_tool for session snapshots, DatasetData.surgery_paths for
       dataset copies, or direct inspection otherwise)
 - [ ] file_path passed to the tool is absolute
 - [ ] Section extraction was done caller-side from response["data"]["<section>"] — did not
       look for a per-section MCP tool (none exist)
-- [ ] discover_animals_tool was called via /project-hierarchy when enumeration was needed
+- [ ] Animal enumeration was done via /project-hierarchy's get_data_root_overview_tool when needed
 - [ ] If writing: the full SurgeryData payload (all five sections) was supplied to
       write_surgery_data_tool — no partial-update path exists
 - [ ] If writing: the user was told which single copy was amended and that the change does
@@ -300,8 +300,8 @@ push an amendment back upstream; copies stay separate until the next capture.
 | Skill                           | Relationship                                                                                           |
 |---------------------------------|--------------------------------------------------------------------------------------------------------|
 | `/assets-mcp-environment-setup` | Run first if the MCP server is not connected                                                           |
-| `/project-hierarchy`            | Owns `discover_animals_tool` and the project tree walk                                                 |
+| `/project-hierarchy`            | Owns `get_data_root_overview_tool` and the project tree walk                                           |
 | `/session-discovery`            | Resolves session roots for session-snapshot paths                                                      |
-| `/session-data`                 | Owns `discover_session_descriptors_tool` that classifies `surgery_metadata.yaml` under a session       |
+| `/session-data`                 | Owns `inspect_sessions_tool` that classifies `surgery_metadata.yaml` under a session                   |
 | `/session-descriptors`          | Sibling — descriptors capture per-session runtime state (separate from surgery data)                   |
 | forging plugin `/datasets`      | Resolves dataset per-animal `surgery_metadata.yaml` paths (`DatasetData.surgery_paths`)                |

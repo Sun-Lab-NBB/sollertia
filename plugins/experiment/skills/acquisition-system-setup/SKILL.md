@@ -253,8 +253,8 @@ recorded values, then report the diff between discovered and recorded.
 **If the user is troubleshooting**, use the troubleshooting table below.
 
 This skill MUST NOT call `set_working_directory_tool`, `set_google_credentials_tool`,
-`set_task_templates_directory_tool`, `write_system_configuration_tool`, `write_server_configuration_tool`, or
-`create_project_tool` directly under any circumstances.
+`set_task_templates_directory_tool`, `write_system_configuration_tool`, or
+`write_server_configuration_tool` directly under any circumstances.
 
 ---
 

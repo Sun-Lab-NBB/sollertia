@@ -2,7 +2,8 @@
 name: session-discovery
 description: >-
   Discovers Sollertia sessions under a project root and filters by date range, animal, or
-  session name via the sollertia-shared-assets MCP server. Produces `session_paths` lists
+  session name via the sollertia-shared-assets MCP server. Chains
+  get_data_root_overview_tool through filter_sessions_tool to produce `session_paths` lists
   consumed by downstream batch skills. Use when locating sessions ahead of any batch workflow
   or filtering a previously discovered list.
 user-invocable: true
@@ -20,14 +21,16 @@ can chain from. For behavior-processing eligibility rules, see the sollertia-for
 ## Scope
 
 **Covers:**
-- Recursively discovering sessions under a project root via `session_data.yaml` markers
-- Optional session-type eligibility filtering at discovery time
-- Post-discovery filtering by date range, animal inclusion-exclusion, and session inclusion-exclusion
+- Recursively discovering sessions under a data root via `session_data.yaml` markers using
+  `get_data_root_overview_tool`
+- Post-discovery filtering by date range, animal inclusion-exclusion, and session
+  inclusion-exclusion via `filter_sessions_tool`
 - Producing confirmed `session_paths` lists for downstream batch skills
 
 **Does not cover:**
-- Walking the full project tree (projects, animals, experiments) — see `/project-hierarchy`
-- Reading individual `SessionData` markers — see `/session-data`
+- Walking the full project tree (projects, animals, experiments) as a primary workflow — see
+  `/project-hierarchy`, which owns `get_data_root_overview_tool`
+- Reading individual `SessionData` markers or full session health reports — see `/session-data`
 - Reading or generating project manifest files — see the sollertia-forgery plugin's
   `/project-manifest`
 - Checksum verification or regeneration — see the sollertia-forgery plugin's `/checksum-verification`
@@ -42,7 +45,8 @@ can chain from. For behavior-processing eligibility rules, see the sollertia-for
 You MUST use the sollertia-shared-assets MCP tools for session discovery. Do not scan the
 filesystem manually or import `sollertia_shared_assets.discover_sessions` directly.
 
-You MUST confirm the root directory path with the user before calling `discover_sessions_tool`.
+You MUST confirm the root directory path with the user before calling
+`get_data_root_overview_tool`.
 
 ---
 
@@ -50,28 +54,34 @@ You MUST confirm the root directory path with the user before calling `discover_
 
 ### Session discovery
 
-| Tool                     | Purpose                                                       |
-|--------------------------|---------------------------------------------------------------|
-| `discover_sessions_tool` | Recursively discovers sessions by `session_data.yaml` markers |
+| Tool                          | Purpose                                                                                                                                         |
+|-------------------------------|-------------------------------------------------------------------------------------------------------------------------------------------------|
+| `get_data_root_overview_tool` | Recursively discovers sessions by `session_data.yaml` markers and builds the project / animal / session tree from `SessionData` identity fields |
 
 **Parameters:**
 
-| Parameter        | Type               | Default    | Description                                                |
-|------------------|--------------------|------------|------------------------------------------------------------|
-| `root_directory` | `str / None`       | `None`     | Absolute path to root directory; searched recursively      |
-| `project`        | `str / None`       | `None`     | Narrows the search to the given project subtree            |
-| `animal_id`      | `str / None`       | `None`     | Narrows the search to the given animal under `project`     |
-| `session_types`  | `list[str] / None` | `None`     | Session type strings for eligibility classification        |
+| Parameter        | Type    | Default    | Description                                                |
+|------------------|---------|------------|------------------------------------------------------------|
+| `root_directory` | `str`   | (required) | Absolute path to root directory; searched recursively      |
 
-Valid `session_types` values: `"lick training"`, `"run training"`, `"mesoscope experiment"`,
-`"window checking"`. When omitted, every discovered session is marked eligible. `project` and
-`animal_id` hard-narrow the search tree; `session_types` classifies each discovered entry without
-removing it from the response, so agents can still see ineligible or broken sessions for diagnosis.
+There is no server-side `project`, `animal_id`, or `session_types` narrowing. The tool scans the
+entire root and returns the full hierarchy; callers filter client-side (for project / animal /
+session-type) or via `filter_sessions_tool` (for date range, include / exclude session names, and
+include / exclude animals).
 
-**Return structure:**
+**Return structure (excerpt):**
 
 ```text
-sessions[]:              Per-session entries:
+projects[]:              Per-project rollup:
+  name:                  Project name (from SessionData.project_name)
+  path:                  Absolute path to <root>/<project>
+  animals[]:             Per-animal summary: id, session_paths, session_count, counts
+  session_count:         Sessions under this project
+  counts:                {uninitialized, incomplete, acquired, processed, error} status tally
+  sessions_by_type:      Counts keyed by SessionTypes value
+  experiment_count:      *.yaml files under <project>/configuration/
+  dataset_count:         dataset.yaml markers under the project
+sessions[]:              Flat per-session entries (drop-in input for filter_sessions_tool):
   session_name:          Session name (format: YYYY-MM-DD-HH-MM-SS-microseconds, 7 components)
   project:               Project name the session belongs to
   animal:                Animal identifier string
@@ -81,18 +91,18 @@ sessions[]:              Per-session entries:
   session_path:          Absolute path to the session root directory
   raw_data_path:         Absolute path to the session's raw_data subdirectory
   processed_data_path:   Absolute path to the session's processed_data subdirectory
-  uninitialized:         True if the session still has the nk.bin marker (acquisition runtime did not finish initializing the session; data is trash). Distinct from the descriptor's `incomplete` field (runtime issue with real data) — the descriptor field is not read by `discover_sessions_tool`; use `get_session_status_tool` for that.
-  eligible:              True if the session matches the session_types filter (or no filter applied)
-  error:                 (only on load failure) human-readable error message
-session_paths:           Flat list of eligible session root paths (pass to downstream batch tools)
-total_sessions:          Total sessions found (including ineligible and errored)
-total_eligible:          Count of sessions in session_paths
-root_directory:          Resolved root directory the walk started from
+  status:                Lifecycle status: uninitialized | error | incomplete | processed | acquired
+  uninitialized:         True if the session still has the nk.bin marker
+  incomplete:            True / False / None (None when descriptor cannot be read; status="error")
+  has_processed_data:    True when processed_data/ exists and is non-empty
+  error_detail:          (only on status="error") human-readable error message
+counts:                  Root-wide status tally across every discovered session (including errors)
+total_projects, total_animals, total_sessions, root_directory
 ```
 
-`session_paths` is the pre-filtered list of eligible roots — pass it directly to downstream
-prepare tools such as the sollertia-forgery plugin's `prepare_checksum_batch_tool`,
-`prepare_transfer_batch_tool`, `prepare_behavior_processing_batch_tool`, or `prepare_forging_batch_tool`.
+Sessions whose `SessionData` cannot be loaded surface with `status="error"` and an
+`error_detail` field but are **not** assigned to any project or animal (their identity is
+untrusted). They appear in the flat `sessions` list only; the project aggregation remains clean.
 
 ### Session filtering
 
@@ -100,14 +110,14 @@ prepare tools such as the sollertia-forgery plugin's `prepare_checksum_batch_too
 |------------------------|-----------------------------------------------------------------------|
 | `filter_sessions_tool` | Filters a session list by date range and inclusion-exclusion criteria |
 
-Designed for chaining with `discover_sessions_tool`: accepts the `sessions` list from its output
-and returns a filtered subset with the same structure.
+Designed for chaining with `get_data_root_overview_tool`: accepts the flat `sessions` list from
+its output and returns a filtered subset with the same structure.
 
 **Parameters:**
 
 | Parameter          | Type               | Default    | Description                                                 |
 |--------------------|--------------------|------------|-------------------------------------------------------------|
-| `sessions`         | `list[dict]`       | (required) | Session entries from `discover_sessions_tool` output        |
+| `sessions`         | `list[dict]`       | (required) | Session entries from `get_data_root_overview_tool` output   |
 | `start_date`       | `str / None`       | `None`     | Include sessions on or after this date (`YYYY-MM-DD`)       |
 | `end_date`         | `str / None`       | `None`     | Include sessions on or before this date (includes full day) |
 | `include_sessions` | `list[str] / None` | `None`     | Session names to include regardless of date range           |
@@ -119,11 +129,13 @@ and returns a filtered subset with the same structure.
 **Filtering precedence:** Animal filtering is applied before session filtering. Exclusion always
 takes precedence over inclusion. The `exclude_sessions` list overrides both `include_sessions` and
 date range criteria. Each input entry must carry `session_name` and `animal` keys (matching the
-shape produced by `discover_sessions_tool`).
+shape produced by `get_data_root_overview_tool`).
 
-**Return structure:** Structurally identical to `discover_sessions_tool` output — contains
-`sessions`, `session_paths`, `total_sessions`, and `total_eligible`. An `invalid_entries` key
-appears when input entries lack the required `session_name` or `animal` fields.
+**Return structure:** Structurally identical to the input shape — contains `sessions`,
+`session_paths`, `total_sessions`, and `total_eligible`. Entries with `status="error"` are
+excluded from `session_paths` but remain in `sessions` so the agent can surface them to the
+user. An `invalid_entries` key appears when input entries lack the required `session_name` or
+`animal` fields.
 
 ---
 
@@ -131,36 +143,48 @@ appears when input entries lack the required `session_name` or `animal` fields.
 
 ### Step 1: Confirm root directory
 
-Ask the user for the absolute path to the directory to search. A project-level root is the
-typical input. For project hierarchy conventions, see `/project-hierarchy`.
+Ask the user for the absolute path to the directory to search. A data-root or project-level
+root is the typical input. For project hierarchy conventions, see `/project-hierarchy`.
 
 ### Step 2: Run discovery
 
-Call `discover_sessions_tool` with the confirmed `root_directory` and an optional `session_types`
-filter when the user wants to classify only certain session types as eligible. Present the result
-as a readable summary:
+Call `get_data_root_overview_tool` with the confirmed `root_directory`. Present the result as a
+readable summary:
 
 ```text
 **Session Discovery** — /data/projects/my_project
-Found 12 session(s): 9 eligible, 3 ineligible
+Found 12 session(s): 9 acquired, 2 processed, 1 error (descriptor load failure)
 
-| Session                          | Animal | Type                 | Eligible |
-|----------------------------------|--------|----------------------|----------|
-| 2026-03-04-14-30-00-000000       | 1      | lick training        | yes      |
-| 2026-03-05-10-15-00-000000       | 1      | run training         | yes      |
-| 2026-03-06-09-00-00-000000       | 2      | mesoscope experiment | yes      |
-| 2026-03-07-11-00-00-000000       | 3      | window checking      | no       |
+| Session                          | Animal | Type                 | Status       |
+|----------------------------------|--------|----------------------|--------------|
+| 2026-03-04-14-30-00-000000       | 1      | lick training        | acquired     |
+| 2026-03-05-10-15-00-000000       | 1      | run training         | processed    |
+| 2026-03-06-09-00-00-000000       | 2      | mesoscope experiment | acquired     |
+| 2026-03-07-11-00-00-000000       | 3      | window checking      | error        |
 ```
 
-Surface any sessions with an `error` field — broken session metadata may require repair via
-`/session-data` or `/session-descriptors`.
+Surface any sessions with `status="error"` and their `error_detail` — broken session metadata
+may require repair via `/session-data` or `/session-descriptors`.
 
-### Step 3: Optionally filter
+### Step 3: Optionally narrow by session type or project (client-side)
+
+`get_data_root_overview_tool` does not accept server-side session-type, project, or animal
+filters. When the user wants to operate only on certain session types or on a specific project
+or animal, filter the flat `sessions` list client-side before step 4:
+
+```text
+filtered = [entry for entry in response["sessions"]
+            if entry["project"] == "<project>"
+            and entry["session_type"] in {"mesoscope experiment", "run training"}]
+```
+
+### Step 4: Optionally filter by date / name / animal
 
 If the user wants to narrow the list by date range, animal, or specific session names, call
-`filter_sessions_tool` with the `sessions` list from step 2 and the requested criteria.
+`filter_sessions_tool` with the `sessions` list from step 2 (or the client-side-narrowed list
+from step 3) and the requested criteria.
 
-### Step 4: Confirm and hand off
+### Step 5: Confirm and hand off
 
 Present the final `session_paths` list to the user. Once confirmed, hand off to the appropriate
 downstream skill:
@@ -176,35 +200,34 @@ downstream skill:
 ## Error routing
 
 The strings below are the literal messages the library emits via `resolve_root_directory` and
-the discovery / filter tools; match against the `error` field of the response.
+the discovery / filter tools; match against the `error` or per-session `error_detail` field of
+the response.
 
-| Error message                                                 | Resolution                                                         |
-|---------------------------------------------------------------|--------------------------------------------------------------------|
-| `Root directory does not exist: <path>`                       | Verify the root directory path with the user                       |
-| `Root directory is not a directory: <path>`                   | Path points at a file or symlink; ask for the directory            |
-| `Project '<name>' not found at <path>`                        | Verify the project argument against `discover_projects_tool`       |
-| `Animal '<id>' not found at <path>`                           | Verify the animal_id argument against `discover_animals_tool`      |
-| `Invalid session type in filter: <exc>. Valid values: ...`    | Check the session type string against the enum values in the error |
-| `Failed to load session: <reason>` (per-entry, in `sessions`) | Session marker is corrupt or missing required keys                 |
-| `sessions=[]` or `total_eligible=0` (no error, empty result)  | No markers matched; verify the search root or filter criteria      |
-| MCP tool call raises at the transport layer                   | Invoke `/assets-mcp-environment-setup`                             |
+| Error message                                                      | Resolution                                                                                               |
+|--------------------------------------------------------------------|----------------------------------------------------------------------------------------------------------|
+| `Root directory does not exist: <path>`                            | Verify the root directory path with the user                                                             |
+| `Root directory is not a directory: <path>`                        | Path points at a file or symlink; ask for the directory                                                  |
+| `Failed to load SessionData: <reason>` (per-entry, status="error") | Session marker is corrupt or missing required keys; repair via `/session-data` / `/session-descriptors`  |
+| Missing `session_name` or `animal` in `filter_sessions_tool` input | Entries from sources other than `get_data_root_overview_tool` may lack these keys; see `invalid_entries` |
+| `sessions=[]` or `total_eligible=0` (no error, empty result)       | No markers matched; verify the search root or filter criteria                                            |
+| MCP tool call raises at the transport layer                        | Invoke `/assets-mcp-environment-setup`                                                                   |
 
 ---
 
 ## Related skills
 
-| Skill                                        | Relationship                                         |
-|----------------------------------------------|------------------------------------------------------|
-| `/assets-mcp-environment-setup`              | Prerequisite: MCP server connectivity                |
-| `/project-hierarchy`                         | Sibling: project / animal / session layout reference |
-| `/session-data`                              | Reference: SessionData marker and SessionTypes enum  |
-| `/session-descriptors`                       | Reference: per-session descriptor repair             |
-| forging plugin `/project-manifest`           | Downstream: manifest reading and generation          |
-| forging plugin `/checksum-verification`      | Downstream: consumes confirmed session_paths         |
-| forging plugin `/session-transfer`           | Downstream: consumes confirmed session_paths         |
-| forging plugin `/behavior-processing`        | Downstream: consumes confirmed session_paths         |
-| forging plugin `/dataset-forging`            | Downstream: consumes confirmed session names         |
-| forging plugin `/behavior-input-format`      | Reference: behavior-processing eligibility rules     |
+| Skill                                   | Relationship                                                                     |
+|-----------------------------------------|----------------------------------------------------------------------------------|
+| `/assets-mcp-environment-setup`         | Prerequisite: MCP server connectivity                                            |
+| `/project-hierarchy`                    | Owns `get_data_root_overview_tool` as the tree walk                              |
+| `/session-data`                         | Reference: SessionData marker and `inspect_sessions_tool` for per-session health |
+| `/session-descriptors`                  | Reference: per-session descriptor repair                                         |
+| forging plugin `/project-manifest`      | Downstream: manifest reading and generation                                      |
+| forging plugin `/checksum-verification` | Downstream: consumes confirmed session_paths                                     |
+| forging plugin `/session-transfer`      | Downstream: consumes confirmed session_paths                                     |
+| forging plugin `/behavior-processing`   | Downstream: consumes confirmed session_paths                                     |
+| forging plugin `/dataset-forging`       | Downstream: consumes confirmed session names                                     |
+| forging plugin `/behavior-input-format` | Reference: behavior-processing eligibility rules                                 |
 
 ---
 
@@ -214,9 +237,10 @@ the discovery / filter tools; match against the `error` field of the response.
 Session Discovery:
 - [ ] Verified sollertia-shared-assets MCP connectivity (invoked /assets-mcp-environment-setup if unavailable)
 - [ ] Confirmed root directory with user
-- [ ] Ran discover_sessions_tool and reviewed results
-- [ ] Surfaced ineligible and errored sessions to the user
+- [ ] Ran get_data_root_overview_tool and reviewed results
+- [ ] Surfaced error-status sessions to the user
 - [ ] Applied filter_sessions_tool if date, animal, or session-name filtering was requested
+- [ ] Did not call discover_sessions_tool — that tool no longer exists
 - [ ] Confirmed final session_paths list with user
 - [ ] Handed off to the appropriate downstream skill
 ```

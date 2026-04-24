@@ -82,9 +82,10 @@ describe_dataset_schema_tool()
 
 ### Step 4: Identify member sessions
 
-Use `discover_sessions_tool` (owned by the assets plugin's `/session-discovery` on the same `sl-mcp` server) to enumerate
-candidate sessions. Filter by project, animal, session type, and date range as needed. Confirm the
-membership list with the user before writing.
+Use `get_data_root_overview_tool` (owned by the assets plugin's `/project-hierarchy` on the same `sl-mcp` server) to enumerate
+candidate sessions, then chain through `filter_sessions_tool` via `/session-discovery` for date-range,
+animal, and session-name filtering. Client-side filtering handles project, animal, and session-type
+narrowing. Confirm the membership list with the user before writing.
 
 ### Step 5: Author the dataset
 
@@ -125,7 +126,7 @@ downstream tooling and analysis notebooks may have references that break silentl
 - [ ] sollertia-forgery MCP server (sl-mcp) is connected
 - [ ] describe_dataset_schema_tool was used as the source of truth for field names
 - [ ] discover_datasets_tool was called before creating new datasets (avoid duplicates)
-- [ ] Member sessions were discovered via discover_sessions_tool, not guessed
+- [ ] Member sessions were discovered via get_data_root_overview_tool (+ filter_sessions_tool when needed), not guessed
 - [ ] User confirmed membership additions and removals before writing
 - [ ] read_dataset_tool returned the expected dataset after every write
 ```
@@ -137,5 +138,5 @@ downstream tooling and analysis notebooks may have references that break silentl
 | Skill                                | Relationship                                                          |
 |--------------------------------------|-----------------------------------------------------------------------|
 | `/forging-mcp-environment-setup`     | Run first if the sl-mcp server is not connected                       |
-| assets plugin `/session-discovery`   | Provides `discover_sessions_tool` for dataset membership lookup       |
+| assets plugin `/session-discovery`   | Provides `get_data_root_overview_tool` + `filter_sessions_tool` for dataset membership lookup |
 | `/session-data`                      | Sibling — sessions are the membership unit of datasets                |
