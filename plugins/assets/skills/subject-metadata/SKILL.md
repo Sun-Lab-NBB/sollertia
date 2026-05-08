@@ -120,10 +120,10 @@ into several canonical locations. All of them hold the same schema and are read/
 same two tools; this skill does not distinguish between them beyond helping the caller resolve
 the right path.
 
-| Location                                        | Populated by                                                        | Discovery path                                                                                                  |
-|-------------------------------------------------|---------------------------------------------------------------------|-----------------------------------------------------------------------------------------------------------------|
-| `<session>/raw_data/surgery_metadata.yaml`      | Acquisition runtime at session start (snapshot of the Google Sheet) | `SessionData.surgery_metadata_path`; `inspect_sessions_tool` lists it under kind `SURGERY_METADATA` in `raw_data_files` |
-| `<dataset_root>/<animal>/surgery_metadata.yaml` | Forging pipeline (`shutil.copy2` from the animal's latest session)  | `DatasetData.surgery_paths` (owned by the forging plugin's `/datasets` skill)                                   |
+| Location                                        | Populated by                                                        | Discovery path                                                                                                                          |
+|-------------------------------------------------|---------------------------------------------------------------------|-----------------------------------------------------------------------------------------------------------------------------------------|
+| `<session>/raw_data/surgery_metadata.yaml`      | Acquisition runtime at session start (snapshot of the Google Sheet) | `SessionData.raw_data.surgery_metadata_path`; `inspect_sessions_tool` lists it as the `surgery_metadata_path` entry in `raw_data_files` |
+| `<dataset_root>/<animal>/surgery_metadata.yaml` | Forging pipeline (`shutil.copy2` from the animal's latest session)  | `DatasetData.surgery_paths` (owned by the forging plugin's `/datasets` skill)                                                           |
 
 Other locations are possible — the tools take any absolute path — but these are the two
 populated automatically. All copies are **snapshots** of the Google Sheet state at the moment
@@ -139,11 +139,11 @@ apply everywhere, edit the Google Sheet and let downstream pipelines re-capture 
 
 ## MCP tool surface
 
-| Tool                            | Purpose                                                                             |
-|---------------------------------|-------------------------------------------------------------------------------------|
-| `read_surgery_data_tool`     | Loads the full `SurgeryData` payload from a file path (exclusive to this skill)     |
-| `write_surgery_data_tool`    | Writes a validated full `SurgeryData` payload to a file path (exclusive)            |
-| `describe_surgery_data_schema_tool`  | Returns the `SurgeryData` schema with nested section schemas (exclusive)            |
+| Tool                                | Purpose                                                                         |
+|-------------------------------------|---------------------------------------------------------------------------------|
+| `read_surgery_data_tool`            | Loads the full `SurgeryData` payload from a file path (exclusive to this skill) |
+| `write_surgery_data_tool`           | Writes a validated full `SurgeryData` payload to a file path (exclusive)        |
+| `describe_surgery_data_schema_tool` | Returns the `SurgeryData` schema with nested section schemas (exclusive)        |
 
 Both `read_surgery_data_tool` and `write_surgery_data_tool` take an explicit `file_path`
 — path resolution is the caller's responsibility. See **Known file locations** above for the
@@ -262,9 +262,9 @@ need.
 
 | Scenario                                                                            | Use                                                                                                      |
 |-------------------------------------------------------------------------------------|----------------------------------------------------------------------------------------------------------|
-| One session's snapshot has a data-entry error; re-acquiring the session is overkill | `write_surgery_data_tool` on the session file                                                         |
-| A dataset's per-animal copy is wrong (e.g., it picked up a bad session snapshot)    | `write_surgery_data_tool` on the dataset file                                                         |
-| The same field is wrong in both the session snapshot and the dataset copy           | `write_surgery_data_tool` against each file separately — there is no propagation                      |
+| One session's snapshot has a data-entry error; re-acquiring the session is overkill | `write_surgery_data_tool` on the session file                                                            |
+| A dataset's per-animal copy is wrong (e.g., it picked up a bad session snapshot)    | `write_surgery_data_tool` on the dataset file                                                            |
+| The same field is wrong in both the session snapshot and the dataset copy           | `write_surgery_data_tool` against each file separately — there is no propagation                         |
 | A field is wrong for the animal itself and should be right for every future capture | Edit the upstream Google Sheet; next session acquisition (and downstream dataset forge) captures the fix |
 | Both a past file and future captures need fixing                                    | Do both — write tool for the existing file(s), sheet for future captures                                 |
 

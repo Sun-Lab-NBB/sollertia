@@ -145,32 +145,48 @@ session root):
 └── processed_data/                            # populated by downstream processing pipelines
 ```
 
-### Path-resolution properties on `SessionData`
+### Path-resolution sub-dataclasses on `SessionData`
 
-Python code that needs a per-session file path should read it directly from the `SessionData`
-instance rather than concatenating filenames by hand. The shared-assets library packages every
-canonical session filename and directory into three enums (`RawDataFiles`, `Directories`,
-`ProcessingTrackers`) and exposes each as a property on `SessionData`:
+Python code that needs a per-session file path should read it from the `SessionData` instance's
+sub-dataclass attributes rather than concatenating filenames by hand. The shared-assets library
+packages every canonical session filename and directory into three enums (`RawDataFiles`,
+`Directories`, `ProcessingTrackers`) and dispatches them onto three runtime-only sub-dataclasses
+populated by `SessionData._build_sub_dataclasses()` (called from both `create` and `load`):
 
-- Raw-data files: `session_data_path`, `session_descriptor_path`, `surgery_metadata_path`,
-  `hardware_state_path`, `experiment_configuration_path`, `system_configuration_path`,
-  `checksum_path`, `checksum_tracker_path`.
-- Raw-data Mesoscope-VR snapshots (authoring owned by the experiment plugin's
-  `/session-snapshots`, but the `Path` properties exist on `SessionData` for read access):
-  `zaber_positions_path`, `mesoscope_positions_path`, `window_screenshot_path`.
-- Raw-data subdirectories: `raw_camera_data_path`, `raw_behavior_data_path`,
-  `raw_microcontroller_data_path`, `raw_mesoscope_data_path`.
-- Processed-data subdirectories: `behavior_data_path`, `cindra_data_path`, `camera_timestamps_path`,
-  `camera_data_path`, `microcontroller_data_path`.
-- Processing trackers: `behavior_tracker_path`, `camera_tracker_path`, `video_tracker_path`,
-  `microcontroller_tracker_path`, `cindra_single_recording_tracker_path`.
-- Cindra layout: `cindra_multi_recording_path`.
+- **`instance.raw_data` (`RawData`)** — system-agnostic raw assets:
+  `session_data_path`, `session_descriptor_path`, `surgery_metadata_path`, `hardware_state_path`,
+  `system_configuration_path`, `experiment_configuration_path`, `checksum_path`,
+  `checksum_tracker_path`, `nk_path`, `behavior_data_path`, `camera_data_path`. Microcontroller
+  raw data is bundled into the DataLogger archives under `behavior_data_path`, so there is no
+  separate raw microcontroller field.
+- **`instance.processed_data` (`ProcessedData`)** — system-agnostic processed assets:
+  `behavior_data_path`, `behavior_tracker_path`, `camera_timestamps_path`, `camera_tracker_path`,
+  `video_data_path`, `video_tracker_path`, `microcontroller_data_path`,
+  `microcontroller_tracker_path`, `cindra_data_path`, `cindra_single_recording_tracker_path`,
+  `cindra_multi_recording_path`. Cindra fields live here (not under a system-specific
+  sub-dataclass) because cindra is reusable by any photometry-data-generating acquisition system.
+- **`instance.system_raw_data`** — acquisition-system-specific raw assets, dispatched from
+  `SYSTEM_RAW_DATA_REGISTRY` keyed by `acquisition_system`. For Mesoscope-VR, this is
+  `MesoscopeRawData` with `zaber_positions_path`, `mesoscope_positions_path`,
+  `window_screenshot_path`, and `mesoscope_data_path`. Future acquisition systems register their
+  own `<System>RawData` builder in the same registry.
 
-All properties return a `Path` unconditionally; callers check existence with `.exists()` when the
+All fields return a `Path` unconditionally; callers check existence with `.exists()` when the
 path is conditional (experiment-only files, not-yet-produced outputs, forward-looking pipelines).
-`inspect_sessions_tool` iterates these properties internally to produce the
+Instances constructed via `SessionData.from_yaml` directly (without going through `load`) do not
+have the sub-dataclass attributes populated; access raises `AttributeError`. `inspect_sessions_tool`
+iterates `dataclasses.fields()` over each sub-dataclass internally to produce the
 `raw_data_files` and `processed_data_subdirs` entries in its per-session report, so MCP callers
 do not need to reconstruct the list by hand.
+
+Each entry in the report's `raw_data_files` / `processed_data_subdirs` lists carries:
+
+- `field` — the sub-dataclass field name (e.g. `session_descriptor_path`).
+- `path` — the absolute resolved path.
+- `scope` — `"generic"` for fields read off `raw_data` / `processed_data`; `"system"` for fields
+  read off `system_raw_data` (e.g. Mesoscope-VR snapshots).
+- `kind` — `"file"` when the path has a non-empty suffix; `"directory"` otherwise.
+- `exists` — whether the path is currently present on disk.
 
 `get_data_root_overview_tool` (owned by `/project-hierarchy`) walks the data root looking for
 `session_data.yaml` markers and returns `session_paths` alongside per-session lifecycle status.
@@ -197,6 +213,7 @@ mapping and schemas are owned by `/session-descriptors`.
 | `write_session_data_tool`            | Creates or replaces a `session_data.yaml` file, validated against `SessionData` (file-path based, exclusive)     |
 | `describe_session_data_schema_tool`  | Returns the `SessionData` dataclass schema (exclusive)                                                           |
 | `list_supported_session_types_tool`  | Returns the canonical `SessionTypes` enum strings                                                                |
+| `list_processing_trackers_tool`      | Enumerates every `ProcessingTracker` filename used across the platform (`name`, `filename`, `description`)       |
 
 `inspect_sessions_tool` accepts `session_paths: list[str]` — pass a single-element list for one
 session, or many paths to inspect a batch. There is no separate single / batch signature. The
@@ -209,7 +226,7 @@ the absolute `file_path`; these tools do not resolve session roots or compute li
 **Reading the marker file directly is expected to follow a discovery or health check** — call
 `/project-hierarchy`'s `get_data_root_overview_tool` (whole-root walk) or this skill's
 `inspect_sessions_tool` (per-session report) first to determine whether the session holds valid
-data and what its lifecycle status is, then reach for `read_session_data_tool` only when the raw
+data and what its lifecycle status is. Then reach for `read_session_data_tool` only when the raw
 YAML payload (including `python_version` / `sollertia_experiment_version` compatibility fields)
 is what you actually need.
 
@@ -218,9 +235,12 @@ marker. The **primary** on-disk copy is always authored by the acquisition runti
 `SessionData.create` at session start; this tool should not be called during normal acquisition
 flows.
 
-`list_supported_session_types_tool` is owned by this skill in the sense that this is where the
-read pattern is documented and where other skills should hand off when they need it. It is
-read-only and may also be called as a natural share.
+`list_supported_session_types_tool` and `list_processing_trackers_tool` are owned by this skill
+in the sense that this is where the read pattern is documented and where other skills should
+hand off when they need them. Both are read-only and may also be called as natural shares.
+`list_processing_trackers_tool` is the canonical reference for the filenames written by the
+checksum, behavior, camera, video, microcontroller, cindra single- and multi-recording, forging,
+analysis, manifest, and transfer pipelines.
 
 ---
 
@@ -264,7 +284,7 @@ In addition to `status`, each per-session report returns the independent boolean
    The report's `status` plus `raw_data_files` inventory tells you whether the session holds
    valid data and which canonical assets are present. This step is the **prerequisite** for any
    read that touches the marker file directly — if `status` is `uninitialized` or `error`, the
-   marker content is not meaningful and you should surface that to the user instead of reading.
+   marker content is not meaningful, and you should surface that to the user instead of reading.
 4. **Read the raw marker YAML** when a caller needs fields that `inspect_sessions_tool` does
    not project (notably `python_version` and `sollertia_experiment_version`):
    ```text

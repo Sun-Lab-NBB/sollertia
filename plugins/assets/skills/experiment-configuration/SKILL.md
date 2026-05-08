@@ -3,7 +3,7 @@ name: experiment-configuration
 description: >-
   Authors per-project experiment configuration YAMLs (currently only
   MesoscopeExperimentConfiguration) via the sollertia-shared-assets MCP server. Owns
-  write_experiment_configuration_tool, create_experiment_config_tool,
+  write_experiment_configuration_tool, create_experiment_configuration_tool,
   validate_experiment_configuration_tool, and schema introspection. Use when creating a new
   experiment configuration, customizing trial parameters, or instantiating a task template
   for a project.
@@ -20,7 +20,7 @@ extensible — additional systems may be added in the future, at which point thi
 their experiment configurations as well. This skill is the **exclusive** owner of:
 
 - `write_experiment_configuration_tool`
-- `create_experiment_config_tool`
+- `create_experiment_configuration_tool`
 - `describe_experiment_configuration_schema_tool`
 - `validate_experiment_configuration_tool`
 
@@ -166,7 +166,7 @@ configuration captures that whole arc by chaining states with different guidance
 | `describe_experiment_configuration_schema_tool` | Returns the field schema for the experiment dataclass                                                              |
 | `read_experiment_configuration_tool`            | Reads an experiment configuration YAML from any canonical location (project source or per-session frozen snapshot) |
 | `write_experiment_configuration_tool`           | Writes a new experiment configuration (exclusive to this skill)                                                    |
-| `create_experiment_config_tool`                 | Creates a config from a template + parameters (exclusive)                                                          |
+| `create_experiment_configuration_tool`          | Creates a config from a template + parameters (exclusive)                                                          |
 | `validate_experiment_configuration_tool`        | Validates an experiment configuration YAML (exclusive)                                                             |
 | `list_supported_acquisition_systems_tool`       | Enumerates the `AcquisitionSystems` enum values                                                                    |
 
@@ -224,13 +224,13 @@ describe_experiment_configuration_schema_tool(acquisition_system="mesoscope")
 
 Use the schema as the source of truth for field names and nesting.
 
-### Step 4: Use create_experiment_config_tool for the standard path
+### Step 4: Use create_experiment_configuration_tool for the standard path
 
 For most cases, the convenience tool handles template loading and default state-machine
 population in one call. Pass the destination file path and the template path explicitly:
 
 ```text
-create_experiment_config_tool(
+create_experiment_configuration_tool(
     file_path="<root>/<project>/configuration/<experiment>.yaml",
     template_path="<templates-directory>/<template-name>.yaml",
     state_count=1,
@@ -345,20 +345,20 @@ reason, that is currently not supported by the sollertia-shared-assets MCP layer
 
 ## Common patterns
 
-| Goal                                  | Pattern                                                                                                                                                                                                                                                                                                   |
-|---------------------------------------|-----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
-| Reuse a template across projects      | Call `create_experiment_config_tool` per project (one `file_path` per destination), then override per-project fields                                                                                                                                                                                      |
-| Change reward volume for a trial type | Edit `trial_structures["<trial>"].reward_size_ul` for `WaterRewardTrial` entries                                                                                                                                                                                                                          |
-| Change gas-puff duration              | Edit `trial_structures["<trial>"].puff_duration_ms` for `GasPuffTrial` entries                                                                                                                                                                                                                            |
-| Adjust a state's duration             | Edit `experiment_states["<state-key>"].state_duration_s` (state machine is a dict)                                                                                                                                                                                                                        |
-| Add a new state to the state machine  | Add a new key to the `experiment_states` dict, then re-validate                                                                                                                                                                                                                                           |
-| Add a new spatial trial entry         | First hand off to `/task-templates` to add the `TrialStructure` to the template, then either re-run `create_experiment_config_tool` with `overwrite=True` or amend this skill's experiment config via `write_experiment_configuration_tool` to add the matching `WaterRewardTrial` / `GasPuffTrial` entry |
+| Goal                                  | Pattern                                                                                                                                                                                                                                                                                                          |
+|---------------------------------------|------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| Reuse a template across projects      | Call `create_experiment_configuration_tool` per project (one `file_path` per destination), then override per-project fields                                                                                                                                                                                      |
+| Change reward volume for a trial type | Edit `trial_structures["<trial>"].reward_size_ul` for `WaterRewardTrial` entries                                                                                                                                                                                                                                 |
+| Change gas-puff duration              | Edit `trial_structures["<trial>"].puff_duration_ms` for `GasPuffTrial` entries                                                                                                                                                                                                                                   |
+| Adjust a state's duration             | Edit `experiment_states["<state-key>"].state_duration_s` (state machine is a dict)                                                                                                                                                                                                                               |
+| Add a new state to the state machine  | Add a new key to the `experiment_states` dict, then re-validate                                                                                                                                                                                                                                                  |
+| Add a new spatial trial entry         | First hand off to `/task-templates` to add the `TrialStructure` to the template, then either re-run `create_experiment_configuration_tool` with `overwrite=True` or amend this skill's experiment config via `write_experiment_configuration_tool` to add the matching `WaterRewardTrial` / `GasPuffTrial` entry |
 
 ### Migrating an experiment to a new template
 
 1. Read the old configuration with `read_experiment_configuration_tool(file_path=...)`.
 2. If the new template does not exist, hand off to `/task-templates` to author it.
-3. Call `create_experiment_config_tool(file_path=..., template_path=...)` pointing at the new
+3. Call `create_experiment_configuration_tool(file_path=..., template_path=...)` pointing at the new
    template.
 4. Port the customizations (state durations, per-trial reward sizes, puff and occupancy durations,
    guidance counters) over manually.
