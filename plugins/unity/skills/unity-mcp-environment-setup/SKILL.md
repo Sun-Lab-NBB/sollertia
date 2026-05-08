@@ -42,23 +42,25 @@ Claude ↔ slsa mcp (stdio) ↔ HTTP POST to localhost:8090 ↔ Unity Editor Mcp
 ```
 
 The `McpBridge` editor plugin ships with `sollertia-unity-tasks`. It starts the HTTP listener on
-`localhost:8090` automatically when the Editor loads the project. The 10 relayed tools are:
+`localhost:8090` automatically when the Editor loads the project. The 12 relayed tools are:
 
-| Tool                                  | Owning skill     |
-|---------------------------------------|------------------|
-| `generate_task_prefab_tool`           | `/task-prefabs`  |
-| `inspect_prefab_tool`                 | `/task-prefabs`  |
+| Tool                                    | Owning skill     |
+|-----------------------------------------|------------------|
+| `generate_task_prefab_tool`             | `/task-prefabs`  |
+| `inspect_prefab_tool`                   | `/task-prefabs`  |
 | `validate_prefab_against_template_tool` | `/task-prefabs`  |
-| `list_unity_assets_tool`              | `/scenes`        |
-| `list_scenes_tool`                    | `/scenes`        |
-| `open_scene_tool`                     | `/scenes`        |
-| `create_scene_tool`                   | `/scenes`        |
-| `enter_play_mode_tool`                | `/play-mode`     |
-| `exit_play_mode_tool`                 | `/play-mode`     |
-| `get_play_state_tool`                 | `/play-mode`     |
+| `delete_unity_asset_tool`               | `/task-prefabs`  |
+| `list_unity_assets_tool`                | `/scenes`        |
+| `list_scenes_tool`                      | `/scenes`        |
+| `open_scene_tool`                       | `/scenes`        |
+| `create_scene_tool`                     | `/scenes`        |
+| `inspect_scene_tool`                    | `/scenes`        |
+| `enter_play_mode_tool`                  | `/play-mode`     |
+| `exit_play_mode_tool`                   | `/play-mode`     |
+| `get_play_state_tool`                   | `/play-mode`     |
 
-All 10 tools require **both** the `slsa mcp` MCP server to be connected **and** the Unity Editor to
-be running with `sollertia-unity-tasks` open.
+All 12 tools require **both** the `slsa mcp` MCP server to be connected **and** the Unity Editor
+to be running with `sollertia-unity-tasks` open.
 
 ---
 

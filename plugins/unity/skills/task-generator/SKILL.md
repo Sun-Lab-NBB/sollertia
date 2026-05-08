@@ -213,12 +213,14 @@ OccupancyGuidanceRegion.BoxCollider.center = (0, 0, occupancyCenterOffset + zone
 
 `validate_prefab_against_template_tool` (`/task-prefabs`) re-derives `zone_z = zone.transform.localPosition.z` and
 `zone_size = BoxCollider.size.z` from the prefab and compares them against `expected_center = (zone_end - zone_start)
-/ (2 * cm_per_unity_unit)` and `expected_size = (zone_end - zone_start) / cm_per_unity_unit`. Note the validator
-reconstructs the **lick-mode** formulas. In occupancy mode, the generator places the root at `rootZ` (past the
-waiting range), but the validator still computes `expected_center` against the waiting range. **Occupancy segments
-will report `zone_z_match: false` even when correctly generated.** This is a known drift between generator and
-validator; treat occupancy `match: false` as informational unless the reported `zone_z` is also wrong by the offset
-math above.
+/ (2 * cm_per_unity_unit)` and `expected_size = (zone_end - zone_start) / cm_per_unity_unit`. The validator also
+re-walks the segment prefab's cue children to reconstruct `cue_order`, measures Z-extent for `segment_length_unity`,
+and reports per-cue prefab existence under `Cues/`. Note the zone formulas reconstruct the **lick-mode** case. In
+occupancy mode, the generator places the root at `rootZ` (past the waiting range), but the validator still computes
+`expected_center` against the waiting range. **Occupancy segments will report `zone_z_match: false` even when
+correctly generated.** This is a known drift between generator and validator; treat occupancy `zone_z_match: false`
+as informational unless the reported `zone_z` is also wrong by the offset math above. The other validator fields
+(cue order, segment length, cue prefab existence) are mode-agnostic — failures there are real drift.
 
 ---
 
@@ -299,7 +301,9 @@ template to reference it. Validate with `/task-prefabs`.
 2. Add a getter or conversion helper (e.g. a `*Unity` accessor) to `TaskTemplate.cs` if the field needs unit
    conversion.
 3. Thread the field through `CreateFromTemplate` to the relevant sub-step.
-4. If the field affects zone geometry, extend `validate_prefab_against_template_tool` to check it.
+4. If the field affects geometry, ordering, or asset count, extend `validate_prefab_against_template_tool` to check
+   it. The validator currently covers cue prefab existence, cue ordering, segment Z-length, and lick-mode zone
+   geometry — new round-trip invariants belong here.
 
 ---
 
