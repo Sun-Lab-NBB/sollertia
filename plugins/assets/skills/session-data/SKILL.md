@@ -361,16 +361,17 @@ Use this when you need to validate a session-type string before using it in anot
 
 ## Related skills
 
-| Skill                                      | Relationship                                                                                      |
-|--------------------------------------------|---------------------------------------------------------------------------------------------------|
-| `/assets-mcp-environment-setup`            | Run first if the MCP server is not connected                                                      |
-| `/project-hierarchy`                       | Owns `get_data_root_overview_tool` for root-wide discovery                                        |
-| `/session-discovery`                       | Filters the flat `sessions` list from `get_data_root_overview_tool`                               |
-| `/session-descriptors`                     | Sibling — owns the per-session descriptor read/write/schema                                       |
-| `/session-hardware-state`                  | Sibling — owns the per-session `MesoscopeHardwareState` snapshot                                  |
-| experiment plugin `/session-snapshots`     | Owns the frozen Zaber and mesoscope-objective position snapshots                                  |
-| `/subject-metadata`                        | Sibling — owns animal-scoped subject records                                                      |
-| experiment plugin `/system-configuration`  | Authors the system configuration consumed at session start                                        |
-| `/experiment-configuration`                | Owns `read_experiment_configuration_tool` (reads both project source and frozen session snapshot) |
-| forging plugin `/datasets`                 | Datasets aggregate sessions                                                                       |
-| experiment plugin `/managing-session-data` | Preprocesses, migrates, and deletes sessions; creates project dirs implicitly when sessions land  |
+| Skill                                      | Relationship                                                                                                                                 |
+|--------------------------------------------|----------------------------------------------------------------------------------------------------------------------------------------------|
+| `/assets-mcp-environment-setup`            | Run first if the MCP server is not connected                                                                                                 |
+| `/project-hierarchy`                       | Owns `get_data_root_overview_tool` for root-wide discovery                                                                                   |
+| `/session-discovery`                       | Filters the flat `sessions` list from `get_data_root_overview_tool`                                                                          |
+| `/session-descriptors`                     | Sibling — owns the per-session descriptor read/write/schema                                                                                  |
+| `/session-hardware-state`                  | Sibling — owns the per-session `MesoscopeHardwareState` snapshot                                                                             |
+| experiment plugin `/session-snapshots`     | Owns the frozen Zaber and mesoscope-objective position snapshots                                                                             |
+| `/subject-metadata`                        | Sibling — owns animal-scoped subject records                                                                                                 |
+| experiment plugin `/system-configuration`  | Authors the system configuration consumed at session start                                                                                   |
+| `/experiment-configuration`                | Owns `read_experiment_configuration_tool` (reads both project source and frozen session snapshot)                                            |
+| `/library-extension`                       | Cross-cutting recipe to add new `SessionTypes` or `AcquisitionSystems` members; lists the skill content here that needs updating in lockstep |
+| forging plugin `/datasets`                 | Datasets aggregate sessions                                                                                                                  |
+| experiment plugin `/managing-session-data` | Preprocesses, migrates, and deletes sessions; creates project dirs implicitly when sessions land                                             |

@@ -266,11 +266,12 @@ every write.
 
 ## Related skills
 
-| Skill                                     | Relationship                                                                                      |
-|-------------------------------------------|---------------------------------------------------------------------------------------------------|
-| `/assets-mcp-environment-setup`           | Run first if the MCP server is not connected                                                      |
-| `/session-data`                           | Sibling — owns `SessionData` and the session anatomy; surfaces `acquisition_system`               |
-| `/session-descriptors`                    | Sibling — owns the per-session-type descriptor read/write/schema                                  |
-| `/experiment-configuration`               | Owns `read_experiment_configuration_tool` (reads both project source and frozen session snapshot) |
-| `/project-hierarchy`                      | Provides `get_data_root_overview_tool` to locate sessions                                         |
-| experiment plugin `/session-snapshots`    | Sibling — owns the Zaber and mesoscope-objective position snapshots                               |
+| Skill                                  | Relationship                                                                                                                                                                    |
+|----------------------------------------|---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| `/assets-mcp-environment-setup`        | Run first if the MCP server is not connected                                                                                                                                    |
+| `/session-data`                        | Sibling — owns `SessionData` and the session anatomy; surfaces `acquisition_system`                                                                                             |
+| `/session-descriptors`                 | Sibling — owns the per-session-type descriptor read/write/schema                                                                                                                |
+| `/experiment-configuration`            | Owns `read_experiment_configuration_tool` (reads both project source and frozen session snapshot)                                                                               |
+| `/project-hierarchy`                   | Provides `get_data_root_overview_tool` to locate sessions                                                                                                                       |
+| experiment plugin `/session-snapshots` | Sibling — owns the Zaber and mesoscope-objective position snapshots                                                                                                             |
+| `/library-extension`                   | Cross-cutting recipe to add a new `AcquisitionSystems` (or `SessionTypes`) member; lists the per-session-type field population table here that needs cloning for the new system |

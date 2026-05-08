@@ -373,4 +373,5 @@ target(s) that match the durability the user actually wants:
 | `/subject-metadata`                    | Sibling — owns subject records                                                                                           |
 | `/project-hierarchy`                   | Provides `get_data_root_overview_tool` and per-animal persistent-cache paths                                             |
 | experiment plugin `/session-snapshots` | Owns the frozen Zaber and mesoscope-objective position snapshots                                                         |
+| `/library-extension`                   | Cross-cutting recipe to add a new `SessionTypes` member; lists the descriptor mapping table here that needs updating     |
 | forging plugin `/datasets`             | Resolves forged dataset per-session `session_descriptor.yaml` paths                                                      |

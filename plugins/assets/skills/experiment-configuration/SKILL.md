@@ -387,12 +387,13 @@ reason, that is currently not supported by the sollertia-shared-assets MCP layer
 
 ## Related skills
 
-| Skill                                     | Relationship                                                                                                         |
-|-------------------------------------------|----------------------------------------------------------------------------------------------------------------------|
-| `/working-directory`                      | Provides the templates directory so `/task-templates` knows where to enumerate; this skill needs only absolute paths |
-| `/assets-mcp-environment-setup`           | Run first if the MCP server is not connected                                                                         |
-| `/task-templates`                         | Required upstream — owns template authoring and exposes `discover_templates_tool` for absolute template paths        |
-| `/project-hierarchy`                      | Required upstream — owns project creation                                                                            |
-| experiment plugin `/system-configuration` | Owns MesoscopeSystemConfiguration (moved out of this plugin)                                                         |
-| unity plugin `/task-prefabs`              | Validates template values against the Unity prefab state                                                             |
-| experiment plugin `/experiment-pipeline`  | Phase 4 of the experiment lifecycle is owned by this skill                                                           |
+| Skill                                     | Relationship                                                                                                                                       |
+|-------------------------------------------|----------------------------------------------------------------------------------------------------------------------------------------------------|
+| `/working-directory`                      | Provides the templates directory so `/task-templates` knows where to enumerate; this skill needs only absolute paths                               |
+| `/assets-mcp-environment-setup`           | Run first if the MCP server is not connected                                                                                                       |
+| `/task-templates`                         | Required upstream — owns template authoring and exposes `discover_templates_tool` for absolute template paths                                      |
+| `/project-hierarchy`                      | Required upstream — owns project creation                                                                                                          |
+| experiment plugin `/system-configuration` | Owns MesoscopeSystemConfiguration (moved out of this plugin)                                                                                       |
+| unity plugin `/task-prefabs`              | Validates template values against the Unity prefab state                                                                                           |
+| experiment plugin `/experiment-pipeline`  | Phase 4 of the experiment lifecycle is owned by this skill                                                                                         |
+| `/library-extension`                      | Cross-cutting recipe to add a new `AcquisitionSystems`, `BaseTrial`, or `TriggerType` member; lists the prose here that needs updating in lockstep |
