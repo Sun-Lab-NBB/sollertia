@@ -5,7 +5,7 @@ description: >-
   acquisition system, session type, trial class, trigger type, or VR paradigm. Reference for the
   registry touch list, the import-time parity check, and the per-scenario map of sibling skills
   that need their hardcoded enumerations updated. Use when adding a new AcquisitionSystems
-  member, SessionTypes member, BaseTrial subclass, TriggerType member, or extending the template
+  member, SessionTypes member, runtime trial class, TriggerType member, or extending the template
   vocabulary beyond the infinite corridor.
 user-invocable: true
 ---
@@ -30,7 +30,7 @@ verification checklist before reporting an extension complete.
 - Adding a new `AcquisitionSystems` member (with its `<System>HardwareState`,
   `<System>ExperimentConfiguration`, `<System>RawData`, and factory function)
 - Adding a new `SessionTypes` member (with its descriptor dataclass)
-- Adding a new `BaseTrial` subclass (and registering it in `_TRIAL_CLASSES`)
+- Adding a new runtime trial class (and registering it in `_TRIAL_CLASSES`)
 - Adding a new `TriggerType` member (and the trigger → trial-class pairing in
   `create_experiment_configuration`)
 - Extending the template vocabulary beyond the **infinite corridor** VR paradigm
@@ -69,7 +69,7 @@ tools use to parse, validate, or build the corresponding asset.
 | `_experiment_config_factory_registry` | `configuration/configuration_utilities.py` | `AcquisitionSystems` | `TaskTemplate` → experiment-configuration factory fn |
 
 A sixth structure, `_TRIAL_CLASSES` in `interfaces/configuration_tools.py`, maps trial class
-names (e.g. `"WaterRewardTrial"`) to their `BaseTrial` subclasses. It is not a dispatch
+names (e.g. `"WaterRewardTrial"`) to their concrete runtime trial dataclasses. It is not a dispatch
 registry — `list_supported_trial_types_tool` reads it to enumerate the experiment configuration's
 trial vocabulary, and `create_experiment_configuration` in
 `configuration/configuration_utilities.py` instantiates the matching subclass for each
@@ -174,20 +174,22 @@ framing reflects the new member:
 - `sollertia-forgery` may need new behavior-processing or video-processing branches per system.
 - `sollertia-unity-tasks` may need new scene scaffolding if the new system uses Unity.
 
-### Adding a new `BaseTrial` subclass
+### Adding a new runtime trial class
 
 **Code touches:**
-1. Define the new subclass in `configuration/experiment_configuration.py`, inheriting from
-   `BaseTrial` and adding the per-trial parameters (mirror `WaterRewardTrial` /  `GasPuffTrial`
-   for shape and `__post_init__` validation).
+1. Define the new class in `configuration/experiment_configuration.py` as a standalone
+   `@dataclass(slots=True)` (mirror `WaterRewardTrial` / `GasPuffTrial` for shape). The new class
+   carries **only** runtime parameters (rewards, durations, thresholds) — no spatial fields. Those
+   live on the matching `TrialStructure` inside the paired task template.
 2. Export it from `configuration/__init__.py`.
 3. Register it in `_TRIAL_CLASSES` in `interfaces/configuration_tools.py`.
 4. Update the `nested_classes` mapping in `describe_experiment_configuration_schema_tool` so the
-   new subclass appears in the schema introspection response.
+   new class appears in the schema introspection response.
 5. Update the `dict[str, WaterRewardTrial | GasPuffTrial | <NewTrial>]` Union type in the
-   `ExperimentConfigFactory` alias and in every per-system factory function.
+   `MesoscopeExperimentConfiguration.trial_structures` annotation, the `ExperimentConfigFactory`
+   alias, and every per-system factory function.
 6. Update the per-system factory bodies in `configuration/configuration_utilities.py` so the
-   matching `TriggerType` branch instantiates the new subclass.
+   matching `TriggerType` branch instantiates the new runtime trial class.
 
 **Skill touches:**
 
@@ -201,9 +203,9 @@ framing reflects the new member:
 **Code touches:**
 1. Append the member to `TriggerType` in `configuration/vr_configuration.py`.
 2. Update `create_experiment_configuration` in
-   `configuration/configuration_utilities.py` to add the matching `elif base_trial.trigger_type ==
-   TriggerType.<NEW>:` branch, instantiating the corresponding `BaseTrial` subclass (which may
-   itself be new — see "Adding a new `BaseTrial` subclass").
+   `configuration/configuration_utilities.py` to add the matching `elif trial_structure.trigger_type
+   == TriggerType.<NEW>:` branch, instantiating the corresponding runtime trial class (which may
+   itself be new — see "Adding a new runtime trial class").
 3. Update Unity-side prefab scaffolding (out of scope for this library; coordinate with the
    unity plugin's `/task-prefabs`).
 
@@ -289,22 +291,22 @@ table, the required-asset branches, and the skill content.
 
 ## Related skills
 
-| Skill                                              | Relationship                                                                                       |
-|----------------------------------------------------|----------------------------------------------------------------------------------------------------|
-| `/assets-mcp-environment-setup`                    | Run if the parity check fails at import time — the failure manifests as an MCP startup error       |
-| `/session-data`                                    | Receives skill touch-ups for new `SessionTypes` and new `AcquisitionSystems`                       |
-| `/session-descriptors`                             | Receives skill touch-ups for new `SessionTypes`                                                    |
-| `/session-hardware-state`                          | Receives skill touch-ups for new `SessionTypes` and new `AcquisitionSystems`                       |
-| `/experiment-configuration`                        | Receives skill touch-ups for new `AcquisitionSystems`, `BaseTrial`, and `TriggerType` members      |
-| `/task-templates`                                  | Receives skill touch-ups for new `TriggerType`, `BaseTrial`, and VR paradigm extensions            |
-| experiment plugin `/system-configuration`          | Owns the runtime-side system configuration for any new acquisition system                          |
-| experiment plugin `/managing-session-data`         | Creates sessions of any new session type during acquisition                                        |
-| forging plugin `/behavior-input-format`            | Decides eligibility of new session types for behavior processing                                   |
-| forging plugin `/project-manifest`                 | Tabulates new session types in the project manifest                                                |
-| forging plugin `/dataset-forging-input-format`     | Decides eligibility of new session types for dataset forging                                       |
-| unity plugin `/task-prefabs`                       | Generates Unity prefabs for new `TriggerType` members or VR paradigms                              |
-| unity plugin `/scenes`                             | Authors Unity scenes for new acquisition systems or VR paradigms                                   |
-| `/commit`                                          | Should be invoked after the cross-cutting changes land                                             |
+| Skill                                          | Relationship                                                                                            |
+|------------------------------------------------|---------------------------------------------------------------------------------------------------------|
+| `/assets-mcp-environment-setup`                | Run if the parity check fails at import time — the failure manifests as an MCP startup error            |
+| `/session-data`                                | Receives skill touch-ups for new `SessionTypes` and new `AcquisitionSystems`                            |
+| `/session-descriptors`                         | Receives skill touch-ups for new `SessionTypes`                                                         |
+| `/session-hardware-state`                      | Receives skill touch-ups for new `SessionTypes` and new `AcquisitionSystems`                            |
+| `/experiment-configuration`                    | Receives skill touch-ups for new `AcquisitionSystems`, runtime trial classes, and `TriggerType` members |
+| `/task-templates`                              | Receives skill touch-ups for new `TriggerType`, runtime trial classes, and VR paradigm extensions       |
+| experiment plugin `/system-configuration`      | Owns the runtime-side system configuration for any new acquisition system                               |
+| experiment plugin `/managing-session-data`     | Creates sessions of any new session type during acquisition                                             |
+| forging plugin `/behavior-input-format`        | Decides eligibility of new session types for behavior processing                                        |
+| forging plugin `/project-manifest`             | Tabulates new session types in the project manifest                                                     |
+| forging plugin `/dataset-forging-input-format` | Decides eligibility of new session types for dataset forging                                            |
+| unity plugin `/task-prefabs`                   | Generates Unity prefabs for new `TriggerType` members or VR paradigms                                   |
+| unity plugin `/scenes`                         | Authors Unity scenes for new acquisition systems or VR paradigms                                        |
+| `/commit`                                      | Should be invoked after the cross-cutting changes land                                                  |
 
 ---
 
@@ -317,10 +319,10 @@ Code side:
 - [ ] `python -c 'import sollertia_shared_assets'` succeeds without RuntimeError from
       `_assert_registry_coverage()`
 - [ ] `_experiment_config_factory_registry` carries the new factory (if a new acquisition system)
-- [ ] `_TRIAL_CLASSES` carries the new trial class (if a new BaseTrial subclass)
+- [ ] `_TRIAL_CLASSES` carries the new trial class (if a new runtime trial class)
 - [ ] `_required_asset_inventory` covers the new session type's required assets (if applicable)
 - [ ] `describe_experiment_configuration_schema_tool` `nested_classes` mapping is updated for any
-      new BaseTrial subclass
+      new runtime trial class
 - [ ] Test suite passes; `slsa mcp` starts cleanly
 
 Skill side:

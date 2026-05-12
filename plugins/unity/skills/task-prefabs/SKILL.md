@@ -171,16 +171,17 @@ until `validate_prefab_against_template_tool` has been run and every segment rep
 validate_prefab_against_template_tool(template_name="<template-name>")
 ```
 
-The tool returns a top-level `cue_prefabs` list with per-cue prefab existence, plus a `segments`
-list. Each segment entry reports:
+The tool returns a top-level `cue_prefabs` list with per-cue prefab existence, plus a `trials`
+list. Each trial entry reports:
 
+- `trial`: The trial name (the key in the template's `trial_structures` dict).
+- `canonical_name`: The derived segment prefab filename (e.g. `Segment_abc_g_240cm_r180cm`).
 - `prefab_exists`: Segment prefab file is present under `Assets/InfiniteCorridorTask/Prefabs/`.
 - `cue_order` / `expected_cue_order` / `cue_order_match`: Cue child names along the segment's local
-  Z axis match the template's `cue_sequence`.
+  Z axis match the trial's `cue_sequence`.
 - `segment_length_unity` / `expected_segment_length_unity` / `segment_length_match`: Measured
   prefab Z-extent matches the cue-sum length (tolerance ±0.01 Unity units).
-- `has_zone`: Segment carries a `StimulusTriggerZone` (only present when the template defines a
-  trial structure for this segment).
+- `has_zone`: Segment prefab carries a `StimulusTriggerZone`.
 - `zone_z` / `expected_zone_z` / `zone_z_match`: Zone collider center on Z matches the trial's
   zone start/end midpoint, converted via `cm_per_unity_unit`.
 - `zone_size` / `expected_zone_size` / `zone_size_match`: Zone collider Z-size matches the trial's
@@ -221,12 +222,12 @@ mutating an existing one. Delete-and-regenerate is for the rarer case where the 
 hand-edited in place (e.g. a typo fix or an early-iteration tweak) and you intend the existing
 name to refer to the new geometry.
 
-| Template change                                            | Delete                                                                                                |
-|------------------------------------------------------------|-------------------------------------------------------------------------------------------------------|
+| Template change                                            | Delete                                                                                                 |
+|------------------------------------------------------------|--------------------------------------------------------------------------------------------------------|
 | `cues[].length_cm` or `cues[].texture` for cue X           | `Assets/InfiniteCorridorTask/Cues/Cue_X.prefab` (plus the `Cue_X.mat` material if the texture changed) |
-| `segments[].cue_sequence` for segment Y                    | `Assets/InfiniteCorridorTask/Prefabs/Y.prefab`                                                        |
-| `trial_structures[]` zone math for segment Y               | `Assets/InfiniteCorridorTask/Prefabs/Y.prefab`                                                        |
-| Top-level VR environment fields (e.g. `cm_per_unity_unit`) | All segment prefabs that reference the rescaled units                                                 |
+| `trial_structures[T].cue_sequence` for trial T             | `Assets/InfiniteCorridorTask/Prefabs/<canonical-name-for-T>.prefab`                                    |
+| `trial_structures[T]` zone math for trial T                | `Assets/InfiniteCorridorTask/Prefabs/<canonical-name-for-T>.prefab`                                    |
+| `vr_environment` fields (e.g. `cm_per_unity_unit`)         | All segment prefabs that reference the rescaled units                                                  |
 
 The task prefab itself (`Assets/InfiniteCorridorTask/Tasks/<template>.prefab`) is rebuilt by every
 `generate_task_prefab_tool` call, so it does not need to be deleted unless the rename of an
@@ -290,20 +291,20 @@ side is authoritative and how drift is resolved.
 
 ### Fields that flow YAML → prefab (at generation)
 
-| Template field                      | Becomes                                                                |
-|-------------------------------------|------------------------------------------------------------------------|
-| `cues[].name`                       | `Cue_<name>.prefab` file name and material name                        |
-| `cues[].texture`                    | Main texture on the `Cue_<name>` material                              |
-| `cues[].length_cm` + `cm_per_unity_unit` | Cue quad mesh scale (Z axis)                                      |
-| `segments[].name`                   | `<segment-name>.prefab` file name                                      |
-| `segments[].cue_sequence`           | Ordered cue instances along Z inside the segment                       |
-| `vr_environment.padding_prefab_name`| Padding prefab loaded and appended past every corridor                 |
-| `vr_environment.segments_per_corridor` | Depth parameter for the `Corridor<indices>` hierarchy under the task|
-| `vr_environment.cm_per_unity_unit`  | Conversion factor for **all** cm-valued fields below                   |
-| `trial_structures[].trigger_type`   | Selects `StimulusTriggerZone.prefab` vs `OccupancyTriggerZone.prefab`  |
-| `trial_structures[].stimulus_trigger_zone_start_cm` / `_end_cm` | Root `BoxCollider.size.z` and `.center.z`  |
-| `trial_structures[].stimulus_location_cm` | Child `GuidanceRegion` / `OccupancyRegion` collider center       |
-| `trial_structures[].show_stimulus_collision_boundary` | `StimulusTriggerZone.showBoundary` on the root    |
+| Template field                                                  | Becomes                                                                |
+|-----------------------------------------------------------------|------------------------------------------------------------------------|
+| `cues[].name`                                                   | `Cue_<name>_<length>cm.prefab` file name and material name             |
+| `cues[].texture`                                                | Main texture on the cue material                                       |
+| `cues[].length_cm` + `cm_per_unity_unit`                        | Cue quad mesh scale (Z axis)                                           |
+| `trial_structures[].cue_sequence` + `cues[].length_cm`          | Derives the canonical `Segment_*.prefab` filename and cue ordering     |
+| `vr_environment.padding_prefab_name`                            | Padding prefab loaded and appended past every corridor                 |
+| `vr_environment.segments_per_corridor`                          | Depth parameter for the `Corridor<indices>` hierarchy under the task   |
+| `vr_environment.cm_per_unity_unit`                              | Conversion factor for **all** cm-valued fields below                   |
+| `vr_environment.cue_offset_cm`                                  | Upstream shift of the segment prefab's local origin and ResetZone z    |
+| `trial_structures[].trigger_type`                               | Selects `StimulusTriggerZone.prefab` vs `OccupancyTriggerZone.prefab`  |
+| `trial_structures[].stimulus_trigger_zone_start_cm` / `_end_cm` | Root `BoxCollider.size.z` and `.center.z`                              |
+| `trial_structures[].stimulus_location_cm`                       | Child `GuidanceRegion` / `OccupancyRegion` collider center             |
+| `trial_structures[].show_stimulus_collision_boundary`           | `StimulusTriggerZone.showBoundary` on the root                         |
 
 ### Fields authored only in the prefab
 
@@ -339,7 +340,7 @@ Use this decision table when `validate_prefab_against_template_tool` reports any
 | Failure                                              | Likely cause                                                          | Action                                                                                                                |
 |------------------------------------------------------|-----------------------------------------------------------------------|-----------------------------------------------------------------------------------------------------------------------|
 | `cue_prefabs[].exists: false`                        | Cue referenced by a segment was never generated, or was deleted       | Run `generate_task_prefab_tool` again to rebuild missing cue prefabs                                                  |
-| `segments[].prefab_exists: false`                    | Segment prefab missing from `Prefabs/`                                | Run `generate_task_prefab_tool` again                                                                                 |
+| `trials[].prefab_exists: false`                      | Segment prefab missing from `Prefabs/`                                | Run `generate_task_prefab_tool` again                                                                                 |
 | `cue_order_match: false`                             | YAML `cue_sequence` was edited without deleting the segment prefab    | [Regenerate](#regenerating-after-template-edits) — delete the segment prefab, re-run generation                       |
 | `segment_length_match: false`                        | Cue lengths were edited without deleting the affected cue prefabs     | [Regenerate](#regenerating-after-template-edits) — delete the cue prefabs (and segment prefab), re-run generation     |
 | `zone_z_match: false` / `zone_size_match: false`     | Trial zone math edited in place; or occupancy mode (known divergence) | Lick mode → regenerate the segment prefab. Occupancy mode → cross-check against `/task-generator` formula reference.  |

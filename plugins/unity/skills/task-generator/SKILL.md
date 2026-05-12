@@ -58,7 +58,7 @@ CreateTask.CreateFromTemplate(absoluteTemplatePath, relativeConfigPath, savePath
 │
 └── Assemble task GameObject
     │
-    ├── Iterate all (segment_count ^ depth) corridor permutations
+    ├── Iterate all (trial_count ^ depth) corridor permutations
     ├── Instantiate segment prefabs along +Z inside each Corridor<indices>
     ├── Strip StimulusTriggerZone and ResetZone from non-first segments in each corridor
     ├── Set StimulusTriggerZone.showBoundary on the first segment from template
@@ -111,7 +111,7 @@ Generated under `Assets/InfiniteCorridorTask/Prefabs/<segment-name>.prefab`.
 
 ```text
 <segment-name>
-│   localPosition = (0, 0, -cueOffsetUnity)   ← cue_offset_cm / cm_per_unity_unit shifts the cues upstream
+│   localPosition = (0, 0, -cueOffsetUnity)   ← vr_environment.cue_offset_cm / cm_per_unity_unit shifts the cues upstream
 │
 ├── Cue<CueA>                 localPosition.z = 0
 ├── Cue<CueB>                 localPosition.z = length(Cue<CueA>)

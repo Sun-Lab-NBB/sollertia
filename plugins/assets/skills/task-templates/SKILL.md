@@ -22,7 +22,7 @@ helpers — no other skill in the marketplace may call these.
 
 **Covers:**
 - Authoring `TaskTemplate` YAML files in the configured task templates directory
-- The template vocabulary (`Cue`, `Segment`, `TrialStructure`, `VREnvironment`, `TriggerType`)
+- The template vocabulary (`Cue`, `TrialStructure`, `VREnvironment`, `TriggerType`)
 - Discovering existing templates and reading their contents
 - Schema introspection via `describe_template_schema_tool`
 - Template validation via `validate_template_tool`
@@ -57,23 +57,20 @@ two different skills with two different ownership scopes.
 
 A `TaskTemplate` is composed of these classes (all defined in `sollertia_shared_assets.configuration`):
 
-| Primitive        | Purpose                                                                                   |
-|------------------|-------------------------------------------------------------------------------------------|
-| `Cue`            | A visual cue (name, uint8 code, length, optional texture) referenced by segments          |
-| `Segment`        | A spatial region: cue sequence + optional transition probabilities to other segments      |
-| `TrialStructure` | Per-trial spatial config: segment, stimulus trigger zone, stimulus location, trigger type |
-| `VREnvironment`  | VR corridor configuration: spacing, segments per corridor, padding prefab, units          |
-| `TriggerType`    | Enum of stimulus trigger zone activators (`lick`, `occupancy`)                            |
+| Primitive        | Purpose                                                                                                              |
+|------------------|----------------------------------------------------------------------------------------------------------------------|
+| `Cue`            | A visual cue (name, uint8 code, length, optional texture) referenced by trial cue sequences                          |
+| `TrialStructure` | Per-trial spatial config: cue sequence, optional transitions, stimulus trigger zone, stimulus location, trigger type |
+| `VREnvironment`  | VR corridor configuration: spacing, segments per corridor, padding prefab, units, cue offset                         |
+| `TriggerType`    | Enum of stimulus trigger zone activators (`lick`, `occupancy`)                                                       |
 
 `TaskTemplate.trial_structures` is a `dict[str, TrialStructure]` keyed by trial name. The template
 itself does **not** carry trial weights, experiment-specific reward parameters, or trial-class
 choices — those live on the system-specific experiment configuration (e.g.
 `MesoscopeExperimentConfiguration`) and are owned by `/experiment-configuration`.
-The concrete trial classes `WaterRewardTrial` and `GasPuffTrial` (both subclasses of the abstract
-`BaseTrial`) are experiment-scope classes; they appear in this skill only when you call
-`list_supported_trial_types_tool` to enumerate what an experiment configuration may instantiate from
-a template's `TrialStructure` entries. `BaseTrial` itself is not returned by the tool — it is the
-shared parent, not an instantiable trial type.
+The standalone trial classes `WaterRewardTrial` and `GasPuffTrial` are experiment-scope classes;
+they appear in this skill only when you call `list_supported_trial_types_tool` to enumerate what an
+experiment configuration may instantiate to pair with a template's `TrialStructure` entries.
 
 For canonical field definitions and valid values, call `describe_template_schema_tool` — do not rely on
 handwritten documentation that may drift from the slsa source of truth. For the canonical trial-class
@@ -107,14 +104,13 @@ synonymous.
 
 ### How template fields are used
 
-| Field                                      | Consumer-side role                                                                                                                                                                                               |
-|--------------------------------------------|------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
-| **`cues`**                                 | Unity bakes wall textures from each cue's `texture` asset; the uint8 `code` is the on-the-wire identifier the runtime uses for analysis.                                                                         |
-| **`segments`**                             | Unity prefab building blocks. Each segment maps to a Unity prefab whose name matches `segment.name`.                                                                                                             |
-| **`segments[i].transition_probabilities`** | Drive Unity's segment-sequence resolver at session init. Sampled to materialize the deterministic segment chain; null/empty falls back to uniform-random successor selection.                                    |
-| **`vr_environment`**                       | Parameterizes corridor geometry: how many segments are visible at once, how parallel corridor instances are spaced, the centimeter↔Unity-unit conversion, the padding prefab. See `/task-prefabs` for specifics. |
-| **`trial_structures`**                     | Spatial zone definitions per trial type — segment binding, stimulus trigger zone bounds, stimulus location, visible-boundary flag, and trigger type. The trigger type tells Unity which zone prefab to bake.     |
-| **`cue_offset_cm`**                        | Shifts the cue sequence origin relative to the animal's per-corridor spawn point so cue alignment is preserved as the runtime advances through the corridor sequence.                                            |
+| Field                                 | Consumer-side role                                                                                                                                                                                                                                                                                               |
+|---------------------------------------|------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| **`cues`**                            | Unity bakes wall textures from each cue's `texture` asset; the uint8 `code` is the on-the-wire identifier the runtime uses for analysis.                                                                                                                                                                         |
+| **`vr_environment`**                  | Parameterizes corridor geometry: how many segments are visible at once, how parallel corridor instances are spaced, the centimeter↔Unity-unit conversion, the padding prefab, and the cue offset that shifts the cue sequence origin relative to each corridor's spawn point. See `/task-prefabs` for specifics. |
+| **`trial_structures`**                | Spatial config per trial type — cue sequence, stimulus trigger zone bounds, stimulus location, visible-boundary flag, trigger type, and optional transitions. The trigger type tells Unity which zone prefab to bake.                                                                                            |
+| **`trial_structures[].cue_sequence`** | Drives Unity's segment-prefab geometry: each trial generates a single segment prefab whose cue ordering matches this sequence. Cue prefab lengths sum to the segment length used by zone validation.                                                                                                             |
+| **`trial_structures[].transitions`**  | Drives Unity's segment-sequence resolver at session init. Sampled to materialize the deterministic trial chain; null/empty falls back to uniform-random successor selection.                                                                                                                                     |
 
 After Unity emits the materialized cue sequence at session start, the acquisition runtime
 **decomposes it back into a trial timeline** by motif-matching each `TrialStructure`'s cue
@@ -128,29 +124,28 @@ trial subclass in the per-project experiment configuration via `/experiment-conf
 - **Cues are a flat catalog with unique uint8 codes** because the analysis pipeline indexes
   wall encounters by code and needs deterministic, low-cost packing. The 0–255 range caps the
   vocabulary at 256 cues per template, which has been more than sufficient in practice.
-- **Segments are reusable, prefab-aligned units** because Unity needs concrete prefabs to
-  instantiate, and reusing the same prefab across trial types is how multi-segment paradigms
-  share geometry.
-- **Transition probabilities live on segments, not on trials** because the corridor topology is
-  what generates the trial sequence. Putting the probabilities at the trial level would force
-  the runtime to know about trials before the cue sequence is even emitted, which inverts the
-  Unity → acquisition-runtime data flow.
+- **Each trial structure embeds its own cue sequence** because the Unity task generator derives
+  segment prefab geometry directly from the trial's cue sequence — there is no separate segment
+  catalog. The segment prefab name is computed from the cue sequence and the trigger zone
+  configuration, so two trials with identical geometry but different zones produce distinct
+  prefabs.
+- **Transitions are a named dict (`{trial_name: probability}`)** because
+  the trial-to-trial topology is the source of truth for corridor sequencing. Names make the
+  topology order-independent and self-documenting; omitted keys carry implicit zero probability,
+  so the dict need only enumerate reachable trials.
 - **`TrialStructure` is spatial-only** (no rewards, no puff durations, no occupancy thresholds)
   because those are project-level behavioral parameters that vary between teams using the same
-  paradigm. They live on the experiment-config trial subclasses authored by
-  `/experiment-configuration`.
+  paradigm. They live on the experiment-config trial classes (`WaterRewardTrial`, `GasPuffTrial`)
+  authored by `/experiment-configuration` and are joined to the spatial structure by trial name.
 - **`trigger_type` is on `TrialStructure`** because Unity must pick the zone prefab during
-  template generation — long before any experiment-config trial subclass exists. The trigger
-  type is therefore the template's contract with Unity; the per-trial subclass is the
-  experiment config's contract with the runtime's stimulus delivery code.
-- **`cue_offset_cm` is authored on the template and flows through to the experiment
-  configuration at creation time.** The field lives on both `TaskTemplate` and
-  `MesoscopeExperimentConfiguration`, but the template is the authoritative source —
-  `_create_mesoscope_experiment_config` (in `configuration_utilities.py`) copies it into every
-  new experiment configuration so the frozen session-time snapshot can stand alone. The
-  cue-origin position relative to the corridor's spawn point is an attribute of the corridor
-  geometry itself, so every Unity-spawned corridor instance sees the same value; projects
-  reusing the same paradigm should not redefine it on the experiment-config side.
+  template generation — long before any experiment-config trial is instantiated. The trigger
+  type is therefore the template's contract with Unity; the matching experiment-config trial
+  class is the experiment config's contract with the runtime's stimulus delivery code.
+- **`cue_offset_cm` lives on `vr_environment`** because the cue-origin shift is an attribute of
+  the corridor geometry itself — every Unity-spawned corridor instance sees the same value. It
+  also controls the per-segment ResetZone placement: the ResetZone sits at segment-local
+  `z = cue_offset_cm / cm_per_unity_unit` so the animal's spawn point (world z = 0) falls inside
+  the zone on every lap restart.
 
 ---
 
@@ -209,18 +204,15 @@ accepted by `trigger_type` and the exact class names used for the `GasPuffTrial`
 Build the template dictionary in this order:
 
 1. **VR environment** — define the `VREnvironment` (corridor spacing, segments per corridor, padding
-   prefab name, cm-per-unity-unit conversion).
+   prefab name, cm-per-unity-unit conversion, cue offset).
 2. **Cue catalog** — define every `Cue` (name, uint8 code, length, optional texture filename).
-3. **Segments** — define each `Segment` (cue sequence + optional transition probabilities that sum
-   to 1.0).
-4. **Trial structures** — populate the `trial_structures` dict, mapping each trial name to a
-   `TrialStructure` (segment reference, stimulus trigger zone start/end, stimulus location, whether
-   the collision boundary is visible, trigger type from `list_supported_trigger_types_tool`).
-5. **Cue offset** — set `cue_offset_cm` (the animal's starting position offset relative to the cue
-   sequence origin).
+3. **Trial structures** — populate the `trial_structures` dict, mapping each trial name to a
+   `TrialStructure` (cue sequence, stimulus trigger zone start/end, stimulus location, whether the
+   collision boundary is visible, trigger type from `list_supported_trigger_types_tool`, and an
+   optional `transitions` dict mapping target trial names to probabilities summing to 1.0).
 
 Trial weights, reward sizes, gas-puff durations, occupancy thresholds, experiment states, and the
-choice of trial subclass (`WaterRewardTrial` vs `GasPuffTrial`) are **not** part of the template —
+choice of trial class (`WaterRewardTrial` vs `GasPuffTrial`) are **not** part of the template —
 they are added per-experiment by `/experiment-configuration`.
 
 ### Step 5: Write, validate, and re-read
@@ -248,15 +240,14 @@ Pass `overwrite=True` only when intentionally replacing an existing template.
 - cue codes are unique
 - cue codes are in `[0, 255]`
 - cue names are unique
-- segment `cue_sequence` entries are non-empty and reference valid cue names
-- segment `transition_probabilities`, when provided, sum to 1.0
-- each `TrialStructure.segment_name` references a valid segment
+- each trial `cue_sequence` is non-empty and references valid cue names
+- each trial `transitions`, when provided, sums to 1.0 and references valid trial names
 - each `TrialStructure.trigger_type` is a valid `TriggerType` value
 - per-trial zone positions satisfy `start ≤ end`, `stimulus_location_cm ≥ start`, and all three are
-  within the segment length
+  within the trial's segment length
 
-On success the tool returns a `summary` (cue/segment/trial counts plus `cue_offset_cm`); on failure
-it returns an `issues` list. Fix any reported issues and re-write before handing off.
+On success the tool returns a `summary` (cue/trial counts plus `cue_offset_cm`); on failure it
+returns an `issues` list. Fix any reported issues and re-write before handing off.
 
 ### Step 6: Hand off for Unity prefab generation and verification
 
@@ -283,12 +274,13 @@ for instantiating templates into experiment configurations.
 
 1. Read the template with `read_template_tool`.
 2. Confirm the trigger type via `list_supported_trigger_types_tool`.
-3. Add a new `TrialStructure` entry to the `trial_structures` dict, keyed by trial name. Reference an
-   existing segment in `segment_name`, set the stimulus zone bounds, and pick a `trigger_type`.
+3. Add a new `TrialStructure` entry to the `trial_structures` dict, keyed by trial name. Specify the
+   `cue_sequence`, the stimulus zone bounds, the `trigger_type`, and (if other trials should route
+   to this one or vice versa) update the relevant `transitions` dicts.
 4. Write the template back with `write_template_tool` (use `overwrite=True`).
 5. Re-run `validate_template_tool` to confirm the new entry passes cross-reference checks.
-6. Hand off to `/experiment-configuration` if a per-project experiment needs to bind this trial to
-   a `WaterRewardTrial` or `GasPuffTrial` subclass and assign weights.
+6. Hand off to `/experiment-configuration` if a per-project experiment needs to pair this trial with
+   a `WaterRewardTrial` or `GasPuffTrial` runtime class and assign weights.
 
 ### Migrate a template to a new VR scene
 
@@ -332,6 +324,6 @@ for instantiating templates into experiment configurations.
 | `/working-directory`                   | Required prerequisite — owns the templates directory path                                                   |
 | `/assets-mcp-environment-setup`        | Run first if the MCP server is not connected                                                                |
 | `/experiment-configuration`            | Consumer — instantiates templates into per-project experiments                                              |
-| `/library-extension`                   | Cross-cutting recipe to add a new `TriggerType`, `BaseTrial` subclass, or VR paradigm beyond the corridor   |
+| `/library-extension`                   | Cross-cutting recipe to add a new `TriggerType`, runtime trial class, or VR paradigm beyond the corridor    |
 | unity plugin `/task-prefabs`           | Downstream — generates and validates the Unity prefab                                                       |
 | unity plugin `/scenes`                 | Downstream — places the generated prefab into a Unity scene                                                 |

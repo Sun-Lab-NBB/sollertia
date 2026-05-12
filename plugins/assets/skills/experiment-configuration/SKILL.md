@@ -111,10 +111,9 @@ that does not engage trial-driving hardware (e.g. REST on Mesoscope-VR).
 ### Trials emerge from the template, not from the experiment configuration
 
 The experiment configuration **does not enumerate or schedule trials**. The trial sequence is
-determined by the template's segment topology and `transition_probabilities` (see
-`/task-templates`): the acquisition runtime materializes a cue sequence at session init from the
-template, then identifies trial boundaries within that sequence by motif matching against each
-`TrialStructure`.
+determined by the template's per-trial `transitions` (see `/task-templates`): the acquisition
+runtime materializes a cue sequence at session init from the template, then identifies trial
+boundaries within that sequence by motif matching against each `TrialStructure`.
 
 This is why there is **no `trial_weights` field** on the experiment configuration. Relative
 frequencies are encoded in the template's transition probabilities, and the per-session trial
@@ -139,14 +138,13 @@ configuration captures that whole arc by chaining states with different guidance
 
 ### Why the schema is shaped this way
 
-- **Template-derived fields (`cues`, `segments`, `vr_environment`, `cue_offset_cm`)** are
-  copied out of the `TaskTemplate` when the experiment configuration is created so the YAML is
-  self-contained for the runtime. It never re-resolves against the template at session time,
-  and the per-session frozen snapshot freezes a complete record of what was run for downstream
-  analysis.
+- **`unity_scene_name`** identifies the paired `TaskTemplate` by filename stem. The experiment
+  configuration carries **no VR data of its own** — it references the template by name, and the
+  runtime joins the two by trial name at session init. The per-session frozen snapshot consists
+  of both files (the experiment configuration YAML and the matching VR template YAML).
 - **`trial_structures: dict[str, WaterRewardTrial | GasPuffTrial]`** carries the choice of
   trial *class* per trial name. The template only provides the spatial `TrialStructure`; the
-  experiment configuration promotes each entry to a concrete subclass and attaches the per-trial
+  experiment configuration pairs each entry with a concrete runtime trial class and attaches the per-trial
   parameters. The natural pairing is `trigger_type: "lick"` → `WaterRewardTrial` and
   `trigger_type: "occupancy"` → `GasPuffTrial`, because the template's `trigger_type` is what
   Unity used to bake the matching zone prefab. Cross-pairing is schema-legal but produces a
@@ -261,23 +259,21 @@ Future system-specific subclasses will likely follow a similar shape (template-d
 state machine, trial structures), but consult `describe_experiment_configuration_schema_tool` with
 the matching `acquisition_system` value rather than assuming the mesoscope schema applies verbatim.
 
-- `cues: list[Cue]`
-- `segments: list[Segment]`
 - `trial_structures: dict[str, WaterRewardTrial | GasPuffTrial]` — a per-trial dict; each entry is
   either a `WaterRewardTrial` (with `reward_size_ul`, `reward_tone_duration_ms`) or a `GasPuffTrial`
-  (with `puff_duration_ms`, `occupancy_duration_ms`), each carrying inherited spatial fields.
+  (with `puff_duration_ms`, `occupancy_duration_ms`). These are standalone dataclasses carrying
+  **only** runtime parameters; the matching spatial fields (cue sequence, zones, trigger type) live
+  on the paired `TaskTemplate`'s `trial_structures[<same name>]` and are joined at session init.
 - `experiment_states: dict[str, ExperimentState]` — a dict, **not a list**. Access by string key
   (e.g. `experiment_states["state_1"].state_duration_s`), not by integer index. `populate_default_experiment_states`
   generates 1-indexed names (`state_1`, `state_2`, …); the first autopopulated state is `state_1`,
   not `state_0`. `ExperimentState` fields include `experiment_state_code`, `system_state_code`,
   `state_duration_s`, `supports_trials`, and the reinforcing/aversive guidance counters.
-- `vr_environment: VREnvironment`
-- `unity_scene_name: str`
-- `cue_offset_cm: float`
+- `unity_scene_name: str` — also identifies the paired `TaskTemplate` YAML by filename stem.
 
 There is no `trial_weights` field and no `water_reward_volume_uL` field — water-reward sizing lives
 on `WaterRewardTrial.reward_size_ul`, and the relative frequency of trial types is determined by
-segment transition probabilities in the template (not by per-trial weights here).
+the template's per-trial `transitions` (not by per-trial weights here).
 
 Then write it back:
 
@@ -306,22 +302,15 @@ read_experiment_configuration_tool(
 `from_yaml` (today: `MesoscopeExperimentConfiguration.from_yaml`), which triggers `__post_init__`
 validation:
 
-- cue codes are unique
-- cue names are unique
-- segment cue sequences reference valid cue names
-- each trial structure's `segment_name` references a valid segment
+The experiment configuration does not carry VR-side data, so the YAML loader performs only the
+basic dataclass instantiation checks (correct field types, required fields present). Cross-template
+validation (cue sequences, zone bounds, trigger-type pairing) is the responsibility of
+`/task-templates` `validate_template_tool` on the paired VR configuration. At session init, the
+acquisition runtime joins the two by trial name and validates that every `trial_structures` key in
+the experiment configuration matches a key in the template.
 
-After those checks pass, `__post_init__` populates each trial's `cue_sequence` and `trial_length_cm`
-from the referenced segment, then calls `BaseTrial.validate_zones()`, which enforces:
-
-- `stimulus_trigger_zone_end_cm ≥ stimulus_trigger_zone_start_cm`
-- `0 ≤ stimulus_trigger_zone_start_cm ≤ trial_length_cm`
-- `0 ≤ stimulus_trigger_zone_end_cm ≤ trial_length_cm`
-- `0 ≤ stimulus_location_cm ≤ trial_length_cm`
-- `stimulus_location_cm ≥ stimulus_trigger_zone_start_cm`
-
-On success the tool returns a `summary` (cue/segment/trial/state counts plus `unity_scene_name`); on
-failure it returns an `issues` list. Fix any reported issues and re-write.
+On success the tool returns a `summary` (trial/state counts plus `unity_scene_name`); on failure it
+returns an `issues` list. Fix any reported issues and re-write.
 
 ---
 
@@ -387,13 +376,13 @@ reason, that is currently not supported by the sollertia-shared-assets MCP layer
 
 ## Related skills
 
-| Skill                                     | Relationship                                                                                                                                       |
-|-------------------------------------------|----------------------------------------------------------------------------------------------------------------------------------------------------|
-| `/working-directory`                      | Provides the templates directory so `/task-templates` knows where to enumerate; this skill needs only absolute paths                               |
-| `/assets-mcp-environment-setup`           | Run first if the MCP server is not connected                                                                                                       |
-| `/task-templates`                         | Required upstream — owns template authoring and exposes `discover_templates_tool` for absolute template paths                                      |
-| `/project-hierarchy`                      | Required upstream — owns project creation                                                                                                          |
-| experiment plugin `/system-configuration` | Owns MesoscopeSystemConfiguration (moved out of this plugin)                                                                                       |
-| unity plugin `/task-prefabs`              | Validates template values against the Unity prefab state                                                                                           |
-| experiment plugin `/experiment-pipeline`  | Phase 4 of the experiment lifecycle is owned by this skill                                                                                         |
-| `/library-extension`                      | Cross-cutting recipe to add a new `AcquisitionSystems`, `BaseTrial`, or `TriggerType` member; lists the prose here that needs updating in lockstep |
+| Skill                                     | Relationship                                                                                                                                               |
+|-------------------------------------------|------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| `/working-directory`                      | Provides the templates directory so `/task-templates` knows where to enumerate; this skill needs only absolute paths                                       |
+| `/assets-mcp-environment-setup`           | Run first if the MCP server is not connected                                                                                                               |
+| `/task-templates`                         | Required upstream — owns template authoring and exposes `discover_templates_tool` for absolute template paths                                              |
+| `/project-hierarchy`                      | Required upstream — owns project creation                                                                                                                  |
+| experiment plugin `/system-configuration` | Owns MesoscopeSystemConfiguration (moved out of this plugin)                                                                                               |
+| unity plugin `/task-prefabs`              | Validates template values against the Unity prefab state                                                                                                   |
+| experiment plugin `/experiment-pipeline`  | Phase 4 of the experiment lifecycle is owned by this skill                                                                                                 |
+| `/library-extension`                      | Cross-cutting recipe to add a new `AcquisitionSystems`, runtime trial class, or `TriggerType` member; lists the prose here that needs updating in lockstep |
