@@ -176,7 +176,7 @@ rejected by the Unity AssetDatabase.
 |------------------------|-----------------------------------------------------|
 | Scenes                 | `Assets/Scenes/<name>.unity`                        |
 | Task prefabs           | `Assets/InfiniteCorridorTask/Tasks/<name>.prefab`   |
-| Segment prefabs        | `Assets/InfiniteCorridorTask/Prefabs/Segment_*.prefab` |
+| Segment prefabs        | `Assets/InfiniteCorridorTask/Prefabs/<template>_<trial>.prefab` |
 | Task template YAMLs    | `Assets/InfiniteCorridorTask/Configurations/<name>.yaml` |
 | Scene base template    | `Assets/Scenes/ExperimentTemplate.unity`            |
 

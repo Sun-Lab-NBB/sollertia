@@ -126,9 +126,9 @@ trial subclass in the per-project experiment configuration via `/experiment-conf
   vocabulary at 256 cues per template, which has been more than sufficient in practice.
 - **Each trial structure embeds its own cue sequence** because the Unity task generator derives
   segment prefab geometry directly from the trial's cue sequence — there is no separate segment
-  catalog. The segment prefab name is computed from the cue sequence and the trigger zone
-  configuration, so two trials with identical geometry but different zones produce distinct
-  prefabs.
+  catalog. The segment prefab name is `<template_name>_<trial_name>`, so every trial structure
+  yields a distinct prefab keyed by the trial key (no geometric coincidence between two trials can
+  cause them to collapse into a single prefab).
 - **Transitions are a named dict (`{trial_name: probability}`)** because
   the trial-to-trial topology is the source of truth for corridor sequencing. Names make the
   topology order-independent and self-documenting; omitted keys carry implicit zero probability,
@@ -240,6 +240,8 @@ Pass `overwrite=True` only when intentionally replacing an existing template.
 - cue codes are unique
 - cue codes are in `[0, 255]`
 - cue names are unique
+- each trial name matches `^[A-Za-z0-9_]+$` (used verbatim in the Unity-side
+  `<template>_<trial>.prefab` segment filename)
 - each trial `cue_sequence` is non-empty and references valid cue names
 - each trial `transitions`, when provided, sums to 1.0 and references valid trial names
 - each `TrialStructure.trigger_type` is a valid `TriggerType` value

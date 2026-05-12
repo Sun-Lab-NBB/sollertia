@@ -41,13 +41,15 @@ CreateTask.CreateFromTemplate(absoluteTemplatePath, relativeConfigPath, savePath
 │
 ├── ConfigLoader.LoadTemplate                ← YAML → TaskTemplate
 │
-├── BuildCuePrefabs(template)                ← Cues/Cue_<name>.prefab  (idempotent)
-│   │
-│   ├── Load/create Materials/Cue_<name>.mat from Textures/<cue.texture>
-│   ├── Build Right + Left quads scaled to cue.length_cm / cm_per_unity_unit
-│   └── Save Cues/Cue_<name>.prefab
+├── CleanGeneratedSegments(template)         ← Deletes every Prefabs/<template>_<trial>.prefab the template owns
 │
-├── BuildSegmentPrefabs(template)            ← Prefabs/<segment-name>.prefab  (idempotent)
+├── BuildCuePrefabs(template)                ← Cues/Cue_<name>_<length>cm.prefab  (shared, skip-if-exists)
+│   │
+│   ├── Load/create Materials/Cue_<name>_<length>cm.mat from Textures/<cue.texture>
+│   ├── Build Right + Left quads scaled to cue.length_cm / cm_per_unity_unit
+│   └── Save Cues/Cue_<name>_<length>cm.prefab
+│
+├── BuildSegmentPrefabs(template)            ← Prefabs/<template_name>_<trial_name>.prefab  (always rebuilt)
 │   │
 │   ├── Place cue instances sequentially along +Z
 │   ├── Build Floor (plane) and Walls (LeftWall + RightWall quads)
@@ -66,9 +68,15 @@ CreateTask.CreateFromTemplate(absoluteTemplatePath, relativeConfigPath, savePath
 ```
 
 Keys:
-- **Idempotent steps**: `BuildCuePrefabs` and `BuildSegmentPrefabs` check for existing prefabs and skip them. To
-  regenerate a cue or segment prefab, delete it from the Editor first.
-- **Non-idempotent step**: the final task prefab is always overwritten at `savePath`.
+- **Cue prefabs are shared across templates**: `BuildCuePrefabs` keys cue assets by `name + length_cm`, so two
+  templates that declare an `A` at 30 cm reuse a single `Cue_A_30cm.prefab` / `Cue_A_30cm.mat`. The pass is
+  skip-if-exists; an edit to a cue's **texture** without renaming the cue requires deleting the cue prefab and
+  material manually before regenerating (see `/task-prefabs` regeneration workflow).
+- **Segment prefabs are template-owned and always rebuilt**: `CleanGeneratedSegments` deletes every
+  `<template>_<trial>.prefab` declared by the template before `BuildSegmentPrefabs` runs, so trial-parameter edits
+  in the YAML (cue sequence, zone math, trigger type) take effect on the next generation pass without any manual
+  cleanup. Identical-geometry trials in different templates no longer share a prefab.
+- **The final task prefab** is always overwritten at `savePath`.
 - **Validation warning** (not an error): if the measured segment-prefab length disagrees with
   `sum(cue.length_cm / cm_per_unity_unit)` by more than `0.01`, `CreateTask` logs a warning but proceeds using the
   template's computed length.
@@ -77,21 +85,23 @@ Keys:
 
 ## Cue prefab anatomy
 
-Generated under `Assets/InfiniteCorridorTask/Cues/Cue_<name>.prefab`.
+Generated under `Assets/InfiniteCorridorTask/Cues/Cue_<name>_<length>cm.prefab` — the length suffix lets a single
+cue name resolve to distinct prefabs when different templates declare different lengths (e.g. `Cue_A_30cm.prefab`
+and `Cue_A_50cm.prefab`).
 
 ```text
-Cue_<name>
+Cue_<name>_<length>cm
 ├── Right                     localPosition = (0.49, 0.5, lengthUnity/2)
 │                             rotation      = (0, 90, 0)
 │                             scale         = (-lengthUnity, 1, 1)   ← negative X flips the quad
 │                             components    = [MeshFilter, MeshRenderer]
-│                             material      = Materials/Cue_<name>.mat
+│                             material      = Materials/Cue_<name>_<length>cm.mat
 │
 └── Left                      localPosition = (-0.49, 0.5, lengthUnity/2)
                               rotation      = (0, -90, 0)
                               scale         = (lengthUnity, 1, 1)
                               components    = [MeshFilter, MeshRenderer]
-                              material      = Materials/Cue_<name>.mat
+                              material      = Materials/Cue_<name>_<length>cm.mat
 ```
 
 - `lengthUnity = cue.length_cm / cm_per_unity_unit`.
@@ -107,10 +117,13 @@ YAML template's `cues[].texture` field, and generate — the cue prefab and mate
 
 ## Segment prefab anatomy
 
-Generated under `Assets/InfiniteCorridorTask/Prefabs/<segment-name>.prefab`.
+Generated under `Assets/InfiniteCorridorTask/Prefabs/<template_name>_<trial_name>.prefab`. The filename is derived
+directly from the template filename (without extension) and the trial key under `trial_structures`, so each
+template owns its segments outright. `ConfigLoader` rejects trial names that contain characters outside
+`[A-Za-z0-9_]` so the filesystem layout is always well-formed.
 
 ```text
-<segment-name>
+<template_name>_<trial_name>
 │   localPosition = (0, 0, -cueOffsetUnity)   ← vr_environment.cue_offset_cm / cm_per_unity_unit shifts the cues upstream
 │
 ├── Cue<CueA>                 localPosition.z = 0
@@ -291,9 +304,10 @@ tool after any pipeline modification.
 
 No code changes needed for cues — new textures and YAML entries are enough.
 
-For hand-authored segment prefabs (which `BuildSegmentPrefabs` does not generate because the prefab already exists),
-create the prefab by **copying an existing segment prefab** and modifying the cue sequence, then update the YAML
-template to reference it. Validate with `/task-prefabs`.
+Segment prefabs are always generated from the template's `trial_structures` block; hand-authoring them is not
+supported under the always-regenerate flow because `CleanGeneratedSegments` would delete the hand-authored
+prefab on the next generation pass. Express new segment geometry by adding a trial structure to the YAML
+template instead.
 
 ### Adding a new template-driven field
 
@@ -314,7 +328,7 @@ template to reference it. Validate with `/task-prefabs`.
 | `BuildCuePrefabs` error: `Failed to load texture`     | Cue's `texture` field references a file not in `Textures/`      | Import the texture, retry generation               |
 | `BuildSegmentPrefabs` error: `Missing Floor.mat`      | Shared materials deleted or renamed                             | Restore from git                                   |
 | Segment length warning in Console                     | Cue lengths do not sum to measured prefab length                | Either regenerate the segment or fix template cues |
-| `generate_task_prefab_tool` error: `No segment found` | Template references a segment prefab that was never authored    | Hand-author the segment prefab first               |
+| `generate_task_prefab_tool` error: `No segment found` | Segment build pass failed silently (asset DB out of sync, missing zone prefabs) | Check Unity Console for `BuildSegmentPrefabs:` warnings, ensure zone base prefabs and Floor/Wall materials exist, regenerate |
 | Zone geometry looks wrong in scene view               | Template's cm values or `cm_per_unity_unit` mismatch             | Recheck YAML; regenerate                           |
 | Occupancy validator reports `zone_z_match: false` on a correctly generated prefab | Known validator / generator drift (see above) | Use zone-collider visual inspection in Editor      |
 | Cue textures appear mirrored on Left or Right wall    | Quad scale sign is flipped (Right uses negative X)              | Intentional — each wall shows a correctly-oriented cue |
@@ -326,7 +340,8 @@ template to reference it. Validate with `/task-prefabs`.
 ```text
 - [ ] Any change to zone placement is reflected in both PlaceLickZone and PlaceOccupancyZone if applicable
 - [ ] New zone types appear in BuildSegmentPrefabs trigger-type switch AND in the zone base prefab set
-- [ ] Cue and segment prefab regeneration paths remain idempotent (existing prefabs are skipped)
+- [ ] Cue prefab regeneration remains shared and skip-if-exists; segment prefab regeneration remains always-rebuilt
+      via `CleanGeneratedSegments`
 - [ ] Hardcoded asset paths (Prefabs/, Cues/, Materials/, Textures/) are not changed without updating every call site
 - [ ] CreateTask → New Task Editor menu and McpBridge.GenerateTaskPrefab produce identical prefabs for the same template
 - [ ] After any generator change, run validate_prefab_against_template_tool to confirm round-trip invariants hold

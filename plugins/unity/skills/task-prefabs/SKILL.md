@@ -46,8 +46,11 @@ other skill in the marketplace may call these.
 - A **task prefab** is the concrete Unity GameObject hierarchy under
   `Assets/InfiniteCorridorTask/Tasks/<name>.prefab`, built by `generate_task_prefab_tool` from the
   template. It is the runtime representation the Unity scene instantiates.
-- Segment prefabs under `Assets/InfiniteCorridorTask/Prefabs/Segment_*.prefab` are the reusable
-  building blocks that both the template and the generated task prefab reference.
+- Segment prefabs under `Assets/InfiniteCorridorTask/Prefabs/<template_name>_<trial_name>.prefab`
+  are the building blocks that the generated task prefab references. Segment prefab filenames are
+  derived directly from the template filename and the trial key under `trial_structures`, so each
+  template owns its segments outright; identical-geometry trials in different templates no longer
+  collapse to a shared prefab.
 
 ---
 
@@ -175,7 +178,8 @@ The tool returns a top-level `cue_prefabs` list with per-cue prefab existence, p
 list. Each trial entry reports:
 
 - `trial`: The trial name (the key in the template's `trial_structures` dict).
-- `canonical_name`: The derived segment prefab filename (e.g. `Segment_abc_g_240cm_r180cm`).
+- `canonical_name`: The derived segment prefab filename — always `<template_name>_<trial_name>`
+  (e.g. `MF_Reward_Base_ABCD`).
 - `prefab_exists`: Segment prefab file is present under `Assets/InfiniteCorridorTask/Prefabs/`.
 - `cue_order` / `expected_cue_order` / `cue_order_match`: Cue child names along the segment's local
   Z axis match the trial's `cue_sequence`.
@@ -207,47 +211,49 @@ manually — the validator is the single source of truth. Restore connectivity v
 
 ## Regenerating after template edits
 
-`generate_task_prefab_tool` does **not** overwrite existing cue or segment prefabs. The Unity-side
-`CreateTask` pipeline reuses any prefab already on disk, so editing a cue length, swapping a
-texture, or moving a stimulus zone in the YAML has no effect until the stale prefabs are deleted.
-The validator catches the resulting drift (`cue_order_match: false`, `segment_length_match: false`,
-`zone_z_match: false`), but the fix is always the same: delete the affected prefabs, then
-regenerate.
+`generate_task_prefab_tool` always rebuilds the **task prefab** and every **segment prefab** the
+template owns: the Unity-side `CreateTask` pipeline deletes the previous `<template>_<trial>.prefab`
+files before regenerating them, so trial-parameter edits in the YAML (cue sequence, zone math,
+trigger type) take effect on the next generation pass without any manual cleanup.
+
+**Cue prefabs and materials are different.** They are keyed by cue name and length only
+(`Cue_<name>_<length>cm.prefab` / `.mat`) and are shared across every template that declares a
+matching cue. `CreateTask` reuses an existing cue prefab whenever it finds one on disk, so editing
+a cue's **texture** while keeping the same name and length will not propagate until the cue prefab
+and its material are deleted. The validator catches the resulting drift on the segment side; the
+fix is to delete the cue and regenerate.
 
 ### Picking what to delete
 
-Project convention: **prefab names encode geometry**. Any change that would alter rendered
-geometry should be expressed by introducing a new cue or segment name in the template — not by
-mutating an existing one. Delete-and-regenerate is for the rarer case where the template was
-hand-edited in place (e.g. a typo fix or an early-iteration tweak) and you intend the existing
-name to refer to the new geometry.
-
-| Template change                                            | Delete                                                                                                 |
-|------------------------------------------------------------|--------------------------------------------------------------------------------------------------------|
-| `cues[].length_cm` or `cues[].texture` for cue X           | `Assets/InfiniteCorridorTask/Cues/Cue_X.prefab` (plus the `Cue_X.mat` material if the texture changed) |
-| `trial_structures[T].cue_sequence` for trial T             | `Assets/InfiniteCorridorTask/Prefabs/<canonical-name-for-T>.prefab`                                    |
-| `trial_structures[T]` zone math for trial T                | `Assets/InfiniteCorridorTask/Prefabs/<canonical-name-for-T>.prefab`                                    |
-| `vr_environment` fields (e.g. `cm_per_unity_unit`)         | All segment prefabs that reference the rescaled units                                                  |
+| Template change                                                       | Delete                                                                                                                                 |
+|-----------------------------------------------------------------------|----------------------------------------------------------------------------------------------------------------------------------------|
+| `cues[].texture` for cue X (name and length unchanged)                | `Assets/InfiniteCorridorTask/Cues/Cue_X_<length>cm.prefab` **and** `Assets/InfiniteCorridorTask/Materials/Cue_X_<length>cm.mat`         |
+| `cues[].length_cm` for cue X                                          | Nothing — a new length yields a new `Cue_X_<new-length>cm.prefab` automatically                                                        |
+| `trial_structures[T].cue_sequence` for trial T                        | Nothing — the segment prefab is regenerated automatically                                                                              |
+| `trial_structures[T]` zone math for trial T                           | Nothing — the segment prefab is regenerated automatically                                                                              |
+| `vr_environment.cm_per_unity_unit` (rescaled units affect every cue)  | All cue prefabs *and* materials under `Cues/` / `Materials/` whose lengths are affected                                                |
 
 The task prefab itself (`Assets/InfiniteCorridorTask/Tasks/<template>.prefab`) is rebuilt by every
-`generate_task_prefab_tool` call, so it does not need to be deleted unless the rename of an
-upstream segment leaves a dangling reference.
+`generate_task_prefab_tool` call.
 
 ### Workflow
 
-1. **Confirm the drift** — run `validate_prefab_against_template_tool` to identify which segments
-   or cues report `*_match: false`.
-2. **Delete the stale assets:**
+1. **Confirm the drift** — run `validate_prefab_against_template_tool` to identify which cues or
+   segments report `*_match: false`.
+2. **Delete stale cue assets** (only when cue textures or shared cue geometry changed):
    ```text
-   delete_unity_asset_tool(asset_path="Assets/InfiniteCorridorTask/Cues/Cue_X.prefab")
-   delete_unity_asset_tool(asset_path="Assets/InfiniteCorridorTask/Prefabs/Y.prefab")
+   delete_unity_asset_tool(asset_path="Assets/InfiniteCorridorTask/Cues/Cue_X_30cm.prefab")
+   delete_unity_asset_tool(asset_path="Assets/InfiniteCorridorTask/Materials/Cue_X_30cm.mat")
    ```
    The bridge refuses paths outside the InfiniteCorridorTask asset roots and refuses the four
    hand-authored protected assets (`StimulusTriggerZone.prefab`, `OccupancyTriggerZone.prefab`,
    `ResetZone.prefab`, `ExperimentTemplate.unity`). If the bridge rejects a path, do not bypass —
-   the asset is hand-authored and the template should reference a different name.
+   the asset is hand-authored and the template should reference a different name. Because cue
+   assets are shared across templates, deleting them will force every dependent template to
+   regenerate its cues on its next `generate_task_prefab_tool` call (a no-op when the new cue
+   matches what the dependent template would have produced).
 3. **Regenerate** — re-run `generate_task_prefab_tool` (Step 2 of the generation workflow). The
-   pipeline rebuilds only the deleted prefabs and refreshes the task prefab.
+   pipeline rebuilds every segment prefab from scratch and fills in any missing cue prefabs.
 4. **Re-validate** — run `validate_prefab_against_template_tool` and confirm every `*_match` field
    is `true` before handing off downstream.
 
@@ -296,7 +302,8 @@ side is authoritative and how drift is resolved.
 | `cues[].name`                                                   | `Cue_<name>_<length>cm.prefab` file name and material name             |
 | `cues[].texture`                                                | Main texture on the cue material                                       |
 | `cues[].length_cm` + `cm_per_unity_unit`                        | Cue quad mesh scale (Z axis)                                           |
-| `trial_structures[].cue_sequence` + `cues[].length_cm`          | Derives the canonical `Segment_*.prefab` filename and cue ordering     |
+| `trial_structures[].cue_sequence` + `cues[].length_cm`          | Drives cue child ordering and segment geometry (filename is template-and-trial-derived) |
+| Template filename + `trial_structures` key                      | Generates the `<template>_<trial>.prefab` segment filename and in-prefab `m_Name`       |
 | `vr_environment.padding_prefab_name`                            | Padding prefab loaded and appended past every corridor                 |
 | `vr_environment.segments_per_corridor`                          | Depth parameter for the `Corridor<indices>` hierarchy under the task   |
 | `vr_environment.cm_per_unity_unit`                              | Conversion factor for **all** cm-valued fields below                   |
@@ -340,10 +347,10 @@ Use this decision table when `validate_prefab_against_template_tool` reports any
 | Failure                                              | Likely cause                                                          | Action                                                                                                                |
 |------------------------------------------------------|-----------------------------------------------------------------------|-----------------------------------------------------------------------------------------------------------------------|
 | `cue_prefabs[].exists: false`                        | Cue referenced by a segment was never generated, or was deleted       | Run `generate_task_prefab_tool` again to rebuild missing cue prefabs                                                  |
-| `trials[].prefab_exists: false`                      | Segment prefab missing from `Prefabs/`                                | Run `generate_task_prefab_tool` again                                                                                 |
-| `cue_order_match: false`                             | YAML `cue_sequence` was edited without deleting the segment prefab    | [Regenerate](#regenerating-after-template-edits) — delete the segment prefab, re-run generation                       |
-| `segment_length_match: false`                        | Cue lengths were edited without deleting the affected cue prefabs     | [Regenerate](#regenerating-after-template-edits) — delete the cue prefabs (and segment prefab), re-run generation     |
-| `zone_z_match: false` / `zone_size_match: false`     | Trial zone math edited in place; or occupancy mode (known divergence) | Lick mode → regenerate the segment prefab. Occupancy mode → cross-check against `/task-generator` formula reference.  |
+| `trials[].prefab_exists: false`                      | Segment prefab missing from `Prefabs/`                                | Run `generate_task_prefab_tool` again — segments are always rebuilt                                                   |
+| `cue_order_match: false`                             | Stale segment prefab from before the segment-always-regenerate flow   | Run `generate_task_prefab_tool` again — the segment is rebuilt from the current `cue_sequence`                        |
+| `segment_length_match: false`                        | Cue lengths were edited without deleting the affected cue prefabs     | [Regenerate](#regenerating-after-template-edits) — delete the cue prefabs (and materials), re-run generation          |
+| `zone_z_match: false` / `zone_size_match: false`     | Trial zone math drift (likely from a pre-fix prefab); or occupancy mode (known divergence) | Lick mode → re-run `generate_task_prefab_tool`. Occupancy mode → cross-check against `/task-generator` formula reference. |
 | All `*_match: true`, but the prefab is hand-edited   | Editor hand-edits drifted out of the validator's coverage             | Update the template via assets `/task-templates`, then regenerate so the YAML is the source of truth                  |
 
 Rule of thumb: **the template is the source of truth**. Only promote the prefab to authoritative when you deliberately
@@ -393,7 +400,7 @@ Key markers:
 ### Disarmed segments (not the first segment of a corridor)
 
 `CreateTask` strips zones from segments at corridor depth > 0 because they are visual-only. An `inspect_prefab_tool`
-result where every `Segment_*` under a corridor except the first has no `StimulusTriggerZone` child is expected
+result where every segment instance under a corridor except the first has no `StimulusTriggerZone` child is expected
 behavior, not a bug.
 
 ### Components you should ignore
@@ -467,8 +474,8 @@ Template fields:
 - [ ] validate_prefab_against_template_tool reported every cue_prefabs[].exists, prefab_exists,
       cue_order_match, segment_length_match, and zone_*_match field as true (or documented occupancy
       drift for any zone_*_match: false)
-- [ ] After a template edit, deleted stale cue / segment prefabs via delete_unity_asset_tool
-      before regenerating
+- [ ] After a template edit that changed a cue texture without renaming the cue, deleted the stale
+      cue prefab and material via delete_unity_asset_tool before regenerating
 - [ ] Did not hand-edit the generated prefab — always regenerate from the template
 ```
 
