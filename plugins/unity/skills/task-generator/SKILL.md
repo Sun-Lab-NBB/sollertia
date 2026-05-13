@@ -39,6 +39,10 @@ Documents the `CreateTask.cs` editor pipeline and the prefab anatomy it assumes.
 ```text
 CreateTask.CreateFromTemplate(absoluteTemplatePath, relativeConfigPath, savePath)
 │
+├── ValidateCueDefinitionsAcrossTemplates    ← Scans every YAML in Configurations/ and aborts before any
+│                                              mutation if two templates declare a cue with the same
+│                                              (name, length_cm) identity but different textures
+│
 ├── ConfigLoader.LoadTemplate                ← YAML → TaskTemplate
 │
 ├── CleanGeneratedSegments(template)         ← Deletes every Prefabs/<template>_<trial>.prefab the template owns
@@ -56,7 +60,9 @@ CreateTask.CreateFromTemplate(absoluteTemplatePath, relativeConfigPath, savePath
 │   ├── For each trial_structure[]:
 │   │   ├── trigger_type == "lick"       → PlaceLickZone
 │   │   └── trigger_type == "occupancy"  → PlaceOccupancyZone
-│   └── Place ResetZone at segment start (local Z = 1)
+│   └── Place ResetZone at local Z = cueOffsetUnity (segment root is shifted upstream by the same
+│                                                    amount, so the ResetZone lands at world Z = 0,
+│                                                    the actor's per-corridor spawn point)
 │
 └── Assemble task GameObject
     │
@@ -68,10 +74,20 @@ CreateTask.CreateFromTemplate(absoluteTemplatePath, relativeConfigPath, savePath
 ```
 
 Keys:
+- **Cross-template cue-texture preflight runs first**: `ValidateCueDefinitionsAcrossTemplates` enumerates every
+  `*.yaml` / `*.yml` under `Assets/InfiniteCorridorTask/Configurations/`, loads each through `ConfigLoader`, and
+  builds a `(cue name, length label) → list[(texture, template name)]` map. Any identity that resolves to more
+  than one distinct texture aborts the entire generation request with a consolidated error before any cue or
+  segment is touched. The check exists because cue prefabs and materials are shared filesystem-keyed assets;
+  without it, the second template to generate would silently render the wrong texture on the cue prefab the
+  first template owns. Templates outside `Configurations/` are invisible to the preflight, which is why both
+  the Editor menu and the MCP surface reject them.
 - **Cue prefabs are shared across templates**: `BuildCuePrefabs` keys cue assets by `name + length_cm`, so two
   templates that declare an `A` at 30 cm reuse a single `Cue_A_30cm.prefab` / `Cue_A_30cm.mat`. The pass is
   skip-if-exists; an edit to a cue's **texture** without renaming the cue requires deleting the cue prefab and
-  material manually before regenerating (see `/task-prefabs` regeneration workflow).
+  material manually before regenerating (see `/task-prefabs` regeneration workflow). When two templates that
+  declare the same `(name, length_cm)` identity diverge on texture, the cross-template preflight above catches
+  the conflict before generation runs.
 - **Segment prefabs are template-owned and always rebuilt**: `CleanGeneratedSegments` deletes every
   `<template>_<trial>.prefab` declared by the template before `BuildSegmentPrefabs` runs, so trial-parameter edits
   in the YAML (cue sequence, zone math, trigger type) take effect on the next generation pass without any manual
@@ -128,7 +144,7 @@ template owns its segments outright. `ConfigLoader` rejects trial names that con
 │
 ├── Cue<CueA>                 localPosition.z = 0
 ├── Cue<CueB>                 localPosition.z = length(Cue<CueA>)
-├── ...                       (one per entry in segment.cue_sequence, placed end-to-end)
+├── ...                       (one per entry in trial.cue_sequence, placed end-to-end)
 │
 ├── Floor                     localPosition = (0, 0, totalLengthUnity/2)
 │                             scale         = (0.1, 1, totalLengthUnity/10)
@@ -148,7 +164,8 @@ template owns its segments outright. `ConfigLoader` rejects trial names that con
 │
 ├── <StimulusTriggerZone or OccupancyTriggerZone>   ← only if a trial structure references this segment
 │
-└── <ResetZone>               localPosition = (0, 0.5, 1)   ← placed only when a trial structure exists
+└── <ResetZone>               localPosition = (0, 0.5, cueOffsetUnity)   ← placed only when a trial structure exists.
+                              The segment root carries (0, 0, -cueOffsetUnity), so the ResetZone resolves to world Z = 0.
 ```
 
 ### Required shared assets
@@ -275,7 +292,11 @@ Rules enforced by the assembly loop:
 ### Editor menu
 
 `CreateTask.CreateNewTask` is registered at `CreateTask → New Task` in the Unity menu bar. It opens two file dialogs
-(template selector, save target) and calls `CreateFromTemplate` with user input.
+(template selector, save target) and calls `CreateFromTemplate` with user input. The template-selector dialog seeds
+at `Assets/InfiniteCorridorTask/Configurations/` **and rejects any selection outside that directory**: the menu
+normalizes the chosen path, checks the `Configurations/` prefix, and logs an error before invoking
+`CreateFromTemplate` when the prefix fails. This matches the MCP surface (which is hard-coded to the same folder)
+and ensures the cross-template cue-texture preflight sees every template that can drive generation.
 
 ### MCP bridge
 
@@ -325,6 +346,7 @@ template instead.
 
 | Symptom                                               | Root cause                                                      | Resolution                                         |
 |-------------------------------------------------------|-----------------------------------------------------------------|----------------------------------------------------|
+| `CreateFromTemplate` error: `Cross-template cue-texture conflict detected` | Two templates under `Configurations/` declare the same `(cue name, length_cm)` with different textures | Reconcile the offending templates (rename the cue, change its length, or unify the textures), then re-run; the preflight aborts before any cue/segment is touched |
 | `BuildCuePrefabs` error: `Failed to load texture`     | Cue's `texture` field references a file not in `Textures/`      | Import the texture, retry generation               |
 | `BuildSegmentPrefabs` error: `Missing Floor.mat`      | Shared materials deleted or renamed                             | Restore from git                                   |
 | Segment length warning in Console                     | Cue lengths do not sum to measured prefab length                | Either regenerate the segment or fix template cues |

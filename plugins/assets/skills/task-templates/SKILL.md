@@ -2,8 +2,8 @@
 name: task-templates
 description: >-
   Authors, modifies, and validates reusable TaskTemplate YAMLs (VR environment, cue catalog,
-  segment composition, trial primitives) via the sollertia-shared-assets MCP server. Owns
-  write_template_tool, validate_template_tool, and the schema / trial / trigger-type
+  trial structures with per-trial cue sequences and zones) via the sollertia-shared-assets MCP
+  server. Owns write_template_tool, validate_template_tool, and the schema / trial / trigger-type
   introspection helpers. Use when designing or modifying a task template or preparing it for
   per-project experiment configurations.
 user-invocable: true
@@ -41,11 +41,12 @@ helpers — no other skill in the marketplace may call these.
 ## What is a task template
 
 A `TaskTemplate` is a **reusable** description of a behavioral paradigm: the VR environment, the cue
-catalog, the segment layout, the available trial types, and the trial structure. Templates are
-project-agnostic and acquisition-system-agnostic — the same template can back many
-system-specific experiment configurations (currently only `MesoscopeExperimentConfiguration`, but
-the `AcquisitionSystems` enum and factory registry are designed for additional systems) across many
-projects.
+catalog, and the trial structures. Trial structures replace the old segment catalog — each trial owns
+its own cue sequence, zone geometry, and trigger type, and is materialized into a single segment prefab
+named `<template_name>_<trial_name>.prefab` at generation time. Templates are project-agnostic and
+acquisition-system-agnostic — the same template can back many system-specific experiment configurations
+(currently only `MesoscopeExperimentConfiguration`, but the `AcquisitionSystems` enum and factory
+registry are designed for additional systems) across many projects.
 
 A template defines **what is possible**. An experiment configuration picks a template and parameterizes
 it (state durations, trial weights, reward volumes, project-specific overrides). The two are authored by
@@ -124,6 +125,16 @@ trial subclass in the per-project experiment configuration via `/experiment-conf
 - **Cues are a flat catalog with unique uint8 codes** because the analysis pipeline indexes
   wall encounters by code and needs deterministic, low-cost packing. The 0–255 range caps the
   vocabulary at 256 cues per template, which has been more than sufficient in practice.
+- **Cue identity `(name, length_cm)` must resolve to one texture across every template** in the
+  configured templates directory. Unity stores cue prefabs and materials filesystem-keyed as
+  `Cue_<name>_<length>cm.prefab` / `.mat`, and the generator reuses an existing cue prefab whenever
+  it finds one on disk. Two templates that declare the same cue identity with different textures
+  would therefore silently corrupt each other depending on generation order. The Unity-side
+  `CreateFromTemplate` preflight scans every template under `Assets/InfiniteCorridorTask/Configurations/`
+  before any mutation and aborts the generation request with the offending template pair(s) listed
+  in the error. When authoring a new cue or modifying an existing one, either reuse the same texture
+  for the same `(name, length_cm)` everywhere or rename / re-length the cue so it occupies a distinct
+  filesystem slot.
 - **Each trial structure embeds its own cue sequence** because the Unity task generator derives
   segment prefab geometry directly from the trial's cue sequence — there is no separate segment
   catalog. The segment prefab name is `<template_name>_<trial_name>`, so every trial structure

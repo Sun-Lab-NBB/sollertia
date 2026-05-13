@@ -108,7 +108,8 @@ owns exactly one slsa asset and the others must hand off to it.
   directories are created implicitly when the first session lands there via the experiment
   plugin's `/managing-session-data` — there is no dedicated project-creation MCP tool.
 - **Step 4b — `/task-templates` (assets plugin):** Author or load the task template that
-  defines the VR environment, cue catalog, segments, and trial structure. Owns `write_template_tool`.
+  defines the VR environment, cue catalog, and trial structures (each trial owns its own segment
+  geometry — there is no separate segment catalog at the template level). Owns `write_template_tool`.
   Hand off to the unity plugin's `/task-prefabs` if the template targets a Unity scene (prefab
   generation and zone validation).
 - **Step 4c — `/experiment-configuration` (assets plugin):** Instantiate the template into a

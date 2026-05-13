@@ -83,9 +83,12 @@ left unset — but downstream tools that fetch sheet data will fail until it is 
 
 The task templates directory is a standalone directory (separate from the working directory) that holds
 reusable `TaskTemplate` YAML files. Each template describes a complete behavioral paradigm: the VR
-environment, the cue catalog, the segment layout, the available trial types, and the trial structure.
-This is typically the path to the local sollertia-unity-tasks repository's template directory:
-`<local-repo>/Assets/InfiniteCorridorTask/Configurations/`.
+environment, the cue catalog, and the trial structures (each of which carries its own cue sequence, zone
+geometry, and trigger type — there is no separate segment catalog at the template level). This is
+typically the path to the local sollertia-unity-tasks repository's template directory:
+`<local-repo>/Assets/InfiniteCorridorTask/Configurations/`. The Unity-side task generator and the MCP
+`generate_task_prefab_tool` both refuse templates outside that directory, so this directory is the
+single source of truth — keep it pointed at the canonical repo path.
 
 Templates are **project-agnostic** — the same template can back many per-project experiment
 configuration instances across different projects and even across different hosts.

@@ -42,7 +42,12 @@ other skill in the marketplace may call these.
 
 - A **template** is a YAML file under
   `Assets/InfiniteCorridorTask/Configurations/<name>.yaml`, authored by assets plugin's
-  `/task-templates`. It describes the VR environment abstractly (cues, segments, trials).
+  `/task-templates`. It describes the VR environment abstractly (cues, trial structures, and the
+  segment geometry each trial yields). **Both the MCP `generate_task_prefab_tool` surface and the
+  `CreateTask → New Task` Editor menu reject templates outside this directory** so the cross-template
+  cue-texture preflight, the runtime config-path resolver, and downstream tooling all see a single
+  canonical home. Use assets plugin's `/working-directory` (`set_task_templates_directory_tool`) to
+  configure the MCP-side path.
 - A **task prefab** is the concrete Unity GameObject hierarchy under
   `Assets/InfiniteCorridorTask/Tasks/<name>.prefab`, built by `generate_task_prefab_tool` from the
   template. It is the runtime representation the Unity scene instantiates.
@@ -319,7 +324,9 @@ These have no YAML representation and are set by hand in the Editor when authori
 
 - Floor and wall mesh scale, material references, and colliders
 - Camera rig (owned by `ExperimentTemplate.unity`, not by segment prefabs)
-- Reset zone position inside each segment (placed automatically by `CreateTask` at local Z = 1)
+- Reset zone position inside each segment (placed automatically by `CreateTask` at local Z =
+  `vr_environment.cue_offset_cm / cm_per_unity_unit` so the ResetZone lands at the actor's per-corridor
+  spawn point regardless of the cue-offset shift applied to the segment root)
 - `ResetZone.prefab`, `StimulusTriggerZone.prefab`, `OccupancyTriggerZone.prefab` internal hierarchies (the template
   references them by trigger type, but not their contents)
 
@@ -454,6 +461,7 @@ Template fields:
 | Symptom                                                          | Cause                                              | Resolution                                                       |
 |------------------------------------------------------------------|----------------------------------------------------|------------------------------------------------------------------|
 | `generate_task_prefab_tool` returns "template not found"         | Template file missing from `Configurations/`       | Hand off to assets plugin's `/task-templates`                    |
+| `generate_task_prefab_tool` returns "Cross-template cue-texture conflict detected" | Two or more templates in `Configurations/` declare the same `(cue name, length_cm)` identity with different `texture` values — the preflight aborts before any prefab is touched | Rename or re-length the colliding cue in one of the templates, or unify the textures, then re-run. Hand off to assets plugin's `/task-templates` for the YAML edits |
 | `validate_prefab_against_template_tool` reports `*_match: false` | Template or prefab drifted                         | See [drift decision table](#which-side-wins-on-drift)            |
 | `inspect_prefab_tool` returns "prefab path missing"              | Prefab not saved to `Tasks/`                       | Re-run Step 2 with an explicit `save_path`                       |
 | All Unity tools return "Unity Editor is not reachable"           | Editor or McpBridge offline                        | `/unity-mcp-environment-setup` in this plugin                    |
