@@ -87,7 +87,7 @@ environment, the cue catalog, and the trial structures (each of which carries it
 geometry, and trigger type — there is no separate segment catalog at the template level). This is
 typically the path to the local sollertia-unity-tasks repository's template directory:
 `<local-repo>/Assets/InfiniteCorridorTask/Configurations/`. The Unity-side task generator and the MCP
-`generate_task_prefab_tool` both refuse templates outside that directory, so this directory is the
+`create_task_tool` both refuse templates outside that directory, so this directory is the
 single source of truth — keep it pointed at the canonical repo path.
 
 Templates are **project-agnostic** — the same template can back many per-project experiment

@@ -201,7 +201,7 @@ Is the system already configured?
 | Discover or configure Zaber motors                | `/zaber-interface`                                                              |
 | Modify the Mesoscope-VR system itself             | `/modifying-mesoscope-vr-system`                                                |
 | Generate / verify Unity task prefab from template | unity plugin `/task-prefabs`                                              |
-| Open / create a Unity scene                       | unity plugin `/scenes`                                                    |
+| Open / create a Unity scene                       | unity plugin `/task-scenes`                                                    |
 | Enter / exit Unity Play Mode                      | unity plugin `/play-mode`                                                 |
 
 ---

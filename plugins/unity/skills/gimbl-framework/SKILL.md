@@ -431,8 +431,8 @@ already-open GUI without a reload.
 no name (untitled / unsaved buffer). That guards against creating an orphan
 `-savedFullScreenViews.asset` (hyphen-prefixed, no scene to consume it) when the Parameters
 window or the McpBridge writes camera mapping before the scene has been saved. The companion
-asset is also cascade-deleted when its owning scene is removed via `delete_unity_asset_tool`
-(see `/scenes`).
+asset is also cascade-deleted when its owning scene is removed via `delete_asset_tool`
+(see `/task-scenes`).
 
 **Monitor enumeration timeout.** `Monitor.EnumerateMonitors` calls `xrandr` (Linux) or
 `/usr/local/bin/displayplacer list` (macOS) as a subprocess with a hardcoded 5000ms timeout.

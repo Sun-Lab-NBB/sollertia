@@ -37,7 +37,7 @@ runnable."
 
 **Does not cover:**
 - Programmatic read / write of the Parameters window (see `/task-parameters`)
-- Creating scenes or enumerating assets (see `/scenes`)
+- Creating scenes or enumerating assets (see `/task-scenes`)
 - Generating the task prefab dropped into a scene (see `/task-prefabs`, `/task-generator`)
 - Entering / exiting Play Mode (see `/play-mode`)
 - GIMBL class APIs (see `/gimbl-framework`)
@@ -60,7 +60,7 @@ default Inspector with a HelpBox that points at this window.
 reappears automatically after:
 
 - Editor start / domain reload
-- Any scene open (including `open_scene_tool` from `/scenes`)
+- Any scene open (including `open_scene_tool` from `/task-scenes`)
 - Entering Play Mode
 
 If the user closes it manually, opening any of the above events brings it back. The docked tab
@@ -114,7 +114,7 @@ A runnable scene contains:
 | `UI-Control` (optional)       | `SL.UI.LickStimulusSpawner`                                         | On-screen lick and stimulus indicators                  |
 
 `ExperimentTemplate.unity` ships without the task prefab and UI control; both are added manually
-(or `create_scene_tool` from `/scenes` seeds the task prefab and `CreateTask.CreateSceneFromTemplate`
+(or `create_task_tool` from `/task-scenes` seeds the task prefab and `CreateTask.CreateSceneFromTemplate`
 guarantees both controllers exist).
 
 ---
@@ -166,7 +166,7 @@ user-customized `brightness` / `heightInVR` survive subsequent scene rebuilds.
 
 Camera Mapping assignments are **scene-specific** and persisted in
 `Assets/VRSettings/Displays/<scene-name>-savedFullScreenViews.asset`. Every new scene (including
-scenes created via `create_scene_tool`) must have its cameras bound once.
+scenes created via `create_task_tool`) must have its cameras bound once.
 
 `brightness` and `heightInVR` are stored on the **DisplaySettings asset** — they are shared
 across scenes that use the same Display prefab. The MQTT broker `ip` and `port` are stored in
@@ -331,18 +331,18 @@ configuration can be saved and reused.
 
 ## Common failure modes
 
-| Symptom                                              | Root cause                                                                           | Resolution                                                                   |
-|------------------------------------------------------|--------------------------------------------------------------------------------------|------------------------------------------------------------------------------|
-| `NullReferenceException` on Play — `Display` is null | Actor.Display not assigned                                                           | Re-open `Window → Task Parameters` to retrigger `EnsureActorAndDisplay`      |
-| Camera Mapping rows are empty after a scene open     | Scene was created without the `MainWindow.InitializeScene` pass                      | Open `Window → Task Parameters`; `OnEnable` reruns `InitializeScene`         |
-| Monitors show wrong content after reboot             | OS reassigned monitor ports                                                          | Press **Refresh Monitor Positions** and reassign cameras                     |
-| Keyboard input has no effect in Play Mode            | Controller dropdown is `Linear`, not `Simulated Linear`                              | Swap via the Actor section's Controller dropdown                             |
-| Spurious lick events in session log                  | Forgotten `Simulated Linear` selection in a production scene                         | Swap back to `Linear`                                                        |
-| UI indicators never appear                           | `LickStimulusSpawner` canvas / prefab fields unset                                   | Assign fields in the Inspector                                               |
-| Task script errors "Configuration YAML not found"    | `Task.configPath` drifted from actual YAML location                                  | Regenerate via `/task-prefabs` or fix the path                               |
-| Full-screen views open on wrong monitors             | Monitor indices reordered or new monitors attached                                   | Refresh Monitor Positions, reassign cameras                                  |
-| `Window → Task Parameters` shows "No Task component" | Active scene contains no task prefab                                                 | `create_scene_tool` with a `task_prefab_path`, or drag a task prefab in      |
-| Default `Main Camera` re-appears after scene open    | Editor reopened a scene saved before the cleanup; the next Parameters open clears it | Open / re-focus `Window → Task Parameters`; it logs the removal              |
+| Symptom                                              | Root cause                                                                           | Resolution                                                              |
+|------------------------------------------------------|--------------------------------------------------------------------------------------|-------------------------------------------------------------------------|
+| `NullReferenceException` on Play — `Display` is null | Actor.Display not assigned                                                           | Re-open `Window → Task Parameters` to retrigger `EnsureActorAndDisplay` |
+| Camera Mapping rows are empty after a scene open     | Scene was created without the `MainWindow.InitializeScene` pass                      | Open `Window → Task Parameters`; `OnEnable` reruns `InitializeScene`    |
+| Monitors show wrong content after reboot             | OS reassigned monitor ports                                                          | Press **Refresh Monitor Positions** and reassign cameras                |
+| Keyboard input has no effect in Play Mode            | Controller dropdown is `Linear`, not `Simulated Linear`                              | Swap via the Actor section's Controller dropdown                        |
+| Spurious lick events in session log                  | Forgotten `Simulated Linear` selection in a production scene                         | Swap back to `Linear`                                                   |
+| UI indicators never appear                           | `LickStimulusSpawner` canvas / prefab fields unset                                   | Assign fields in the Inspector                                          |
+| Task script errors "Configuration YAML not found"    | `Task.configPath` drifted from actual YAML location                                  | Regenerate via `/task-prefabs` or fix the path                          |
+| Full-screen views open on wrong monitors             | Monitor indices reordered or new monitors attached                                   | Refresh Monitor Positions, reassign cameras                             |
+| `Window → Task Parameters` shows "No Task component" | Active scene contains no task prefab                                                 | `create_task_tool` with a `task_prefab_path`, or drag a task prefab in  |
+| Default `Main Camera` re-appears after scene open    | Editor reopened a scene saved before the cleanup; the next Parameters open clears it | Open / re-focus `Window → Task Parameters`; it logs the removal         |
 
 ---
 
@@ -362,11 +362,11 @@ configuration can be saved and reused.
 
 ## Related skills
 
-| Skill                            | Relationship                                                              |
-|----------------------------------|---------------------------------------------------------------------------|
-| `/scenes` (this plugin)          | Upstream — creates or opens the scene this skill configures               |
-| `/task-prefabs` (this plugin)    | Upstream — generates the prefab placed into the scene                     |
-| `/task-parameters` (this plugin) | Programmatic alternative to the GUI flows described here                  |
-| `/play-mode` (this plugin)       | Consumer — entered after scene setup passes the pre-Play Mode checklist   |
-| `/gimbl-framework` (this plugin) | Reference for `ActorObject`, `DisplayObject`, controller classes          |
-| `/mqtt-contract` (this plugin)   | Topics consumed by `UI-lick-reward` and published by `Simulated Linear`   |
+| Skill                            | Relationship                                                            |
+|----------------------------------|-------------------------------------------------------------------------|
+| `/task-scenes` (this plugin)     | Upstream — creates or opens the scene this skill configures             |
+| `/task-prefabs` (this plugin)    | Upstream — generates the prefab placed into the scene                   |
+| `/task-parameters` (this plugin) | Programmatic alternative to the GUI flows described here                |
+| `/play-mode` (this plugin)       | Consumer — entered after scene setup passes the pre-Play Mode checklist |
+| `/gimbl-framework` (this plugin) | Reference for `ActorObject`, `DisplayObject`, controller classes        |
+| `/mqtt-contract` (this plugin)   | Topics consumed by `UI-lick-reward` and published by `Simulated Linear` |

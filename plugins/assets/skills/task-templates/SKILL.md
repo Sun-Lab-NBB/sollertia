@@ -32,25 +32,43 @@ helpers — no other skill in the marketplace may call these.
 **Does not cover:**
 - Per-project `MesoscopeExperimentConfiguration` authoring (see `/experiment-configuration`)
 - Setting the task templates directory path (see `/working-directory`)
-- Generating a Unity task prefab from a template (see unity plugin's `/task-prefabs`)
-- Verifying template values against the actual Unity prefab state (see unity plugin's
-  `/task-prefabs` — `validate_prefab_against_template_tool`)
+- Generating a Unity task from a template (see unity plugin's `/task-prefabs` —
+  `create_task_tool` builds both the task prefab and the matching scene in one call)
 
 ---
 
 ## What is a task template
 
 A `TaskTemplate` is a **reusable** description of a behavioral paradigm: the VR environment, the cue
-catalog, and the trial structures. Trial structures replace the old segment catalog — each trial owns
-its own cue sequence, zone geometry, and trigger type, and is materialized into a single segment prefab
-named `<template_name>_<trial_name>.prefab` at generation time. Templates are project-agnostic and
-acquisition-system-agnostic — the same template can back many system-specific experiment configurations
-(currently only `MesoscopeExperimentConfiguration`, but the `AcquisitionSystems` enum and factory
-registry are designed for additional systems) across many projects.
+catalog, and the trial structures. Each trial owns its own cue sequence, zone geometry, and trigger
+type, and is materialized into a single segment prefab named `<template_name>_<trial_name>.prefab`
+at generation time. Templates are project-agnostic and acquisition-system-agnostic — the same
+template can back many system-specific experiment configurations (currently only
+`MesoscopeExperimentConfiguration`, but the `AcquisitionSystems` enum and factory registry are
+designed for additional systems) across many projects.
 
 A template defines **what is possible**. An experiment configuration picks a template and parameterizes
 it (state durations, trial weights, reward volumes, project-specific overrides). The two are authored by
 two different skills with two different ownership scopes.
+
+### Where the template name flows
+
+The template basename anchors a three-tier Unity artifact chain — template → task prefab → scene —
+all sharing the same name by convention:
+
+```text
+Configurations/<name>.yaml          template (authored here)
+        │
+        ▼  unity plugin /task-prefabs (create_task_tool)
+InfiniteCorridorTask/Tasks/<name>.prefab    task prefab
+        │
+        ▼  unity plugin /task-scenes (create_task_tool)
+Scenes/<name>.unity                 scene (instantiates the task prefab)
+```
+
+The canonical reference for this hierarchy is unity plugin's `/task-prefabs`. When you rename a
+template, the regenerated task prefab and the next scene created from it inherit the new name; the
+old `.prefab` and `.unity` files remain on disk until deleted via `delete_asset_tool`.
 
 ---
 
@@ -85,7 +103,7 @@ and trigger-type enum values, use `list_supported_trial_types_tool` and
 A template has two consumers: **Unity** generates the VR environment from it, and the
 **acquisition runtime** decomposes the resulting cue sequence back into a trial timeline. The
 schema is shaped by what those two consumers need. Unity-side prefab generation, scene loading,
-and runtime corridor mechanics are owned by the unity plugin's `/task-prefabs` and `/scenes`
+and runtime corridor mechanics are owned by the unity plugin's `/task-prefabs` and `/task-scenes`
 skills; trial decomposition and runtime trial state are owned by the experiment library and
 documented at the conceptual level in `/experiment-configuration`. The overview below is the
 slsa-side conceptual model — defer to those skills for implementation specifics.
@@ -262,16 +280,14 @@ Pass `overwrite=True` only when intentionally replacing an existing template.
 On success the tool returns a `summary` (cue/trial counts plus `cue_offset_cm`); on failure it
 returns an `issues` list. Fix any reported issues and re-write before handing off.
 
-### Step 6: Hand off for Unity prefab generation and verification
+### Step 6: Hand off for Unity task creation
 
-When the template targets a Unity scene, hand off to the **unity plugin's `/task-prefabs`** to:
-- Generate the concrete Unity task prefab (`generate_task_prefab_tool`).
-- Validate segment prefab zone geometry against the template
-  (`validate_prefab_against_template_tool`).
-
-Programmatic validation is required — there is no manual fallback. If the Unity Editor, McpBridge,
-or `slsa mcp` is unreachable, restore connectivity via `/unity-mcp-environment-setup` or
-`/assets-mcp-environment-setup` before proceeding.
+When the template targets a Unity scene, hand off to the **unity plugin's `/task-prefabs`** and
+run `create_task_tool(template_name="<name>")`. The tool builds the task prefab and the matching
+scene in one call from the same template basename — both artifacts then live at
+`Assets/InfiniteCorridorTask/Tasks/<name>.prefab` and `Assets/Scenes/<name>.unity`. If the Unity
+Editor, McpBridge, or `slsa mcp` is unreachable, restore connectivity via
+`/unity-mcp-environment-setup` or `/assets-mcp-environment-setup` before proceeding.
 
 ### Step 7: Hand off for experiment configuration
 
@@ -339,4 +355,4 @@ for instantiating templates into experiment configurations.
 | `/experiment-configuration`            | Consumer — instantiates templates into per-project experiments                                              |
 | `/library-extension`                   | Cross-cutting recipe to add a new `TriggerType`, runtime trial class, or VR paradigm beyond the corridor    |
 | unity plugin `/task-prefabs`           | Downstream — generates and validates the Unity prefab                                                       |
-| unity plugin `/scenes`                 | Downstream — places the generated prefab into a Unity scene                                                 |
+| unity plugin `/task-scenes`                 | Downstream — places the generated prefab into a Unity scene                                                 |

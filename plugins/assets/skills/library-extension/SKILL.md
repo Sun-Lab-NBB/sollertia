@@ -48,7 +48,7 @@ verification checklist before reporting an extension complete.
   library — see the experiment plugin's `/system-configuration`)
 - Server-side processing configuration (lives in `sollertia-forgery` — see the forging plugin's
   `/server-configuration`)
-- Unity prefab and scene authoring (see the unity plugin's `/task-prefabs` and `/scenes`)
+- Unity prefab and scene authoring (see the unity plugin's `/task-prefabs` and `/task-scenes`)
 
 ---
 
@@ -304,7 +304,7 @@ table, the required-asset branches, and the skill content.
 | forging plugin `/project-manifest`             | Tabulates new session types in the project manifest                                                     |
 | forging plugin `/dataset-forging-input-format` | Decides eligibility of new session types for dataset forging                                            |
 | unity plugin `/task-prefabs`                   | Generates Unity prefabs for new `TriggerType` members or VR paradigms                                   |
-| unity plugin `/scenes`                         | Authors Unity scenes for new acquisition systems or VR paradigms                                        |
+| unity plugin `/task-scenes`                         | Authors Unity scenes for new acquisition systems or VR paradigms                                        |
 | `/commit`                                      | Should be invoked after the cross-cutting changes land                                                  |
 
 ---

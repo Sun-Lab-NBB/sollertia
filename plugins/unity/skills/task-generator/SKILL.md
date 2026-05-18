@@ -23,7 +23,7 @@ Documents the `CreateTask.cs` editor pipeline and the prefab anatomy it assumes.
 - Segment prefab internal layout (cue instances, `Floor`, `Walls`, `ResetZone`, trigger zone)
 - Zone placement math (`PlaceLickZone` and `PlaceOccupancyZone`)
 - Constraints on adding new zone types, cue shapes, or segment layouts
-- The `CreateTask → New Task` Editor menu entry and its relationship to `generate_task_prefab_tool`
+- The `CreateTask → New Task` Editor menu entry and its relationship to `create_task_tool`
 
 **Does not cover:**
 - Invoking prefab generation from MCP (see `/task-prefabs`)
@@ -117,11 +117,11 @@ Keys:
 - **Validation warning** (not an error): if the measured segment-prefab length disagrees with
   `sum(cue.length_cm / cm_per_unity_unit)` by more than `0.01`, `CreateTask` logs a warning but proceeds using the
   template's computed length.
-- **Scene generation is part of the menu flow**: `CreateSceneFromTemplate` is the companion method that copies
-  `ExperimentTemplate.unity`, optionally instantiates a task prefab, runs `MainWindow.EnsureControllers`, and
-  saves the scene. The Editor menu wraps prefab generation and scene generation together so a single template
-  selection produces a runnable scene. The MCP surface keeps them split (`generate_task_prefab` +
-  `create_scene`) so automated callers can sequence them independently.
+- **Scene generation is bundled with prefab generation**: `CreateSceneFromTemplate` is the companion method that
+  copies `ExperimentTemplate.unity`, instantiates the just-built task prefab, runs `MainWindow.EnsureControllers`,
+  and saves the scene. Both the `CreateTask → New Task` Editor menu and the `create_task_tool` MCP surface call
+  `CreateFromTemplate` and `CreateSceneFromTemplate` back-to-back from a single template selection, so the manual
+  and agentic paths produce byte-equivalent assets.
 
 ---
 
@@ -197,18 +197,18 @@ template owns its segments outright. `ConfigLoader` rejects trial names that con
 ### Required shared assets
 
 `BuildCuePrefabs` and `BuildSegmentPrefabs` abort if any of these are missing. Every entry below
-is also in `McpBridge.DeleteProtectedPaths` and cannot be deleted via `delete_unity_asset_tool`:
+is also in `McpBridge.DeleteProtectedPaths` and cannot be deleted via `delete_asset_tool`:
 
-| Asset                                       | Type      | Purpose                                                          |
-|---------------------------------------------|-----------|------------------------------------------------------------------|
-| `Prefabs/StimulusTriggerZone.prefab`        | GameObject| Base prefab for lick-mode zones                                  |
-| `Prefabs/OccupancyTriggerZone.prefab`       | GameObject| Base prefab for occupancy-mode zones                             |
-| `Prefabs/ResetZone.prefab`                  | GameObject| Placed at every segment's start                                  |
-| `Prefabs/Padding.prefab`                    | GameObject| Appended past every corridor to cap the visible corridor depth   |
-| `Materials/_CueShaderReference.mat`         | Material  | Canonical shader source for every generated cue material         |
-| `Materials/Floor.mat`                       | Material  | Shared floor material baked into every generated segment         |
-| `Materials/Wall.mat`                        | Material  | Shared wall material baked into every generated segment          |
-| `Materials/TargetMat.mat`                   | Material  | Renderer material referenced by both hand-authored trigger zones |
+| Asset                                 | Type       | Purpose                                                          |
+|---------------------------------------|------------|------------------------------------------------------------------|
+| `Prefabs/StimulusTriggerZone.prefab`  | GameObject | Base prefab for lick-mode zones                                  |
+| `Prefabs/OccupancyTriggerZone.prefab` | GameObject | Base prefab for occupancy-mode zones                             |
+| `Prefabs/ResetZone.prefab`            | GameObject | Placed at every segment's start                                  |
+| `Prefabs/Padding.prefab`              | GameObject | Appended past every corridor to cap the visible corridor depth   |
+| `Materials/_CueShaderReference.mat`   | Material   | Canonical shader source for every generated cue material         |
+| `Materials/Floor.mat`                 | Material   | Shared floor material baked into every generated segment         |
+| `Materials/Wall.mat`                  | Material   | Shared wall material baked into every generated segment          |
+| `Materials/TargetMat.mat`             | Material   | Renderer material referenced by both hand-authored trigger zones |
 
 Do not rename these assets — `BuildSegmentPrefabs` / `LoadReferenceCueShader` resolve them by
 hardcoded path, and the trigger zone prefabs reference `TargetMat.mat` by serialized GUID. The
@@ -277,16 +277,13 @@ OccupancyGuidanceRegion.BoxCollider.center = (0, 0, occupancyCenterOffset + zone
 
 ### Critical invariant
 
-`validate_prefab_against_template_tool` (`/task-prefabs`) re-derives `zone_z = zone.transform.localPosition.z` and
-`zone_size = BoxCollider.size.z` from the prefab and compares them against `expected_center = (zone_end - zone_start)
-/ (2 * cm_per_unity_unit)` and `expected_size = (zone_end - zone_start) / cm_per_unity_unit`. The validator also
-re-walks the segment prefab's cue children to reconstruct `cue_order`, measures Z-extent for `segment_length_unity`,
-and reports per-cue prefab existence under `Cues/`. Note the zone formulas reconstruct the **lick-mode** case. In
-occupancy mode, the generator places the root at `rootZ` (past the waiting range), but the validator still computes
-`expected_center` against the waiting range. **Occupancy segments will report `zone_z_match: false` even when
-correctly generated.** This is a known drift between generator and validator; treat occupancy `zone_z_match: false`
-as informational unless the reported `zone_z` is also wrong by the offset math above. The other validator fields
-(cue order, segment length, cue prefab existence) are mode-agnostic — failures there are real drift.
+For lick-mode trials the generator places the zone root at the segment's center such that
+`zone_z = zone.transform.localPosition.z` equals `(zone_end - zone_start) / (2 * cm_per_unity_unit)`,
+and the `BoxCollider.size.z` equals `(zone_end - zone_start) / cm_per_unity_unit`. For occupancy
+mode the generator places the root at `rootZ` (past the waiting range) instead — the root collider
+marks the boundary, and the wait region lives on the child `OccupancyRegion`. Anyone auditing a
+generated segment via `inspect_prefab_tool` should apply the appropriate formula per `trigger_type`
+when comparing the prefab against the template's zone-cm fields.
 
 ---
 
@@ -350,7 +347,7 @@ leaves the already-generated prefab in place for a follow-up run.
 `McpBridge.CreateScene` calls `CreateSceneFromTemplate` directly and surfaces the
 `SceneCreationResult` struct (`Success`, `Message`, `SimulatedControllerAdded`, `TaskPrefabNotFound`) in the JSON
 response. The MCP surface keeps prefab generation and scene generation as **separate** tools
-(`generate_task_prefab_tool` + `create_scene_tool`) so automated callers can sequence them independently;
+(`create_task_tool` + `create_task_tool`) so automated callers can sequence them independently;
 the Editor menu wraps both in a single user-driven flow.
 
 All entry points converge on `CreateFromTemplate` and `CreateSceneFromTemplate`, so any change to either method
@@ -384,24 +381,24 @@ template instead.
 2. Add a getter or conversion helper (e.g. a `*Unity` accessor) to `TaskTemplate.cs` if the field needs unit
    conversion.
 3. Thread the field through `CreateFromTemplate` to the relevant sub-step.
-4. If the field affects geometry, ordering, or asset count, extend `validate_prefab_against_template_tool` to check
-   it. The validator currently covers cue prefab existence, cue ordering, segment Z-length, and lick-mode zone
-   geometry — new round-trip invariants belong here.
+4. If the field affects geometry, ordering, or asset count, update the
+   [Template → prefab field mapping](../task-prefabs/SKILL.md#template--prefab-field-mapping)
+   table in `/task-prefabs` so callers can see how the new field surfaces in the generated prefab.
 
 ---
 
 ## Failure modes
 
-| Symptom                                               | Root cause                                                      | Resolution                                         |
-|-------------------------------------------------------|-----------------------------------------------------------------|----------------------------------------------------|
-| `CreateFromTemplate` error: `Cross-template cue-texture conflict detected` | Two templates under `Configurations/` declare the same `(cue name, length_cm)` with different textures | Reconcile the offending templates (rename the cue, change its length, or unify the textures), then re-run; the preflight aborts before any cue/segment is touched |
-| `BuildCuePrefabs` error: `Failed to load texture`     | Cue's `texture` field references a file not in `Textures/`      | Import the texture, retry generation               |
-| `BuildSegmentPrefabs` error: `Missing Floor.mat`      | Shared materials deleted or renamed                             | Restore from git                                   |
-| Segment length warning in Console                     | Cue lengths do not sum to measured prefab length                | Either regenerate the segment or fix template cues |
-| `generate_task_prefab_tool` error: `No segment found` | Segment build pass failed silently (asset DB out of sync, missing zone prefabs) | Check Unity Console for `BuildSegmentPrefabs:` warnings, ensure zone base prefabs and Floor/Wall materials exist, regenerate |
-| Zone geometry looks wrong in scene view               | Template's cm values or `cm_per_unity_unit` mismatch             | Recheck YAML; regenerate                           |
-| Occupancy validator reports `zone_z_match: false` on a correctly generated prefab | Known validator / generator drift (see above) | Use zone-collider visual inspection in Editor      |
-| Cue textures appear mirrored on Left or Right wall    | Quad scale sign is flipped (Right uses negative X)              | Intentional — each wall shows a correctly-oriented cue |
+| Symptom                                                                           | Root cause                                                                                             | Resolution                                                                                                                                                        |
+|-----------------------------------------------------------------------------------|--------------------------------------------------------------------------------------------------------|-------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| `CreateFromTemplate` error: `Cross-template cue-texture conflict detected`        | Two templates under `Configurations/` declare the same `(cue name, length_cm)` with different textures | Reconcile the offending templates (rename the cue, change its length, or unify the textures), then re-run; the preflight aborts before any cue/segment is touched |
+| `BuildCuePrefabs` error: `Failed to load texture`                                 | Cue's `texture` field references a file not in `Textures/`                                             | Import the texture, retry generation                                                                                                                              |
+| `BuildSegmentPrefabs` error: `Missing Floor.mat`                                  | Shared materials deleted or renamed                                                                    | Restore from git                                                                                                                                                  |
+| Segment length warning in Console                                                 | Cue lengths do not sum to measured prefab length                                                       | Either regenerate the segment or fix template cues                                                                                                                |
+| `create_task_tool` error: `No segment found`                                      | Segment build pass failed silently (asset DB out of sync, missing zone prefabs)                        | Check Unity Console for `BuildSegmentPrefabs:` warnings, ensure zone base prefabs and Floor/Wall materials exist, regenerate                                      |
+| Zone geometry looks wrong in scene view                                           | Template's cm values or `cm_per_unity_unit` mismatch                                                   | Recheck YAML; regenerate                                                                                                                                          |
+| Occupancy validator reports `zone_z_match: false` on a correctly generated prefab | Known validator / generator drift (see above)                                                          | Use zone-collider visual inspection in Editor                                                                                                                     |
+| Cue textures appear mirrored on Left or Right wall                                | Quad scale sign is flipped (Right uses negative X)                                                     | Intentional — each wall shows a correctly-oriented cue                                                                                                            |
 
 ---
 
@@ -415,21 +412,21 @@ template instead.
       via `CleanGeneratedSegments`
 - [ ] Hardcoded asset paths (Prefabs/, Cues/, Materials/, Textures/) are not changed without updating every call site
 - [ ] LoadReferenceCueShader still falls back through the documented chain when _CueShaderReference.mat is missing
-- [ ] CreateTask → New Task Editor menu and McpBridge.GenerateTaskPrefab + McpBridge.CreateScene produce identical
-      assets for the same template
+- [ ] CreateTask → New Task Editor menu and McpBridge.GenerateTask produce identical assets for the same template
 - [ ] CreateSceneFromTemplate runs MainWindow.EnsureControllers so the generated scene contains both Linear and
       Simulated Linear controllers
-- [ ] After any generator change, run validate_prefab_against_template_tool to confirm round-trip invariants hold
+- [ ] After any generator change, regenerate a representative template via create_task_tool and spot-check the
+      prefab via inspect_prefab_tool against the expected hierarchy
 ```
 
 ---
 
 ## Related skills
 
-| Skill                                   | Relationship                                                          |
-|-----------------------------------------|-----------------------------------------------------------------------|
-| `/task-prefabs` (this plugin)           | Consumer — invokes `generate_task_prefab_tool` and validates output   |
-| `/mqtt-contract` (this plugin)          | Zone scripts (authored here) own MQTT topics described there          |
-| `/gimbl-framework` (this plugin)        | Segment prefabs place GIMBL-derived `Actor` coordinate frame usage    |
-| assets plugin `/task-templates`         | Upstream — owns YAML authoring and schema evolution                   |
-| `/csharp-style` (automation plugin)     | Enforced when editing `CreateTask.cs` or adding new generator code    |
+| Skill                               | Relationship                                                       |
+|-------------------------------------|--------------------------------------------------------------------|
+| `/task-prefabs` (this plugin)       | Consumer — invokes `create_task_tool` and validates output         |
+| `/mqtt-contract` (this plugin)      | Zone scripts (authored here) own MQTT topics described there       |
+| `/gimbl-framework` (this plugin)    | Segment prefabs place GIMBL-derived `Actor` coordinate frame usage |
+| assets plugin `/task-templates`     | Upstream — owns YAML authoring and schema evolution                |
+| `/csharp-style` (automation plugin) | Enforced when editing `CreateTask.cs` or adding new generator code |

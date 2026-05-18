@@ -29,7 +29,7 @@ itself is owned by the assets plugin's `/assets-mcp-environment-setup`.
 - Diagnosing `slsa` CLI / `slsa mcp` availability (see assets plugin's `/assets-mcp-environment-setup`)
 - Sollertia working directory setup (see assets plugin's `/working-directory`)
 - Unity Editor installation or project setup (see the `sollertia-unity-tasks` README)
-- Prefab, scene, Task Parameters, or Play Mode workflows (see `/task-prefabs`, `/scenes`,
+- Prefab, scene, Task Parameters, or Play Mode workflows (see `/task-prefabs`, `/task-scenes`,
   `/task-parameters`, `/play-mode`)
 
 ---
@@ -45,28 +45,27 @@ Claude ↔ slsa mcp (stdio) ↔ HTTP POST to {127.0.0.1, [::1], localhost}:8090 
 
 The `McpBridge` editor plugin ships with `sollertia-unity-tasks`. It starts the HTTP listener on
 three loopback prefixes automatically when the Editor loads the project — registering all three
-because `HttpListener` performs exact host-header matching, so a client requesting `localhost` is
-rejected by a `127.0.0.1` prefix even though they resolve to the same socket. The 14 relayed
+because `HttpListener` performs exact host-header matching. A client requesting `localhost` is
+rejected by a `127.0.0.1` prefix even though they resolve to the same socket. The 13 relayed
 tools are:
 
-| Tool                                    | Owning skill        |
-|-----------------------------------------|---------------------|
-| `generate_task_prefab_tool`             | `/task-prefabs`     |
-| `inspect_prefab_tool`                   | `/task-prefabs`     |
-| `validate_prefab_against_template_tool` | `/task-prefabs`     |
-| `delete_unity_asset_tool`               | `/task-prefabs`     |
-| `list_unity_assets_tool`                | `/scenes`           |
-| `list_scenes_tool`                      | `/scenes`           |
-| `open_scene_tool`                       | `/scenes`           |
-| `create_scene_tool`                     | `/scenes`           |
-| `inspect_scene_tool`                    | `/scenes`           |
-| `enter_play_mode_tool`                  | `/play-mode`        |
-| `exit_play_mode_tool`                   | `/play-mode`        |
-| `get_play_state_tool`                   | `/play-mode`        |
-| `read_task_parameters_tool`             | `/task-parameters`  |
-| `write_task_parameters_tool`            | `/task-parameters`  |
+| Tool                         | Owning skill       |
+|------------------------------|--------------------|
+| `create_task_tool`           | `/task-prefabs`    |
+| `delete_task_tool`           | `/task-prefabs`    |
+| `inspect_prefab_tool`        | `/task-prefabs`    |
+| `delete_asset_tool`          | `/task-prefabs`    |
+| `list_assets_tool`           | `/task-scenes`     |
+| `list_scenes_tool`           | `/task-scenes`     |
+| `open_scene_tool`            | `/task-scenes`     |
+| `inspect_scene_tool`         | `/task-scenes`     |
+| `enter_play_mode_tool`       | `/play-mode`       |
+| `exit_play_mode_tool`        | `/play-mode`       |
+| `get_play_state_tool`        | `/play-mode`       |
+| `read_task_parameters_tool`  | `/task-parameters` |
+| `write_task_parameters_tool` | `/task-parameters` |
 
-All 14 tools require **both** the `slsa mcp` MCP server to be connected **and** the Unity Editor
+All 13 tools require **both** the `slsa mcp` MCP server to be connected **and** the Unity Editor
 to be running with `sollertia-unity-tasks` open.
 
 ---
@@ -110,12 +109,12 @@ curl -s -X POST http://localhost:8090/ \
 
 Expected outcomes:
 
-| Response                         | Meaning                                       | Next step                            |
-|----------------------------------|-----------------------------------------------|--------------------------------------|
-| JSON with `"success": true`      | Bridge healthy                                | Re-run the failing Unity tool        |
-| JSON with `"success": false`     | Bridge reachable but rejected the tool        | Inspect the error message, fix inputs|
-| Connection refused / timeout     | Listener is not running                       | Return to Step 3                     |
-| HTML / unexpected text           | Port 8090 is held by a different process      | Kill the other process, restart Unity|
+| Response                     | Meaning                                  | Next step                             |
+|------------------------------|------------------------------------------|---------------------------------------|
+| JSON with `"success": true`  | Bridge healthy                           | Re-run the failing Unity tool         |
+| JSON with `"success": false` | Bridge reachable but rejected the tool   | Inspect the error message, fix inputs |
+| Connection refused / timeout | Listener is not running                  | Return to Step 3                      |
+| HTML / unexpected text       | Port 8090 is held by a different process | Kill the other process, restart Unity |
 
 ### Step 5: Verify by retrying a read-only Unity tool
 
@@ -126,14 +125,14 @@ that exercises the relay. If it returns a structured response, Unity-dependent t
 
 ## Common issues and resolutions
 
-| Symptom                                | Cause                                     | Resolution                                       |
-|----------------------------------------|-------------------------------------------|--------------------------------------------------|
-| "Unity Editor is not reachable"        | Editor not running                        | Open the Editor with `sollertia-unity-tasks`     |
-| "Unity Editor is not reachable"        | McpBridge not loaded                      | Wait for compile, verify Console for listener log|
-| "Unity Editor is not reachable"        | Port 8090 taken by another process        | Free the port, restart the Editor                |
-| "Unity bridge returned invalid JSON"   | McpBridge produced malformed response     | Restart the Unity Editor                         |
-| Slow first call, then works            | Editor warming up after project load      | Expected — retry after ~30 seconds               |
-| Tools work, but prefab/scene paths 404 | Paths are not project-relative            | Use `Assets/...` paths, never absolute paths     |
+| Symptom                                | Cause                                 | Resolution                                        |
+|----------------------------------------|---------------------------------------|---------------------------------------------------|
+| "Unity Editor is not reachable"        | Editor not running                    | Open the Editor with `sollertia-unity-tasks`      |
+| "Unity Editor is not reachable"        | McpBridge not loaded                  | Wait for compile, verify Console for listener log |
+| "Unity Editor is not reachable"        | Port 8090 taken by another process    | Free the port, restart the Editor                 |
+| "Unity bridge returned invalid JSON"   | McpBridge produced malformed response | Restart the Unity Editor                          |
+| Slow first call, then works            | Editor warming up after project load  | Expected — retry after ~30 seconds                |
+| Tools work, but prefab/scene paths 404 | Paths are not project-relative        | Use `Assets/...` paths, never absolute paths      |
 
 ---
 
@@ -155,7 +154,7 @@ starts. From the MCP side this looks identical to "Editor not running."
 
 `McpBridge.cs` lives at `Assets/InfiniteCorridorTask/Scripts/Editor/` without an enclosing `.asmdef`, so it compiles
 into the default editor assembly. Adding an `.asmdef` to that folder (or any ancestor) without also referencing the
-project's runtime and editor assemblies will break `McpBridge`'s `using SL.Config;` / `using SL.Tasks;` statements and
+project's runtime and editor assemblies will break `McpBridge`'s `using SL.Config;` / `using SL.Tasks;` statements, and
 it will stop listening.
 
 - If an `.asmdef` is introduced, the bridge's references (`SL.Config`, `SL.Tasks`, `UnityEditor`,
@@ -178,7 +177,7 @@ duplicate Editor; only one Unity Editor may own the bridge at a time.
 
 ### Domain reload mid-tool-call
 
-Unity triggers a domain reload after scripts recompile. If `generate_task_prefab_tool` or `create_scene_tool` is
+Unity triggers a domain reload after scripts recompile. If `create_task_tool` or `create_task_tool` is
 invoked during a reload, the HTTP request may succeed from the OS but the response never arrives. Wait for
 `get_play_state_tool` to return `state == "edit"` (not `"compiling"`) before issuing mutating tool calls.
 
@@ -208,7 +207,7 @@ still work, but first-call latency can stretch to several seconds. Re-focus the 
 |-----------------------------------------------|--------------------------------------------------------|
 | assets plugin `/assets-mcp-environment-setup` | Run first — owns the slsa MCP server diagnostic        |
 | `/task-prefabs` (this plugin)                 | Consumer — prefab generation / inspection / validation |
-| `/scenes` (this plugin)                       | Consumer — scene and asset management                  |
+| `/task-scenes` (this plugin)                       | Consumer — scene and asset management                  |
 | `/play-mode` (this plugin)                    | Consumer — runtime control                             |
 | `/task-parameters` (this plugin)              | Consumer — Task Parameters read / write                |
 | `/scene-setup` (this plugin)                  | Consumer — Editor-time scene configuration             |

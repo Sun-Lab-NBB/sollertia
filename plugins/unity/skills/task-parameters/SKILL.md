@@ -39,7 +39,7 @@ for those fields.
 
 **Does not cover:**
 - Generating or validating prefabs (see `/task-prefabs`)
-- Listing, opening, creating, or inspecting scenes (see `/scenes`)
+- Listing, opening, creating, or inspecting scenes (see `/task-scenes`)
 - Entering / exiting Play Mode (see `/play-mode`)
 - Editor-time scene wiring beyond what the Parameters window exposes (see `/scene-setup`)
 - MQTT topic catalog (see `/mqtt-contract`)
@@ -89,13 +89,13 @@ component is absent (no `ActorObject`, no `DisplayObject`, etc.).
 
 Section semantics:
 
-| Section          | Source script              | Persistence                                            |
-|------------------|----------------------------|--------------------------------------------------------|
-| `actor`          | `Gimbl.ActorObject`        | Scene file                                             |
-| `mqtt`           | `Gimbl.MQTTClient`         | `EditorPrefs` (`SollertiaVR_MQTT_IP` / `_Port`)        |
-| `display`        | `Gimbl.DisplayObject` + `DisplaySettings` asset | Scene file + `Assets/VRSettings/Displays/<Display>.asset` |
+| Section          | Source script                                                | Persistence                                                     |
+|------------------|--------------------------------------------------------------|-----------------------------------------------------------------|
+| `actor`          | `Gimbl.ActorObject`                                          | Scene file                                                      |
+| `mqtt`           | `Gimbl.MQTTClient`                                           | `EditorPrefs` (`SollertiaVR_MQTT_IP` / `_Port`)                 |
+| `display`        | `Gimbl.DisplayObject` + `DisplaySettings` asset              | Scene file + `Assets/VRSettings/Displays/<Display>.asset`       |
 | `camera_mapping` | `Gimbl.FullScreenViewManager` + `FullScreenViewsSaved` asset | `Assets/VRSettings/Displays/<scene>-savedFullScreenViews.asset` |
-| `task`           | `SL.Tasks.Task`            | Scene file                                             |
+| `task`           | `SL.Tasks.Task`                                              | Scene file                                                      |
 
 Notes:
 - `actor.model` is derived from the actor's child GameObject whose name starts with `Model `
@@ -259,10 +259,10 @@ has nothing to gate.
 ## Path conventions
 
 This skill does not take filesystem paths directly; every write targets the active scene the Unity
-Editor currently has open. Use `/scenes` to switch scenes before issuing Parameters writes:
+Editor currently has open. Use `/task-scenes` to switch scenes before issuing Parameters writes:
 
 ```text
-open_scene_tool(scene_path="Assets/Scenes/<name>.unity")   # /scenes
+open_scene_tool(scene_path="Assets/Scenes/<name>.unity")   # /task-scenes
 write_task_parameters_tool(task={"track_seed": 42})         # this skill
 ```
 
@@ -275,13 +275,13 @@ writes against different scenes require an `open_scene_tool` call between them.
 
 The GUI disables several controls while the Editor is in Play Mode:
 
-| Section          | Behavior in Play Mode                                                                         |
-|------------------|-----------------------------------------------------------------------------------------------|
-| `actor`          | Always editable (the GUI does not gray these out)                                             |
+| Section          | Behavior in Play Mode                                                                                             |
+|------------------|-------------------------------------------------------------------------------------------------------------------|
+| `actor`          | Always editable (the GUI does not gray these out)                                                                 |
 | `mqtt`           | Greyed out — `EditorPrefs` writes still go through, but mutating the live `MQTTClient` mid-session is unsupported |
-| `display`        | Editable; `current_brightness` changes are reflected immediately on the live display          |
-| `camera_mapping` | The "Show Full-Screen Views" button is disabled; field writes still go through                |
-| `task`           | Greyed out — flip via MQTT (`RequireLick` / `RequireWait`) for mid-run changes instead        |
+| `display`        | Editable; `current_brightness` changes are reflected immediately on the live display                              |
+| `camera_mapping` | The "Show Full-Screen Views" button is disabled; field writes still go through                                    |
+| `task`           | Greyed out — flip via MQTT (`RequireLick` / `RequireWait`) for mid-run changes instead                            |
 
 The bridge does NOT enforce these gates programmatically — writes still succeed during Play Mode.
 Treat them as a soft contract: prefer the MQTT path for `task.require_lick` / `task.require_wait`
@@ -294,15 +294,15 @@ Use `get_play_state_tool` (`/play-mode`) to check `state == "edit"` before issui
 
 ## Troubleshooting
 
-| Symptom                                                                  | Cause                                                                                            | Resolution                                                                              |
-|--------------------------------------------------------------------------|--------------------------------------------------------------------------------------------------|-----------------------------------------------------------------------------------------|
-| `state.actor == null` even though an Actor exists                         | The Actor was placed outside the root and `FindAnyObjectByType<ActorObject>()` missed it          | Confirm the Actor is in the active scene; `inspect_scene_tool` (`/scenes`) to verify     |
-| `state.task == null`                                                      | No `Task` component in the active scene (only the empty `ExperimentTemplate` template scene)      | `create_scene_tool(scene_name=..., task_prefab_path=...)` (`/scenes`) to seed a task     |
-| Write rejected: "Invalid controller '...'"                                | The controller name is not in `options.actor.controller`                                          | Re-read `options.actor.controller`; copy the exact string (it is the GameObject name)    |
-| Write rejected: "Cannot set require_lick: the active scene has no GuidanceZone" | The current task prefab has no lick-mode segments                                       | The flag is not applicable — leave it alone, or open a scene whose template includes lick-mode trials |
-| Write rejected: "Invalid monitor index N; scene has M monitors"           | Camera mapping payload references a 1-based monitor index outside `[1, M]`                       | Re-read `state.camera_mapping` to enumerate valid `monitor` indices                       |
-| `state.camera_mapping == []`                                              | OS reported zero monitors at scene load                                                          | Click "Refresh Monitor Positions" in the GUI or replug displays, then retry              |
-| Writes succeed but the GUI shows old values                               | The Parameters window cached the value before the write landed                                   | The bridge already shares the GUI's `FullScreenViewManager` for camera mapping; for other sections close and reopen `Window → Task Parameters` |
+| Symptom                                                                         | Cause                                                                                        | Resolution                                                                                                                                     |
+|---------------------------------------------------------------------------------|----------------------------------------------------------------------------------------------|------------------------------------------------------------------------------------------------------------------------------------------------|
+| `state.actor == null` even though an Actor exists                               | The Actor was placed outside the root and `FindAnyObjectByType<ActorObject>()` missed it     | Confirm the Actor is in the active scene; `inspect_scene_tool` (`/task-scenes`) to verify                                                           |
+| `state.task == null`                                                            | No `Task` component in the active scene (only the empty `ExperimentTemplate` template scene) | `create_task_tool(scene_name=..., task_prefab_path=...)` (`/task-scenes`) to seed a task                                                           |
+| Write rejected: "Invalid controller '...'"                                      | The controller name is not in `options.actor.controller`                                     | Re-read `options.actor.controller`; copy the exact string (it is the GameObject name)                                                          |
+| Write rejected: "Cannot set require_lick: the active scene has no GuidanceZone" | The current task prefab has no lick-mode segments                                            | The flag is not applicable — leave it alone, or open a scene whose template includes lick-mode trials                                          |
+| Write rejected: "Invalid monitor index N; scene has M monitors"                 | Camera mapping payload references a 1-based monitor index outside `[1, M]`                   | Re-read `state.camera_mapping` to enumerate valid `monitor` indices                                                                            |
+| `state.camera_mapping == []`                                                    | OS reported zero monitors at scene load                                                      | Click "Refresh Monitor Positions" in the GUI or replug displays, then retry                                                                    |
+| Writes succeed but the GUI shows old values                                     | The Parameters window cached the value before the write landed                               | The bridge already shares the GUI's `FullScreenViewManager` for camera mapping; for other sections close and reopen `Window → Task Parameters` |
 
 ---
 
@@ -323,13 +323,13 @@ Use `get_play_state_tool` (`/play-mode`) to check `state == "edit"` before issui
 
 ## Related skills
 
-| Skill                                         | Relationship                                                                |
-|-----------------------------------------------|-----------------------------------------------------------------------------|
-| `/unity-mcp-environment-setup` (this plugin)  | Run first if Unity Editor is unreachable                                    |
-| `/scenes` (this plugin)                       | Upstream — switches the active scene that this skill reads and writes       |
+| Skill                                         | Relationship                                                                                  |
+|-----------------------------------------------|-----------------------------------------------------------------------------------------------|
+| `/unity-mcp-environment-setup` (this plugin)  | Run first if Unity Editor is unreachable                                                      |
+| `/task-scenes` (this plugin)                       | Upstream — switches the active scene that this skill reads and writes                         |
 | `/scene-setup` (this plugin)                  | Upstream — owns the `MainWindow` GUI and the auto-creation of Actors / Controllers / Displays |
-| `/play-mode` (this plugin)                    | Upstream — `get_play_state_tool` gates writes that the GUI greys out at runtime |
-| `/task-prefabs` (this plugin)                 | Upstream — generates the task prefab whose `Task` component this skill mutates |
-| `/mqtt-contract` (this plugin)                | Reference for the `RequireLick` / `RequireWait` runtime alternative to `task` writes |
-| `/gimbl-framework` (this plugin)              | Reference for `ActorObject`, `DisplayObject`, `MQTTClient`, and `ControllerOutput` semantics |
-| assets plugin `/assets-mcp-environment-setup` | Upstream — owns the slsa MCP server diagnostic                              |
+| `/play-mode` (this plugin)                    | Upstream — `get_play_state_tool` gates writes that the GUI greys out at runtime               |
+| `/task-prefabs` (this plugin)                 | Upstream — generates the task prefab whose `Task` component this skill mutates                |
+| `/mqtt-contract` (this plugin)                | Reference for the `RequireLick` / `RequireWait` runtime alternative to `task` writes          |
+| `/gimbl-framework` (this plugin)              | Reference for `ActorObject`, `DisplayObject`, `MQTTClient`, and `ControllerOutput` semantics  |
+| assets plugin `/assets-mcp-environment-setup` | Upstream — owns the slsa MCP server diagnostic                                                |

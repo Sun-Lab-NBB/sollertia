@@ -29,7 +29,7 @@ these.
 - Runtime data acquisition outside the Editor — that is driven by the `sle run` CLI in
   `sollertia-experiment`, not by the Editor
 - Generating or inspecting prefabs (see `/task-prefabs`)
-- Opening or creating scenes (see `/scenes`)
+- Opening or creating scenes (see `/task-scenes`)
 - Unity Editor bridge diagnostics (see `/unity-mcp-environment-setup`)
 
 Play Mode here is an **Editor-side** convenience for developers iterating on a task prefab. It is
@@ -77,7 +77,7 @@ to confirm the Editor is in `edit` before performing mutating Unity operations.
 
 1. **Verify prerequisites:**
    - Unity Editor running with McpBridge reachable (else `/unity-mcp-environment-setup`).
-   - The target scene is open — hand off to `/scenes` (`open_scene_tool`) if not.
+   - The target scene is open — hand off to `/task-scenes` (`open_scene_tool`) if not.
 2. **Read current state:**
    ```text
    get_play_state_tool()
@@ -115,7 +115,7 @@ if state["state"] != "edit":
     exit_play_mode_tool()
 ```
 
-You MUST hand off to the owning skill (`/scenes`, `/task-prefabs`) only after the Editor returns
+You MUST hand off to the owning skill (`/task-scenes`, `/task-prefabs`) only after the Editor returns
 to `edit`.
 
 ---
@@ -148,13 +148,13 @@ to `edit`.
 
 ## Troubleshooting
 
-| Symptom                                                                          | Cause                                                                          | Resolution                                |
-|----------------------------------------------------------------------------------|--------------------------------------------------------------------------------|-------------------------------------------|
-| `enter_play_mode_tool` returns `entering_play_mode` but follow-up poll is `edit` | Unity refused the transition because the active scene has compile errors       | Ask the user to fix errors in the Console |
-| `enter_play_mode_tool` returns `entering_play_mode` while `compiling`            | Script recompile in progress; Unity will run the transition once it finishes   | Wait and re-poll `get_play_state_tool`    |
-| `exit_play_mode_tool` returns `state == "edit"` immediately                      | Editor already in `edit`; the handler short-circuits with `Not in Play Mode.`  | Expected — no further action needed       |
-| Active scene is not the one expected                                             | A different scene was opened previously                                        | Hand off to `/scenes` (`open_scene_tool`) |
-| All tools fail "Unity Editor is not reachable"                                   | McpBridge down                                                                 | `/unity-mcp-environment-setup`            |
+| Symptom                                                                          | Cause                                                                         | Resolution                                     |
+|----------------------------------------------------------------------------------|-------------------------------------------------------------------------------|------------------------------------------------|
+| `enter_play_mode_tool` returns `entering_play_mode` but follow-up poll is `edit` | Unity refused the transition because the active scene has compile errors      | Ask the user to fix errors in the Console      |
+| `enter_play_mode_tool` returns `entering_play_mode` while `compiling`            | Script recompile in progress; Unity will run the transition once it finishes  | Wait and re-poll `get_play_state_tool`         |
+| `exit_play_mode_tool` returns `state == "edit"` immediately                      | Editor already in `edit`; the handler short-circuits with `Not in Play Mode.` | Expected — no further action needed            |
+| Active scene is not the one expected                                             | A different scene was opened previously                                       | Hand off to `/task-scenes` (`open_scene_tool`) |
+| All tools fail "Unity Editor is not reachable"                                   | McpBridge down                                                                | `/unity-mcp-environment-setup`                 |
 
 ---
 
@@ -175,7 +175,7 @@ to `edit`.
 | Skill                                         | Relationship                                                                                        |
 |-----------------------------------------------|-----------------------------------------------------------------------------------------------------|
 | `/unity-mcp-environment-setup` (this plugin)  | Run first if Unity Editor is unreachable                                                            |
-| `/scenes` (this plugin)                       | Upstream — opens the scene to exercise in Play Mode                                                 |
+| `/task-scenes` (this plugin)                  | Upstream — opens the scene to exercise in Play Mode                                                 |
 | `/scene-setup` (this plugin)                  | Upstream — must pass the pre-Play Mode checklist first                                              |
 | `/task-prefabs` (this plugin)                 | Upstream — generates the prefab under test                                                          |
 | `/task-parameters` (this plugin)              | Upstream — set Actor / Task / Display fields in edit mode before entering Play Mode                 |

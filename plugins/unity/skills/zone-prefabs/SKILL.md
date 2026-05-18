@@ -71,7 +71,7 @@ file-editing tools (`Read`, `Edit`, `Write`) instead of a custom MCP tool.
 
 ## Pre-flight checklist
 
-You MUST verify all of the following before manufacturing a new zone prefab:
+You MUST verify all the following before manufacturing a new zone prefab:
 
 1. **The new modifier script exists.** Author the new `MonoBehaviour` under
    `Assets/InfiniteCorridorTask/Scripts/` before producing the prefab — Unity creates the
@@ -133,27 +133,27 @@ referenced by `CreateTask.PlaceLickZone` / `PlaceOccupancyZone` at task generati
 
 ### On the root GameObject
 
-| Field                                            | Required value                                            |
-|--------------------------------------------------|-----------------------------------------------------------|
-| `Transform.m_LocalPosition`                      | `{x: 0, y: 0.505, z: 0}` (the `ZoneVerticalOffset`)       |
-| `MeshFilter.m_Mesh`                              | `{fileID: 10210, guid: 0000000000000000e000000000000000}` |
-| `MeshRenderer.m_Materials[0]`                    | `{fileID: 2100000, guid: 0517064f81d2dc54fac8fa8c97538189}` (`TargetMat.mat`) |
-| `MeshCollider.m_Mesh`                            | same built-in Cube as the MeshFilter                      |
-| `MeshCollider.m_IsTrigger`                       | `0` (false — this is the physical boundary)               |
-| `BoxCollider.m_IsTrigger`                        | `1` (true — this is the StimulusTriggerZone detection)    |
-| `BoxCollider.m_Size` / `m_Center`                | Placeholder — `ConfigureRootZoneCollider` overwrites      |
-| `StimulusTriggerZone.showBoundary`               | `0` (false; `CreateTask` sets it per trial at generation) |
-| `StimulusTriggerZone.isActive`                   | `0` (false; `ResetZone.ResetState` activates at lap start)|
-| `AudioSource` (presence + default rolloff curves)| Required for stimulus audio                               |
+| Field                                             | Required value                                                                |
+|---------------------------------------------------|-------------------------------------------------------------------------------|
+| `Transform.m_LocalPosition`                       | `{x: 0, y: 0.505, z: 0}` (the `ZoneVerticalOffset`)                           |
+| `MeshFilter.m_Mesh`                               | `{fileID: 10210, guid: 0000000000000000e000000000000000}`                     |
+| `MeshRenderer.m_Materials[0]`                     | `{fileID: 2100000, guid: 0517064f81d2dc54fac8fa8c97538189}` (`TargetMat.mat`) |
+| `MeshCollider.m_Mesh`                             | same built-in Cube as the MeshFilter                                          |
+| `MeshCollider.m_IsTrigger`                        | `0` (false — this is the physical boundary)                                   |
+| `BoxCollider.m_IsTrigger`                         | `1` (true — this is the StimulusTriggerZone detection)                        |
+| `BoxCollider.m_Size` / `m_Center`                 | Placeholder — `ConfigureRootZoneCollider` overwrites                          |
+| `StimulusTriggerZone.showBoundary`                | `0` (false; `CreateTask` sets it per trial at generation)                     |
+| `StimulusTriggerZone.isActive`                    | `0` (false; `ResetZone.ResetState` activates at lap start)                    |
+| `AudioSource` (presence + default rolloff curves) | Required for stimulus audio                                                   |
 
 ### On every modifier-zone child
 
-| Field                            | Required value                                          |
-|----------------------------------|---------------------------------------------------------|
-| `Transform.m_LocalPosition`      | `{x: 0, y: 0, z: 0}`                                    |
-| `BoxCollider.m_IsTrigger`        | `1` (true)                                              |
-| `BoxCollider.m_Size` / `m_Center`| Placeholder — `Place*Zone` overwrites at generation     |
-| Exactly one `MonoBehaviour`      | The modifier script (e.g., `GuidanceZone`)              |
+| Field                             | Required value                                      |
+|-----------------------------------|-----------------------------------------------------|
+| `Transform.m_LocalPosition`       | `{x: 0, y: 0, z: 0}`                                |
+| `BoxCollider.m_IsTrigger`         | `1` (true)                                          |
+| `BoxCollider.m_Size` / `m_Center` | Placeholder — `Place*Zone` overwrites at generation |
+| Exactly one `MonoBehaviour`       | The modifier script (e.g., `GuidanceZone`)          |
 
 ### Hierarchy integrity
 
@@ -182,12 +182,12 @@ The four scripts currently used by the two committed templates have the followin
 against the `.cs.meta` files before each edit — Unity GUIDs are sticky, but verification catches
 copy-paste errors in advance):
 
-| Script class           | `.cs.meta` path                                                          | GUID                               |
-|------------------------|--------------------------------------------------------------------------|------------------------------------|
-| `StimulusTriggerZone`  | `Assets/InfiniteCorridorTask/Scripts/StimulusTriggerZone.cs.meta`        | `72389065db4262222b18469cd7662432` |
-| `GuidanceZone`         | `Assets/InfiniteCorridorTask/Scripts/GuidanceZone.cs.meta`               | `d99710621d4dc286b93af3d3946e3440` |
-| `OccupancyZone`        | `Assets/InfiniteCorridorTask/Scripts/OccupancyZone.cs.meta`              | `5ac4de8c500fd94d192243204f3a2a99` |
-| `OccupancyGuidanceZone`| `Assets/InfiniteCorridorTask/Scripts/OccupancyGuidanceZone.cs.meta`      | `dcab3a92479672720b736c7ef24fcacf` |
+| Script class            | `.cs.meta` path                                                     | GUID                               |
+|-------------------------|---------------------------------------------------------------------|------------------------------------|
+| `StimulusTriggerZone`   | `Assets/InfiniteCorridorTask/Scripts/StimulusTriggerZone.cs.meta`   | `72389065db4262222b18469cd7662432` |
+| `GuidanceZone`          | `Assets/InfiniteCorridorTask/Scripts/GuidanceZone.cs.meta`          | `d99710621d4dc286b93af3d3946e3440` |
+| `OccupancyZone`         | `Assets/InfiniteCorridorTask/Scripts/OccupancyZone.cs.meta`         | `5ac4de8c500fd94d192243204f3a2a99` |
+| `OccupancyGuidanceZone` | `Assets/InfiniteCorridorTask/Scripts/OccupancyGuidanceZone.cs.meta` | `dcab3a92479672720b736c7ef24fcacf` |
 
 For a newly authored script, read its `.cs.meta` to extract the freshly minted GUID.
 
@@ -197,11 +197,11 @@ For a newly authored script, read its `.cs.meta` to extract the freshly minted G
 
 ### Step 1: Pick the template
 
-| New zone has...                                          | Copy this template            |
-|----------------------------------------------------------|-------------------------------|
-| One modifier region, flat                                | `StimulusTriggerZone.prefab`  |
-| One modifier region with a nested guidance modifier      | `OccupancyTriggerZone.prefab` |
-| Two or more sibling modifier regions                     | `StimulusTriggerZone.prefab` (then add siblings — see Step 5) |
+| New zone has...                                     | Copy this template                                            |
+|-----------------------------------------------------|---------------------------------------------------------------|
+| One modifier region, flat                           | `StimulusTriggerZone.prefab`                                  |
+| One modifier region with a nested guidance modifier | `OccupancyTriggerZone.prefab`                                 |
+| Two or more sibling modifier regions                | `StimulusTriggerZone.prefab` (then add siblings — see Step 5) |
 
 ### Step 2: Read the source prefab
 
@@ -369,7 +369,7 @@ each segment:
 3. **Protect the new prefab from deletion.** Add the new prefab path to
    `McpBridge.DeleteProtectedPaths` (in
    `Assets/InfiniteCorridorTask/Scripts/Editor/McpBridge.cs`). Skipping this step lets
-   `delete_unity_asset_tool` clobber the hand-authored prefab on a future cleanup pass.
+   `delete_asset_tool` clobber the hand-authored prefab on a future cleanup pass.
 4. **Accept the new literal in `ConfigLoader`.** Extend the trigger-type branch in
    `ConfigLoader.ValidateTemplate` so YAML templates declaring the new `trigger_type` value pass
    validation. Match the existing `lick` / `occupancy` style.
@@ -463,23 +463,23 @@ upstream half of an existing lick-mode region.
   produce import errors that are easy to miss. `inspect_prefab_tool` returns a structured failure
   the agent can act on.
 - **Forgetting `DeleteProtectedPaths`.** A new hand-authored prefab without protection will be
-  removed by a future `delete_unity_asset_tool` cleanup pass. Always update `McpBridge.cs` in the
+  removed by a future `delete_asset_tool` cleanup pass. Always update `McpBridge.cs` in the
   same PR that introduces the prefab.
 
 ---
 
 ## Failure modes
 
-| Symptom                                                                  | Cause                                                              | Resolution                                                  |
-|--------------------------------------------------------------------------|--------------------------------------------------------------------|-------------------------------------------------------------|
-| `inspect_prefab_tool` returns "Prefab not found at: …"                   | Prefab was not saved, or path is wrong                             | Re-run Step 3; confirm the `Write` call returned success    |
-| `inspect_prefab_tool` returns success but no `StimulusTriggerZone` component on root | Root MonoBehaviour was accidentally removed or its script GUID is invalid | Re-read the source template; restore the root MonoBehaviour block verbatim |
-| `inspect_prefab_tool` returns success but the modifier region is missing | Child block was deleted but parent's `m_Children` still references its fileID | Remove the orphan fileID from `m_Children` or restore the deleted blocks |
-| Hierarchy returned by `inspect_prefab_tool` is flat (no children)        | `m_Father` ↔ `m_Children` symmetry was broken                       | Verify every child's Transform `m_Father` matches the parent Transform's fileID, and that the parent's `m_Children` list contains the child's Transform fileID |
-| Modifier script defaults look correct but the runtime behavior is wrong  | `m_Script.guid` references the wrong script                        | Re-read the target script's `.cs.meta` and confirm the GUID; the `m_EditorClassIdentifier` line is informational and may lag the real script class until Unity reimports |
-| Unity Editor reports "missing script" when opening the new prefab        | Either the script does not exist yet, or the GUID is malformed     | Confirm the `.cs` and `.cs.meta` files exist under `Scripts/`; ensure the GUID is 32 hex characters with no whitespace |
-| New prefab disappears after a cleanup pass                               | Prefab not added to `McpBridge.DeleteProtectedPaths`               | Add the path to the protected set and recover the prefab from git |
-| Task generation succeeds but the new zone never triggers                 | `BuildSegmentPrefabs` does not route to the new prefab             | Hand off to `/task-generator` — add a `trigger_type` branch and a `Place...Zone` helper |
+| Symptom                                                                              | Cause                                                                         | Resolution                                                                                                                                                               |
+|--------------------------------------------------------------------------------------|-------------------------------------------------------------------------------|--------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| `inspect_prefab_tool` returns "Prefab not found at: …"                               | Prefab was not saved, or path is wrong                                        | Re-run Step 3; confirm the `Write` call returned success                                                                                                                 |
+| `inspect_prefab_tool` returns success but no `StimulusTriggerZone` component on root | Root MonoBehaviour was accidentally removed or its script GUID is invalid     | Re-read the source template; restore the root MonoBehaviour block verbatim                                                                                               |
+| `inspect_prefab_tool` returns success but the modifier region is missing             | Child block was deleted but parent's `m_Children` still references its fileID | Remove the orphan fileID from `m_Children` or restore the deleted blocks                                                                                                 |
+| Hierarchy returned by `inspect_prefab_tool` is flat (no children)                    | `m_Father` ↔ `m_Children` symmetry was broken                                 | Verify every child's Transform `m_Father` matches the parent Transform's fileID, and that the parent's `m_Children` list contains the child's Transform fileID           |
+| Modifier script defaults look correct but the runtime behavior is wrong              | `m_Script.guid` references the wrong script                                   | Re-read the target script's `.cs.meta` and confirm the GUID; the `m_EditorClassIdentifier` line is informational and may lag the real script class until Unity reimports |
+| Unity Editor reports "missing script" when opening the new prefab                    | Either the script does not exist yet, or the GUID is malformed                | Confirm the `.cs` and `.cs.meta` files exist under `Scripts/`; ensure the GUID is 32 hex characters with no whitespace                                                   |
+| New prefab disappears after a cleanup pass                                           | Prefab not added to `McpBridge.DeleteProtectedPaths`                          | Add the path to the protected set and recover the prefab from git                                                                                                        |
+| Task generation succeeds but the new zone never triggers                             | `BuildSegmentPrefabs` does not route to the new prefab                        | Hand off to `/task-generator` — add a `trigger_type` branch and a `Place...Zone` helper                                                                                  |
 
 ---
 
@@ -515,15 +515,15 @@ upstream half of an existing lick-mode region.
 
 ## Related skills
 
-| Skill                                       | Relationship                                                              |
-|---------------------------------------------|---------------------------------------------------------------------------|
-| `/task-prefabs` (this plugin)               | Provides `inspect_prefab_tool` used for Step 6 validation                 |
-| `/task-generator` (this plugin)             | Reference for `BuildSegmentPrefabs`, `Place...Zone`, and validator updates|
-| `/task-parameters` (this plugin)            | Reference if the new zone exposes Inspector-driven fields                 |
-| `/scenes` (this plugin)                     | Consumer — places the regenerated task prefab into a scene                |
-| `/play-mode` (this plugin)                  | Consumer — exercises the new zone at runtime                              |
-| `/mqtt-contract` (this plugin)              | Reference if the new modifier publishes or subscribes to MQTT topics      |
-| `/unity-mcp-environment-setup` (this plugin)| Run first if `inspect_prefab_tool` cannot reach the Unity Editor          |
-| assets plugin `/library-extension`          | Required for new `TriggerType` member and registry parity check           |
-| automation plugin `/csharp-style`           | Required when authoring the new modifier script and editing C# wiring     |
-| automation plugin `/commit`                 | Run after the prefab, script, and wiring changes are ready to commit      |
+| Skill                                        | Relationship                                                               |
+|----------------------------------------------|----------------------------------------------------------------------------|
+| `/task-prefabs` (this plugin)                | Provides `inspect_prefab_tool` used for Step 6 validation                  |
+| `/task-generator` (this plugin)              | Reference for `BuildSegmentPrefabs`, `Place...Zone`, and validator updates |
+| `/task-parameters` (this plugin)             | Reference if the new zone exposes Inspector-driven fields                  |
+| `/task-scenes` (this plugin)                      | Consumer — places the regenerated task prefab into a scene                 |
+| `/play-mode` (this plugin)                   | Consumer — exercises the new zone at runtime                               |
+| `/mqtt-contract` (this plugin)               | Reference if the new modifier publishes or subscribes to MQTT topics       |
+| `/unity-mcp-environment-setup` (this plugin) | Run first if `inspect_prefab_tool` cannot reach the Unity Editor           |
+| assets plugin `/library-extension`           | Required for new `TriggerType` member and registry parity check            |
+| automation plugin `/csharp-style`            | Required when authoring the new modifier script and editing C# wiring      |
+| automation plugin `/commit`                  | Run after the prefab, script, and wiring changes are ready to commit       |
