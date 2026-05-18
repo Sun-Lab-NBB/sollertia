@@ -37,13 +37,13 @@ other skill in the marketplace may call these.
 
 ## MCP tool surface
 
-| Tool                       | Purpose                                                                                       |
-|----------------------------|-----------------------------------------------------------------------------------------------|
-| `list_scenes_tool`         | Lists every scene in the project and flags the active one (exclusive)                         |
-| `open_scene_tool`          | Opens a scene in the Editor with explicit unsaved-changes handling (exclusive)                |
-| `create_scene_tool`        | Creates a scene from `ExperimentTemplate.unity` with explicit unsaved-changes handling (exclusive) |
-| `inspect_scene_tool`       | Returns the active scene's metadata, dirty flag, and recursive root hierarchy (exclusive)     |
-| `list_unity_assets_tool`   | Lists assets of a given type under a path (exclusive)                                         |
+| Tool                     | Purpose                                                                                            |
+|--------------------------|----------------------------------------------------------------------------------------------------|
+| `list_scenes_tool`       | Lists every scene in the project and flags the active one (exclusive)                              |
+| `open_scene_tool`        | Opens a scene in the Editor with explicit unsaved-changes handling (exclusive)                     |
+| `create_scene_tool`      | Creates a scene from `ExperimentTemplate.unity` with explicit unsaved-changes handling (exclusive) |
+| `inspect_scene_tool`     | Returns the active scene's metadata, dirty flag, and recursive root hierarchy (exclusive)          |
+| `list_unity_assets_tool` | Lists assets of a given type under a path (exclusive)                                              |
 
 `list_unity_assets_tool` is callable as a natural share by `/task-prefabs` when enumerating prefabs
 before inspection. `delete_unity_asset_tool` (owned by `/task-prefabs`) is callable here as a
@@ -117,8 +117,8 @@ Scene deletion goes through `delete_unity_asset_tool` (owned by `/task-prefabs`)
 `Assets/Scenes/`. The bridge **cascade-deletes** the per-scene companion at
 `Assets/VRSettings/Displays/<scene>-savedFullScreenViews.asset` so per-scene camera mappings do
 not outlive the scene. The cascade fires only when the deleted asset path is under
-`Assets/Scenes/` and ends in `.unity`; the response carries `companion_deleted` with the project-
-relative companion path when it ran, and omits the field when no companion existed.
+`Assets/Scenes/` and ends in `.unity`; the response carries `companion_deleted` with the project-relative 
+companion path when it ran, and omits the field when no companion existed.
 
 ```text
 delete_unity_asset_tool(asset_path="Assets/Scenes/<name>.unity")
@@ -211,28 +211,28 @@ before invoking `open_scene_tool` / `create_scene_tool` and ask the user up-fron
 All tools require **project-relative** paths starting with `Assets/`. Absolute filesystem paths are
 rejected by the Unity AssetDatabase.
 
-| Asset                  | Canonical location                                  |
-|------------------------|-----------------------------------------------------|
-| Scenes                 | `Assets/Scenes/<name>.unity`                        |
-| Task prefabs           | `Assets/InfiniteCorridorTask/Tasks/<name>.prefab`   |
-| Segment prefabs        | `Assets/InfiniteCorridorTask/Prefabs/<template>_<trial>.prefab` |
-| Task template YAMLs    | `Assets/InfiniteCorridorTask/Configurations/<name>.yaml` |
-| Scene base template    | `Assets/Scenes/ExperimentTemplate.unity`            |
+| Asset               | Canonical location                                              |
+|---------------------|-----------------------------------------------------------------|
+| Scenes              | `Assets/Scenes/<name>.unity`                                    |
+| Task prefabs        | `Assets/InfiniteCorridorTask/Tasks/<name>.prefab`               |
+| Segment prefabs     | `Assets/InfiniteCorridorTask/Prefabs/<template>_<trial>.prefab` |
+| Task template YAMLs | `Assets/InfiniteCorridorTask/Configurations/<name>.yaml`        |
+| Scene base template | `Assets/Scenes/ExperimentTemplate.unity`                        |
 
 ---
 
 ## Troubleshooting
 
-| Symptom                                                                         | Cause                                  | Resolution                                                                            |
-|---------------------------------------------------------------------------------|----------------------------------------|---------------------------------------------------------------------------------------|
-| `open_scene_tool` returns "scene not found"                                     | Scene path typo or missing file        | Call `list_scenes_tool` and copy the exact path                                       |
-| `open_scene_tool` / `create_scene_tool` returns "Active scene … has unsaved changes" | Active scene is dirty, no policy passed | Ask the user save vs discard, retry with `unsaved_changes="save"` or `"discard"`      |
-| `create_scene_tool` fails with "Scene already exists at: …"                     | The target path is taken               | Delete the existing scene via `delete_unity_asset_tool` (`/task-prefabs`) under `Assets/Scenes/` first, then retry — the MCP path refuses overwrite to keep automated callers from silently destroying a hand-authored scene |
-| `create_scene_tool` returns `warning: "task_prefab_not_found"`                  | A non-empty `task_prefab_path` did not resolve to a loadable prefab | Generate the prefab via `/task-prefabs`, or fix the path; the scene was created without the task hierarchy and can be re-seeded after generation |
-| `create_scene_tool` fails with "Template scene not found"                       | `ExperimentTemplate.unity` absent      | Reinstall the `sollertia-unity-tasks` project                                         |
-| `inspect_scene_tool` returns empty `root_objects`                                | No scene loaded, or `ExperimentTemplate.unity` was opened empty | Call `list_scenes_tool` and `open_scene_tool` to load a real scene first              |
-| `list_unity_assets_tool` returns empty list                                     | `asset_type` or `search_path` wrong    | Broaden `search_path="Assets"` and confirm type                                       |
-| Unity relay tools all fail                                                      | McpBridge down                         | `/unity-mcp-environment-setup`                                                        |
+| Symptom                                                                              | Cause                                                               | Resolution                                                                                                                                                                                                                   |
+|--------------------------------------------------------------------------------------|---------------------------------------------------------------------|------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| `open_scene_tool` returns "scene not found"                                          | Scene path typo or missing file                                     | Call `list_scenes_tool` and copy the exact path                                                                                                                                                                              |
+| `open_scene_tool` / `create_scene_tool` returns "Active scene … has unsaved changes" | Active scene is dirty, no policy passed                             | Ask the user save vs discard, retry with `unsaved_changes="save"` or `"discard"`                                                                                                                                             |
+| `create_scene_tool` fails with "Scene already exists at: …"                          | The target path is taken                                            | Delete the existing scene via `delete_unity_asset_tool` (`/task-prefabs`) under `Assets/Scenes/` first, then retry — the MCP path refuses overwrite to keep automated callers from silently destroying a hand-authored scene |
+| `create_scene_tool` returns `warning: "task_prefab_not_found"`                       | A non-empty `task_prefab_path` did not resolve to a loadable prefab | Generate the prefab via `/task-prefabs`, or fix the path; the scene was created without the task hierarchy and can be re-seeded after generation                                                                             |
+| `create_scene_tool` fails with "Template scene not found"                            | `ExperimentTemplate.unity` absent                                   | Reinstall the `sollertia-unity-tasks` project                                                                                                                                                                                |
+| `inspect_scene_tool` returns empty `root_objects`                                    | No scene loaded, or `ExperimentTemplate.unity` was opened empty     | Call `list_scenes_tool` and `open_scene_tool` to load a real scene first                                                                                                                                                     |
+| `list_unity_assets_tool` returns empty list                                          | `asset_type` or `search_path` wrong                                 | Broaden `search_path="Assets"` and confirm type                                                                                                                                                                              |
+| Unity relay tools all fail                                                           | McpBridge down                                                      | `/unity-mcp-environment-setup`                                                                                                                                                                                               |
 
 ---
 
@@ -252,11 +252,11 @@ rejected by the Unity AssetDatabase.
 
 ## Related skills
 
-| Skill                                         | Relationship                                              |
-|-----------------------------------------------|-----------------------------------------------------------|
-| `/unity-mcp-environment-setup` (this plugin)  | Run first if Unity Editor is unreachable                  |
-| `/task-prefabs` (this plugin)                 | Upstream — generates the prefab seeded into a new scene   |
-| `/scene-setup` (this plugin)                  | Consumer — configures the scene for runtime after opening |
-| `/task-parameters` (this plugin)              | Consumer — reads / writes Actor / MQTT / Display / Camera Mapping / Task fields after opening |
-| `/play-mode` (this plugin)                    | Consumer — typically entered after opening a target scene |
-| assets plugin `/task-templates`               | Upstream — template filename defines the conventional scene name |
+| Skill                                        | Relationship                                                                                  |
+|----------------------------------------------|-----------------------------------------------------------------------------------------------|
+| `/unity-mcp-environment-setup` (this plugin) | Run first if Unity Editor is unreachable                                                      |
+| `/task-prefabs` (this plugin)                | Upstream — generates the prefab seeded into a new scene                                       |
+| `/scene-setup` (this plugin)                 | Consumer — configures the scene for runtime after opening                                     |
+| `/task-parameters` (this plugin)             | Consumer — reads / writes Actor / MQTT / Display / Camera Mapping / Task fields after opening |
+| `/play-mode` (this plugin)                   | Consumer — typically entered after opening a target scene                                     |
+| assets plugin `/task-templates`              | Upstream — template filename defines the conventional scene name                              |

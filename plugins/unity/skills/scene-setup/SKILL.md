@@ -24,7 +24,7 @@ runnable."
 - Opening the consolidated **Task Parameters** window (`Window → Task Parameters`)
 - Auto-created scene infrastructure (`Actors`, `Controllers`, `MQTT Client`, default Actor +
   Display) seeded by `MainWindow.InitializeScene`
-- Three-monitor VR setup (Left / Center / Right View) used by the mesoscope acquisition system
+- Three-monitor VR setup (Left / Center / Right View) defined here for downstream acquisition rigs
 - Swapping between `LinearTreadmill` (hardware) and `SimulatedLinearTreadmill` (keyboard) via the
   Actor section's Controller dropdown
 - Brightness / VR height tuning via the Display section
@@ -48,10 +48,10 @@ runnable."
 ## The Task Parameters window
 
 `Window → Task Parameters` opens the single editor window that hosts every per-scene
-configuration surface (`Actor`, `MQTT`, `Display`, `Camera Mapping`, `Task`). It replaces the
-former Settings / Actor / Displays three-window layout — there is no other GUI entry point for
-these fields, and the `Task` component itself is `[HideInInspector]` plus replaced in the
-Inspector by a HelpBox that points at this window.
+configuration surface (`Actor`, `MQTT`, `Display`, `Camera Mapping`, `Task`). It is the only
+GUI entry point for these fields — every public field on the `Task` component is individually
+marked `[HideInInspector]`, and `TaskEditor` (a `[CustomEditor(typeof(Task))]`) replaces the
+default Inspector with a HelpBox that points at this window.
 
 ### Auto-open behavior
 
@@ -91,11 +91,11 @@ template because the auto-created Display owns the per-monitor cameras and the A
 third-person tracking camera. Nothing in the project references `Camera.main` or the `MainCamera`
 tag, so the cleanup is safe.
 
-`InitializeScene` ends with a call to `MainWindow.EnsureMqttDefaults`, which applies the project-wide 
-MQTT broker IP / port loaded from `EditorPrefs` (`SollertiaVR_MQTT_IP` /
-`SollertiaVR_MQTT_Port`) with a `127.0.0.1:1883` fallback. This guarantees the scene's MQTTClient
-reports the same broker the GUI would write through the MQTT section regardless of whether the
-underlying scene file was serialized with an empty IP. The same helper plus
+`InitializeScene` ends with a call to `MainWindow.EnsureMqttDefaults`, which applies the
+project-wide MQTT broker IP / port loaded from `EditorPrefs` (`SollertiaVR_MQTT_IP` /
+`SollertiaVR_MQTT_Port`) with a `127.0.0.1:1883` fallback. This guarantees the scene's
+MQTTClient reports the same broker the GUI would write through the MQTT section regardless of
+whether the underlying scene file was serialized with an empty IP. The same helper plus
 `MainWindow.SyncDisplayBrightnessToSettings` are also invoked synchronously by
 `CreateTask.CreateSceneFromTemplate` so freshly created scenes report defaulted values to MCP
 reads immediately, without waiting for the Parameters window's `delayCall` autoload.
@@ -121,10 +121,10 @@ guarantees both controllers exist).
 
 ## Display rig configuration
 
-The Sollertia mesoscope rig uses three physical monitors arranged around the animal's viewing
-position. The Display section of the Parameters window controls brightness and VR height; the
-**Camera Mapping** section binds the three per-monitor cameras (`Left View`, `Center View`,
-`Right View`) to OS monitor indices.
+This project defines a three-monitor VR setup arranged around the animal's viewing position;
+downstream acquisition rigs adopt this layout. The Display section of the Parameters window
+controls brightness and VR height; the **Camera Mapping** section binds the three per-monitor
+cameras (`Left View`, `Center View`, `Right View`) to OS monitor indices.
 
 ### Assigning monitors
 
@@ -132,25 +132,28 @@ position. The Display section of the Parameters window controls brightness and V
 2. Click **Refresh Monitor Positions** if the entries do not match the OS-reported monitors.
 3. For each row, pick the matching camera from the dropdown (the Display rig auto-names cameras
    after the role, e.g., `Left View`, `Center View`, `Right View`).
-4. Click **Show Full-Screen Views** to verify each camera renders to the intended monitor. Each
-   monitor should show its side of the VR corridor.
+4. Click **Show Full-Screen Views** in edit mode to spawn a borderless window on each assigned
+   monitor. The windows are empty until the scene starts playing; the button is also disabled
+   while playing, so the sequence is: click in edit mode → enter Play Mode (`/play-mode`) →
+   verify each monitor shows its side of the VR corridor → exit Play Mode to close the windows.
 5. If an assignment is wrong, swap entries and re-verify.
 
 ### Reboot caveat
 
-Operating-system reboots can reorder monitor output ports. **Always** re-verify the camera-to-monitor
-binding before starting an experimental session. The Camera Mapping section's monitor indices are
-not stable across reboots.
+Operating-system reboots can reorder monitor output ports. **You MUST** re-verify the
+camera-to-monitor binding before starting an experimental session. The Camera Mapping section's
+monitor indices are not stable across reboots.
 
 ### Display section
 
-The Display section shows three fields plus a Blank / Show toggle:
+The Display section exposes **two editable fields** (`brightness`, `heightInVR`) plus a Blank /
+Show button. The relevant state values are:
 
-| Field               | Persistence                                                      | Effect                                        |
-|---------------------|------------------------------------------------------------------|-----------------------------------------------|
-| `currentBrightness` | Scene-serialized field; synced to `brightness` on scene creation | Live brightness override                      |
-| `brightness`        | `Assets/VRSettings/Displays/<Display>.asset` (default `50`)      | Default brightness restored by "Show Display" |
-| `heightInVR`        | `Assets/VRSettings/Displays/<Display>.asset`                     | Y offset of the display rig from the actor    |
+| Value               | Surface                                            | Persistence                                                                   | Effect                                        |
+|---------------------|----------------------------------------------------|-------------------------------------------------------------------------------|-----------------------------------------------|
+| `brightness`        | Numeric field (default `50`)                       | `Assets/VRSettings/Displays/<Display>.asset`                                  | Default brightness restored by "Show Display" |
+| `heightInVR`        | Numeric field (default `0.2`)                      | `Assets/VRSettings/Displays/<Display>.asset`                                  | Y offset of the display rig from the actor    |
+| `currentBrightness` | No field — written only by the Blank / Show button | Scene-serialized on `DisplayObject`; synced to `brightness` on scene creation | Live brightness override applied to rendering |
 
 The Blank / Show button flips `currentBrightness` between `0` and the configured `brightness`.
 `CreateTask.CreateSceneFromTemplate` calls `MainWindow.SyncDisplayBrightnessToSettings` after the
@@ -178,12 +181,13 @@ scene plus the literal `None`. After scene init the auto-created options are:
 
 | Dropdown label      | Underlying script           | When to use                                              | Input source              |
 |---------------------|-----------------------------|----------------------------------------------------------|---------------------------|
-| `Linear`            | `LinearTreadmill`           | Running against real mesoscope hardware                  | MQTT `Motion` topic       |
+| `Linear`            | `LinearTreadmill`           | Running against real treadmill hardware                  | MQTT `Motion` topic       |
 | `Simulated Linear`  | `SimulatedLinearTreadmill`  | Manual Editor testing without hardware                   | Keyboard only             |
 | `None`              | (no controller)             | Disable actor movement (rare; debugging)                 | n/a                       |
 
 Both controller GameObjects always exist in every scene; the dropdown only swaps which one the
-actor reads. Never add or remove the controller scripts manually — use the Actor dropdown.
+actor reads. **You MUST NOT** add or remove the controller scripts manually — use the Actor
+dropdown.
 
 ### Using `Simulated Linear` for keyboard testing
 
@@ -192,9 +196,7 @@ actor reads. Never add or remove the controller scripts manually — use the Act
 3. Controls (Unity Input System action map `SimulatedInput`):
    - **W / Up arrow** — move forward
    - **S / Down arrow** — move backward
-   - **A / D / Left arrow / Right arrow** — strafe (consumed by movement input, no lateral effect)
    - **Space (Jump action)** — simulate a single lick (publishes `Lick`).
-   - **Left Ctrl, Left Alt, Left Shift** — Fire1 / Fire2 / Fire3 (unused by the current task scripts)
 
 Movement speed is scaled by `MovementSpeedMultiplier = 8.0f` in `SimulatedLinearTreadmill.cs`.
 
@@ -206,7 +208,7 @@ Leaving `Simulated Linear` selected in a production scene publishes spurious `Li
 every spacebar press, corrupting the session log.
 
 The `Simulated Linear` GameObject **stays in the scene** — it is just unselected by the dropdown.
-Do not delete it; future testing depends on its presence.
+**You MUST NOT** delete it; future testing depends on its presence.
 
 ### Programmatic alternative
 
@@ -287,7 +289,7 @@ nothing about the runtime data.
 
 `LickStimulusSpawner` subscribes to `Stimulus`, which is also published by `StimulusTriggerZone`
 inside the same Unity process. This is an intentional intra-Unity loopback; see `/mqtt-contract`
-for the multi-consumer behavior. Do not treat the self-delivery as a bug.
+for the multi-consumer behavior. **You MUST NOT** treat the self-delivery as a bug.
 
 ---
 
@@ -302,14 +304,14 @@ for the multi-consumer behavior. Do not treat the self-delivery as a bug.
 | MQTT broker IP / port                 | Project-wide (per user) | `EditorPrefs` (`SollertiaVR_MQTT_*`)                            |
 
 **Implication:** every scene must have its Camera Mapping configured independently after a fresh
-checkout or a system reboot. Maintain one scene per experimental protocol so the configuration can
-be saved and reused.
+checkout or a system reboot. **You SHOULD** maintain one scene per experimental protocol so the
+configuration can be saved and reused.
 
 ---
 
 ## Pre-Play Mode checklist
 
-Run through this list after any scene edit and before entering Play Mode:
+**You MUST** work through this list after any scene edit and before entering Play Mode:
 
 ```text
 - [ ] Scene contains the auto-created "MQTT Client" / "Actors" / "Controllers" GameObjects
@@ -332,7 +334,7 @@ Run through this list after any scene edit and before entering Play Mode:
 | Symptom                                              | Root cause                                                                           | Resolution                                                                   |
 |------------------------------------------------------|--------------------------------------------------------------------------------------|------------------------------------------------------------------------------|
 | `NullReferenceException` on Play — `Display` is null | Actor.Display not assigned                                                           | Re-open `Window → Task Parameters` to retrigger `EnsureActorAndDisplay`      |
-| Camera Mapping rows are empty after a scene open     | Scene was created without the `MainWindow.InitializeScene` pass                      | Open `Window → Task Parameters`; the InitializeOnLoad hooks repair the scene |
+| Camera Mapping rows are empty after a scene open     | Scene was created without the `MainWindow.InitializeScene` pass                      | Open `Window → Task Parameters`; `OnEnable` reruns `InitializeScene`         |
 | Monitors show wrong content after reboot             | OS reassigned monitor ports                                                          | Press **Refresh Monitor Positions** and reassign cameras                     |
 | Keyboard input has no effect in Play Mode            | Controller dropdown is `Linear`, not `Simulated Linear`                              | Swap via the Actor section's Controller dropdown                             |
 | Spurious lick events in session log                  | Forgotten `Simulated Linear` selection in a production scene                         | Swap back to `Linear`                                                        |
