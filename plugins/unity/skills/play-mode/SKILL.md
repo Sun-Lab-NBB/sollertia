@@ -129,13 +129,13 @@ Hand off to the owning skill (`/scenes`, `/task-prefabs`) only after the Editor 
 
 ## Troubleshooting
 
-| Symptom                                        | Cause                                           | Resolution                                 |
-|------------------------------------------------|-------------------------------------------------|--------------------------------------------|
-| `enter_play_mode_tool` returns but state stays `edit` | Scene has compile errors                 | Ask the user to fix errors in the Console  |
-| `enter_play_mode_tool` returns while `compiling`     | Script recompile in progress              | Wait and re-poll `get_play_state_tool`     |
-| `exit_play_mode_tool` has no effect            | Editor already in `edit`                        | Expected — re-poll to confirm              |
-| Active scene is not the one expected           | A different scene was opened previously         | Hand off to `/scenes` (`open_scene_tool`)  |
-| All tools fail "Unity Editor is not reachable" | McpBridge down                                  | `/unity-mcp-environment-setup`                   |
+| Symptom                                               | Cause                                   | Resolution                                |
+|-------------------------------------------------------|-----------------------------------------|-------------------------------------------|
+| `enter_play_mode_tool` returns but state stays `edit` | Scene has compile errors                | Ask the user to fix errors in the Console |
+| `enter_play_mode_tool` returns while `compiling`      | Script recompile in progress            | Wait and re-poll `get_play_state_tool`    |
+| `exit_play_mode_tool` has no effect                   | Editor already in `edit`                | Expected — re-poll to confirm             |
+| Active scene is not the one expected                  | A different scene was opened previously | Hand off to `/scenes` (`open_scene_tool`) |
+| All tools fail "Unity Editor is not reachable"        | McpBridge down                          | `/unity-mcp-environment-setup`            |
 
 ---
 
@@ -153,12 +153,12 @@ Hand off to the owning skill (`/scenes`, `/task-prefabs`) only after the Editor 
 
 ## Related skills
 
-| Skill                                         | Relationship                                                                       |
-|-----------------------------------------------|------------------------------------------------------------------------------------|
-| `/unity-mcp-environment-setup` (this plugin)  | Run first if Unity Editor is unreachable                                           |
-| `/scenes` (this plugin)                       | Upstream — opens the scene to exercise in Play Mode                                |
-| `/scene-setup` (this plugin)                  | Upstream — must pass the pre-Play Mode checklist first                             |
-| `/task-prefabs` (this plugin)                 | Upstream — generates the prefab under test                                         |
-| `/task-parameters` (this plugin)              | Upstream — set Actor / Task / Display fields in edit mode before entering Play Mode |
+| Skill                                         | Relationship                                                                                        |
+|-----------------------------------------------|-----------------------------------------------------------------------------------------------------|
+| `/unity-mcp-environment-setup` (this plugin)  | Run first if Unity Editor is unreachable                                                            |
+| `/scenes` (this plugin)                       | Upstream — opens the scene to exercise in Play Mode                                                 |
+| `/scene-setup` (this plugin)                  | Upstream — must pass the pre-Play Mode checklist first                                              |
+| `/task-prefabs` (this plugin)                 | Upstream — generates the prefab under test                                                          |
+| `/task-parameters` (this plugin)              | Upstream — set Actor / Task / Display fields in edit mode before entering Play Mode                 |
 | `/mqtt-contract` (this plugin)                | Reference for topics that drive runtime behavior and runtime alternatives to Task Parameters writes |
-| assets plugin `/assets-mcp-environment-setup` | Upstream — owns the slsa MCP server diagnostic                                     |
+| assets plugin `/assets-mcp-environment-setup` | Upstream — owns the slsa MCP server diagnostic                                                      |
