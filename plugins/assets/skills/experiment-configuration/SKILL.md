@@ -2,11 +2,10 @@
 name: experiment-configuration
 description: >-
   Authors per-project experiment configuration YAMLs (currently only
-  MesoscopeExperimentConfiguration) via the sollertia-shared-assets MCP server. Owns
-  write_experiment_configuration_tool, create_experiment_configuration_tool,
-  validate_experiment_configuration_tool, and schema introspection. Use when creating a new
-  experiment configuration, customizing trial parameters, or instantiating a task template
-  for a project.
+  MesoscopeExperimentConfiguration) via the sollertia-shared-assets MCP server. Owns the
+  create / write / validate experiment configuration tools and schema introspection. Use when
+  creating a new experiment configuration, customizing trial parameters, or instantiating a
+  task template for a project.
 user-invocable: true
 ---
 
@@ -146,8 +145,8 @@ configuration captures that whole arc by chaining states with different guidance
   trial *class* per trial name. The template only provides the spatial `TrialStructure`; the
   experiment configuration pairs each entry with a concrete runtime trial class and attaches the per-trial
   parameters. The natural pairing is `trigger_type: "lick"` → `WaterRewardTrial` and
-  `trigger_type: "occupancy"` → `GasPuffTrial`, because the template's `trigger_type` is what
-  Unity used to bake the matching zone prefab. Cross-pairing is schema-legal but produces a
+  `trigger_type: "occupancy"` → `GasPuffTrial`, because the template's `trigger_type` selects
+  which zone prefab Unity instantiates. Cross-pairing is schema-legal but produces a
   prefab-vs-runtime mismatch — stick to the matching pairing.
 - **`unity_scene_name`** is on the experiment configuration (not the template) because the
   acquisition runtime verifies it against the actual scene loaded in Unity at session start;

@@ -38,9 +38,11 @@ existing `inspect_prefab_tool`.
 - Adding a new `TriggerType` member to the shared-assets registry (see assets plugin's
   `/library-extension`)
 - Authoring the new MonoBehaviour script itself (see `/csharp-style` in the automation plugin)
-- Editing protected hand-authored assets (`StimulusTriggerZone.prefab`,
-  `OccupancyTriggerZone.prefab`, `ResetZone.prefab`, `_CueShaderReference.mat`,
-  `ExperimentTemplate.unity`) — these are the source templates and must remain untouched
+- Editing protected hand-authored assets — four prefabs (`StimulusTriggerZone.prefab`,
+  `OccupancyTriggerZone.prefab`, `ResetZone.prefab`, `Padding.prefab`), four materials
+  (`_CueShaderReference.mat`, `Floor.mat`, `Wall.mat`, `TargetMat.mat`), and the scene base
+  template (`ExperimentTemplate.unity`) — these are the source templates and shared assets
+  that `CreateTask` and the generated prefabs reference, and they must remain untouched
 
 ---
 

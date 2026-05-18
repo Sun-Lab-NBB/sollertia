@@ -2,11 +2,10 @@
 name: library-extension
 description: >-
   Orchestrates cross-cutting changes to extend the sollertia-shared-assets library with a new
-  acquisition system, session type, trial class, trigger type, or VR paradigm. Reference for the
-  registry touch list, the import-time parity check, and the per-scenario map of sibling skills
-  that need their hardcoded enumerations updated. Use when adding a new AcquisitionSystems
-  member, SessionTypes member, runtime trial class, TriggerType member, or extending the template
-  vocabulary beyond the infinite corridor.
+  acquisition system, session type, trial class, trigger type, or VR paradigm. Covers the
+  registry touch list, import-time parity check, and sibling-skill enumeration updates. Use
+  when adding a new AcquisitionSystems / SessionTypes / TriggerType member, runtime trial
+  class, or extending the template vocabulary beyond the infinite corridor.
 user-invocable: true
 ---
 

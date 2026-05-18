@@ -240,7 +240,6 @@ Session Discovery:
 - [ ] Ran get_data_root_overview_tool and reviewed results
 - [ ] Surfaced error-status sessions to the user
 - [ ] Applied filter_sessions_tool if date, animal, or session-name filtering was requested
-- [ ] Did not call discover_sessions_tool — that tool no longer exists
 - [ ] Confirmed final session_paths list with user
 - [ ] Handed off to the appropriate downstream skill
 ```

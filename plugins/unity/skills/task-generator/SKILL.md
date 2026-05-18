@@ -80,6 +80,8 @@ CreateTask.CreateSceneFromTemplate(sceneSavePath, taskPrefabPath, overwriteExist
 ├── EditorSceneManager.OpenScene(sceneSavePath)
 ├── Optionally instantiate the task prefab (non-fatal if missing)
 ├── MainWindow.EnsureControllers                            ← guarantees Linear + Simulated Linear coexist
+├── MainWindow.EnsureMqttDefaults                           ← applies EditorPrefs MQTT IP/port with 127.0.0.1:1883 fallback
+├── MainWindow.SyncDisplayBrightnessToSettings              ← sets DisplayObject.currentBrightness = settings.brightness
 └── Save the new scene + return SceneCreationResult         ← {Success, Message, SimulatedControllerAdded, TaskPrefabNotFound}
 ```
 
@@ -100,15 +102,17 @@ Keys:
   the conflict before generation runs.
 - **Cue shader is canonical**: `LoadReferenceCueShader` reads the shader from
   `Assets/InfiniteCorridorTask/Materials/_CueShaderReference.mat` — a hand-authored material protected from
-  deletion via `McpBridge.DeleteProtectedPaths`. The shader (a legacy diffuse variant) renders both walls of a
-  cue correctly even when the Right wall uses a negative geometry scale to mirror its texture; the Standard
-  shader breaks under negative scales and Unlit shaders drop lighting altogether. Fallbacks exist
-  (`Cue*.mat` heuristic, `Shader.Find("Legacy Shaders/Diffuse")`, `Standard`) but logging a warning — the
-  reference material is the canonical source and must be restored from git when missing.
+  deletion via `McpBridge.DeleteProtectedPaths`. The shader is Unity's built-in `Legacy Shaders/Diffuse`,
+  chosen because it renders both walls of a cue correctly even when the Right wall uses a negative geometry
+  scale to mirror its texture; the Standard shader breaks under negative scales and Unlit shaders drop
+  lighting altogether. Fallbacks exist (`Cue*.mat` heuristic, `Shader.Find("Legacy Shaders/Diffuse")`,
+  `Standard`) but log a warning — the reference material is the canonical source and must be restored from
+  git when missing.
 - **Segment prefabs are template-owned and always rebuilt**: `CleanGeneratedSegments` deletes every
   `<template>_<trial>.prefab` declared by the template before `BuildSegmentPrefabs` runs, so trial-parameter edits
   in the YAML (cue sequence, zone math, trigger type) take effect on the next generation pass without any manual
-  cleanup. Identical-geometry trials in different templates no longer share a prefab.
+  cleanup. Each template's segment prefabs are scoped to that template; no segment prefab is shared across
+  templates.
 - **The final task prefab** is always overwritten at `savePath`.
 - **Validation warning** (not an error): if the measured segment-prefab length disagrees with
   `sum(cue.length_cm / cm_per_unity_unit)` by more than `0.01`, `CreateTask` logs a warning but proceeds using the
@@ -192,26 +196,33 @@ template owns its segments outright. `ConfigLoader` rejects trial names that con
 
 ### Required shared assets
 
-`BuildCuePrefabs` and `BuildSegmentPrefabs` abort if any of these are missing:
+`BuildCuePrefabs` and `BuildSegmentPrefabs` abort if any of these are missing. Every entry below
+is also in `McpBridge.DeleteProtectedPaths` and cannot be deleted via `delete_unity_asset_tool`:
 
-| Asset                                       | Type      | Purpose                                                 |
-|---------------------------------------------|-----------|---------------------------------------------------------|
-| `Prefabs/StimulusTriggerZone.prefab`        | GameObject| Base prefab for lick-mode zones                         |
-| `Prefabs/OccupancyTriggerZone.prefab`       | GameObject| Base prefab for occupancy-mode zones                    |
-| `Prefabs/ResetZone.prefab`                  | GameObject| Placed at every segment's start                         |
-| `Materials/_CueShaderReference.mat`         | Material  | Canonical shader source for every generated cue material |
-| `Materials/Floor.mat`                       | Material  | Shared floor material                                   |
-| `Materials/Wall.mat`                        | Material  | Shared wall material                                    |
+| Asset                                       | Type      | Purpose                                                          |
+|---------------------------------------------|-----------|------------------------------------------------------------------|
+| `Prefabs/StimulusTriggerZone.prefab`        | GameObject| Base prefab for lick-mode zones                                  |
+| `Prefabs/OccupancyTriggerZone.prefab`       | GameObject| Base prefab for occupancy-mode zones                             |
+| `Prefabs/ResetZone.prefab`                  | GameObject| Placed at every segment's start                                  |
+| `Prefabs/Padding.prefab`                    | GameObject| Appended past every corridor to cap the visible corridor depth   |
+| `Materials/_CueShaderReference.mat`         | Material  | Canonical shader source for every generated cue material         |
+| `Materials/Floor.mat`                       | Material  | Shared floor material baked into every generated segment         |
+| `Materials/Wall.mat`                        | Material  | Shared wall material baked into every generated segment          |
+| `Materials/TargetMat.mat`                   | Material  | Renderer material referenced by both hand-authored trigger zones |
 
-The four prefabs and `_CueShaderReference.mat` are also in `McpBridge.DeleteProtectedPaths` and
-cannot be deleted via `delete_unity_asset_tool`. Do not rename these assets — the paths are
-hardcoded in `BuildSegmentPrefabs` / `LoadReferenceCueShader`.
+Do not rename these assets — `BuildSegmentPrefabs` / `LoadReferenceCueShader` resolve them by
+hardcoded path, and the trigger zone prefabs reference `TargetMat.mat` by serialized GUID. The
+scene base template `Assets/Scenes/ExperimentTemplate.unity` is also in
+`McpBridge.DeleteProtectedPaths` but is consumed by `CreateSceneFromTemplate` rather than by the
+prefab build pass.
 
 ### Padding prefab
 
-The `vr_environment.padding_prefab_name` template field names a separate prefab under `Prefabs/`. `CreateTask` appends
-one padding instance at `depth * min(segmentLengths) - 1` past every corridor to prevent the camera from seeing past
-the last real segment. Padding prefabs are **hand-authored** and referenced by name; there is no automatic synthesis.
+The `vr_environment.padding_prefab_name` template field names the padding prefab under
+`Prefabs/`. `CreateTask` appends one padding instance at `depth * min(segmentLengths) - 1` past
+every corridor to prevent the camera from seeing past the last real segment. The padding prefab
+is **hand-authored** and referenced by name; there is no automatic synthesis. It is in the
+required-shared-assets table above and is protected by `McpBridge.DeleteProtectedPaths`.
 
 ---
 

@@ -73,8 +73,13 @@ natural share for scene deletion under `Assets/Scenes/`.
 
 New scenes are created by copying `Assets/Scenes/ExperimentTemplate.unity` — the template defines
 the standard camera rig, lighting, and audio setup used by every Sollertia task. The bridge
-delegates to `CreateTask.CreateSceneFromTemplate`, which also runs `MainWindow.EnsureControllers`
-to guarantee both `Linear` and `Simulated Linear` controllers exist in the new scene.
+delegates to `CreateTask.CreateSceneFromTemplate`, which runs three setup passes after the copy:
+`MainWindow.EnsureControllers` to guarantee both `Linear` and `Simulated Linear` controllers exist,
+`MainWindow.EnsureMqttDefaults` to apply the project-wide MQTT broker IP / port (loaded from
+`EditorPrefs` with a `127.0.0.1:1883` fallback), and `MainWindow.SyncDisplayBrightnessToSettings`
+to sync `DisplayObject.currentBrightness` with the referenced `DisplaySettings.brightness` asset
+value. The synchronous setup means an immediate `read_task_parameters_tool` after
+`create_scene_tool` sees the same defaults the Editor would apply — no `delayCall` race.
 
 1. **(Optional) Ensure the task prefab is generated** — hand off to `/task-prefabs` to generate it
    before seeding the scene with it.
@@ -105,6 +110,26 @@ to guarantee both `Linear` and `Simulated Linear` controllers exist in the new s
    Confirm the new scene appears in the list. The new scene is opened in the Editor automatically
    by `CreateSceneFromTemplate`, so a separate `open_scene_tool` call is only needed if the user
    navigates elsewhere first.
+
+### Delete a scene (and its per-scene companion)
+
+Scene deletion goes through `delete_unity_asset_tool` (owned by `/task-prefabs`) under
+`Assets/Scenes/`. The bridge **cascade-deletes** the per-scene companion at
+`Assets/VRSettings/Displays/<scene>-savedFullScreenViews.asset` so per-scene camera mappings do
+not outlive the scene. The cascade fires only when the deleted asset path is under
+`Assets/Scenes/` and ends in `.unity`; the response carries `companion_deleted` with the project-
+relative companion path when it ran, and omits the field when no companion existed.
+
+```text
+delete_unity_asset_tool(asset_path="Assets/Scenes/<name>.unity")
+# Response when a companion existed:
+# {success: true, asset_path: "...", deleted: true,
+#  companion_deleted: "Assets/VRSettings/Displays/<name>-savedFullScreenViews.asset"}
+```
+
+`Assets/Scenes/ExperimentTemplate.unity` is protected by `DeleteProtectedPaths`, so its delete
+attempt is rejected up front and no companion cascade runs. New per-scene companion assets should
+be added to `McpBridge.TryDeleteScenePerSceneCompanions` in the same change that introduces them.
 
 ### Inspect the active scene
 

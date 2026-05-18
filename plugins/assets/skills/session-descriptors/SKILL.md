@@ -3,10 +3,9 @@ name: session-descriptors
 description: >-
   Reads, writes, and validates session descriptor YAMLs (LickTraining, RunTraining,
   WindowChecking, MesoscopeExperiment descriptors) via the sollertia-shared-assets MCP server.
-  Owns write_session_descriptor_tool and describe_session_descriptor_schema_tool. Tools are
-  file-path based — the caller supplies the path, whether it points at a raw session snapshot
-  or a forged dataset copy. Use when repairing, amending, or inspecting a descriptor for any
-  of the four session types.
+  Owns write_session_descriptor_tool and describe_session_descriptor_schema_tool; tools are
+  file-path based, accepting raw session snapshots or forged dataset copies. Use when
+  repairing, amending, or inspecting a descriptor for any of the four session types.
 user-invocable: true
 ---
 

@@ -95,7 +95,7 @@ drives movement from keyboard input via Unity's Input System. The non-chaining
 
 | Constant   | Direction          | Channel type   | Payload | Publisher(s)                                                                | Subscriber(s)                                                              |
 |------------|--------------------|----------------|---------|-----------------------------------------------------------------------------|----------------------------------------------------------------------------|
-| `Lick`     | bidirectional      | `MQTTChannel`  | empty   | sollertia-experiment hardware lickport; `SimulatedLinearTreadmill` (Jump or left-click) | `SL.Tasks.StimulusTriggerZone.OnLickDetected`; `SL.UI.LickStimulusSpawner.OnLick` |
+| `Lick`     | bidirectional      | `MQTTChannel`  | empty   | sollertia-experiment hardware lickport; `SimulatedLinearTreadmill` Jump action       | `SL.Tasks.StimulusTriggerZone.OnLickDetected`; `SL.UI.LickStimulusSpawner.OnLick` |
 | `Stimulus` | Unity → experiment | `MQTTChannel`  | empty   | `SL.Tasks.StimulusTriggerZone.TriggerStimulus`                              | sollertia-experiment; `SL.UI.LickStimulusSpawner.OnStimulus` (intra-Unity)  |
 
 Both topics are multi-consumer — see [Multi-consumer topics](#multi-consumer-topics) for the full
@@ -169,8 +169,8 @@ Subscribers inside Unity:
 
 Publishers:
 - sollertia-experiment hardware lickport (production).
-- `Gimbl.SimulatedLinearTreadmill` — left mouse click OR `Jump` (space) keypress during dev
-  testing; the publisher uses the in-process loopback when no broker is connected.
+- `Gimbl.SimulatedLinearTreadmill` — `Jump` action (spacebar) keypress during dev testing; the
+  publisher uses the in-process loopback when no broker is connected.
 
 ### `Stimulus`
 

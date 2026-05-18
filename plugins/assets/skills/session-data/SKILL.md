@@ -347,9 +347,6 @@ Use this when you need to validate a session-type string before using it in anot
       (python_version / sollertia_experiment_version) were actually needed
 - [ ] inspect_sessions_tool was called before handing off to the experiment plugin's
       /managing-session-data for preprocessing (issues list is empty for required_assets)
-- [ ] Did not attempt to call validate_session_tool, get_session_status_tool,
-      get_batch_session_status_overview_tool, or discover_session_descriptors_tool — these tools
-      no longer exist
 - [ ] write_session_data_tool was only invoked for explicit repair workflows — not during
       normal acquisition, which is the acquisition runtime's responsibility
 - [ ] Handed off to /session-descriptors, /session-hardware-state, /subject-metadata,

@@ -118,8 +118,8 @@ marker lives inside `<session>/raw_data/`.
 
 Each subject (animal) is expected to belong to **exactly one project at a time**. An animal that
 surfaces under multiple project entries in `get_data_root_overview_tool` output is an error
-state ("often indicative of old migration pipeline use"). Remediation — migrating a subject
-from one project to another — is owned by the experiment plugin's `/data-management` skill,
+state. Remediation — migrating a subject from one project to another — is owned by the
+experiment plugin's `/data-management` skill,
 which exposes the migration tool that transfers all the animal's session data from the source
 project to the destination project.
 
@@ -225,9 +225,8 @@ shaped for downstream chaining with `filter_sessions_tool` (see `/session-discov
    get_data_root_overview_tool(root_directory="<absolute>")
    ```
 2. **Scan `projects[*].animals[*].id` across projects**; any animal that appears under more than
-   one project is an error state ("often indicative of old migration pipeline use"). Flag those
-   IDs to the user and hand off to the experiment plugin's `/data-management` to migrate the
-   subject if needed.
+   one project is an error state. Flag those IDs to the user and hand off to the experiment
+   plugin's `/data-management` to migrate the subject if needed.
 3. **Hand off to `/subject-metadata`** to read individual subject records (surgery, implants,
    injections, drugs).
 
@@ -246,8 +245,6 @@ created, confirm the project is visible with `get_data_root_overview_tool`.
 ```text
 - [ ] sollertia-shared-assets MCP server is connected
 - [ ] get_data_root_overview_tool was used for any project / animal / session enumeration
-- [ ] Did not attempt to call create_project_tool or get_project_overview_tool — those tools
-      no longer exist
 - [ ] Project-creation workflows were handed off to the experiment plugin's /managing-session-data
 - [ ] Did not call any write_* or set_* tool from this skill — this skill is read-only
 - [ ] Handed off to /experiment-configuration for any experiment authoring

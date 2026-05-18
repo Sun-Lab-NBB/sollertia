@@ -91,6 +91,15 @@ template because the auto-created Display owns the per-monitor cameras and the A
 third-person tracking camera. Nothing in the project references `Camera.main` or the `MainCamera`
 tag, so the cleanup is safe.
 
+`InitializeScene` ends with a call to `MainWindow.EnsureMqttDefaults`, which applies the project-
+wide MQTT broker IP / port loaded from `EditorPrefs` (`SollertiaVR_MQTT_IP` /
+`SollertiaVR_MQTT_Port`) with a `127.0.0.1:1883` fallback. This guarantees the scene's MQTTClient
+reports the same broker the GUI would write through the MQTT section regardless of whether the
+underlying scene file was serialized with an empty IP. The same helper plus
+`MainWindow.SyncDisplayBrightnessToSettings` are also invoked synchronously by
+`CreateTask.CreateSceneFromTemplate` so freshly created scenes report defaulted values to MCP
+reads immediately, without waiting for the Parameters window's `delayCall` autoload.
+
 ### Required scene contents (post-init)
 
 A runnable scene contains:
@@ -139,11 +148,16 @@ The Display section shows three fields plus a Blank / Show toggle:
 
 | Field                | Persistence                                              | Effect                                          |
 |----------------------|----------------------------------------------------------|-------------------------------------------------|
-| `currentBrightness`  | Runtime-only (not asset)                                 | Live brightness override                        |
-| `brightness`         | `Assets/VRSettings/Displays/<Display>.asset`             | Default brightness restored by "Show Display"   |
+| `currentBrightness`  | Scene-serialized field; synced to `brightness` on scene creation | Live brightness override                |
+| `brightness`         | `Assets/VRSettings/Displays/<Display>.asset` (default `50`) | Default brightness restored by "Show Display" |
 | `heightInVR`         | `Assets/VRSettings/Displays/<Display>.asset`             | Y offset of the display rig from the actor      |
 
 The Blank / Show button flips `currentBrightness` between `0` and the configured `brightness`.
+`CreateTask.CreateSceneFromTemplate` calls `MainWindow.SyncDisplayBrightnessToSettings` after the
+scene is instantiated, so a freshly created scene's `currentBrightness` matches the asset's
+`brightness` rather than the `DisplayObject` field initializer. `DisplayObject.Create` also reuses
+an existing `<displayName>.asset` at `Assets/VRSettings/Displays/` instead of overwriting it, so
+user-customized `brightness` / `heightInVR` survive subsequent scene rebuilds.
 
 ### Per-scene state
 
@@ -165,12 +179,11 @@ scene plus the literal `None`. After scene init the auto-created options are:
 | Dropdown label      | Underlying script           | When to use                                              | Input source              |
 |---------------------|-----------------------------|----------------------------------------------------------|---------------------------|
 | `Linear`            | `LinearTreadmill`           | Running against real mesoscope hardware                  | MQTT `Motion` topic       |
-| `Simulated Linear`  | `SimulatedLinearTreadmill`  | Manual Editor testing without hardware                   | Keyboard + mouse          |
+| `Simulated Linear`  | `SimulatedLinearTreadmill`  | Manual Editor testing without hardware                   | Keyboard only             |
 | `None`              | (no controller)             | Disable actor movement (rare; debugging)                 | n/a                       |
 
-Both controller GameObjects always exist; the dropdown swaps which one the actor reads. There is
-**no need** to add or remove scripts — the previous "remove LinearTreadmill, add
-SimulatedLinearTreadmill" workflow has been retired in favor of the dropdown-only flow.
+Both controller GameObjects always exist in every scene; the dropdown only swaps which one the
+actor reads. Never add or remove the controller scripts manually — use the Actor dropdown.
 
 ### Using `Simulated Linear` for keyboard testing
 
@@ -180,7 +193,7 @@ SimulatedLinearTreadmill" workflow has been retired in favor of the dropdown-onl
    - **W / Up arrow** — move forward
    - **S / Down arrow** — move backward
    - **A / D / Left arrow / Right arrow** — strafe (consumed by movement input, no lateral effect)
-   - **Mouse left click OR Space (Jump)** — simulate a single lick (publishes `Lick`)
+   - **Space (Jump action)** — simulate a single lick (publishes `Lick`).
    - **Left Ctrl, Left Alt, Left Shift** — Fire1 / Fire2 / Fire3 (unused by the current task scripts)
 
 Movement speed is scaled by `MovementSpeedMultiplier = 8.0f` in `SimulatedLinearTreadmill.cs`.
@@ -190,7 +203,7 @@ Movement speed is scaled by `MovementSpeedMultiplier = 8.0f` in `SimulatedLinear
 Before running a real session, set Controller back to `Linear` in the Actor section, confirm the
 MQTT broker IP / port in the MQTT section, and verify the connection with **Test Connection**.
 Leaving `Simulated Linear` selected in a production scene publishes spurious `Lick` events on
-every mouse click or space press, corrupting the session log.
+every spacebar press, corrupting the session log.
 
 The `Simulated Linear` GameObject **stays in the scene** — it is just unselected by the dropdown.
 Do not delete it; future testing depends on its presence.
