@@ -2,9 +2,9 @@
 name: unity-mcp-environment-setup
 description: >-
   Diagnoses and resolves Unity Editor relay connectivity issues for the sollertia-unity-tasks
-  `McpBridge` (HTTP listener on localhost:8090, Editor running, script compiled). Use when
-  Unity relay tools fail with "Unity Editor is not reachable" or when starting a session that
-  needs the Unity tools.
+  `McpBridge` (HTTP listener on 127.0.0.1:8090, [::1]:8090, and localhost:8090; Editor running;
+  script compiled). Use when Unity relay tools fail with "Unity Editor is not reachable" or when
+  starting a session that needs the Unity tools.
 user-invocable: true
 ---
 
@@ -20,7 +20,8 @@ itself is owned by the assets plugin's `/assets-mcp-environment-setup`.
 
 **Covers:**
 - Verifying the Unity Editor is running with the `sollertia-unity-tasks` project open
-- Verifying the `McpBridge` HTTP listener is active on `localhost:8090`
+- Verifying the `McpBridge` HTTP listener is active on `127.0.0.1:8090`, `[::1]:8090`, and
+  `localhost:8090`
 - Testing the relay from the command line
 - Diagnosing why Unity relay tools return "Unity Editor is not reachable"
 
@@ -28,7 +29,8 @@ itself is owned by the assets plugin's `/assets-mcp-environment-setup`.
 - Diagnosing `slsa` CLI / `slsa mcp` availability (see assets plugin's `/assets-mcp-environment-setup`)
 - Sollertia working directory setup (see assets plugin's `/working-directory`)
 - Unity Editor installation or project setup (see the `sollertia-unity-tasks` README)
-- Prefab or scene workflows (see `/task-prefabs`, `/scenes`, `/play-mode`)
+- Prefab, scene, Task Parameters, or Play Mode workflows (see `/task-prefabs`, `/scenes`,
+  `/task-parameters`, `/play-mode`)
 
 ---
 
@@ -38,28 +40,33 @@ Unity tools are served by the **same** `slsa mcp` MCP server as every other shar
 server delegates Unity operations over HTTP to an editor-side plugin called `McpBridge`:
 
 ```text
-Claude ↔ slsa mcp (stdio) ↔ HTTP POST to localhost:8090 ↔ Unity Editor McpBridge
+Claude ↔ slsa mcp (stdio) ↔ HTTP POST to {127.0.0.1, [::1], localhost}:8090 ↔ Unity Editor McpBridge
 ```
 
 The `McpBridge` editor plugin ships with `sollertia-unity-tasks`. It starts the HTTP listener on
-`localhost:8090` automatically when the Editor loads the project. The 12 relayed tools are:
+three loopback prefixes automatically when the Editor loads the project — registering all three
+because `HttpListener` performs exact host-header matching, so a client requesting `localhost` is
+rejected by a `127.0.0.1` prefix even though they resolve to the same socket. The 14 relayed
+tools are:
 
-| Tool                                    | Owning skill     |
-|-----------------------------------------|------------------|
-| `generate_task_prefab_tool`             | `/task-prefabs`  |
-| `inspect_prefab_tool`                   | `/task-prefabs`  |
-| `validate_prefab_against_template_tool` | `/task-prefabs`  |
-| `delete_unity_asset_tool`               | `/task-prefabs`  |
-| `list_unity_assets_tool`                | `/scenes`        |
-| `list_scenes_tool`                      | `/scenes`        |
-| `open_scene_tool`                       | `/scenes`        |
-| `create_scene_tool`                     | `/scenes`        |
-| `inspect_scene_tool`                    | `/scenes`        |
-| `enter_play_mode_tool`                  | `/play-mode`     |
-| `exit_play_mode_tool`                   | `/play-mode`     |
-| `get_play_state_tool`                   | `/play-mode`     |
+| Tool                                    | Owning skill        |
+|-----------------------------------------|---------------------|
+| `generate_task_prefab_tool`             | `/task-prefabs`     |
+| `inspect_prefab_tool`                   | `/task-prefabs`     |
+| `validate_prefab_against_template_tool` | `/task-prefabs`     |
+| `delete_unity_asset_tool`               | `/task-prefabs`     |
+| `list_unity_assets_tool`                | `/scenes`           |
+| `list_scenes_tool`                      | `/scenes`           |
+| `open_scene_tool`                       | `/scenes`           |
+| `create_scene_tool`                     | `/scenes`           |
+| `inspect_scene_tool`                    | `/scenes`           |
+| `enter_play_mode_tool`                  | `/play-mode`        |
+| `exit_play_mode_tool`                   | `/play-mode`        |
+| `get_play_state_tool`                   | `/play-mode`        |
+| `read_task_parameters_tool`             | `/task-parameters`  |
+| `write_task_parameters_tool`            | `/task-parameters`  |
 
-All 12 tools require **both** the `slsa mcp` MCP server to be connected **and** the Unity Editor
+All 14 tools require **both** the `slsa mcp` MCP server to be connected **and** the Unity Editor
 to be running with `sollertia-unity-tasks` open.
 
 ---
@@ -80,10 +87,10 @@ If not, instruct them to open it and wait for the project to finish loading.
 
 ### Step 3: Confirm the McpBridge initialized
 
-In the Unity Console, look for:
+In the Unity Console, look for the listener log emitted by `McpBridge`'s static constructor:
 
 ```text
-McpBridge: Listening on http://localhost:8090/
+McpBridge: Listening on http://127.0.0.1:8090/, http://[::1]:8090/, and http://localhost:8090/
 ```
 
 If it is absent:
@@ -186,9 +193,9 @@ still work, but first-call latency can stretch to several seconds. Re-focus the 
 ## Verification checklist
 
 ```text
-- [ ] slsa mcp server is connected (assets plugin's /unity-mcp-environment-setup)
+- [ ] slsa mcp server is connected (assets plugin's /assets-mcp-environment-setup)
 - [ ] Unity Editor is running with sollertia-unity-tasks open
-- [ ] Unity Console shows "McpBridge: Listening on http://localhost:8090/"
+- [ ] Unity Console shows "McpBridge: Listening on http://127.0.0.1:8090/, http://[::1]:8090/, and http://localhost:8090/"
 - [ ] curl POST to localhost:8090 returns a JSON success response
 - [ ] get_play_state_tool returns a structured response from Claude
 ```
@@ -203,6 +210,7 @@ still work, but first-call latency can stretch to several seconds. Re-focus the 
 | `/task-prefabs` (this plugin)                 | Consumer — prefab generation / inspection / validation |
 | `/scenes` (this plugin)                       | Consumer — scene and asset management                  |
 | `/play-mode` (this plugin)                    | Consumer — runtime control                             |
+| `/task-parameters` (this plugin)              | Consumer — Task Parameters read / write                |
 | `/scene-setup` (this plugin)                  | Consumer — Editor-time scene configuration             |
 | `/task-generator` (this plugin)               | Reference for the `CreateTask` pipeline internals      |
 | `/mqtt-contract` (this plugin)                | Reference for MQTT topics crossing this relay's tools  |

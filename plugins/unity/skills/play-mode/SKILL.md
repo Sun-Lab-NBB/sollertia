@@ -120,6 +120,10 @@ Hand off to the owning skill (`/scenes`, `/task-prefabs`) only after the Editor 
   can fail silently if the active scene has compile errors.
 - Play Mode is **Editor-scoped**. It does not interact with `sle run`, `sle manage`, or the
   acquisition rig. Data generated during Play Mode is not recorded anywhere.
+- **Task Parameters auto-opens** on Play Mode enter — `MainWindow.RegisterAutoOpen` subscribes to
+  `EditorApplication.playModeStateChanged` so the window reappears when the Editor enters Play
+  Mode. The window's MQTT and Task sections are greyed out at runtime; flip those flags via MQTT
+  (`/mqtt-contract`) instead of `/task-parameters` during a Play Mode run.
 
 ---
 
@@ -149,11 +153,12 @@ Hand off to the owning skill (`/scenes`, `/task-prefabs`) only after the Editor 
 
 ## Related skills
 
-| Skill                                         | Relationship                                             |
-|-----------------------------------------------|----------------------------------------------------------|
-| `/unity-mcp-environment-setup` (this plugin)  | Run first if Unity Editor is unreachable                 |
-| `/scenes` (this plugin)                       | Upstream — opens the scene to exercise in Play Mode      |
-| `/scene-setup` (this plugin)                  | Upstream — must pass the pre-Play Mode checklist first   |
-| `/task-prefabs` (this plugin)                 | Upstream — generates the prefab under test               |
-| `/mqtt-contract` (this plugin)                | Reference for topics that drive runtime behavior         |
-| assets plugin `/assets-mcp-environment-setup` | Upstream — owns the slsa MCP server diagnostic           |
+| Skill                                         | Relationship                                                                       |
+|-----------------------------------------------|------------------------------------------------------------------------------------|
+| `/unity-mcp-environment-setup` (this plugin)  | Run first if Unity Editor is unreachable                                           |
+| `/scenes` (this plugin)                       | Upstream — opens the scene to exercise in Play Mode                                |
+| `/scene-setup` (this plugin)                  | Upstream — must pass the pre-Play Mode checklist first                             |
+| `/task-prefabs` (this plugin)                 | Upstream — generates the prefab under test                                         |
+| `/task-parameters` (this plugin)              | Upstream — set Actor / Task / Display fields in edit mode before entering Play Mode |
+| `/mqtt-contract` (this plugin)                | Reference for topics that drive runtime behavior and runtime alternatives to Task Parameters writes |
+| assets plugin `/assets-mcp-environment-setup` | Upstream — owns the slsa MCP server diagnostic                                     |

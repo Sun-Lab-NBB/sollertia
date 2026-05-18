@@ -49,6 +49,7 @@ CreateTask.CreateFromTemplate(absoluteTemplatePath, relativeConfigPath, savePath
 │
 ├── BuildCuePrefabs(template)                ← Cues/Cue_<name>_<length>cm.prefab  (shared, skip-if-exists)
 │   │
+│   ├── LoadReferenceCueShader               ← Reads shader from Materials/_CueShaderReference.mat (canonical)
 │   ├── Load/create Materials/Cue_<name>_<length>cm.mat from Textures/<cue.texture>
 │   ├── Build Right + Left quads scaled to cue.length_cm / cm_per_unity_unit
 │   └── Save Cues/Cue_<name>_<length>cm.prefab
@@ -71,6 +72,15 @@ CreateTask.CreateFromTemplate(absoluteTemplatePath, relativeConfigPath, savePath
     ├── Strip StimulusTriggerZone and ResetZone from non-first segments in each corridor
     ├── Set StimulusTriggerZone.showBoundary on the first segment from template
     └── PrefabUtility.SaveAsPrefabAsset(task, savePath)
+
+
+CreateTask.CreateSceneFromTemplate(sceneSavePath, taskPrefabPath, overwriteExisting)
+│
+├── Copy ExperimentTemplate.unity → sceneSavePath           ← refuses to clobber unless overwriteExisting
+├── EditorSceneManager.OpenScene(sceneSavePath)
+├── Optionally instantiate the task prefab (non-fatal if missing)
+├── MainWindow.EnsureControllers                            ← guarantees Linear + Simulated Linear coexist
+└── Save the new scene + return SceneCreationResult         ← {Success, Message, SimulatedControllerAdded, TaskPrefabNotFound}
 ```
 
 Keys:
@@ -88,6 +98,13 @@ Keys:
   material manually before regenerating (see `/task-prefabs` regeneration workflow). When two templates that
   declare the same `(name, length_cm)` identity diverge on texture, the cross-template preflight above catches
   the conflict before generation runs.
+- **Cue shader is canonical**: `LoadReferenceCueShader` reads the shader from
+  `Assets/InfiniteCorridorTask/Materials/_CueShaderReference.mat` — a hand-authored material protected from
+  deletion via `McpBridge.DeleteProtectedPaths`. The shader (a legacy diffuse variant) renders both walls of a
+  cue correctly even when the Right wall uses a negative geometry scale to mirror its texture; the Standard
+  shader breaks under negative scales and Unlit shaders drop lighting altogether. Fallbacks exist
+  (`Cue*.mat` heuristic, `Shader.Find("Legacy Shaders/Diffuse")`, `Standard`) but logging a warning — the
+  reference material is the canonical source and must be restored from git when missing.
 - **Segment prefabs are template-owned and always rebuilt**: `CleanGeneratedSegments` deletes every
   `<template>_<trial>.prefab` declared by the template before `BuildSegmentPrefabs` runs, so trial-parameter edits
   in the YAML (cue sequence, zone math, trigger type) take effect on the next generation pass without any manual
@@ -96,6 +113,11 @@ Keys:
 - **Validation warning** (not an error): if the measured segment-prefab length disagrees with
   `sum(cue.length_cm / cm_per_unity_unit)` by more than `0.01`, `CreateTask` logs a warning but proceeds using the
   template's computed length.
+- **Scene generation is part of the menu flow**: `CreateSceneFromTemplate` is the companion method that copies
+  `ExperimentTemplate.unity`, optionally instantiates a task prefab, runs `MainWindow.EnsureControllers`, and
+  saves the scene. The Editor menu wraps prefab generation and scene generation together so a single template
+  selection produces a runnable scene. The MCP surface keeps them split (`generate_task_prefab` +
+  `create_scene`) so automated callers can sequence them independently.
 
 ---
 
@@ -170,17 +192,20 @@ template owns its segments outright. `ConfigLoader` rejects trial names that con
 
 ### Required shared assets
 
-`BuildSegmentPrefabs` aborts if any of these are missing:
+`BuildCuePrefabs` and `BuildSegmentPrefabs` abort if any of these are missing:
 
-| Asset                                       | Type      | Purpose                                  |
-|---------------------------------------------|-----------|------------------------------------------|
-| `Prefabs/StimulusTriggerZone.prefab`        | GameObject| Base prefab for lick-mode zones          |
-| `Prefabs/OccupancyTriggerZone.prefab`       | GameObject| Base prefab for occupancy-mode zones     |
-| `Prefabs/ResetZone.prefab`                  | GameObject| Placed at every segment's start          |
-| `Materials/Floor.mat`                       | Material  | Shared floor material                    |
-| `Materials/Wall.mat`                        | Material  | Shared wall material                     |
+| Asset                                       | Type      | Purpose                                                 |
+|---------------------------------------------|-----------|---------------------------------------------------------|
+| `Prefabs/StimulusTriggerZone.prefab`        | GameObject| Base prefab for lick-mode zones                         |
+| `Prefabs/OccupancyTriggerZone.prefab`       | GameObject| Base prefab for occupancy-mode zones                    |
+| `Prefabs/ResetZone.prefab`                  | GameObject| Placed at every segment's start                         |
+| `Materials/_CueShaderReference.mat`         | Material  | Canonical shader source for every generated cue material |
+| `Materials/Floor.mat`                       | Material  | Shared floor material                                   |
+| `Materials/Wall.mat`                        | Material  | Shared wall material                                    |
 
-Do not rename these assets — the paths are hardcoded in `BuildSegmentPrefabs`.
+The four prefabs and `_CueShaderReference.mat` are also in `McpBridge.DeleteProtectedPaths` and
+cannot be deleted via `delete_unity_asset_tool`. Do not rename these assets — the paths are
+hardcoded in `BuildSegmentPrefabs` / `LoadReferenceCueShader`.
 
 ### Padding prefab
 
@@ -291,22 +316,34 @@ Rules enforced by the assembly loop:
 
 ### Editor menu
 
-`CreateTask.CreateNewTask` is registered at `CreateTask → New Task` in the Unity menu bar. It opens two file dialogs
-(template selector, save target) and calls `CreateFromTemplate` with user input. The template-selector dialog seeds
-at `Assets/InfiniteCorridorTask/Configurations/` **and rejects any selection outside that directory**: the menu
-normalizes the chosen path, checks the `Configurations/` prefix, and logs an error before invoking
-`CreateFromTemplate` when the prefix fails. This matches the MCP surface (which is hard-coded to the same folder)
-and ensures the cross-template cue-texture preflight sees every template that can drive generation.
+`CreateTask.CreateNewTask` is registered at `CreateTask → New Task` in the Unity menu bar. The menu opens a single
+template-selector file dialog seeded at `Assets/InfiniteCorridorTask/Configurations/` **and rejects any selection
+outside that directory**: the menu normalizes the chosen path, checks the `Configurations/` prefix, and logs an
+error before any mutation when the prefix fails. This matches the MCP surface (which is hard-coded to the same
+folder) and ensures the cross-template cue-texture preflight sees every template that can drive generation.
+
+Output paths are **auto-resolved** from the template filename — the prefab lands at
+`Assets/InfiniteCorridorTask/Tasks/<template>.prefab` and the scene at `Assets/Scenes/<template>.unity`. The menu
+shows a single overwrite-confirmation dialog if either target already exists, then runs `CreateFromTemplate`
+followed by `CreateSceneFromTemplate` so the same template selection produces both the prefab and a runnable
+scene in one pass. The scene step uses Unity's native unsaved-changes dialog before opening; a Cancel there
+leaves the already-generated prefab in place for a follow-up run.
 
 ### MCP bridge
 
 `McpBridge.GenerateTaskPrefab` calls the same `CreateFromTemplate` with:
 - `absoluteTemplatePath = Application.dataPath/InfiniteCorridorTask/Configurations/<template_name>.yaml`
-- `relativeConfigPath = /InfiniteCorridorTask/Configurations/<template_name>.yaml` (leading slash; stored on `Task`)
+- `relativeConfigPath = InfiniteCorridorTask/Configurations/<template_name>.yaml` (relative; stored on `Task`)
 - `savePath = Assets/InfiniteCorridorTask/Tasks/<template_name>.prefab` (or the caller's override)
 
-Both entry points converge on `CreateFromTemplate`, so any change to that method affects both. Test through the MCP
-tool after any pipeline modification.
+`McpBridge.CreateScene` calls `CreateSceneFromTemplate` directly and surfaces the
+`SceneCreationResult` struct (`Success`, `Message`, `SimulatedControllerAdded`, `TaskPrefabNotFound`) in the JSON
+response. The MCP surface keeps prefab generation and scene generation as **separate** tools
+(`generate_task_prefab_tool` + `create_scene_tool`) so automated callers can sequence them independently;
+the Editor menu wraps both in a single user-driven flow.
+
+All entry points converge on `CreateFromTemplate` and `CreateSceneFromTemplate`, so any change to either method
+affects both flows. Test through both the menu and the MCP tools after any pipeline modification.
 
 ---
 
@@ -361,11 +398,16 @@ template instead.
 
 ```text
 - [ ] Any change to zone placement is reflected in both PlaceLickZone and PlaceOccupancyZone if applicable
-- [ ] New zone types appear in BuildSegmentPrefabs trigger-type switch AND in the zone base prefab set
+- [ ] New zone types appear in BuildSegmentPrefabs trigger-type switch AND in the zone base prefab set AND in
+      McpBridge.DeleteProtectedPaths
 - [ ] Cue prefab regeneration remains shared and skip-if-exists; segment prefab regeneration remains always-rebuilt
       via `CleanGeneratedSegments`
 - [ ] Hardcoded asset paths (Prefabs/, Cues/, Materials/, Textures/) are not changed without updating every call site
-- [ ] CreateTask → New Task Editor menu and McpBridge.GenerateTaskPrefab produce identical prefabs for the same template
+- [ ] LoadReferenceCueShader still falls back through the documented chain when _CueShaderReference.mat is missing
+- [ ] CreateTask → New Task Editor menu and McpBridge.GenerateTaskPrefab + McpBridge.CreateScene produce identical
+      assets for the same template
+- [ ] CreateSceneFromTemplate runs MainWindow.EnsureControllers so the generated scene contains both Linear and
+      Simulated Linear controllers
 - [ ] After any generator change, run validate_prefab_against_template_tool to confirm round-trip invariants hold
 ```
 

@@ -1,154 +1,265 @@
 ---
 name: scene-setup
 description: >-
-  Guides Editor-side scene configuration for sollertia-unity-tasks: three-monitor Display rig
-  assignment, SimulatedLinearTreadmill for keyboard testing, and the UI lick-reward feedback
-  canvas. Use when preparing a new scene for Play Mode, swapping hardware for the simulated
-  treadmill, or fixing missing display / controller errors.
+  Guides Editor-side scene configuration for sollertia-unity-tasks: the consolidated Task
+  Parameters window, the three-monitor Display rig, swapping the LinearTreadmill and
+  SimulatedLinearTreadmill controllers from the Actor section, and the optional UI lick-reward
+  feedback canvas. Use when preparing a new scene for Play Mode, swapping hardware for the
+  simulated treadmill, or fixing missing display / controller errors.
 user-invocable: true
 ---
 
 # Sollertia Unity scene setup
 
-Covers the **Editor-time** configuration that turns a freshly created scene into one that can actually run a task.
-Generation, Play Mode, and asset enumeration live in sibling skills; this skill owns the step between "scene exists"
-and "scene is runnable."
+Covers the **Editor-time** configuration that turns a freshly created scene into one that can
+actually run a task. Generation, Play Mode, asset enumeration, and the Parameters MCP surface
+live in sibling skills; this skill owns the human / GUI flow between "scene exists" and "scene is
+runnable."
 
 ---
 
 ## Scope
 
 **Covers:**
-- Display rig configuration via `Window → Gimbl` (Settings, Actor, and Displays panels)
-- Three-monitor VR setup (Left / Center / Right) used by the mesoscope acquisition system
-- Swapping between `LinearTreadmill` (hardware) and `SimulatedLinearTreadmill` (keyboard) controllers
+- Opening the consolidated **Task Parameters** window (`Window → Task Parameters`)
+- Auto-created scene infrastructure (`Actors`, `Controllers`, `MQTT Client`, default Actor +
+  Display) seeded by `MainWindow.InitializeScene`
+- Three-monitor VR setup (Left / Center / Right View) used by the mesoscope acquisition system
+- Swapping between `LinearTreadmill` (hardware) and `SimulatedLinearTreadmill` (keyboard) via the
+  Actor section's Controller dropdown
+- Brightness / VR height tuning via the Display section
+- MQTT broker IP / port via the MQTT section (project-wide; persisted in `EditorPrefs`)
+- Task-component fields (`Require Lick`, `Require Wait`, `Track Length`, `Track Seed`) via the
+  Task section
 - Adding the `UI-lick-reward` canvas subsystem for experimenter feedback
 - Scene-specific vs project-wide configuration state
-- Required scene actors (`ActorObject`, `MQTT Client`, task prefab instance)
+- Pre-Play Mode checklist
 
 **Does not cover:**
+- Programmatic read / write of the Parameters window (see `/task-parameters`)
 - Creating scenes or enumerating assets (see `/scenes`)
-- Generating the task prefab that is dropped into a scene (see `/task-prefabs`, `/task-generator`)
+- Generating the task prefab dropped into a scene (see `/task-prefabs`, `/task-generator`)
 - Entering / exiting Play Mode (see `/play-mode`)
 - GIMBL class APIs (see `/gimbl-framework`)
 - MQTT topic details (see `/mqtt-contract`)
 
 ---
 
-## Required scene contents
+## The Task Parameters window
+
+`Window → Task Parameters` opens the single editor window that hosts every per-scene
+configuration surface (`Actor`, `MQTT`, `Display`, `Camera Mapping`, `Task`). It replaces the
+former Settings / Actor / Displays three-window layout — there is no other GUI entry point for
+these fields, and the `Task` component itself is `[HideInInspector]` plus replaced in the
+Inspector by a HelpBox that points at this window.
+
+### Auto-open behavior
+
+`MainWindow` registers a one-shot `EditorApplication.delayCall` plus subscriptions to
+`EditorSceneManager.sceneOpened` and `EditorApplication.playModeStateChanged` so the window
+reappears automatically after:
+
+- Editor start / domain reload
+- Any scene open (including `open_scene_tool` from `/scenes`)
+- Entering Play Mode
+
+If the user closes it manually, opening any of the above events brings it back. The docked tab
+label is `Parameters`; the menu entry is `Window → Task Parameters` to disambiguate.
+
+### Auto-created scene infrastructure
+
+`OnEnable() → InitializeScene()` ensures the active scene contains the following before the GUI
+renders. Existing objects are left untouched; missing ones are created.
+
+| GameObject       | Components / behavior                                                                                | Hidden in hierarchy |
+|------------------|------------------------------------------------------------------------------------------------------|---------------------|
+| `Actors`         | Empty root for `ActorObject` instances                                                               | No                  |
+| `Controllers`    | Empty root for controller GameObjects                                                                | No                  |
+| `MQTT Client`    | `Gimbl.MQTTClient` singleton                                                                         | Yes (`HideInHierarchy`) |
+| `Actor` (default) | `ActorObject` with the first prefab under `Resources/Actors/Prefabs/`                              | No                  |
+| `<Display>` (default) | `DisplayObject` from the first prefab under `Resources/Displays/`, parented to the actor      | No                  |
+| `Linear`          | `LinearTreadmill` + `ControllerOutput`                                                              | No                  |
+| `Simulated Linear`| `SimulatedLinearTreadmill` + `ControllerOutput`                                                     | No                  |
+
+The `Linear` and `Simulated Linear` GameObjects are added by
+`MainWindow.EnsureControllers`, which iterates the `ControllerTypes` enum and creates one entry
+per supported subclass. **Both controllers coexist permanently** under the `Controllers` root —
+the active controller is selected via the Actor dropdown, not by adding / removing scripts.
+
+`RemoveDefaultMainCamera` removes the Unity-default `Main Camera` left over by the new-scene
+template because the auto-created Display owns the per-monitor cameras and the Actor owns the
+third-person tracking camera. Nothing in the project references `Camera.main` or the `MainCamera`
+tag, so the cleanup is safe.
+
+### Required scene contents (post-init)
 
 A runnable scene contains:
 
-| GameObject               | Component                     | Purpose                                         |
-|--------------------------|-------------------------------|-------------------------------------------------|
-| `MQTT Client`            | `Gimbl.MQTTClient`            | Broker singleton; creates `MQTTClient.Instance` |
-| `<ActorName>` (e.g. Mouse) | `Gimbl.ActorObject`         | Animal avatar with display + controller         |
-| `<Display rig>`          | `Gimbl.DisplayObject` (x3)    | Left / Center / Right monitor attachments       |
-| `<Task prefab instance>` | `SL.Tasks.Task`               | Corridor hierarchy (dropped in from `Tasks/`)   |
-| `UI-Control` (optional)  | `SL.UI.LickStimulusSpawner`   | On-screen lick and stimulus indicators          |
+| GameObject               | Component                     | Purpose                                                                |
+|--------------------------|-------------------------------|------------------------------------------------------------------------|
+| `MQTT Client`            | `Gimbl.MQTTClient`            | Broker singleton; sets `MQTTClient.Instance` on `Awake`                |
+| `Actor` (or renamed)     | `Gimbl.ActorObject`           | Animal avatar with display + controller                                |
+| `<Display>`              | `Gimbl.DisplayObject`         | Multi-monitor rig with per-monitor cameras                             |
+| `Linear` / `Simulated Linear` | `LinearTreadmill` / `SimulatedLinearTreadmill` + `ControllerOutput` | Input devices; pick one via Actor dropdown |
+| `<Task prefab instance>` | `SL.Tasks.Task`               | Corridor hierarchy (dropped in from `Tasks/`)                          |
+| `UI-Control` (optional)  | `SL.UI.LickStimulusSpawner`   | On-screen lick and stimulus indicators                                 |
 
-`ExperimentTemplate.unity` ships with the first four. The task prefab and UI control are added manually (or by
-`create_scene_tool`, which seeds the task prefab).
+`ExperimentTemplate.unity` ships without the task prefab and UI control; both are added manually
+(or `create_scene_tool` from `/scenes` seeds the task prefab and `CreateTask.CreateSceneFromTemplate`
+guarantees both controllers exist).
 
 ---
 
 ## Display rig configuration
 
-The Sollertia mesoscope rig uses three physical monitors arranged around the animal's viewing position. Each monitor
-is driven by a separate `DisplayObject` attached under the `ActorObject`.
-
-### Opening the Displays panel
-
-Open `Window → Gimbl`. The menu opens three editor windows:
-
-- **Settings** — MQTT broker IP/port and session export.
-- **Actor** — scene actor creation and controller linking.
-- **Displays** — monitor assignment and fullscreen view toggles.
-
-If the Displays tab is not visible, it is likely docked behind the Inspector. Detach the Inspector or drag the
-Displays tab out.
+The Sollertia mesoscope rig uses three physical monitors arranged around the animal's viewing
+position. The Display section of the Parameters window controls brightness and VR height; the
+**Camera Mapping** section binds the three per-monitor cameras (`Left View`, `Center View`,
+`Right View`) to OS monitor indices.
 
 ### Assigning monitors
 
-1. In the **Displays** tab, click **Refresh Monitor Positions**. Unity enumerates attached monitors.
-2. For each monitor entry, assign the matching display camera from the scene:
-   - `Camera: LeftMonitor` → left physical monitor
-   - `Camera: CenterMonitor` → center physical monitor
-   - `Camera: RightMonitor` → right physical monitor
-3. Click **Show Full-Screen Views** to verify each camera renders to the intended monitor. Each monitor should show
-   its side of the VR corridor.
-4. If an assignment is wrong, drag the camera reference to a different monitor slot and re-verify.
+1. Open `Window → Task Parameters` and scroll to **Camera Mapping**.
+2. Click **Refresh Monitor Positions** if the entries do not match the OS-reported monitors.
+3. For each row, pick the matching camera from the dropdown (the Display rig auto-names cameras
+   after the role, e.g., `Left View`, `Center View`, `Right View`).
+4. Click **Show Full-Screen Views** to verify each camera renders to the intended monitor. Each
+   monitor should show its side of the VR corridor.
+5. If an assignment is wrong, swap entries and re-verify.
 
-### Rebooting the system changes monitor ports
+### Reboot caveat
 
-Operating-system reboots can reorder monitor output ports. **Always** reverify the monitor assignments before
-starting an experimental session. The Displays panel's monitor indices are not stable across reboots.
+Operating-system reboots can reorder monitor output ports. **Always** re-verify the camera-to-monitor
+binding before starting an experimental session. The Camera Mapping section's monitor indices are
+not stable across reboots.
+
+### Display section
+
+The Display section shows three fields plus a Blank / Show toggle:
+
+| Field                | Persistence                                              | Effect                                          |
+|----------------------|----------------------------------------------------------|-------------------------------------------------|
+| `currentBrightness`  | Runtime-only (not asset)                                 | Live brightness override                        |
+| `brightness`         | `Assets/VRSettings/Displays/<Display>.asset`             | Default brightness restored by "Show Display"   |
+| `heightInVR`         | `Assets/VRSettings/Displays/<Display>.asset`             | Y offset of the display rig from the actor      |
+
+The Blank / Show button flips `currentBrightness` between `0` and the configured `brightness`.
 
 ### Per-scene state
 
-Display assignments are **scene-specific**: they are persisted inside each scene's `.unity` file, not in project
-settings. Every new scene (including scenes created via `create_scene_tool`) must be configured once.
+Camera Mapping assignments are **scene-specific** and persisted in
+`Assets/VRSettings/Displays/<scene-name>-savedFullScreenViews.asset`. Every new scene (including
+scenes created via `create_scene_tool`) must have its cameras bound once.
 
-MQTT broker settings in the Settings tab are the opposite — they are stored in `EditorPrefs` and shared across all
-scenes in the project.
+`brightness` and `heightInVR` are stored on the **DisplaySettings asset** — they are shared
+across scenes that use the same Display prefab. The MQTT broker `ip` and `port` are stored in
+`EditorPrefs` (`SollertiaVR_MQTT_IP` / `SollertiaVR_MQTT_Port`) and apply project-wide.
 
 ---
 
 ## Choosing a controller
 
-The `ActorObject.Controller` field accepts any `ControllerOutput`. In practice the choice is binary:
+The `Actor` section's **Controller** dropdown picks among every `ControllerOutput` in the active
+scene plus the literal `None`. After scene init the auto-created options are:
 
-| Controller                  | When to use                                              | Input source           |
-|-----------------------------|----------------------------------------------------------|------------------------|
-| `LinearTreadmill`           | Running against real mesoscope hardware                  | MQTT `<deviceName>/Data/` |
-| `SimulatedLinearTreadmill`  | Manual Editor testing without hardware                   | Keyboard + mouse       |
+| Dropdown label      | Underlying script           | When to use                                              | Input source              |
+|---------------------|-----------------------------|----------------------------------------------------------|---------------------------|
+| `Linear`            | `LinearTreadmill`           | Running against real mesoscope hardware                  | MQTT `Motion` topic       |
+| `Simulated Linear`  | `SimulatedLinearTreadmill`  | Manual Editor testing without hardware                   | Keyboard + mouse          |
+| `None`              | (no controller)             | Disable actor movement (rare; debugging)                 | n/a                       |
 
-`ExperimentTemplate.unity` ships with `LinearTreadmill` pre-configured because it is the production default. Swap to
-`SimulatedLinearTreadmill` when exercising a task during development.
+Both controller GameObjects always exist; the dropdown swaps which one the actor reads. There is
+**no need** to add or remove scripts — the previous "remove LinearTreadmill, add
+SimulatedLinearTreadmill" workflow has been retired in favor of the dropdown-only flow.
 
-### Installing `SimulatedLinearTreadmill`
+### Using `Simulated Linear` for keyboard testing
 
-1. Remove the existing `LinearTreadmill` component from the actor's controller GameObject (or create a new child).
-2. Add `SimulatedLinearTreadmill` to the same GameObject.
-3. Set `Settings → Active` to true in the `Window → Gimbl → Actor` panel.
-4. Enter Play Mode (`/play-mode`).
-5. Controls:
+1. In `Window → Task Parameters → Actor`, set Controller to `Simulated Linear`.
+2. Enter Play Mode (`/play-mode`).
+3. Controls (Unity Input System action map `SimulatedInput`):
    - **W / Up arrow** — move forward
    - **S / Down arrow** — move backward
-   - **Mouse left click** — simulate a single lick (publishes `LickPort/`)
+   - **A / D / Left arrow / Right arrow** — strafe (consumed by movement input, no lateral effect)
+   - **Mouse left click OR Space (Jump)** — simulate a single lick (publishes `Lick`)
+   - **Left Ctrl, Left Alt, Left Shift** — Fire1 / Fire2 / Fire3 (unused by the current task scripts)
 
-Movement speed is scaled by `MovementSpeedMultiplier = 8.0f` inside `SimulatedLinearTreadmill.cs`.
+Movement speed is scaled by `MovementSpeedMultiplier = 8.0f` in `SimulatedLinearTreadmill.cs`.
 
 ### Reverting to hardware
 
-Before running a real session, swap `SimulatedLinearTreadmill` back out for `LinearTreadmill`, confirm the MQTT
-`deviceName` matches the hardware publisher's topic prefix, and verify `Settings → isActive` is true. Leaving a
-simulated controller in a production scene publishes spurious `LickPort/` events on every mouse click, corrupting
-the session log.
+Before running a real session, set Controller back to `Linear` in the Actor section, confirm the
+MQTT broker IP / port in the MQTT section, and verify the connection with **Test Connection**.
+Leaving `Simulated Linear` selected in a production scene publishes spurious `Lick` events on
+every mouse click or space press, corrupting the session log.
+
+The `Simulated Linear` GameObject **stays in the scene** — it is just unselected by the dropdown.
+Do not delete it; future testing depends on its presence.
+
+### Programmatic alternative
+
+Agents can read and write the Controller dropdown via `/task-parameters`:
+
+```text
+write_task_parameters_tool(actor={"controller": "Simulated Linear"})
+```
+
+See that skill for the option-list contract and validation rules.
+
+---
+
+## Task section
+
+The `Task` section exposes the task component's tunables, all of which are mirrored on the
+`Task.cs` `MonoBehaviour` but addressable only through this window or `/task-parameters`:
+
+| Field            | Type   | Effect                                                                                   | Conditional rendering            |
+|------------------|--------|------------------------------------------------------------------------------------------|-----------------------------------|
+| `Require Lick`   | bool   | Lick-guidance toggle (also mirrored over MQTT `RequireLick`)                            | Hidden when scene has no `GuidanceZone`  |
+| `Require Wait`   | bool   | Occupancy-guidance toggle (also mirrored over MQTT `RequireWait`)                       | Hidden when scene has no `OccupancyZone` |
+| `Track Length`   | float  | Total length of the pre-generated random trial sequence (Unity units)                    | Always visible                    |
+| `Track Seed`     | int    | RNG seed for the random trial sequence (`-1` requests a nondeterministic seed)           | Always visible                    |
+
+Controls are **disabled in Play Mode** because the live guidance toggles are driven by MQTT during
+runtime. To flip a toggle mid-run, publish on the matching MQTT topic instead (see `/mqtt-contract`).
+
+---
+
+## MQTT section
+
+| Field   | Persistence                                | Default       | Notes                                                       |
+|---------|--------------------------------------------|---------------|-------------------------------------------------------------|
+| `ip`    | `EditorPrefs` (`SollertiaVR_MQTT_IP`)      | `127.0.0.1`   | Project-wide; every scene shares it                         |
+| `port`  | `EditorPrefs` (`SollertiaVR_MQTT_Port`)    | `1883`        | Project-wide; every scene shares it                         |
+
+The Test Connection button connects, logs the result to the Console, and immediately disconnects
+so the client is not left dangling. Controls are disabled in Play Mode — broker changes mid-run
+are not supported.
 
 ---
 
 ## UI-lick-reward subsystem
 
-The `UI-lick-reward` folder provides an on-screen feedback canvas for experimenters running interactive sessions. It
-is **not** part of the task's behavioral contract — removing it changes nothing about the runtime data.
+The `UI-lick-reward` folder provides an on-screen feedback canvas for experimenters running
+interactive sessions. It is **not** part of the task's behavioral contract — removing it changes
+nothing about the runtime data.
 
 ### Components
 
 | Asset                              | Purpose                                                          |
 |------------------------------------|------------------------------------------------------------------|
 | `UI-Control.prefab`                | Canvas prefab carrying `LickStimulusSpawner`                     |
-| `LickMsg.prefab`                   | Instantiated when `LickPort/` is received                        |
-| `RewardMsg.prefab`                 | Instantiated when `Gimbl/Stimulus/` is received                  |
+| `LickMsg.prefab`                   | Instantiated when `Lick` is received                             |
+| `RewardMsg.prefab`                 | Instantiated when `Stimulus` is received                         |
 | `lickAnimation.anim`               | Short animation played by `LickMessage` on spawn                 |
 | `rewardAnimation.anim`             | Short animation played by `StimulusMessage` on spawn             |
 
 ### Scripts
 
-- `LickStimulusSpawner.cs` — the root MonoBehaviour on `UI-Control`. Subscribes to `LickPort/` and `Gimbl/Stimulus/`
-  and instantiates the corresponding indicator prefab on the canvas.
+- `LickStimulusSpawner.cs` — the root MonoBehaviour on `UI-Control`. Subscribes to `Lick` and
+  `Stimulus` and instantiates the corresponding indicator prefab on the canvas.
 - `LickMessage.cs` — attached to `LickMsg`. Drives the lick indicator animation and self-destructs.
-- `StimulusMessage.cs` — attached to `RewardMsg`. Drives the stimulus indicator animation and self-destructs.
+- `StimulusMessage.cs` — attached to `RewardMsg`. Drives the stimulus indicator animation and
+  self-destructs.
 
 ### Installing in a scene
 
@@ -161,25 +272,25 @@ is **not** part of the task's behavioral contract — removing it changes nothin
 
 ### Intra-Unity subscription
 
-`LickStimulusSpawner` subscribes to `Gimbl/Stimulus/`, which is also published by `StimulusTriggerZone` inside the
-same Unity process. This is an intentional intra-Unity loopback; see `/mqtt-contract` for the multi-consumer
-behavior. Do not treat the self-delivery as a bug.
+`LickStimulusSpawner` subscribes to `Stimulus`, which is also published by `StimulusTriggerZone`
+inside the same Unity process. This is an intentional intra-Unity loopback; see `/mqtt-contract`
+for the multi-consumer behavior. Do not treat the self-delivery as a bug.
 
 ---
 
 ## Scene-specific vs project-wide state
 
-| State                                | Scope                | Where stored                      |
-|--------------------------------------|----------------------|-----------------------------------|
-| Display monitor assignments          | Per-scene            | Scene `.unity` file               |
-| Fullscreen view toggle               | Per-scene            | Scene `.unity` file               |
-| `ActorObject` settings reference     | Per-scene            | Scene `.unity` file               |
-| MQTT broker IP / port                | Project-wide (per user) | `EditorPrefs`                   |
-| Controller choice (hardware vs sim)  | Per-scene            | Scene `.unity` file               |
-| GIMBL output path / session name     | Per-user             | `EditorPrefs`                     |
+| State                                | Scope                | Where stored                                                |
+|--------------------------------------|----------------------|-------------------------------------------------------------|
+| Camera Mapping (camera ↔ monitor)    | Per-scene            | `Assets/VRSettings/Displays/<scene>-savedFullScreenViews.asset` |
+| Actor model + controller selection   | Per-scene            | Scene `.unity` file                                         |
+| `Task` fields (require, length, seed)| Per-scene            | Scene `.unity` file                                         |
+| `Display` brightness / `heightInVR`  | Per Display prefab   | `Assets/VRSettings/Displays/<display>.asset`                |
+| MQTT broker IP / port                | Project-wide (per user) | `EditorPrefs` (`SollertiaVR_MQTT_*`)                     |
 
-**Implication:** every scene must have its displays configured independently after a fresh checkout or a system
-reboot. Maintain one scene per experimental protocol so the configuration can be saved and reused.
+**Implication:** every scene must have its Camera Mapping configured independently after a fresh
+checkout or a system reboot. Maintain one scene per experimental protocol so the configuration can
+be saved and reused.
 
 ---
 
@@ -188,54 +299,59 @@ reboot. Maintain one scene per experimental protocol so the configuration can be
 Run through this list after any scene edit and before entering Play Mode:
 
 ```text
-- [ ] Scene contains a "MQTT Client" GameObject with Gimbl.MQTTClient attached
-- [ ] Scene contains exactly one ActorObject
-- [ ] Actor.Display is set (green indicator in the Inspector)
-- [ ] Actor.Controller is set to LinearTreadmill OR SimulatedLinearTreadmill (not both)
-- [ ] Three DisplayObjects are assigned in Window → Gimbl → Displays
+- [ ] Scene contains the auto-created "MQTT Client" / "Actors" / "Controllers" GameObjects
+- [ ] Scene contains exactly one ActorObject under "Actors"
+- [ ] Scene contains at least one DisplayObject parented under the Actor
+- [ ] Actor.Controller is set to Linear OR Simulated Linear (not None, unless deliberately disabled)
+- [ ] Camera Mapping is bound for every required monitor (use Show Full-Screen Views to verify)
 - [ ] Task prefab instance is at transform (0, 0, 0)
-- [ ] Task script's Actor field is set (not "None")
-- [ ] Task script's Config Path points to an existing YAML file
-- [ ] If using SimulatedLinearTreadmill, confirm it is intended (not leftover from testing)
+- [ ] Task.actor is set (the Task section auto-fills from the cached actor when null)
+- [ ] Task.configPath points to an existing YAML file
+- [ ] If using Simulated Linear, confirm it is intended (not leftover from testing)
 - [ ] If UI feedback is desired, UI-Control.prefab is in the scene with prefab fields assigned
-- [ ] MQTT broker is running on the IP/port configured in Window → Gimbl → Settings
+- [ ] MQTT broker is running on the IP / port configured in the MQTT section
 ```
 
 ---
 
 ## Common failure modes
 
-| Symptom                                                | Root cause                                                 | Resolution                                    |
-|--------------------------------------------------------|------------------------------------------------------------|-----------------------------------------------|
-| `NullReferenceException` on Play — `Display` is null   | Actor.Display not assigned                                 | Set via Inspector or `Window → Gimbl → Actor` |
-| Monitors show wrong content after reboot                | OS reassigned monitor ports                                | Press Refresh Monitor Positions, reassign     |
-| Keyboard input has no effect in Play Mode              | Controller is `LinearTreadmill`, not `SimulatedLinearTreadmill` | Swap controller                           |
-| Spurious lick events in session log                     | Forgotten `SimulatedLinearTreadmill` in production scene  | Swap back to `LinearTreadmill`                |
-| UI indicators never appear                              | `LickStimulusSpawner` canvas / prefab fields unset         | Assign fields in the Inspector                |
-| Task script errors "No configuration YAML file found"   | Task.configPath drifted from actual YAML location          | Fix the path or regenerate the task prefab    |
-| Fullscreen views open on the wrong monitors             | Monitor indices reordered or new monitors attached         | Refresh Monitor Positions, reassign cameras   |
+| Symptom                                                   | Root cause                                                                          | Resolution                                                                   |
+|-----------------------------------------------------------|-------------------------------------------------------------------------------------|------------------------------------------------------------------------------|
+| `NullReferenceException` on Play — `Display` is null      | Actor.Display not assigned                                                          | Re-open `Window → Task Parameters` to retrigger `EnsureActorAndDisplay`      |
+| Camera Mapping rows are empty after a scene open          | Scene was created without the `MainWindow.InitializeScene` pass                     | Open `Window → Task Parameters`; the InitializeOnLoad hooks repair the scene |
+| Monitors show wrong content after reboot                  | OS reassigned monitor ports                                                         | Press **Refresh Monitor Positions** and reassign cameras                     |
+| Keyboard input has no effect in Play Mode                 | Controller dropdown is `Linear`, not `Simulated Linear`                             | Swap via the Actor section's Controller dropdown                             |
+| Spurious lick events in session log                       | Forgotten `Simulated Linear` selection in a production scene                        | Swap back to `Linear`                                                        |
+| UI indicators never appear                                | `LickStimulusSpawner` canvas / prefab fields unset                                  | Assign fields in the Inspector                                               |
+| Task script errors "Configuration YAML not found"         | `Task.configPath` drifted from actual YAML location                                 | Regenerate via `/task-prefabs` or fix the path                                |
+| Full-screen views open on wrong monitors                  | Monitor indices reordered or new monitors attached                                  | Refresh Monitor Positions, reassign cameras                                   |
+| `Window → Task Parameters` shows "No Task component"      | Active scene contains no task prefab                                                | `create_scene_tool` with a `task_prefab_path`, or drag a task prefab in       |
+| Default `Main Camera` re-appears after scene open         | Editor reopened a scene saved before the cleanup; the next Parameters open clears it| Open / re-focus `Window → Task Parameters`; it logs the removal              |
 
 ---
 
 ## Verification checklist
 
 ```text
-- [ ] The scene passes the pre-Play Mode checklist above
-- [ ] Display assignments have been verified with Show Full-Screen Views
-- [ ] Controller choice matches the intended use (hardware vs simulated)
+- [ ] The active scene passes the pre-Play Mode checklist above
+- [ ] Camera Mapping has been verified with Show Full-Screen Views
+- [ ] Controller dropdown selection matches the intended use (hardware vs simulated)
 - [ ] UI-lick-reward canvas, if present, has all prefab fields assigned
-- [ ] MQTT broker is reachable before entering Play Mode
+- [ ] MQTT broker is reachable before entering Play Mode (Test Connection passes)
 - [ ] No console errors appear during Play Mode startup
+- [ ] Auto-created GameObjects (Actors, Controllers, MQTT Client) were not deleted or hidden
 ```
 
 ---
 
 ## Related skills
 
-| Skill                            | Relationship                                                          |
-|----------------------------------|-----------------------------------------------------------------------|
-| `/scenes` (this plugin)          | Upstream — creates or opens the scene this skill configures           |
-| `/task-prefabs` (this plugin)    | Upstream — generates the prefab placed into the scene                 |
-| `/play-mode` (this plugin)       | Consumer — entered after scene setup passes the pre-Play Mode checklist |
-| `/gimbl-framework` (this plugin) | Reference for `ActorObject`, `DisplayObject`, controller classes      |
-| `/mqtt-contract` (this plugin)   | Topics consumed by `UI-lick-reward` and published by `SimulatedLinearTreadmill` |
+| Skill                            | Relationship                                                              |
+|----------------------------------|---------------------------------------------------------------------------|
+| `/scenes` (this plugin)          | Upstream — creates or opens the scene this skill configures               |
+| `/task-prefabs` (this plugin)    | Upstream — generates the prefab placed into the scene                     |
+| `/task-parameters` (this plugin) | Programmatic alternative to the GUI flows described here                  |
+| `/play-mode` (this plugin)       | Consumer — entered after scene setup passes the pre-Play Mode checklist   |
+| `/gimbl-framework` (this plugin) | Reference for `ActorObject`, `DisplayObject`, controller classes          |
+| `/mqtt-contract` (this plugin)   | Topics consumed by `UI-lick-reward` and published by `Simulated Linear`   |

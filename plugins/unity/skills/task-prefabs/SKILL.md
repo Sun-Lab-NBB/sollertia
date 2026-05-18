@@ -250,13 +250,14 @@ The task prefab itself (`Assets/InfiniteCorridorTask/Tasks/<template>.prefab`) i
    delete_unity_asset_tool(asset_path="Assets/InfiniteCorridorTask/Cues/Cue_X_30cm.prefab")
    delete_unity_asset_tool(asset_path="Assets/InfiniteCorridorTask/Materials/Cue_X_30cm.mat")
    ```
-   The bridge refuses paths outside the InfiniteCorridorTask asset roots and refuses the four
+   The bridge refuses paths outside the InfiniteCorridorTask asset roots and refuses the five
    hand-authored protected assets (`StimulusTriggerZone.prefab`, `OccupancyTriggerZone.prefab`,
-   `ResetZone.prefab`, `ExperimentTemplate.unity`). If the bridge rejects a path, do not bypass —
-   the asset is hand-authored and the template should reference a different name. Because cue
-   assets are shared across templates, deleting them will force every dependent template to
-   regenerate its cues on its next `generate_task_prefab_tool` call (a no-op when the new cue
-   matches what the dependent template would have produced).
+   `ResetZone.prefab`, `_CueShaderReference.mat`, `ExperimentTemplate.unity`). It also rejects
+   path traversal sequences, absolute paths, and directory targets. If the bridge rejects a path,
+   do not bypass — the asset is hand-authored and the template should reference a different name.
+   Because cue assets are shared across templates, deleting them will force every dependent
+   template to regenerate its cues on its next `generate_task_prefab_tool` call (a no-op when the
+   new cue matches what the dependent template would have produced).
 3. **Regenerate** — re-run `generate_task_prefab_tool` (Step 2 of the generation workflow). The
    pipeline rebuilds every segment prefab from scratch and fills in any missing cue prefabs.
 4. **Re-validate** — run `validate_prefab_against_template_tool` and confirm every `*_match` field
@@ -466,7 +467,7 @@ Template fields:
 | `inspect_prefab_tool` returns "prefab path missing"              | Prefab not saved to `Tasks/`                       | Re-run Step 2 with an explicit `save_path`                       |
 | All Unity tools return "Unity Editor is not reachable"           | Editor or McpBridge offline                        | `/unity-mcp-environment-setup` in this plugin                    |
 | Trigger type mismatch between template and prefab                | GUID reference drift                               | Open the prefab in the Editor and re-link zone                   |
-| `delete_unity_asset_tool` rejects the path with "Refusing to delete" | Path is outside the InfiniteCorridorTask roots, or names a hand-authored asset | Reference a different name in the template; do not bypass the protection |
+| `delete_unity_asset_tool` rejects the path with "Refusing to delete" | Path is outside the InfiniteCorridorTask roots, or names one of the five hand-authored protected assets (`StimulusTriggerZone.prefab`, `OccupancyTriggerZone.prefab`, `ResetZone.prefab`, `_CueShaderReference.mat`, `ExperimentTemplate.unity`) | Reference a different name in the template; do not bypass the protection. The `_CueShaderReference.mat` material is the canonical shader source for every generated cue — restoring it from git is the only fix when missing |
 
 ---
 
@@ -497,6 +498,7 @@ Template fields:
 | `/scenes` (this plugin)                       | Consumer — places the generated prefab into a scene       |
 | `/play-mode` (this plugin)                    | Consumer — exercises the prefab at runtime                |
 | `/scene-setup` (this plugin)                  | Consumer — configures displays / controller before Play Mode |
+| `/task-parameters` (this plugin)              | Consumer — reads / writes the generated `Task` component fields |
 | `/task-generator` (this plugin)               | Reference for the `CreateTask` pipeline this tool invokes |
 | `/mqtt-contract` (this plugin)                | Reference for MQTT topics wired by generated zone scripts |
 | `/gimbl-framework` (this plugin)              | Reference for `ActorObject` coordinate frame usage        |

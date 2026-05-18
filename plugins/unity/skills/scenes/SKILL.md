@@ -72,7 +72,9 @@ natural share for scene deletion under `Assets/Scenes/`.
 ### Create a new scene
 
 New scenes are created by copying `Assets/Scenes/ExperimentTemplate.unity` — the template defines
-the standard camera rig, lighting, and audio setup used by every Sollertia task.
+the standard camera rig, lighting, and audio setup used by every Sollertia task. The bridge
+delegates to `CreateTask.CreateSceneFromTemplate`, which also runs `MainWindow.EnsureControllers`
+to guarantee both `Linear` and `Simulated Linear` controllers exist in the new scene.
 
 1. **(Optional) Ensure the task prefab is generated** — hand off to `/task-prefabs` to generate it
    before seeding the scene with it.
@@ -86,15 +88,23 @@ the standard camera rig, lighting, and audio setup used by every Sollertia task.
    The new scene is saved to `Assets/Scenes/<scene-name>.unity`. Omit `task_prefab_path` for an
    empty scene with only the template's base GameObjects. When the previously active scene has
    unsaved edits, the call returns an error — see [Unsaved-changes policy](#unsaved-changes-policy).
+
+   Response shape: `{success, scene_path, message, simulated_controller_added, [warning]}`.
+   - `simulated_controller_added` is `true` when `EnsureControllers` had to create the
+     `Simulated Linear` GameObject and `false` when it was already present.
+   - `warning: "task_prefab_not_found"` appears (and the call still succeeds) when a non-empty
+     `task_prefab_path` was supplied but no asset could be loaded from it — the scene is created
+     without the task hierarchy and the caller is expected to retry or surface the discrepancy.
+   - The bridge **refuses** to clobber an existing scene at the requested path (returns an
+     error). Delete the existing scene via `delete_unity_asset_tool` (`/task-prefabs`) under
+     `Assets/Scenes/` first if you intend to overwrite.
 3. **Verify:**
    ```text
    list_scenes_tool()
    ```
-   Confirm the new scene appears in the list.
-4. **Open it:**
-   ```text
-   open_scene_tool(scene_path="Assets/Scenes/<scene-name>.unity")
-   ```
+   Confirm the new scene appears in the list. The new scene is opened in the Editor automatically
+   by `CreateSceneFromTemplate`, so a separate `open_scene_tool` call is only needed if the user
+   navigates elsewhere first.
 
 ### Inspect the active scene
 
@@ -110,10 +120,14 @@ Common pre-flight checks:
 
 - The `Task` component is present on a root GameObject (set up by `create_scene_tool` when a
   `task_prefab_path` is supplied).
-- `ActorObject`, `MQTTClient`, and `Display` rigs from `ExperimentTemplate.unity` survived the
-  scene copy. A regression here typically points to a hand-edited template scene.
+- `ActorObject`, `MQTTClient`, the `Display` rig, and both `Linear` / `Simulated Linear`
+  controller GameObjects from `MainWindow.InitializeScene` survived the scene copy. A regression
+  here typically points to a hand-edited template scene.
 - `is_dirty == false` before calling `enter_play_mode_tool`. A dirty scene means an earlier tool
   call modified the scene without saving.
+- For programmatic field inspection (Actor / Display / MQTT / Camera Mapping / Task), prefer
+  `/task-parameters` — it returns the same scene state plus the option lists and visibility flags
+  that drive validation.
 
 ### Enumerate assets
 
@@ -188,8 +202,9 @@ rejected by the Unity AssetDatabase.
 |---------------------------------------------------------------------------------|----------------------------------------|---------------------------------------------------------------------------------------|
 | `open_scene_tool` returns "scene not found"                                     | Scene path typo or missing file        | Call `list_scenes_tool` and copy the exact path                                       |
 | `open_scene_tool` / `create_scene_tool` returns "Active scene … has unsaved changes" | Active scene is dirty, no policy passed | Ask the user save vs discard, retry with `unsaved_changes="save"` or `"discard"`      |
-| `create_scene_tool` fails with "template missing"                               | `ExperimentTemplate.unity` absent      | Reinstall the `sollertia-unity-tasks` project                                         |
-| `create_scene_tool` fails with "prefab not found"                               | `task_prefab_path` is wrong            | Generate via `/task-prefabs` first; use project-relative path                         |
+| `create_scene_tool` fails with "Scene already exists at: …"                     | The target path is taken               | Delete the existing scene via `delete_unity_asset_tool` (`/task-prefabs`) under `Assets/Scenes/` first, then retry — the MCP path refuses overwrite to keep automated callers from silently destroying a hand-authored scene |
+| `create_scene_tool` returns `warning: "task_prefab_not_found"`                  | A non-empty `task_prefab_path` did not resolve to a loadable prefab | Generate the prefab via `/task-prefabs`, or fix the path; the scene was created without the task hierarchy and can be re-seeded after generation |
+| `create_scene_tool` fails with "Template scene not found"                       | `ExperimentTemplate.unity` absent      | Reinstall the `sollertia-unity-tasks` project                                         |
 | `inspect_scene_tool` returns empty `root_objects`                                | No scene loaded, or `ExperimentTemplate.unity` was opened empty | Call `list_scenes_tool` and `open_scene_tool` to load a real scene first              |
 | `list_unity_assets_tool` returns empty list                                     | `asset_type` or `search_path` wrong    | Broaden `search_path="Assets"` and confirm type                                       |
 | Unity relay tools all fail                                                      | McpBridge down                         | `/unity-mcp-environment-setup`                                                        |
@@ -217,5 +232,6 @@ rejected by the Unity AssetDatabase.
 | `/unity-mcp-environment-setup` (this plugin)  | Run first if Unity Editor is unreachable                  |
 | `/task-prefabs` (this plugin)                 | Upstream — generates the prefab seeded into a new scene   |
 | `/scene-setup` (this plugin)                  | Consumer — configures the scene for runtime after opening |
+| `/task-parameters` (this plugin)              | Consumer — reads / writes Actor / MQTT / Display / Camera Mapping / Task fields after opening |
 | `/play-mode` (this plugin)                    | Consumer — typically entered after opening a target scene |
 | assets plugin `/task-templates`               | Upstream — template filename defines the conventional scene name |
