@@ -1,17 +1,17 @@
 ---
 name: task-generator
 description: >-
-  Documents the `CreateTask.cs` editor pipeline that builds cue, segment, and task prefabs
-  from YAML task templates, plus the hand-authored anatomy of segment and zone prefabs. Use
-  when modifying `CreateTask.cs`, adding a new zone type, hand-authoring a segment prefab, or
-  diagnosing generated-prefab geometry mismatches.
+  Documents the `CreateTask.cs` editor pipeline that builds cue, segment, and task prefabs from
+  YAML task templates, the anatomy of the generated cue and segment prefabs, and the placement of
+  the hand-authored zone prefabs. Use when modifying `CreateTask.cs`, adding a new zone type,
+  hand-authoring a zone prefab, or diagnosing generated-prefab geometry mismatches.
 user-invocable: true
 ---
 
 # Sollertia Unity task generator
 
-Documents the `CreateTask.cs` editor pipeline and the prefab anatomy it assumes. This skill is the reference for
-**extending** generation, not for invoking it — invocation is owned by `/task-prefabs`.
+Documents the `CreateTask.cs` editor pipeline and the prefab anatomy it assumes — the reference for
+**extending** generation rather than invoking it (invocation is owned by `/task-prefabs`).
 
 ---
 
@@ -79,13 +79,15 @@ CreateTask.CreateSceneFromTemplate(sceneSavePath, taskPrefabPath, overwriteExist
 ├── Copy ExperimentTemplate.unity → sceneSavePath           ← refuses to clobber unless overwriteExisting
 ├── EditorSceneManager.OpenScene(sceneSavePath)
 ├── Optionally instantiate the task prefab (non-fatal if missing)
-├── MainWindow.EnsureControllers                            ← guarantees Linear + Simulated Linear coexist
+├── MainWindow.EnsureControllers                            ← creates one GameObject per ControllerTypes enum value
+│                                                             under the scene's "Controllers" root (no-op if missing)
 ├── MainWindow.EnsureMqttDefaults                           ← applies EditorPrefs MQTT IP/port with 127.0.0.1:1883 fallback
 ├── MainWindow.SyncDisplayBrightnessToSettings              ← sets DisplayObject.currentBrightness = settings.brightness
 └── Save the new scene + return SceneCreationResult         ← {Success, Message, SimulatedControllerAdded, TaskPrefabNotFound}
 ```
 
-Keys:
+### Pipeline notes
+
 - **Cross-template cue-texture preflight runs first**: `ValidateCueDefinitionsAcrossTemplates` enumerates every
   `*.yaml` / `*.yml` under `Assets/InfiniteCorridorTask/Configurations/`, loads each through `ConfigLoader`, and
   builds a `(cue name, length label) → list[(texture, template name)]` map. Any identity that resolves to more
@@ -147,13 +149,13 @@ Cue_<name>_<length>cm
 ```
 
 - `lengthUnity = cue.length_cm / cm_per_unity_unit`.
-- Both quads use the built-in `Quad.fbx` mesh and the `Standard` shader.
+- Both quads use the built-in `Quad.fbx` mesh and the shader resolved by `LoadReferenceCueShader`
+  (`Legacy Shaders/Diffuse`, sourced from `Materials/_CueShaderReference.mat`).
 - No collider, no script — cues are purely visual.
 - The material's `_MainTex` is assigned from `Assets/InfiniteCorridorTask/Textures/<cue.texture>`; texture must be
   imported into Unity before generation.
 
-To add a new cue texture: import the `.png` into `Assets/InfiniteCorridorTask/Textures/`, reference it from the
-YAML template's `cues[].texture` field, and generate — the cue prefab and material will be created automatically.
+See [Adding a new cue or segment](#adding-a-new-cue-or-segment) for the procedure to add a new cue texture.
 
 ---
 
@@ -210,7 +212,7 @@ is also in `McpBridge.DeleteProtectedPaths` and cannot be deleted via `delete_as
 | `Materials/Wall.mat`                  | Material   | Shared wall material baked into every generated segment          |
 | `Materials/TargetMat.mat`             | Material   | Renderer material referenced by both hand-authored trigger zones |
 
-Do not rename these assets — `BuildSegmentPrefabs` / `LoadReferenceCueShader` resolve them by
+You MUST NOT rename these assets — `BuildSegmentPrefabs` / `LoadReferenceCueShader` resolve them by
 hardcoded path, and the trigger zone prefabs reference `TargetMat.mat` by serialized GUID. The
 scene base template `Assets/Scenes/ExperimentTemplate.unity` is also in
 `McpBridge.DeleteProtectedPaths` but is consumed by `CreateSceneFromTemplate` rather than by the
@@ -240,8 +242,8 @@ zoneCenterUnity       = (zoneStartUnity + zoneEndUnity) / 2
 zoneSizeUnity         = zoneEndUnity - zoneStartUnity
 stimulusLocationUnity = trial.stimulus_location_cm          / cm_per_unity_unit
 
-StimulusTriggerZone.localPosition   = (0, 0.505, zoneCenterUnity)
-StimulusTriggerZone.BoxCollider.size = (1, 1, zoneSizeUnity)
+StimulusTriggerZone.localPosition      = (0, 0.505, zoneCenterUnity)
+StimulusTriggerZone.BoxCollider.size   = (1, 1, zoneSizeUnity)
 StimulusTriggerZone.BoxCollider.center = (0, 0, 0)
 
 GuidanceRegion.BoxCollider.size   = (1, 1, 0.4)                                ← fixed 0.4 Unity units wide
@@ -278,7 +280,7 @@ OccupancyGuidanceRegion.BoxCollider.center = (0, 0, occupancyCenterOffset + zone
 ### Critical invariant
 
 For lick-mode trials the generator places the zone root at the segment's center such that
-`zone_z = zone.transform.localPosition.z` equals `(zone_end - zone_start) / (2 * cm_per_unity_unit)`,
+`zone_z = zone.transform.localPosition.z` equals `(zone_end + zone_start) / (2 * cm_per_unity_unit)`,
 and the `BoxCollider.size.z` equals `(zone_end - zone_start) / cm_per_unity_unit`. For occupancy
 mode the generator places the root at `rootZ` (past the waiting range) instead — the root collider
 marks the boundary, and the wait region lives on the child `OccupancyRegion`. Anyone auditing a
@@ -312,8 +314,8 @@ After `BuildSegmentPrefabs` finishes, `CreateTask` builds the top-level task hie
 Rules enforced by the assembly loop:
 - Only the **first** segment in each corridor retains its `StimulusTriggerZone` and `ResetZone`. Later segments are
   visual-only and have their zones stripped (`DestroyImmediate`).
-- The first segment's `StimulusTriggerZone.showBoundary` is set from
-  `template.GetSegmentMarkerVisibility(segmentName)`, which maps trigger type → `show_stimulus_collision_boundary`.
+- The first segment's `StimulusTriggerZone.showBoundary` is read directly from
+  `trials[segment].showStimulusCollisionBoundary` (the per-trial `show_stimulus_collision_boundary` template field).
 - Corridor X-spacing is `vr_environment.corridor_spacing_cm / cm_per_unity_unit`.
 - The padding Z-shift uses the **minimum** segment length, not the current segment's length. Segments longer than
   the minimum will overlap the padding by design (the overlap is outside the camera's view).
@@ -332,23 +334,33 @@ folder) and ensures the cross-template cue-texture preflight sees every template
 
 Output paths are **auto-resolved** from the template filename — the prefab lands at
 `Assets/InfiniteCorridorTask/Tasks/<template>.prefab` and the scene at `Assets/Scenes/<template>.unity`. The menu
-shows a single overwrite-confirmation dialog if either target already exists, then runs `CreateFromTemplate`
-followed by `CreateSceneFromTemplate` so the same template selection produces both the prefab and a runnable
-scene in one pass. The scene step uses Unity's native unsaved-changes dialog before opening; a Cancel there
-leaves the already-generated prefab in place for a follow-up run.
+shows a single overwrite-confirmation dialog if either target already exists, auto-creates
+`Assets/InfiniteCorridorTask/Tasks/` when the folder is missing, and then runs `CreateFromTemplate` followed by
+`CreateSceneFromTemplate` so the same template selection produces both the prefab and a runnable scene in one
+pass. The scene step is skipped entirely when `CreateFromTemplate` returns anything other than a `success:`
+result, so a failed cue-texture preflight or YAML-load error short-circuits before any scene work begins. When
+the prefab step succeeds, the scene step uses Unity's native unsaved-changes dialog before opening; a Cancel
+there leaves the already-generated prefab in place for a follow-up run.
 
 ### MCP bridge
 
-`McpBridge.GenerateTaskPrefab` calls the same `CreateFromTemplate` with:
+The `create_task_tool` dispatches to `McpBridge.GenerateTask`, which chains `CreateFromTemplate` and
+`CreateSceneFromTemplate` in one call with:
 - `absoluteTemplatePath = Application.dataPath/InfiniteCorridorTask/Configurations/<template_name>.yaml`
 - `relativeConfigPath = InfiniteCorridorTask/Configurations/<template_name>.yaml` (relative; stored on `Task`)
-- `savePath = Assets/InfiniteCorridorTask/Tasks/<template_name>.prefab` (or the caller's override)
+- `savePath = Assets/InfiniteCorridorTask/Tasks/<template_name>.prefab` (auto-resolved from the template name)
+- `sceneSavePath = Assets/Scenes/<template_name>.unity` (auto-resolved from the template name)
 
-`McpBridge.CreateScene` calls `CreateSceneFromTemplate` directly and surfaces the
-`SceneCreationResult` struct (`Success`, `Message`, `SimulatedControllerAdded`, `TaskPrefabNotFound`) in the JSON
-response. The MCP surface keeps prefab generation and scene generation as **separate** tools
-(`create_task_tool` + `create_task_tool`) so automated callers can sequence them independently;
-the Editor menu wraps both in a single user-driven flow.
+The bridge auto-creates `Assets/InfiniteCorridorTask/Tasks/` when missing and refuses to clobber an existing
+scene at the resolved path (it calls `CreateSceneFromTemplate` with `overwriteExisting: false`); regeneration
+is the two-step `delete_task_tool` → `create_task_tool` cycle. The `SceneCreationResult` fields (`Success`,
+`Message`, `SimulatedControllerAdded`, `TaskPrefabNotFound`) are flattened into the JSON response as `message`,
+`prefab_path`, `scene_path`, and `simulated_controller_added`.
+
+There is no separate scene-only MCP tool — `create_task_tool` is the single entry point for both prefab and
+scene generation, mirroring the Editor menu's single user-driven flow. The companion `delete_task_tool`
+removes the scene + per-scene `savedFullScreenViews` companion + task prefab + every owned segment prefab
+atomically.
 
 All entry points converge on `CreateFromTemplate` and `CreateSceneFromTemplate`, so any change to either method
 affects both flows. Test through both the menu and the MCP tools after any pipeline modification.
@@ -359,16 +371,27 @@ affects both flows. Test through both the menu and the MCP tools after any pipel
 
 ### Adding a new zone trigger type
 
-1. Add a new `triggerType` enum value in `sollertia-shared-assets` via `/task-templates`.
-2. Create a new zone base prefab under `Prefabs/<NewZone>TriggerZone.prefab` with the required script and colliders.
-3. Add a new `if (trial.triggerType == "<new>")` branch in `BuildSegmentPrefabs` and a corresponding `Place<New>Zone`
-   method following the pattern of `PlaceLickZone` / `PlaceOccupancyZone`.
-4. Update `McpBridge.ValidatePrefabAgainstTemplate` if the new zone requires different geometry validation.
-5. Update `/task-prefabs` zone behavior reference with the new trigger type.
+1. Add a new `triggerType` enum value in `sollertia-shared-assets` via `/task-templates` and run `/library-extension`
+   so the Python registry parity check still passes at import time.
+2. Extend the `trigger_type` literal check in `ConfigLoader.ValidateTemplate` (currently accepts `"lick"` and
+   `"occupancy"` only); without this, every template that uses the new value fails at load time.
+3. Create a new zone base prefab under `Prefabs/<NewZone>TriggerZone.prefab` with the required script and colliders
+   (use `/zone-prefabs` to copy and rewrite the closest canonical template).
+4. Add the new prefab path to `McpBridge.DeleteProtectedPaths` — `BuildSegmentPrefabs` loads zone prefabs by hardcoded
+   path, and an accidental `delete_asset_tool` would break subsequent generation runs.
+5. Add a new `if (trial.triggerType == "<new>")` branch in `BuildSegmentPrefabs` and a corresponding `Place<New>Zone`
+   helper following the pattern of `PlaceLickZone` / `PlaceOccupancyZone`.
+6. Update `/task-prefabs` zone behavior reference with the new trigger type so callers see how to drive it from YAML.
 
 ### Adding a new cue or segment
 
-No code changes needed for cues — new textures and YAML entries are enough.
+No code changes are needed for cues. To add a new cue texture:
+
+1. Import the `.png` (or compatible image) into `Assets/InfiniteCorridorTask/Textures/`.
+2. Reference the filename from the YAML template's `cues[].texture` field together with a unique `name`,
+   `code`, and `lengthCm`.
+3. Regenerate the task via `create_task_tool`; the cue prefab and matching material are created automatically
+   under `Cues/Cue_<name>_<length>cm.prefab` and `Materials/Cue_<name>_<length>cm.mat`.
 
 Segment prefabs are always generated from the template's `trial_structures` block; hand-authoring them is not
 supported under the always-regenerate flow because `CleanGeneratedSegments` would delete the hand-authored
@@ -382,8 +405,8 @@ template instead.
    conversion.
 3. Thread the field through `CreateFromTemplate` to the relevant sub-step.
 4. If the field affects geometry, ordering, or asset count, update the
-   [Template → prefab field mapping](../task-prefabs/SKILL.md#template--prefab-field-mapping)
-   table in `/task-prefabs` so callers can see how the new field surfaces in the generated prefab.
+   Template → prefab field mapping table in `/task-prefabs` so callers can see how the new field surfaces in the 
+   generated prefab.
 
 ---
 
@@ -395,29 +418,9 @@ template instead.
 | `BuildCuePrefabs` error: `Failed to load texture`                                 | Cue's `texture` field references a file not in `Textures/`                                             | Import the texture, retry generation                                                                                                                              |
 | `BuildSegmentPrefabs` error: `Missing Floor.mat`                                  | Shared materials deleted or renamed                                                                    | Restore from git                                                                                                                                                  |
 | Segment length warning in Console                                                 | Cue lengths do not sum to measured prefab length                                                       | Either regenerate the segment or fix template cues                                                                                                                |
-| `create_task_tool` error: `No segment found`                                      | Segment build pass failed silently (asset DB out of sync, missing zone prefabs)                        | Check Unity Console for `BuildSegmentPrefabs:` warnings, ensure zone base prefabs and Floor/Wall materials exist, regenerate                                      |
+| `create_task_tool` error: `No segment found`                                      | `BuildSegmentPrefabs` errored: missing cue prefab, `Floor.mat`, or `Wall.mat`                          | Check Console for `BuildSegmentPrefabs:` errors; verify Floor/Wall materials and referenced cues (trigger-zone prefabs are non-fatal; zones are simply skipped)   |
 | Zone geometry looks wrong in scene view                                           | Template's cm values or `cm_per_unity_unit` mismatch                                                   | Recheck YAML; regenerate                                                                                                                                          |
-| Occupancy validator reports `zone_z_match: false` on a correctly generated prefab | Known validator / generator drift (see above)                                                          | Use zone-collider visual inspection in Editor                                                                                                                     |
 | Cue textures appear mirrored on Left or Right wall                                | Quad scale sign is flipped (Right uses negative X)                                                     | Intentional — each wall shows a correctly-oriented cue                                                                                                            |
-
----
-
-## Verification checklist
-
-```text
-- [ ] Any change to zone placement is reflected in both PlaceLickZone and PlaceOccupancyZone if applicable
-- [ ] New zone types appear in BuildSegmentPrefabs trigger-type switch AND in the zone base prefab set AND in
-      McpBridge.DeleteProtectedPaths
-- [ ] Cue prefab regeneration remains shared and skip-if-exists; segment prefab regeneration remains always-rebuilt
-      via `CleanGeneratedSegments`
-- [ ] Hardcoded asset paths (Prefabs/, Cues/, Materials/, Textures/) are not changed without updating every call site
-- [ ] LoadReferenceCueShader still falls back through the documented chain when _CueShaderReference.mat is missing
-- [ ] CreateTask → New Task Editor menu and McpBridge.GenerateTask produce identical assets for the same template
-- [ ] CreateSceneFromTemplate runs MainWindow.EnsureControllers so the generated scene contains both Linear and
-      Simulated Linear controllers
-- [ ] After any generator change, regenerate a representative template via create_task_tool and spot-check the
-      prefab via inspect_prefab_tool against the expected hierarchy
-```
 
 ---
 
@@ -430,3 +433,26 @@ template instead.
 | `/gimbl-framework` (this plugin)    | Segment prefabs place GIMBL-derived `Actor` coordinate frame usage |
 | assets plugin `/task-templates`     | Upstream — owns YAML authoring and schema evolution                |
 | `/csharp-style` (automation plugin) | Enforced when editing `CreateTask.cs` or adding new generator code |
+
+---
+
+## Verification checklist
+
+You MUST verify your work against this checklist before submitting any change to `CreateTask.cs`, the zone
+base prefabs, the hand-authored shared materials, or the `McpBridge` dispatch surface.
+
+```text
+Generator Pipeline Compliance:
+- [ ] Any change to zone placement is reflected in both PlaceLickZone and PlaceOccupancyZone if applicable
+- [ ] New zone types appear in BuildSegmentPrefabs trigger-type switch AND in the zone base prefab set AND in
+      McpBridge.DeleteProtectedPaths
+- [ ] Cue prefab regeneration remains shared and skip-if-exists; segment prefab regeneration remains always-rebuilt
+      via `CleanGeneratedSegments`
+- [ ] Hardcoded asset paths (Prefabs/, Cues/, Materials/, Textures/) are not changed without updating every call site
+- [ ] LoadReferenceCueShader still falls back through the documented chain when _CueShaderReference.mat is missing
+- [ ] CreateTask → New Task Editor menu and McpBridge.GenerateTask produce identical assets for the same template
+- [ ] CreateSceneFromTemplate runs MainWindow.EnsureControllers so the generated scene contains one GameObject
+      per ControllerTypes enum value under the "Controllers" root
+- [ ] After any generator change, regenerate a representative template via create_task_tool and spot-check the
+      prefab via inspect_prefab_tool against the expected hierarchy
+```

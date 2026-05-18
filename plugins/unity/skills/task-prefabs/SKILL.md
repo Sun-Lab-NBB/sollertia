@@ -40,6 +40,11 @@ marketplace may call these.
 
 ## Template, task prefab, and scene hierarchy
 
+This section describes the **asset chain** — the three file artifacts that represent one task on
+disk. For the **runtime composition** (task → corridor → segment → cue, transition graph,
+sliding-window traversal), see assets plugin's `/task-templates` — that skill is the canonical
+home for the runtime model the template encodes.
+
 A single task moves through a three-tier chain of artifacts. All three artifacts share the
 **same base name** by convention, so a single name (`MF_Reward`, `SSO_Reversal`, …) is greppable
 end to end:

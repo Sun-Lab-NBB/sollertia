@@ -61,6 +61,11 @@ task-level lifecycle (create / delete the whole bundle).
 
 ## The task-scene chain
 
+This section describes the **asset chain** — where a task scene sits among the three file
+artifacts that represent one task on disk. For the **runtime composition** (task → corridor →
+segment → cue, transition graph, sliding-window traversal — the runtime model the task scene
+loads), see assets plugin's `/task-templates`.
+
 A task scene is the **third tier** of the Sollertia task asset chain:
 
 ```text
@@ -90,13 +95,13 @@ delete `ExperimentTemplate.unity` for the same reason.
 
 ## MCP tool surface
 
-| Tool                     | Purpose                                                                                                                 |
-|--------------------------|-------------------------------------------------------------------------------------------------------------------------|
-| `list_scenes_tool`       | Lists every scene in the project and flags the active one (exclusive)                                                   |
-| `open_scene_tool`        | Opens a scene in the Editor with explicit unsaved-changes handling (exclusive)                                          |
-| `delete_task_tool`      | Deletes a scene under `Assets/Scenes/` and its `savedFullScreenViews` companion in one atomic call (exclusive)          |
-| `inspect_scene_tool`     | Returns the active scene's metadata, dirty flag, and recursive root hierarchy (exclusive)                               |
-| `list_assets_tool` | Lists assets of a given type under a path (exclusive)                                                                   |
+| Tool                 | Purpose                                                                                                        |
+|----------------------|----------------------------------------------------------------------------------------------------------------|
+| `list_scenes_tool`   | Lists every scene in the project and flags the active one (exclusive)                                          |
+| `open_scene_tool`    | Opens a scene in the Editor with explicit unsaved-changes handling (exclusive)                                 |
+| `delete_task_tool`   | Deletes a scene under `Assets/Scenes/` and its `savedFullScreenViews` companion in one atomic call (exclusive) |
+| `inspect_scene_tool` | Returns the active scene's metadata, dirty flag, and recursive root hierarchy (exclusive)                      |
+| `list_assets_tool`   | Lists assets of a given type under a path (exclusive)                                                          |
 
 `list_assets_tool` is callable as a natural share by `/task-prefabs` when enumerating
 prefabs before inspection. Scene **creation** is owned by `/task-prefabs` (`create_task_tool`),
@@ -261,16 +266,16 @@ rejected by the Unity AssetDatabase.
 
 ## Troubleshooting
 
-| Symptom                                                                              | Cause                                                               | Resolution                                                                                                                                                                                                                   |
-|--------------------------------------------------------------------------------------|---------------------------------------------------------------------|------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
-| `open_scene_tool` returns "scene not found"                                          | Scene path typo or missing file                                     | Call `list_scenes_tool` and copy the exact path                                                                                                                                                                              |
-| `open_scene_tool` / `create_task_tool` returns "Active scene … has unsaved changes" | Active scene is dirty, no policy passed                             | Ask the user save vs discard, retry with `unsaved_changes="save"` or `"discard"`                                                                                                                                             |
+| Symptom                                                                             | Cause                                                               | Resolution                                                                                                                                                                                                             |
+|-------------------------------------------------------------------------------------|---------------------------------------------------------------------|------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| `open_scene_tool` returns "scene not found"                                         | Scene path typo or missing file                                     | Call `list_scenes_tool` and copy the exact path                                                                                                                                                                        |
+| `open_scene_tool` / `create_task_tool` returns "Active scene … has unsaved changes" | Active scene is dirty, no policy passed                             | Ask the user save vs discard, retry with `unsaved_changes="save"` or `"discard"`                                                                                                                                       |
 | `create_task_tool` fails with "Scene already exists at: …"                          | The target path is taken                                            | Delete the existing scene via `delete_asset_tool` (`/task-prefabs`) under `Assets/Scenes/` first, then retry — the MCP path refuses overwrite to keep automated callers from silently destroying a hand-authored scene |
-| `create_task_tool` returns `warning: "task_prefab_not_found"`                       | A non-empty `task_prefab_path` did not resolve to a loadable prefab | Generate the prefab via `/task-prefabs`, or fix the path; the scene was created without the task hierarchy and can be re-seeded after generation                                                                             |
-| `create_task_tool` fails with "Template scene not found"                            | `ExperimentTemplate.unity` absent                                   | Reinstall the `sollertia-unity-tasks` project                                                                                                                                                                                |
-| `inspect_scene_tool` returns empty `root_objects`                                    | No scene loaded, or `ExperimentTemplate.unity` was opened empty     | Call `list_scenes_tool` and `open_scene_tool` to load a real scene first                                                                                                                                                     |
-| `list_assets_tool` returns empty list                                          | `asset_type` or `search_path` wrong                                 | Broaden `search_path="Assets"` and confirm type                                                                                                                                                                              |
-| Unity relay tools all fail                                                           | McpBridge down                                                      | `/unity-mcp-environment-setup`                                                                                                                                                                                               |
+| `create_task_tool` returns `warning: "task_prefab_not_found"`                       | A non-empty `task_prefab_path` did not resolve to a loadable prefab | Generate the prefab via `/task-prefabs`, or fix the path; the scene was created without the task hierarchy and can be re-seeded after generation                                                                       |
+| `create_task_tool` fails with "Template scene not found"                            | `ExperimentTemplate.unity` absent                                   | Reinstall the `sollertia-unity-tasks` project                                                                                                                                                                          |
+| `inspect_scene_tool` returns empty `root_objects`                                   | No scene loaded, or `ExperimentTemplate.unity` was opened empty     | Call `list_scenes_tool` and `open_scene_tool` to load a real scene first                                                                                                                                               |
+| `list_assets_tool` returns empty list                                               | `asset_type` or `search_path` wrong                                 | Broaden `search_path="Assets"` and confirm type                                                                                                                                                                        |
+| Unity relay tools all fail                                                          | McpBridge down                                                      | `/unity-mcp-environment-setup`                                                                                                                                                                                         |
 
 ---
 

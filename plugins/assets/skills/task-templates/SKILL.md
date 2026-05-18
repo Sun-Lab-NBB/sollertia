@@ -110,16 +110,73 @@ slsa-side conceptual model — defer to those skills for implementation specific
 
 ### Supported VR paradigm: the infinite corridor
 
-The platform currently supports a single VR topology — the **infinite corridor**. The animal is
-head-fixed on a treadmill and runs forward through a one-dimensional corridor whose wall
-geometry is built from segment prefabs. The corridor has no end: the entire cue sequence the
-animal will see is **pre-resolved at session init** from the template, and the animal then
+The platform currently supports a single VR topology — the **infinite linear corridor**. The
+animal is head-fixed on a treadmill and runs forward through a one-dimensional corridor whose
+wall geometry is built from segment prefabs. The corridor has no end: the entire cue sequence
+the animal will see is **pre-resolved at session init** from the template, and the animal then
 traverses a deterministic chain of segments without branching, finish lines, or on-the-fly
-geometry generation. Every concept in this skill (cues, segments, transition probabilities,
-trial structures, `cue_offset_cm`, `segments_per_corridor`) is built around this paradigm.
-Future support for additional VR paradigms would require new template classes and corresponding
-Unity scaffolding; until then, treat "VR template" and "infinite corridor template" as
-synonymous.
+geometry generation. Future support for additional VR paradigms would require new template
+classes and corresponding Unity scaffolding; until then, treat "VR template" and "infinite
+corridor template" as synonymous.
+
+Four levels describe the corridor's composition, finest to coarsest: cue, segment, corridor,
+task.
+
+***Note,*** a **segment** is the Unity prefab that materializes a **trial** — the two terms
+refer to the same unit of behavior at different layers. "Trial" is how the template describes
+it abstractly (every entry under `trial_structures` is a trial); "segment" is how Unity names
+the prefab the runtime instantiates and the animal traverses.
+
+```text
+Task
+  │
+  ├── Corridor          ─┐  A corridor is a fixed sequence of segments stacked along the animal's
+  ├── Corridor           │  forward axis. A task pre-instantiates one corridor for every possible
+  ├── Corridor           │  combination of segments, so corridors enumerate the configuration
+  └── … (every          ─┘  space the corridor sequence can take.
+       combination)
+
+      one Corridor
+        ├── Segment          ← active: the trial currently driving behavior
+        ├── Segment          ← lookahead: visible only, no behavior
+        └── Segment          ← lookahead: visible only, no behavior
+
+      one Segment (= one trial)
+        ├── Cue
+        ├── Cue              ← the cue sequence declared by this trial, laid out along the corridor
+        └── …
+```
+
+- **Cues** are individual visual panels displayed along the walls of the corridor. They are the
+  smallest unit and are shared across every trial — and every template — that declares the same
+  cue identity (cue `name` + `length_cm`).
+- **Segments are trials.** Each entry in the template's `trial_structures` dict produces exactly
+  one segment. A segment owns its cue sequence and the behavioral element associated with that
+  trial (the stimulus trigger zone, the reward or aversive contingency, etc.).
+- **Corridors** are fixed-length windows of segments. The first segment in a corridor is the
+  **active** trial — it drives behavior. The remaining segments are pure visual lookahead, so the
+  animal sees what is coming without yet experiencing it. The window length is set by
+  `vr_environment.segments_per_corridor`; setting it to one collapses corridor and segment into
+  the same thing.
+- **Tasks** are the full set of corridors plus the transition graph that describes how trials
+  chain during a session. Each `TrialStructure` may declare a probability distribution over the
+  trials that can follow it via `transitions`; trials without an explicit distribution are
+  followed by a uniformly random trial.
+
+**Iterative corridor traversal.** At session start, the runtime walks the trial-transition graph
+to build a flat sequence of trials that overshoots the configured track length. It then slides a
+window the size of the corridor (in segments) over that sequence. The current window identifies
+one corridor from the pre-built catalog; the animal is teleported to that corridor's start.
+Whenever the animal finishes the first segment of the current corridor, the window slides one
+trial forward and the animal jumps to the corridor whose segment combination matches the new
+window. Adjacent corridors share `segments_per_corridor - 1` segments, so the visible cue
+sequence stays continuous across teleports.
+
+The corridor count grows as `trial_count ^ segments_per_corridor`, so raising the lookahead depth
+is a deliberate choice — it adds visual context at the cost of an exponentially larger task. Most
+paradigms use one or two segments per corridor. Every concept in this skill (cues, segments,
+transition probabilities, trial structures, `cue_offset_cm`, `segments_per_corridor`) is built
+around this hierarchy.
 
 ### How template fields are used
 
