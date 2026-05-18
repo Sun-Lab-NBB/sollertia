@@ -71,15 +71,15 @@ label is `Parameters`; the menu entry is `Window → Task Parameters` to disambi
 `OnEnable() → InitializeScene()` ensures the active scene contains the following before the GUI
 renders. Existing objects are left untouched; missing ones are created.
 
-| GameObject       | Components / behavior                                                                                | Hidden in hierarchy |
-|------------------|------------------------------------------------------------------------------------------------------|---------------------|
-| `Actors`         | Empty root for `ActorObject` instances                                                               | No                  |
-| `Controllers`    | Empty root for controller GameObjects                                                                | No                  |
-| `MQTT Client`    | `Gimbl.MQTTClient` singleton                                                                         | Yes (`HideInHierarchy`) |
-| `Actor` (default) | `ActorObject` with the first prefab under `Resources/Actors/Prefabs/`                              | No                  |
-| `<Display>` (default) | `DisplayObject` from the first prefab under `Resources/Displays/`, parented to the actor      | No                  |
-| `Linear`          | `LinearTreadmill` + `ControllerOutput`                                                              | No                  |
-| `Simulated Linear`| `SimulatedLinearTreadmill` + `ControllerOutput`                                                     | No                  |
+| GameObject            | Components / behavior                                                                    | Hidden in hierarchy     |
+|-----------------------|------------------------------------------------------------------------------------------|-------------------------|
+| `Actors`              | Empty root for `ActorObject` instances                                                   | No                      |
+| `Controllers`         | Empty root for controller GameObjects                                                    | No                      |
+| `MQTT Client`         | `Gimbl.MQTTClient` singleton                                                             | Yes (`HideInHierarchy`) |
+| `Actor` (default)     | `ActorObject` with the first prefab under `Resources/Actors/Prefabs/`                    | No                      |
+| `<Display>` (default) | `DisplayObject` from the first prefab under `Resources/Displays/`, parented to the actor | No                      |
+| `Linear`              | `LinearTreadmill` + `ControllerOutput`                                                   | No                      |
+| `Simulated Linear`    | `SimulatedLinearTreadmill` + `ControllerOutput`                                          | No                      |
 
 The `Linear` and `Simulated Linear` GameObjects are added by
 `MainWindow.EnsureControllers`, which iterates the `ControllerTypes` enum and creates one entry
@@ -91,8 +91,8 @@ template because the auto-created Display owns the per-monitor cameras and the A
 third-person tracking camera. Nothing in the project references `Camera.main` or the `MainCamera`
 tag, so the cleanup is safe.
 
-`InitializeScene` ends with a call to `MainWindow.EnsureMqttDefaults`, which applies the project-
-wide MQTT broker IP / port loaded from `EditorPrefs` (`SollertiaVR_MQTT_IP` /
+`InitializeScene` ends with a call to `MainWindow.EnsureMqttDefaults`, which applies the project-wide 
+MQTT broker IP / port loaded from `EditorPrefs` (`SollertiaVR_MQTT_IP` /
 `SollertiaVR_MQTT_Port`) with a `127.0.0.1:1883` fallback. This guarantees the scene's MQTTClient
 reports the same broker the GUI would write through the MQTT section regardless of whether the
 underlying scene file was serialized with an empty IP. The same helper plus
@@ -104,14 +104,14 @@ reads immediately, without waiting for the Parameters window's `delayCall` autol
 
 A runnable scene contains:
 
-| GameObject               | Component                     | Purpose                                                                |
-|--------------------------|-------------------------------|------------------------------------------------------------------------|
-| `MQTT Client`            | `Gimbl.MQTTClient`            | Broker singleton; sets `MQTTClient.Instance` on `Awake`                |
-| `Actor` (or renamed)     | `Gimbl.ActorObject`           | Animal avatar with display + controller                                |
-| `<Display>`              | `Gimbl.DisplayObject`         | Multi-monitor rig with per-monitor cameras                             |
-| `Linear` / `Simulated Linear` | `LinearTreadmill` / `SimulatedLinearTreadmill` + `ControllerOutput` | Input devices; pick one via Actor dropdown |
-| `<Task prefab instance>` | `SL.Tasks.Task`               | Corridor hierarchy (dropped in from `Tasks/`)                          |
-| `UI-Control` (optional)  | `SL.UI.LickStimulusSpawner`   | On-screen lick and stimulus indicators                                 |
+| GameObject                    | Component                                                           | Purpose                                                 |
+|-------------------------------|---------------------------------------------------------------------|---------------------------------------------------------|
+| `MQTT Client`                 | `Gimbl.MQTTClient`                                                  | Broker singleton; sets `MQTTClient.Instance` on `Awake` |
+| `Actor` (or renamed)          | `Gimbl.ActorObject`                                                 | Animal avatar with display + controller                 |
+| `<Display>`                   | `Gimbl.DisplayObject`                                               | Multi-monitor rig with per-monitor cameras              |
+| `Linear` / `Simulated Linear` | `LinearTreadmill` / `SimulatedLinearTreadmill` + `ControllerOutput` | Input devices; pick one via Actor dropdown              |
+| `<Task prefab instance>`      | `SL.Tasks.Task`                                                     | Corridor hierarchy (dropped in from `Tasks/`)           |
+| `UI-Control` (optional)       | `SL.UI.LickStimulusSpawner`                                         | On-screen lick and stimulus indicators                  |
 
 `ExperimentTemplate.unity` ships without the task prefab and UI control; both are added manually
 (or `create_scene_tool` from `/scenes` seeds the task prefab and `CreateTask.CreateSceneFromTemplate`
@@ -146,11 +146,11 @@ not stable across reboots.
 
 The Display section shows three fields plus a Blank / Show toggle:
 
-| Field                | Persistence                                              | Effect                                          |
-|----------------------|----------------------------------------------------------|-------------------------------------------------|
-| `currentBrightness`  | Scene-serialized field; synced to `brightness` on scene creation | Live brightness override                |
-| `brightness`         | `Assets/VRSettings/Displays/<Display>.asset` (default `50`) | Default brightness restored by "Show Display" |
-| `heightInVR`         | `Assets/VRSettings/Displays/<Display>.asset`             | Y offset of the display rig from the actor      |
+| Field               | Persistence                                                      | Effect                                        |
+|---------------------|------------------------------------------------------------------|-----------------------------------------------|
+| `currentBrightness` | Scene-serialized field; synced to `brightness` on scene creation | Live brightness override                      |
+| `brightness`        | `Assets/VRSettings/Displays/<Display>.asset` (default `50`)      | Default brightness restored by "Show Display" |
+| `heightInVR`        | `Assets/VRSettings/Displays/<Display>.asset`                     | Y offset of the display rig from the actor    |
 
 The Blank / Show button flips `currentBrightness` between `0` and the configured `brightness`.
 `CreateTask.CreateSceneFromTemplate` calls `MainWindow.SyncDisplayBrightnessToSettings` after the
@@ -222,15 +222,15 @@ See that skill for the option-list contract and validation rules.
 
 ## Task section
 
-The `Task` section exposes the task component's tunables, all of which are mirrored on the
+The `Task` section exposes the task component's tunable parameters, all of which are mirrored on the
 `Task.cs` `MonoBehaviour` but addressable only through this window or `/task-parameters`:
 
-| Field            | Type   | Effect                                                                                   | Conditional rendering            |
-|------------------|--------|------------------------------------------------------------------------------------------|-----------------------------------|
-| `Require Lick`   | bool   | Lick-guidance toggle (also mirrored over MQTT `RequireLick`)                            | Hidden when scene has no `GuidanceZone`  |
-| `Require Wait`   | bool   | Occupancy-guidance toggle (also mirrored over MQTT `RequireWait`)                       | Hidden when scene has no `OccupancyZone` |
-| `Track Length`   | float  | Total length of the pre-generated random trial sequence (Unity units)                    | Always visible                    |
-| `Track Seed`     | int    | RNG seed for the random trial sequence (`-1` requests a nondeterministic seed)           | Always visible                    |
+| Field          | Type  | Effect                                                                         | Conditional rendering                    |
+|----------------|-------|--------------------------------------------------------------------------------|------------------------------------------|
+| `Require Lick` | bool  | Lick-guidance toggle (also mirrored over MQTT `RequireLick`)                   | Hidden when scene has no `GuidanceZone`  |
+| `Require Wait` | bool  | Occupancy-guidance toggle (also mirrored over MQTT `RequireWait`)              | Hidden when scene has no `OccupancyZone` |
+| `Track Length` | float | Total length of the pre-generated random trial sequence (Unity units)          | Always visible                           |
+| `Track Seed`   | int   | RNG seed for the random trial sequence (`-1` requests a nondeterministic seed) | Always visible                           |
 
 Controls are **disabled in Play Mode** because the live guidance toggles are driven by MQTT during
 runtime. To flip a toggle mid-run, publish on the matching MQTT topic instead (see `/mqtt-contract`).
@@ -293,13 +293,13 @@ for the multi-consumer behavior. Do not treat the self-delivery as a bug.
 
 ## Scene-specific vs project-wide state
 
-| State                                | Scope                | Where stored                                                |
-|--------------------------------------|----------------------|-------------------------------------------------------------|
-| Camera Mapping (camera ↔ monitor)    | Per-scene            | `Assets/VRSettings/Displays/<scene>-savedFullScreenViews.asset` |
-| Actor model + controller selection   | Per-scene            | Scene `.unity` file                                         |
-| `Task` fields (require, length, seed)| Per-scene            | Scene `.unity` file                                         |
-| `Display` brightness / `heightInVR`  | Per Display prefab   | `Assets/VRSettings/Displays/<display>.asset`                |
-| MQTT broker IP / port                | Project-wide (per user) | `EditorPrefs` (`SollertiaVR_MQTT_*`)                     |
+| State                                 | Scope                   | Where stored                                                    |
+|---------------------------------------|-------------------------|-----------------------------------------------------------------|
+| Camera Mapping (camera ↔ monitor)     | Per-scene               | `Assets/VRSettings/Displays/<scene>-savedFullScreenViews.asset` |
+| Actor model + controller selection    | Per-scene               | Scene `.unity` file                                             |
+| `Task` fields (require, length, seed) | Per-scene               | Scene `.unity` file                                             |
+| `Display` brightness / `heightInVR`   | Per Display prefab      | `Assets/VRSettings/Displays/<display>.asset`                    |
+| MQTT broker IP / port                 | Project-wide (per user) | `EditorPrefs` (`SollertiaVR_MQTT_*`)                            |
 
 **Implication:** every scene must have its Camera Mapping configured independently after a fresh
 checkout or a system reboot. Maintain one scene per experimental protocol so the configuration can
@@ -329,18 +329,18 @@ Run through this list after any scene edit and before entering Play Mode:
 
 ## Common failure modes
 
-| Symptom                                                   | Root cause                                                                          | Resolution                                                                   |
-|-----------------------------------------------------------|-------------------------------------------------------------------------------------|------------------------------------------------------------------------------|
-| `NullReferenceException` on Play — `Display` is null      | Actor.Display not assigned                                                          | Re-open `Window → Task Parameters` to retrigger `EnsureActorAndDisplay`      |
-| Camera Mapping rows are empty after a scene open          | Scene was created without the `MainWindow.InitializeScene` pass                     | Open `Window → Task Parameters`; the InitializeOnLoad hooks repair the scene |
-| Monitors show wrong content after reboot                  | OS reassigned monitor ports                                                         | Press **Refresh Monitor Positions** and reassign cameras                     |
-| Keyboard input has no effect in Play Mode                 | Controller dropdown is `Linear`, not `Simulated Linear`                             | Swap via the Actor section's Controller dropdown                             |
-| Spurious lick events in session log                       | Forgotten `Simulated Linear` selection in a production scene                        | Swap back to `Linear`                                                        |
-| UI indicators never appear                                | `LickStimulusSpawner` canvas / prefab fields unset                                  | Assign fields in the Inspector                                               |
-| Task script errors "Configuration YAML not found"         | `Task.configPath` drifted from actual YAML location                                 | Regenerate via `/task-prefabs` or fix the path                                |
-| Full-screen views open on wrong monitors                  | Monitor indices reordered or new monitors attached                                  | Refresh Monitor Positions, reassign cameras                                   |
-| `Window → Task Parameters` shows "No Task component"      | Active scene contains no task prefab                                                | `create_scene_tool` with a `task_prefab_path`, or drag a task prefab in       |
-| Default `Main Camera` re-appears after scene open         | Editor reopened a scene saved before the cleanup; the next Parameters open clears it| Open / re-focus `Window → Task Parameters`; it logs the removal              |
+| Symptom                                              | Root cause                                                                           | Resolution                                                                   |
+|------------------------------------------------------|--------------------------------------------------------------------------------------|------------------------------------------------------------------------------|
+| `NullReferenceException` on Play — `Display` is null | Actor.Display not assigned                                                           | Re-open `Window → Task Parameters` to retrigger `EnsureActorAndDisplay`      |
+| Camera Mapping rows are empty after a scene open     | Scene was created without the `MainWindow.InitializeScene` pass                      | Open `Window → Task Parameters`; the InitializeOnLoad hooks repair the scene |
+| Monitors show wrong content after reboot             | OS reassigned monitor ports                                                          | Press **Refresh Monitor Positions** and reassign cameras                     |
+| Keyboard input has no effect in Play Mode            | Controller dropdown is `Linear`, not `Simulated Linear`                              | Swap via the Actor section's Controller dropdown                             |
+| Spurious lick events in session log                  | Forgotten `Simulated Linear` selection in a production scene                         | Swap back to `Linear`                                                        |
+| UI indicators never appear                           | `LickStimulusSpawner` canvas / prefab fields unset                                   | Assign fields in the Inspector                                               |
+| Task script errors "Configuration YAML not found"    | `Task.configPath` drifted from actual YAML location                                  | Regenerate via `/task-prefabs` or fix the path                               |
+| Full-screen views open on wrong monitors             | Monitor indices reordered or new monitors attached                                   | Refresh Monitor Positions, reassign cameras                                  |
+| `Window → Task Parameters` shows "No Task component" | Active scene contains no task prefab                                                 | `create_scene_tool` with a `task_prefab_path`, or drag a task prefab in      |
+| Default `Main Camera` re-appears after scene open    | Editor reopened a scene saved before the cleanup; the next Parameters open clears it | Open / re-focus `Window → Task Parameters`; it logs the removal              |
 
 ---
 
