@@ -1,11 +1,9 @@
 ---
 name: forging-mcp-environment-setup
 description: >-
-  Diagnoses and resolves sollertia-forgery MCP server connectivity issues. Covers environment
-  verification, command availability, Python version checks, dependency validation, and conda/pip/uv
-  environment configuration. Use when MCP tools are unavailable, when the sollertia-forgery MCP server
-  fails to start, when the user reports connection issues, or when starting a session that requires
-  MCP tools.
+  Diagnoses and resolves sollertia-forgery MCP server connectivity issues (environment,
+  command availability, Python version, dependencies). Use when the MCP tools are
+  unavailable, the server fails to start, or a new session needs sollertia-forgery tools.
 user-invocable: true
 ---
 
@@ -25,7 +23,7 @@ Diagnoses and resolves sollertia-forgery MCP server connectivity and environment
 - Environment-specific guidance for conda, pip, and uv workflows
 
 **Does not cover:**
-- MCP tool usage for session discovery (see `/session-discovery`)
+- MCP tool usage for session discovery (see the assets plugin's `/session-discovery`)
 - MCP tool usage for manifest reading and generation (see `/project-manifest`)
 - MCP tool usage for checksum verification (see `/checksum-verification`)
 - MCP tool usage for session transfer and deletion (see `/session-transfer`)
@@ -71,11 +69,11 @@ where sollertia-forgery is installed must be active before launching the assista
 
 The sollertia forging plugin's Claude integration is split across two distribution channels:
 
-| Component                                                        | Distributed via               | What it provides                                                      |
-|------------------------------------------------------------------|-------------------------------|-----------------------------------------------------------------------|
-| Skills (`/session-discovery`, `/behavior-processing`, etc.)      | sollertia forging plugin      | Skill files that guide agents through workflows                       |
-| MCP server registration                                          | sollertia forging plugin      | Plugin entry that tells the Claude assistant how to start the server  |
-| MCP server code (`sl-mcp`)                                       | sollertia-forgery pip package | The actual CLI command and server implementation                      |
+| Component                                                                 | Distributed via                 | What it provides                                                        |
+|---------------------------------------------------------------------------|---------------------------------|-------------------------------------------------------------------------|
+| Skills (assets plugin `/session-discovery`, `/behavior-processing`, etc.) | sollertia forging plugin        | Skill files that guide agents through workflows                         |
+| MCP server registration                                                   | sollertia forging plugin        | Plugin entry that tells the Claude assistant how to start the server    |
+| MCP server code (`sl-mcp`)                                                | sollertia-forgery pip package   | The actual CLI command and server implementation                        |
 
 Installing the plugin alone registers the MCP server and makes skills available, but the server will fail
 to start because the `sl-mcp` CLI command is not present. The pip package must also be installed in the
@@ -93,7 +91,7 @@ You MUST follow these steps in order when MCP tools are unavailable or the serve
 
 ### Step 1: Test MCP tool availability
 
-Attempt to call any sollertia-forgery MCP tool (for example `discover_sessions_tool`). If the
+Attempt to call any sollertia-forgery MCP tool (for example `get_transfer_status_tool`). If the
 call succeeds, the environment is healthy, and you can invoke the target skill. If the call returns a
 connection error, continue to step 2.
 
@@ -183,15 +181,15 @@ pip install -e .
 
 ## Related skills
 
-| Skill                     | Relationship                                                   |
-|---------------------------|----------------------------------------------------------------|
-| `/session-discovery`      | Downstream: session discovery once MCP is verified             |
-| `/project-manifest`       | Downstream: manifest reading and generation require MCP tools  |
-| `/checksum-verification`  | Downstream: checksum batch pipeline requires MCP tools         |
-| `/session-transfer`       | Downstream: transfer and deletion pipeline requires MCP tools  |
-| `/behavior-input-format`  | Reference: input formats consumed by MCP-driven workflows      |
-| `/behavior-processing`    | Downstream: batch processing operations require MCP tools      |
-| `/behavior-results`       | Downstream: output verification and querying require MCP tools |
+| Skill                                | Relationship                                                       |
+|--------------------------------------|--------------------------------------------------------------------|
+| assets plugin `/session-discovery`   | Downstream: session discovery once MCP is verified                 |
+| `/project-manifest`                  | Downstream: manifest reading and generation require MCP tools      |
+| `/checksum-verification`             | Downstream: checksum batch pipeline requires MCP tools             |
+| `/session-transfer`                  | Downstream: transfer and deletion pipeline requires MCP tools      |
+| `/behavior-input-format`             | Reference: input formats consumed by MCP-driven workflows          |
+| `/behavior-processing`               | Downstream: batch processing operations require MCP tools          |
+| `/behavior-results`                  | Downstream: output verification and querying require MCP tools     |
 
 ---
 

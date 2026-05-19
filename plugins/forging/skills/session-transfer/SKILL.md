@@ -1,10 +1,10 @@
 ---
 name: session-transfer
 description: >-
-  Orchestrates batch session transfer and deletion via the sollertia-forgery MCP server: batch
-  preparation, job execution, progress monitoring, cancellation, retry, and cleanup. Use when
-  transferring sessions to an archive location, deleting sessions, or managing transfer tracker
-  lifecycle. Requires confirmed session paths from /session-discovery.
+  Orchestrates batch session transfer and deletion via the sollertia-forgery MCP server
+  (batch prep, execution, progress, cancel, retry, cleanup). Use when transferring sessions
+  to archive, deleting sessions, or managing transfer-tracker lifecycle. Consumes confirmed
+  session paths from `/session-discovery`.
 user-invocable: true
 ---
 
@@ -27,7 +27,7 @@ progress, and clean up tracker artifacts.
 - Tracker cleanup after completion
 
 **Does not cover:**
-- Session discovery and filtering (see `/session-discovery` — required prerequisite)
+- Session discovery and filtering (see the assets plugin's `/session-discovery` — required prerequisite)
 - Manifest generation or reading (see `/project-manifest`)
 - Checksum verification (see `/checksum-verification`)
 - Behavior processing (see `/behavior-processing`)
@@ -40,7 +40,7 @@ progress, and clean up tracker artifacts.
 You MUST use the sollertia-forgery MCP tools for all transfer and deletion operations. Do not
 import `sollertia_forgery.managing.transfer` directly.
 
-You MUST have confirmed session paths from `/session-discovery` before calling
+You MUST have confirmed session paths from the assets plugin's `/session-discovery` before calling
 `prepare_transfer_batch_tool`. Do not guess or derive paths manually.
 
 You MUST confirm the `tracker_directory` with the user. The tracker must be placed in a stable
@@ -177,7 +177,7 @@ active.
 ### Pre-run checklist
 
 ```text
-- [ ] Sessions discovered via /session-discovery (session_paths confirmed with user)
+- [ ] Sessions discovered via the assets plugin's /session-discovery (session_paths confirmed with user)
 - [ ] User confirmed which sessions to transfer or delete
 - [ ] For transfers: destination directory confirmed with user
 - [ ] Tracker directory confirmed with user (must survive the operation)
@@ -187,7 +187,7 @@ active.
 
 ### Workflow steps
 
-1. **Discover sessions** — Use `/session-discovery` to obtain confirmed session paths.
+1. **Discover sessions** — Use the assets plugin's `/session-discovery` to obtain confirmed session paths.
 
 2. **Confirm operation details** — Ask the user:
    - Which sessions to include?
@@ -273,29 +273,29 @@ Summary: 3/5 jobs complete | 1 running | 1 scheduled | 0 failed
 
 ## Error routing
 
-| Error                                            | Resolution                                        |
-|--------------------------------------------------|---------------------------------------------------|
-| `An execution session is already active`         | Wait or call `cancel_transfer_tool` first         |
-| `No valid transfer jobs to prepare`              | Verify job descriptors have `source_path`         |
-| `No valid jobs to execute`                       | Verify job descriptors have all required keys     |
-| `Source path does not exist`                     | Verify path; re-run `/session-discovery`          |
-| `Unable to load session`                         | Check `session_data.yaml` at the session root     |
-| `No destination_path ... remove_source not true` | Specify destination or set `remove_source="true"` |
-| `Tracker file not found`                         | Re-prepare the batch to regenerate the tracker    |
-| Clean refused (session still active)             | Wait for completion or cancel before cleaning     |
-| Per-job failure                                  | Inspect `error_message`; reset and retry          |
-| MCP tool unavailable                             | Invoke `/forging-mcp-environment-setup`           |
+| Error                                              | Resolution                                                   |
+|----------------------------------------------------|--------------------------------------------------------------|
+| `An execution session is already active`           | Wait or call `cancel_transfer_tool` first                    |
+| `No valid transfer jobs to prepare`                | Verify job descriptors have `source_path`                    |
+| `No valid jobs to execute`                         | Verify job descriptors have all required keys                |
+| `Source path does not exist`                       | Verify path; re-run the assets plugin's `/session-discovery` |
+| `Unable to load session`                           | Check `session_data.yaml` at the session root                |
+| `No destination_path ... remove_source not true`   | Specify destination or set `remove_source="true"`            |
+| `Tracker file not found`                           | Re-prepare the batch to regenerate the tracker               |
+| Clean refused (session still active)               | Wait for completion or cancel before cleaning                |
+| Per-job failure                                    | Inspect `error_message`; reset and retry                     |
+| MCP tool unavailable                               | Invoke `/forging-mcp-environment-setup`                      |
 
 ---
 
 ## Related skills
 
-| Skill                            | Relationship                                                     |
-|----------------------------------|------------------------------------------------------------------|
-| `/forging-mcp-environment-setup` | Prerequisite: MCP server connectivity                            |
-| `/session-discovery`             | Prerequisite: provides confirmed session_paths                   |
-| `/checksum-verification`         | Peer: verify integrity before transferring                       |
-| `/project-manifest`              | Downstream: regenerate manifest after transfer or deletion       |
+| Skill                                | Relationship                                                         |
+|--------------------------------------|----------------------------------------------------------------------|
+| `/forging-mcp-environment-setup`     | Prerequisite: MCP server connectivity                                |
+| assets plugin `/session-discovery`   | Prerequisite: provides confirmed session_paths                       |
+| `/checksum-verification`             | Peer: verify integrity before transferring                           |
+| `/project-manifest`                  | Downstream: regenerate manifest after transfer or deletion           |
 
 ---
 
@@ -304,7 +304,7 @@ Summary: 3/5 jobs complete | 1 running | 1 scheduled | 0 failed
 ```text
 Session Transfer:
 - [ ] Verified MCP server connectivity (invoked /forging-mcp-environment-setup if unavailable)
-- [ ] Received confirmed session_paths from /session-discovery
+- [ ] Received confirmed session_paths from the assets plugin's /session-discovery
 - [ ] Confirmed operation type (transfer vs deletion) for each session
 - [ ] For transfers: confirmed destination directory with user
 - [ ] Confirmed tracker directory (stable, outside affected sessions)

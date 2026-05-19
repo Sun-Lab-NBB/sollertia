@@ -1,11 +1,10 @@
 ---
 name: behavior-input-format
 description: >-
-  Documents the behavior-processing-specific input artifacts consumed by the sollertia-forgery pipeline:
-  the Mesoscope-VR runtime NPZ archive, the ataraxis-video-system camera timestamp feather files, and
-  the ataraxis-communication-interface microcontroller module feather files. Delegates session layout,
-  hardware state, and experiment configuration authoring to the assets plugin. Use when the user
-  asks about upstream handoff, module eligibility, or why a behavior job is missing on disk.
+  Documents the behavior-processing input artifacts consumed by the sollertia-forgery pipeline:
+  the Mesoscope-VR runtime NPZ archive, ataraxis-video-system camera-timestamp feathers, and
+  ataraxis-communication-interface microcontroller feathers. Use when the user asks about
+  upstream handoff, module eligibility, or why a behavior job is missing on disk.
 user-invocable: true
 ---
 
@@ -36,7 +35,7 @@ experiment configuration are owned by the assets plugin and are referenced, not 
 - Experiment configuration YAML (`MesoscopeExperimentConfiguration`) authoring and validation
   (see `/configuration:experiment-configuration`)
 - Session descriptor YAMLs (see `/configuration:session-descriptors`)
-- Session discovery and filtering (see `/session-discovery`)
+- Session discovery and filtering (see the assets plugin's `/session-discovery`)
 - Output formats, verification, and data querying (see `/behavior-results`)
 - Batch orchestration workflow (see `/behavior-processing`)
 - Upstream axvs / axci processing (see `/video:log-processing` and `/communication:log-processing`)
@@ -58,7 +57,7 @@ A session is eligible for behavior processing only if its `session_type` is in
 | `MESOSCOPE_EXPERIMENT` | yes      | Same as training plus experiment-specific runtime outputs |
 | (anything else)        | no       | Returned with `eligible=False` and no error               |
 
-Use `/session-discovery` with
+Use the assets plugin's `/session-discovery` with
 `session_types=["lick_training", "run_training", "mesoscope_experiment"]` to discover eligible
 sessions. Eligibility is re-validated at prepare time by `prepare_behavior_processing_batch_tool`,
 which re-loads `SessionData`, checks the type against `PROCESSABLE_SESSION_TYPES`, requires a
@@ -474,16 +473,16 @@ Behavior Input Prerequisites:
 
 ## Related skills
 
-| Skill                                     | Relationship                                                 |
-|-------------------------------------------|--------------------------------------------------------------|
-| `/forging-mcp-environment-setup`          | Prerequisite: MCP server connectivity                        |
-| `/session-discovery`                      | Upstream: session discovery and filtering                    |
-| `/configuration:session-data`             | Reference: session marker and layout                         |
-| `/configuration:project-hierarchy`        | Reference: project / animal / session hierarchy              |
-| `/configuration:session-snapshots`        | Reference: MesoscopeHardwareState YAML                       |
-| `/configuration:session-descriptors`      | Reference: per-session descriptor YAML                       |
-| `/configuration:experiment-configuration` | Reference: MesoscopeExperimentConfiguration YAML             |
-| `/behavior-processing`                    | Downstream: consumes the inputs documented here              |
-| `/behavior-results`                       | Downstream: documents outputs derived from these inputs      |
-| `/video:log-processing`                   | Upstream producer of camera timestamp feathers               |
-| `/communication:log-processing`           | Upstream producer of microcontroller module feathers         |
+| Skill                                       | Relationship                                                   |
+|---------------------------------------------|----------------------------------------------------------------|
+| `/forging-mcp-environment-setup`            | Prerequisite: MCP server connectivity                          |
+| assets plugin `/session-discovery`          | Upstream: session discovery and filtering                      |
+| `/configuration:session-data`               | Reference: session marker and layout                           |
+| `/configuration:project-hierarchy`          | Reference: project / animal / session hierarchy                |
+| `/configuration:session-snapshots`          | Reference: MesoscopeHardwareState YAML                         |
+| `/configuration:session-descriptors`        | Reference: per-session descriptor YAML                         |
+| `/configuration:experiment-configuration`   | Reference: MesoscopeExperimentConfiguration YAML               |
+| `/behavior-processing`                      | Downstream: consumes the inputs documented here                |
+| `/behavior-results`                         | Downstream: documents outputs derived from these inputs        |
+| `/video:log-processing`                     | Upstream producer of camera timestamp feathers                 |
+| `/communication:log-processing`             | Upstream producer of microcontroller module feathers           |

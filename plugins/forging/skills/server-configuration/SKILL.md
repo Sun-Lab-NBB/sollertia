@@ -1,10 +1,9 @@
 ---
 name: server-configuration
 description: >-
-  Authors and modifies the ServerConfiguration YAML file for sollertia-forgery via the sl-mcp MCP
-  server. Covers remote storage transfer settings, cloud compute server credentials, and the
-  read/write tool surface for the server configuration. Use when setting up remote data transfer for a new
-  Sollertia host or rotating server credentials.
+  Authors and modifies the ServerConfiguration YAML for sollertia-forgery via the `sl-mcp` MCP
+  server (remote storage transfer settings, cloud compute server credentials). Use when
+  setting up remote data transfer for a new Sollertia host or rotating server credentials.
 user-invocable: true
 ---
 

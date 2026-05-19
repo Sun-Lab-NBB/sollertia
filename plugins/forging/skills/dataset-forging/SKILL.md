@@ -1,11 +1,10 @@
 ---
 name: dataset-forging
 description: >-
-  Orchestrates batch dataset forging (per-session analysis-ready feather assembly) via the
-  sollertia-forgery MCP server: dataset resolution, batch preparation, job execution,
-  progress monitoring, cancellation, retry, and cleanup. Use when assembling a
-  `data.feather` per session from already-processed behavior and cindra outputs, or when
-  managing forging jobs across a set of sessions that form a dataset.
+  Orchestrates batch dataset forging (per-session `data.feather` assembly) via the
+  sollertia-forgery MCP server (dataset resolution, batch prep, execution, progress, cancel,
+  retry, cleanup). Use when assembling analysis-ready feathers from processed behavior and
+  cindra outputs or managing forging jobs across a dataset.
 user-invocable: true
 ---
 
@@ -25,7 +24,7 @@ off to downstream skills for output verification and querying.
 - Progress monitoring, cancellation, cleanup, failed-job reset, and cross-dataset overview
 
 **Does not cover:**
-- Session discovery and filtering (see `/session-discovery`)
+- Session discovery and filtering (see the assets plugin's `/session-discovery`)
 - Upstream input file formats and cross-library handoff (see `/dataset-forging-input-format`)
 - Output verification, schemas, or interpretation (see `/dataset-forging-results`)
 - MCP server connectivity (see `/forging-mcp-environment-setup`)
@@ -34,7 +33,7 @@ off to downstream skills for output verification and querying.
   `/cindra:multi-recording-processing`)
 
 **Handoff rules:** If MCP tools are unavailable, invoke `/forging-mcp-environment-setup`.
-If the user has not yet run session discovery, invoke `/session-discovery` first. After
+If the user has not yet run session discovery, invoke the assets plugin's `/session-discovery` first. After
 all jobs complete successfully, hand off to `/dataset-forging-results` to verify and
 query outputs.
 
@@ -49,7 +48,7 @@ You MUST use the sollertia-forgery MCP tools for all forging operations. Do not 
 `sollertia_forgery.forging.pipeline` directly or invoke the `sl-forge` CLI — those
 bypass the background execution manager and the progress/timing monitoring surface.
 
-You MUST have confirmed session names and a project root from `/session-discovery`
+You MUST have confirmed session names and a project root from the assets plugin's `/session-discovery`
 before calling `prepare_forging_batch_tool`. Do not guess, infer, or discover paths from
 within this skill.
 
@@ -63,11 +62,11 @@ time per `sl-mcp` process. Cancel any active session before starting a new batch
 
 Per-session forged output is written to `{session_root}/data.feather` — directly under
 the session's own directory, NOT under `processed_data/`. The session's
-`experiment_descriptor.yaml` is also copied from `raw_data/` into the session root
+`session_descriptor.yaml` is also copied from `raw_data/` into the session root
 alongside the feather so the forged session carries experimenter context without
 reaching back into the raw data. The dataset-level metadata (`dataset.yaml`) and
 tracker (`forging_tracker.yaml`) live at `{project_root}/{dataset_name}/`, and each
-animal's `surgery_data.yaml` is copied once to `{project_root}/{dataset_name}/{animal}/`.
+animal's `surgery_metadata.yaml` is copied once to `{project_root}/{dataset_name}/{animal}/`.
 
 ---
 
@@ -182,8 +181,8 @@ Returns `{reset: True, jobs_reset: N, jobs: [...], summary: {...}}` on success o
 | `dataset_paths` | `list[str]` | (required) | Absolute paths to `{project_root}/{dataset_name}/` directories to delete |
 
 Refuses to run while an execution session is active — cancel first. Deletes the full
-dataset directory tree (tracker + dataset metadata + per-animal `surgery_data.yaml`
-copies). Per-session `data.feather` and the copied `experiment_descriptor.yaml` are
+dataset directory tree (tracker + dataset metadata + per-animal `surgery_metadata.yaml`
+copies). Per-session `data.feather` and the copied `session_descriptor.yaml` are
 NOT removed, because those files live under the session root, not the dataset
 directory. After cleanup, pass the same dataset specs back to
 `prepare_forging_batch_tool` to reinitialize from scratch.
@@ -215,8 +214,8 @@ project_root/
 │   │   ├── raw_data/
 │   │   │   ├── hardware_state.yaml
 │   │   │   ├── experiment_configuration.yaml
-│   │   │   ├── experiment_descriptor.yaml
-│   │   │   ├── surgery_data.yaml
+│   │   │   ├── session_descriptor.yaml
+│   │   │   ├── surgery_metadata.yaml
 │   │   │   └── ...
 │   │   ├── processed_data/
 │   │   │   ├── behavior_data/          ← from /behavior-processing
@@ -224,13 +223,13 @@ project_root/
 │   │   │       ├── <single-recording>/ ← from /cindra:single-recording-processing
 │   │   │       └── multiday/{dataset_name}/  ← from /cindra:multi-recording-processing
 │   │   ├── data.feather                ← FORGED OUTPUT (this pipeline)
-│   │   └── experiment_descriptor.yaml  ← FORGED COPY (this pipeline)
+│   │   └── session_descriptor.yaml  ← FORGED COPY (this pipeline)
 │   └── session_2/...
 └── {dataset_name}/                     ← FORGED DATASET HIERARCHY (this pipeline)
     ├── dataset.yaml
     ├── forging_tracker.yaml
     └── animal_A/
-        └── surgery_data.yaml           ← FORGED COPY (one per animal)
+        └── surgery_metadata.yaml           ← FORGED COPY (one per animal)
 ```
 
 Key architectural facts:
@@ -247,9 +246,9 @@ Key architectural facts:
   `run_forging_pipeline(name=..., session_names=(), project_root=..., job_id=...)` so
   that only the single session identified by `job_id` is assembled.
 - **Output layout:** per-session `{session_root}/data.feather` plus a copy of
-  `experiment_descriptor.yaml` from `raw_data/`; the dataset hierarchy at
+  `session_descriptor.yaml` from `raw_data/`; the dataset hierarchy at
   `{project_root}/{dataset_name}/` stores `dataset.yaml`, `forging_tracker.yaml`,
-  and one `{animal}/surgery_data.yaml` copy per animal (taken from each animal's
+  and one `{animal}/surgery_metadata.yaml` copy per animal (taken from each animal's
   most recent session at dataset creation time).
 - **Reserved cores:** two cores are reserved system-wide (`RESERVED_CORES = 2`); the
   worker budget applies to the remaining cores. Each worker is a separate process.
@@ -258,11 +257,11 @@ Key architectural facts:
   subsequent session in the batch must share the first session's `session_type` and
   `acquisition_system`; a mismatch raises during dataset creation.
 - **Surgery data requirement:** every animal represented in the dataset must carry a
-  `surgery_data.yaml` under the most recent session's `raw_data/`. The file is copied
+  `surgery_metadata.yaml` under the most recent session's `raw_data/`. The file is copied
   once per animal into the dataset hierarchy; a missing file raises during dataset
   creation.
 - **Experiment descriptor requirement:** every session must carry an
-  `experiment_descriptor.yaml` under `raw_data/`. The file is copied alongside
+  `session_descriptor.yaml` under `raw_data/`. The file is copied alongside
   `data.feather` at the end of each session assembly; a missing file raises at
   assembly time before any computation is performed.
 
@@ -285,7 +284,7 @@ resolution rules are:
 Use `force_recreate=True` whenever you extend, shrink, or modify the session set of an
 existing dataset. The existing tracker, dataset metadata, and per-animal surgery
 copies are discarded, but the per-session `{session_root}/data.feather` and
-`{session_root}/experiment_descriptor.yaml` files already on disk are not touched
+`{session_root}/session_descriptor.yaml` files already on disk are not touched
 (only the dataset hierarchy under `{project_root}/{dataset_name}/` is removed). To
 also wipe per-session output, overwrite it naturally on the next run or remove each
 `data.feather` manually.
@@ -303,7 +302,7 @@ Only one execution session can be active at a time.
 ### Pre-processing checklist
 
 ```text
-- [ ] Confirmed session names and project_root from /session-discovery
+- [ ] Confirmed session names and project_root from the assets plugin's /session-discovery
 - [ ] Every session in the batch is MESOSCOPE_EXPERIMENT
 - [ ] /behavior-processing has completed for every session (behavior feathers present)
 - [ ] /cindra:single-recording-processing has completed for every session
@@ -319,7 +318,7 @@ first. See `/dataset-forging-input-format` for per-file details on upstream prer
 ### Workflow steps
 
 1. **Receive confirmed inputs** — Get session names, project root, and the target
-   dataset name(s) from the user. Session names come from `/session-discovery`.
+   dataset name(s) from the user. Session names come from the assets plugin's `/session-discovery`.
 
 2. **Prepare batch** — Call `prepare_forging_batch_tool` with the list of dataset
    specifications. Inspect the result:
@@ -332,7 +331,7 @@ first. See `/dataset-forging-input-format` for per-file details on upstream prer
      `MESOSCOPE_EXPERIMENT`; remove it from the batch.
    - `invalid_datasets[].error` starting with `"Unable to resolve the directory for session"`
      → session name does not resolve under `project_root`; cross-check with
-     `/session-discovery`.
+     the assets plugin's `/session-discovery`.
 
 3. **Present discovered jobs** — For each dataset in the manifest, show the session
    count and any pre-existing SUCCEEDED / FAILED counts. Format suggestion:
@@ -342,8 +341,8 @@ first. See `/dataset-forging-input-format` for per-file details on upstream prer
 
    | Dataset               | Sessions | Succeeded | Failed | Scheduled |
    |-----------------------|----------|-----------|--------|-----------|
-   | mouse_001_week1       | 7        | 0         | 0      | 7         |
-   | mouse_002_week1       | 7        | 2         | 1      | 4         |
+   | animal_001_week1       | 7        | 0         | 0      | 7         |
+   | animal_002_week1       | 7        | 2         | 1      | 4         |
    ```
 
 4. **Confirm resource allocation** — Present the default worker budget (`-1` =
@@ -403,16 +402,16 @@ workers share no state.
 When presenting per-session status:
 
 ```text
-**Forging Status** — dataset `mouse_001_week1`
+**Forging Status** — dataset `animal_001_week1`
 
 Summary: 5/7 jobs complete | 1 running | 1 queued | 0 failed
 
 | Session                       | Status    | Duration |
 |-------------------------------|-----------|----------|
-| mouse_001_2026-03-04_exp_01   | SUCCEEDED | 42.7s    |
-| mouse_001_2026-03-05_exp_01   | SUCCEEDED | 39.1s    |
-| mouse_001_2026-03-06_exp_01   | RUNNING   | 12.4s    |
-| mouse_001_2026-03-07_exp_01   | SCHEDULED | --       |
+| animal_001_2026-03-04_exp_01   | SUCCEEDED | 42.7s    |
+| animal_001_2026-03-05_exp_01   | SUCCEEDED | 39.1s    |
+| animal_001_2026-03-06_exp_01   | RUNNING   | 12.4s    |
+| animal_001_2026-03-07_exp_01   | SCHEDULED | --       |
 ```
 
 For multi-dataset overview via `get_forging_batch_status_overview_tool`:
@@ -422,9 +421,9 @@ For multi-dataset overview via `get_forging_batch_status_overview_tool`:
 
 | Dataset          | Status    | Succeeded | Failed | Running | Scheduled |
 |------------------|-----------|-----------|--------|---------|-----------|
-| mouse_001_week1  | completed | 7         | 0      | 0       | 0         |
-| mouse_002_week1  | running   | 3         | 1      | 2       | 1         |
-| mouse_003_week1  | scheduled | 0         | 0      | 0       | 7         |
+| animal_001_week1  | completed | 7         | 0      | 0       | 0         |
+| animal_002_week1  | running   | 3         | 1      | 2       | 1         |
+| animal_003_week1  | scheduled | 0         | 0      | 0       | 7         |
 ```
 
 ---
@@ -463,7 +462,7 @@ To rebuild only the session set of an existing dataset without deleting first:
 | `Unable to define dataset '{name}'. Dataset creation is currently supported only for mesoscope experiment sessions...` | Remove the non-mesoscope session or split the batch          |
 | `Unable to define dataset '{name}'. All sessions in a dataset must share the same session type...` | Split the batch by session type                              |
 | `Unable to define dataset '{name}'. All sessions in a dataset must be acquired by the same acquisition system...` | Split the batch by acquisition system                        |
-| `Unable to define dataset '{name}'. The latest session '{s}' for animal '{a}' does not contain a 'surgery_data.yaml' file...` | Add the missing surgery file to the animal's latest session  |
+| `Unable to define dataset '{name}'. The latest session '{s}' for animal '{a}' does not contain a 'surgery_metadata.yaml' file...` | Add the missing surgery file to the animal's latest session  |
 
 ### Execution errors (`execute_forging_jobs_tool` top-level `error` or `invalid_jobs[]`)
 
@@ -476,35 +475,35 @@ To rebuild only the session set of an existing dataset without deleting first:
 
 ### Per-job failure routing
 
-| Error pattern                                                 | Action                                                            |
-|---------------------------------------------------------------|-------------------------------------------------------------------|
-| Behavior tracker not found / ambiguous                        | Rerun `/behavior-processing` for the session                      |
-| Cindra single-recording tracker not found / ambiguous         | Rerun `/cindra:single-recording-processing` for the session       |
-| Cindra multi-day file missing (`cell_fluorescence.npy`, etc.) | Rerun `/cindra:multi-recording-processing` with the same dataset name |
-| Hardware state YAML missing / missing required field          | See `/dataset-forging-input-format` and the assets plugin  |
-| Experiment configuration YAML missing                         | See `/dataset-forging-input-format`                               |
-| Experiment descriptor YAML missing                            | See `/dataset-forging-input-format`; add the file under `raw_data/` |
-| Polars / Arrow read errors on a behavior feather              | Rerun `/behavior-processing` — the upstream feather is corrupt    |
-| MCP tools unavailable                                         | Invoke `/forging-mcp-environment-setup`                           |
-| Out of memory                                                 | Reduce `worker_budget`                                            |
-| Corrupt tracker                                               | `clean_forging_output_tool` → re-prepare                          |
+| Error pattern                                                   | Action                                                                |
+|-----------------------------------------------------------------|-----------------------------------------------------------------------|
+| Behavior tracker not found / ambiguous                          | Rerun `/behavior-processing` for the session                          |
+| Cindra single-recording tracker not found / ambiguous           | Rerun `/cindra:single-recording-processing` for the session           |
+| Cindra multi-day file missing (`cell_fluorescence.npy`, etc.)   | Rerun `/cindra:multi-recording-processing` with the same dataset name |
+| Hardware state YAML missing / missing required field            | See `/dataset-forging-input-format` and the assets plugin             |
+| Experiment configuration YAML missing                           | See `/dataset-forging-input-format`                                   |
+| Experiment descriptor YAML missing                              | See `/dataset-forging-input-format`; add the file under `raw_data/`   |
+| Polars / Arrow read errors on a behavior feather                | Rerun `/behavior-processing` — the upstream feather is corrupt        |
+| MCP tools unavailable                                           | Invoke `/forging-mcp-environment-setup`                               |
+| Out of memory                                                   | Reduce `worker_budget`                                                |
+| Corrupt tracker                                                 | `clean_forging_output_tool` → re-prepare                              |
 
 ---
 
 ## Related skills
 
-| Skill                                       | Relationship                                                              |
-|---------------------------------------------|---------------------------------------------------------------------------|
-| `/forging-mcp-environment-setup`            | Prerequisite: MCP server connectivity                                     |
-| `/session-discovery`                        | Upstream: session discovery and filtering                                 |
-| `/dataset-forging-input-format`             | Reference: upstream artifacts and session / dataset layout                |
-| `/dataset-forging-results`                  | Downstream: output verification, schemas, and querying                    |
-| `/behavior-processing`                      | Upstream: produces behavior feathers consumed by forging                  |
-| `/behavior-results`                         | Upstream reference: schema of the behavior feathers consumed here         |
-| `/cindra:single-recording-processing`       | Upstream: produces single-recording cindra outputs consumed here          |
-| `/cindra:multi-recording-processing`        | Upstream: produces multi-day cindra outputs (dataset name must match)     |
-| `/cindra:single-recording-results`          | Upstream reference: schemas of the cindra single-recording outputs        |
-| `/cindra:multi-recording-results`           | Upstream reference: schemas of the cindra multi-day outputs               |
+| Skill                                           | Relationship                                                                  |
+|-------------------------------------------------|-------------------------------------------------------------------------------|
+| `/forging-mcp-environment-setup`                | Prerequisite: MCP server connectivity                                         |
+| assets plugin `/session-discovery`              | Upstream: session discovery and filtering                                     |
+| `/dataset-forging-input-format`                 | Reference: upstream artifacts and session / dataset layout                    |
+| `/dataset-forging-results`                      | Downstream: output verification, schemas, and querying                        |
+| `/behavior-processing`                          | Upstream: produces behavior feathers consumed by forging                      |
+| `/behavior-results`                             | Upstream reference: schema of the behavior feathers consumed here             |
+| `/cindra:single-recording-processing`           | Upstream: produces single-recording cindra outputs consumed here              |
+| `/cindra:multi-recording-processing`            | Upstream: produces multi-day cindra outputs (dataset name must match)         |
+| `/cindra:single-recording-results`              | Upstream reference: schemas of the cindra single-recording outputs            |
+| `/cindra:multi-recording-results`               | Upstream reference: schemas of the cindra multi-day outputs                   |
 
 ---
 
@@ -513,7 +512,7 @@ To rebuild only the session set of an existing dataset without deleting first:
 ```text
 Dataset Forging Workflow:
 - [ ] Verified MCP server connectivity (invoked /forging-mcp-environment-setup if unavailable)
-- [ ] Received confirmed session names and project_root from /session-discovery
+- [ ] Received confirmed session names and project_root from the assets plugin's /session-discovery
 - [ ] Confirmed every session is MESOSCOPE_EXPERIMENT
 - [ ] Confirmed upstream /behavior-processing and /cindra:* outputs exist
 - [ ] Prepared batch via prepare_forging_batch_tool

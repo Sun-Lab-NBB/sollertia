@@ -1,10 +1,10 @@
 ---
 name: behavior-results
 description: >-
-  Complete reference for behavior processing output data formats, feather file discovery, output
-  verification, and data querying. Use when evaluating behavior processing results, when the user
-  asks about runtime state data, trial data, camera timestamps, or microcontroller feather contents,
-  or when auditing completed sessions for downstream analysis.
+  Reference for behavior-processing output formats, feather file discovery, and output
+  verification. Use when evaluating behavior-processing results, when the user asks about
+  runtime state, trial data, camera timestamps, or microcontroller feather contents, or when
+  auditing completed sessions for downstream analysis.
 user-invocable: true
 ---
 
@@ -30,7 +30,7 @@ querying, and interpretation guidance.
 **Does not cover:**
 - Input data format (see `/behavior-input-format`)
 - Batch processing workflow (see `/behavior-processing`)
-- Session discovery (see `/session-discovery`)
+- Session discovery (see the assets plugin's `/session-discovery`)
 - MCP server connectivity (see `/forging-mcp-environment-setup`)
 
 **Note:** `/video:*` and `/communication:*` refer to the **video** and **communication** plugins
@@ -404,12 +404,12 @@ be compared directly to any `time_us` column in this output.
 
 ## Related skills
 
-| Skill                            | Relationship                                                 |
-|----------------------------------|--------------------------------------------------------------|
-| `/forging-mcp-environment-setup` | Prerequisite: MCP server connectivity                        |
-| `/session-discovery`             | Upstream: session discovery produces confirmed session paths |
-| `/behavior-input-format`         | Reference: upstream inputs that became these outputs         |
-| `/behavior-processing`           | Upstream: produces the data described here                   |
+| Skill                                | Relationship                                                 |
+|--------------------------------------|--------------------------------------------------------------|
+| `/forging-mcp-environment-setup`     | Prerequisite: MCP server connectivity                        |
+| assets plugin `/session-discovery`   | Upstream: session discovery produces confirmed session paths |
+| `/behavior-input-format`             | Reference: upstream inputs that became these outputs         |
+| `/behavior-processing`               | Upstream: produces the data described here                   |
 
 ---
 

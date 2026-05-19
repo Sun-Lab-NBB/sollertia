@@ -1,11 +1,9 @@
 ---
 name: assets-mcp-environment-setup
 description: >-
-  Diagnoses and resolves sollertia-shared-assets MCP server connectivity issues. Covers environment
-  verification, command availability for slsa, Python version checks, dependency validation, and
-  conda/pip/uv environment configuration. Use when sollertia-shared-assets MCP tools are
-  unavailable, when the server fails to start, or when starting a session that requires the assets
-  plugin's MCP tools.
+  Diagnoses and resolves sollertia-shared-assets MCP server connectivity issues (environment,
+  `slsa` command availability, Python version, dependencies). Use when the MCP tools are
+  unavailable, the server fails to start, or a new session needs the assets plugin's tools.
 user-invocable: true
 ---
 

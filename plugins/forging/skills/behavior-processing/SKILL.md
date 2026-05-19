@@ -1,10 +1,10 @@
 ---
 name: behavior-processing
 description: >-
-  Orchestrates batch behavior processing via the sollertia-forgery MCP server: batch preparation, job
-  execution, progress monitoring, cancellation, retry, and cleanup. Use when processing confirmed
-  session paths through the runtime / camera / microcontroller job pipeline, or managing behavior
-  processing jobs across sessions.
+  Orchestrates batch behavior processing via the sollertia-forgery MCP server (batch
+  preparation, job execution, progress monitoring, cancellation, retry, cleanup). Use when
+  processing confirmed session paths through the runtime / camera / microcontroller pipeline
+  or managing behavior-processing jobs across sessions.
 user-invocable: true
 ---
 
@@ -29,14 +29,14 @@ analysis.
 - Resource allocation and the worker budget model
 
 **Does not cover:**
-- Session discovery and filtering (see `/session-discovery`)
+- Session discovery and filtering (see the assets plugin's `/session-discovery`)
 - Input file formats or cross-library handoff (see `/behavior-input-format`)
 - Output verification, schemas, or interpretation (see `/behavior-results`)
 - MCP server connectivity (see `/forging-mcp-environment-setup`)
 - Upstream axvs/axci processing (see `/video:log-processing` and `/communication:log-processing`)
 
 **Handoff rules:** If MCP tools are unavailable, invoke `/forging-mcp-environment-setup`. If the user has not
-yet run session discovery, invoke `/session-discovery` first. After all jobs complete successfully, hand
+yet run session discovery, invoke the assets plugin's `/session-discovery` first. After all jobs complete successfully, hand
 off to `/behavior-results` to verify and analyze outputs.
 
 **Note:** `/video:*` and `/communication:*` refer to the **video** and **communication** plugins
@@ -50,7 +50,7 @@ You MUST use the sollertia-forgery MCP tools for all processing operations. Do n
 `sollertia_forgery.processing.pipeline` directly or invoke the `sl-process` CLI — those bypass the
 background execution manager and the progress/timing monitoring surface.
 
-You MUST have confirmed session paths from `/session-discovery` before calling
+You MUST have confirmed session paths from the assets plugin's `/session-discovery` before calling
 `prepare_behavior_processing_batch_tool`. Do not guess, infer, or discover paths from within this
 skill.
 
@@ -74,9 +74,9 @@ You MUST respect the single-execution-session constraint: only one batch may run
 
 **`prepare_behavior_processing_batch_tool` parameters:**
 
-| Parameter       | Type        | Default    | Description                                                                        |
-|-----------------|-------------|------------|------------------------------------------------------------------------------------|
-| `session_paths` | `list[str]` | (required) | Absolute paths to session root directories (from `/session-discovery`)              |
+| Parameter         | Type          | Default      | Description                                                                                |
+|-------------------|---------------|--------------|--------------------------------------------------------------------------------------------|
+| `session_paths`   | `list[str]`   | (required)   | Absolute paths to session root directories (from the assets plugin's `/session-discovery`) |
 
 Each session's `behavior_data/` subdirectory is created under its
 `{session.processed_data_path}/behavior_data/`, containing the processing tracker
@@ -181,7 +181,7 @@ The workflow uses a **prepare-then-execute** model:
 ### Pre-processing checklist
 
 ```text
-- [ ] Confirmed session paths from /session-discovery
+- [ ] Confirmed session paths from the assets plugin's /session-discovery
 - [ ] Upstream /video:log-processing outputs present in processed_data/ (if camera jobs expected)
 - [ ] Upstream /communication:log-processing outputs present in processed_data/ (if microcontroller jobs expected)
 - [ ] Hardware state YAML present in raw_data/ for every session in the batch
@@ -195,7 +195,7 @@ The workflow uses a **prepare-then-execute** model:
 
 ### Workflow steps
 
-1. **Receive confirmed inputs** — Get the `session_paths` list from `/session-discovery`. Do
+1. **Receive confirmed inputs** — Get the `session_paths` list from the assets plugin's `/session-discovery`. Do
    not re-derive.
 
 2. **Prepare batch** — Call `prepare_behavior_processing_batch_tool` with the confirmed session
@@ -215,9 +215,9 @@ The workflow uses a **prepare-then-execute** model:
 
    | Session                       | Runtime | Camera | MCU | Total |
    |-------------------------------|---------|--------|-----|-------|
-   | mouse_001_2026-03-04_lick_01  | 1       | 2      | 5   | 8     |
-   | mouse_001_2026-03-05_run_01   | 1       | 2      | 5   | 8     |
-   | mouse_002_2026-03-06_exp_01   | 1       | 2      | 5   | 8     |
+   | animal_001_2026-03-04_lick_01  | 1       | 2      | 5   | 8     |
+   | animal_001_2026-03-05_run_01   | 1       | 2      | 5   | 8     |
+   | animal_002_2026-03-06_exp_01   | 1       | 2      | 5   | 8     |
    ```
 
 4. **Confirm resource allocation** — Present the default worker budget (`-1` = auto-resolve using
@@ -281,11 +281,11 @@ Summary: 18/24 jobs complete | 2 running | 4 queued | 0 failed
 
 | Session                       | Job                             | Status    | Duration |
 |-------------------------------|---------------------------------|-----------|----------|
-| mouse_001_2026-03-04_lick_01  | runtime_processing:1            | SUCCEEDED | 12.5s    |
-| mouse_001_2026-03-04_lick_01  | microcontroller_processing:101-2-1 | SUCCEEDED | 3.1s     |
-| mouse_001_2026-03-04_lick_01  | camera_processing:51            | SUCCEEDED | 0.1s     |
-| mouse_001_2026-03-05_run_01   | runtime_processing:1            | RUNNING   | 4.8s     |
-| mouse_002_2026-03-06_exp_01   | runtime_processing:1            | SCHEDULED | --       |
+| animal_001_2026-03-04_lick_01  | runtime_processing:1            | SUCCEEDED | 12.5s    |
+| animal_001_2026-03-04_lick_01  | microcontroller_processing:101-2-1 | SUCCEEDED | 3.1s     |
+| animal_001_2026-03-04_lick_01  | camera_processing:51            | SUCCEEDED | 0.1s     |
+| animal_001_2026-03-05_run_01   | runtime_processing:1            | RUNNING   | 4.8s     |
+| animal_002_2026-03-06_exp_01   | runtime_processing:1            | SCHEDULED | --       |
 ```
 
 For multi-session overview via `get_batch_status_overview_tool`:
@@ -295,9 +295,9 @@ For multi-session overview via `get_batch_status_overview_tool`:
 
 | Session root                                         | Status    | Succeeded | Failed | Running | Scheduled |
 |------------------------------------------------------|-----------|-----------|--------|---------|-----------|
-| /data/projects/my_project/mouse_001/2026-03-04_lick_01 | completed | 8         | 0      | 0       | 0         |
-| /data/projects/my_project/mouse_001/2026-03-05_run_01  | running   | 3         | 0      | 2       | 3         |
-| /data/projects/my_project/mouse_002/2026-03-06_exp_01  | scheduled | 0         | 0      | 0       | 8         |
+| /data/projects/my_project/animal_001/2026-03-04_lick_01 | completed | 8         | 0      | 0       | 0         |
+| /data/projects/my_project/animal_001/2026-03-05_run_01  | running   | 3         | 0      | 2       | 3         |
+| /data/projects/my_project/animal_002/2026-03-06_exp_01  | scheduled | 0         | 0      | 0       | 8         |
 ```
 
 ---
@@ -355,15 +355,15 @@ updating `_MODULE_REGISTRY` or `_CAMERA_OUTPUT_NAMES`).
 
 ## Related skills
 
-| Skill                            | Relationship                                                     |
-|----------------------------------|------------------------------------------------------------------|
-| `/forging-mcp-environment-setup` | Prerequisite: MCP server connectivity                            |
-| `/session-discovery`             | Upstream: session discovery and filtering                        |
-| `/behavior-input-format`         | Reference: input file layout and cross-library handoff           |
-| `/behavior-results`              | Downstream: output discovery, verification, and interpretation   |
-| `/project-manifest`              | Downstream: regenerate manifest to update behavior status        |
-| `/video:log-processing`          | Upstream: produces camera timestamp feathers consumed here       |
-| `/communication:log-processing`  | Upstream: produces microcontroller module feathers consumed here |
+| Skill                                | Relationship                                                         |
+|--------------------------------------|----------------------------------------------------------------------|
+| `/forging-mcp-environment-setup`     | Prerequisite: MCP server connectivity                                |
+| assets plugin `/session-discovery`   | Upstream: session discovery and filtering                            |
+| `/behavior-input-format`             | Reference: input file layout and cross-library handoff               |
+| `/behavior-results`                  | Downstream: output discovery, verification, and interpretation       |
+| `/project-manifest`                  | Downstream: regenerate manifest to update behavior status            |
+| `/video:log-processing`              | Upstream: produces camera timestamp feathers consumed here           |
+| `/communication:log-processing`      | Upstream: produces microcontroller module feathers consumed here     |
 
 ---
 
@@ -372,7 +372,7 @@ updating `_MODULE_REGISTRY` or `_CAMERA_OUTPUT_NAMES`).
 ```text
 Behavior Processing Workflow:
 - [ ] Verified MCP server connectivity (invoked /forging-mcp-environment-setup if unavailable)
-- [ ] Received confirmed session paths from /session-discovery
+- [ ] Received confirmed session paths from the assets plugin's /session-discovery
 - [ ] Prepared batch via prepare_behavior_processing_batch_tool
 - [ ] Presented discovered job counts per session and per type
 - [ ] Confirmed worker budget with user

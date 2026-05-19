@@ -1,11 +1,10 @@
 ---
 name: project-manifest
 description: >-
-  Documents the Sollertia project manifest file contents, column semantics, and status flag
-  dependencies. Guides use of sollertia-forgery MCP tools for reading, generating, and cleaning
-  manifest files. Use when answering questions about project state, session processing status,
-  experimenter notes, multi-recording dataset membership, or when generating or regenerating a
-  manifest.
+  Documents the Sollertia project manifest file (contents, columns, status flag dependencies)
+  and the sollertia-forgery MCP tools for reading, generating, and cleaning manifests. Use
+  when answering questions about project state, session processing status, or when generating
+  a manifest.
 user-invocable: true
 ---
 
@@ -29,7 +28,7 @@ about project state.
 - Common user query patterns and how to resolve them
 
 **Does not cover:**
-- Session discovery and filtering (see `/session-discovery`)
+- Session discovery and filtering (see the assets plugin's `/session-discovery`)
 - Checksum verification or regeneration (see `/checksum-verification`)
 - Session transfer or deletion (see `/session-transfer`)
 - Behavior processing (see `/behavior-processing`)
@@ -286,14 +285,14 @@ The manifest is a snapshot — it does not update automatically. Regenerate afte
 
 ## Related skills
 
-| Skill                              | Relationship                                                    |
-|------------------------------------|-----------------------------------------------------------------|
-| `/forging-mcp-environment-setup`   | Prerequisite: MCP server connectivity                           |
-| `/session-discovery`               | Upstream: discover sessions before generating a manifest        |
-| `/checksum-verification`           | Upstream: integrity column reflects checksum status             |
-| `/session-transfer`                | Upstream: regenerate manifest after transfer or deletion        |
-| `/behavior-processing`             | Upstream: behavior column reflects extraction pipeline status   |
-| `/configuration:project-hierarchy` | Reference: project directory layout                             |
+| Skill                                | Relationship                                                      |
+|--------------------------------------|-------------------------------------------------------------------|
+| `/forging-mcp-environment-setup`     | Prerequisite: MCP server connectivity                             |
+| assets plugin `/session-discovery`   | Upstream: discover sessions before generating a manifest          |
+| `/checksum-verification`             | Upstream: integrity column reflects checksum status               |
+| `/session-transfer`                  | Upstream: regenerate manifest after transfer or deletion          |
+| `/behavior-processing`               | Upstream: behavior column reflects extraction pipeline status     |
+| `/configuration:project-hierarchy`   | Reference: project directory layout                               |
 
 ---
 

@@ -1,10 +1,10 @@
 ---
 name: experiment-pipeline
 description: >-
-  End-to-end orchestration guide for the Sollertia experiment lifecycle. Covers canonical phase ordering
-  with handoff conditions from system bringup through experiment design, runtime acquisition, and
-  post-acquisition handoff to processing. Use when planning a full Sollertia data collection workflow,
-  setting up a new acquisition system, or deciding which experiment skill to invoke at each step.
+  End-to-end orchestration guide for the Sollertia experiment lifecycle: phase ordering and
+  handoff conditions from system bringup through experiment design, runtime acquisition, and
+  post-acquisition handoff. Use when planning a full data collection workflow or deciding
+  which experiment skill to invoke next.
 user-invocable: true
 ---
 
@@ -103,10 +103,13 @@ configuration  configuration  /acquisition-  configuration  /system-       (sle 
 This phase is split across three assets plugin skills, invoked in dependency order. Each skill
 owns exactly one slsa asset and the others must hand off to it.
 
-- **Step 4a — `/project-hierarchy` (assets plugin):** Create the project under which the
-  experiment will live, if it does not already exist. Owns `create_project_tool`.
+- **Step 4a — `/project-hierarchy` (assets plugin):** Confirm the project under which the
+  experiment will live exists on disk (read-only via `get_data_root_overview_tool`). Project
+  directories are created implicitly when the first session lands there via the experiment
+  plugin's `/managing-session-data` — there is no dedicated project-creation MCP tool.
 - **Step 4b — `/task-templates` (assets plugin):** Author or load the task template that
-  defines the VR environment, cue catalog, segments, and trial structure. Owns `write_template_tool`.
+  defines the VR environment, cue catalog, and trial structures (each trial owns its own segment
+  geometry — there is no separate segment catalog at the template level). Owns `write_template_tool`.
   Hand off to the unity plugin's `/task-prefabs` if the template targets a Unity scene (prefab
   generation and zone validation).
 - **Step 4c — `/experiment-configuration` (assets plugin):** Instantiate the template into a
@@ -198,7 +201,7 @@ Is the system already configured?
 | Discover or configure Zaber motors                | `/zaber-interface`                                                              |
 | Modify the Mesoscope-VR system itself             | `/modifying-mesoscope-vr-system`                                                |
 | Generate / verify Unity task prefab from template | unity plugin `/task-prefabs`                                              |
-| Open / create a Unity scene                       | unity plugin `/scenes`                                                    |
+| Open / create a Unity scene                       | unity plugin `/task-scenes`                                                    |
 | Enter / exit Unity Play Mode                      | unity plugin `/play-mode`                                                 |
 
 ---

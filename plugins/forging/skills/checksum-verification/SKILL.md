@@ -1,11 +1,10 @@
 ---
 name: checksum-verification
 description: >-
-  Orchestrates batch checksum verification and regeneration via the sollertia-forgery MCP server:
-  batch preparation, job execution, progress monitoring, cancellation, retry, cleanup, and
-  project-wide status overview. Use when verifying or regenerating data integrity checksums for
-  one or more sessions, checking checksum status across a project, or managing checksum tracker
-  lifecycle.
+  Orchestrates batch checksum verification and regeneration via the sollertia-forgery MCP
+  server (batch prep, execution, progress, cancel, retry, cleanup, project-wide overview).
+  Use when verifying or regenerating data-integrity checksums or managing checksum-tracker
+  lifecycle across a project.
 user-invocable: true
 ---
 
@@ -29,7 +28,7 @@ artifacts. Each session produces exactly one checksum resolution job.
 - Tracker cleanup after completion
 
 **Does not cover:**
-- Session discovery and filtering (see `/session-discovery` — required prerequisite)
+- Session discovery and filtering (see the assets plugin's `/session-discovery` — required prerequisite)
 - Manifest generation or reading (see `/project-manifest`)
 - Session transfer or deletion (see `/session-transfer`)
 - Behavior processing (see `/behavior-processing`)
@@ -42,7 +41,7 @@ artifacts. Each session produces exactly one checksum resolution job.
 You MUST use the sollertia-forgery MCP tools for all checksum operations. Do not import
 `sollertia_forgery.managing.checksum` directly.
 
-You MUST have confirmed session paths from `/session-discovery` before calling
+You MUST have confirmed session paths from the assets plugin's `/session-discovery` before calling
 `prepare_checksum_batch_tool`. Do not guess or derive paths manually.
 
 You MUST respect the single-execution-session constraint: only one checksum batch may run at a
@@ -61,9 +60,9 @@ time per `sl-mcp` process. Cancel any active session before starting a new batch
 
 **`prepare_checksum_batch_tool` parameters:**
 
-| Parameter       | Type        | Default    | Description                                                    |
-|-----------------|-------------|------------|----------------------------------------------------------------|
-| `session_paths` | `list[str]` | (required) | Session root paths from `/session-discovery`                   |
+| Parameter         | Type          | Default      | Description                                                      |
+|-------------------|---------------|--------------|------------------------------------------------------------------|
+| `session_paths`   | `list[str]`   | (required)   | Session root paths from the assets plugin's `/session-discovery` |
 
 Each session produces exactly one job: `checksum_resolution` with the session name as the
 specifier. The tracker is created at `{session_root}/raw_data/checksum_processing_tracker.yaml`.
@@ -156,6 +155,14 @@ and a `summary` with counts for each status category.
 Loads `SessionData` for each session to resolve `raw_data_path`, then removes the tracker YAML
 and its `.lock` file. Refuses to run while an execution session is active.
 
+**Do not call this tool unless the user explicitly requests tracker cleanup.** The tracker YAML
+is the on-disk source of truth consumed by `generate_project_manifest_tool` to populate the
+`integrity` flag. Because the manifest uses a dependency cascade (`integrity=false` forces
+`cindra`, `behavior`, and `video` to `false` regardless of their own tracker state), deleting
+checksum trackers before the manifest is generated produces a manifest that misrepresents the
+entire project as unprocessed. Preserve trackers by default; only clean on explicit user request,
+and prefer to do so after `/project-manifest` has been generated.
+
 ### Project-wide overview
 
 | Tool                                        | Purpose                                             |
@@ -178,7 +185,7 @@ status. Does not require an active execution session — reads directly from on-
 ### Pre-run checklist
 
 ```text
-- [ ] Sessions discovered via /session-discovery (session_paths confirmed with user)
+- [ ] Sessions discovered via the assets plugin's /session-discovery (session_paths confirmed with user)
 - [ ] User confirmed which sessions to verify
 - [ ] No active checksum session (get_checksum_status_tool → active: false)
 - [ ] Resource allocation decision made with user (default -1/-1 for saturating auto)
@@ -215,7 +222,11 @@ status. Does not require an active execution session — reads directly from on-
    Optionally call `get_checksum_timing_tool` for elapsed time and throughput.
 
 6. **Handle completion:**
-   - All `SUCCEEDED` → clean trackers if desired, then regenerate manifest via `/project-manifest`
+   - All `SUCCEEDED` → **leave trackers in place** and regenerate the project manifest via
+     `/project-manifest`. Do NOT call `clean_checksum_tracker_tool` unless the user explicitly
+     requests it; the manifest reads these trackers to set `integrity=true`, and cleaning them
+     first cascades `behavior`, `cindra`, and `video` to `false` in the manifest output
+     regardless of their actual processing state.
    - Some `FAILED` → inspect `error_message`, reset with `reset_checksum_jobs_tool`, re-prepare,
      and re-execute
    - Active session died → cancel, clean, re-prepare from scratch
@@ -261,28 +272,28 @@ For project-wide overview via `get_checksum_batch_status_overview_tool`:
 
 ## Error routing
 
-| Error                                        | Resolution                                                  |
-|----------------------------------------------|-------------------------------------------------------------|
-| `An execution session is already active`     | Wait for completion or call `cancel_checksum_tool` first    |
-| `No valid jobs to execute`                   | Verify job descriptors have required keys                   |
-| `Tracker file not found`                     | Re-prepare the batch to regenerate trackers                 |
-| `Session path does not exist`                | Verify path exists; re-run `/session-discovery`             |
-| `Unable to load session`                     | Check that `session_data.yaml` exists at the session root   |
-| Clean refused (session still active)         | Wait for completion or cancel before cleaning               |
-| Per-job failure                              | Inspect `error_message`; reset and retry                    |
-| MCP tool unavailable                         | Invoke `/forging-mcp-environment-setup`                     |
+| Error                                          | Resolution                                                          |
+|------------------------------------------------|---------------------------------------------------------------------|
+| `An execution session is already active`       | Wait for completion or call `cancel_checksum_tool` first            |
+| `No valid jobs to execute`                     | Verify job descriptors have required keys                           |
+| `Tracker file not found`                       | Re-prepare the batch to regenerate trackers                         |
+| `Session path does not exist`                  | Verify path exists; re-run the assets plugin's `/session-discovery` |
+| `Unable to load session`                       | Check that `session_data.yaml` exists at the session root           |
+| Clean refused (session still active)           | Wait for completion or cancel before cleaning                       |
+| Per-job failure                                | Inspect `error_message`; reset and retry                            |
+| MCP tool unavailable                           | Invoke `/forging-mcp-environment-setup`                             |
 
 ---
 
 ## Related skills
 
-| Skill                            | Relationship                                                     |
-|----------------------------------|------------------------------------------------------------------|
-| `/forging-mcp-environment-setup` | Prerequisite: MCP server connectivity                            |
-| `/session-discovery`             | Prerequisite: provides confirmed session_paths                   |
-| `/project-manifest`              | Downstream: regenerate manifest after verification completes     |
-| `/session-transfer`              | Peer: verify integrity before transferring sessions              |
-| `/behavior-processing`           | Peer: behavior processing depends on verified integrity          |
+| Skill                                | Relationship                                                         |
+|--------------------------------------|----------------------------------------------------------------------|
+| `/forging-mcp-environment-setup`     | Prerequisite: MCP server connectivity                                |
+| assets plugin `/session-discovery`   | Prerequisite: provides confirmed session_paths                       |
+| `/project-manifest`                  | Downstream: regenerate manifest after verification completes         |
+| `/session-transfer`                  | Peer: verify integrity before transferring sessions                  |
+| `/behavior-processing`               | Peer: behavior processing depends on verified integrity              |
 
 ---
 
@@ -291,12 +302,12 @@ For project-wide overview via `get_checksum_batch_status_overview_tool`:
 ```text
 Checksum Verification:
 - [ ] Verified MCP server connectivity (invoked /forging-mcp-environment-setup if unavailable)
-- [ ] Received confirmed session_paths from /session-discovery
+- [ ] Received confirmed session_paths from the assets plugin's /session-discovery
 - [ ] Prepared batch and reviewed manifest
 - [ ] Confirmed resource allocation with user (workers_per_job / max_parallel_jobs)
 - [ ] Verified no active checksum session before dispatch
 - [ ] Executed jobs and monitored until all reached terminal state
 - [ ] Investigated and retried failed jobs if needed
-- [ ] Cleaned tracker files after completion (if appropriate)
+- [ ] Preserved tracker files (DO NOT clean unless the user explicitly requested it — trackers feed the project manifest)
 - [ ] Regenerated project manifest via /project-manifest to update integrity status
 ```

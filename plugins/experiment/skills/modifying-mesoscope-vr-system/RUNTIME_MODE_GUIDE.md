@@ -91,7 +91,7 @@ class NewTrainingDescriptor(YamlConfig):
 
     Attributes:
         experimenter: Identifier of the person conducting the session.
-        mouse_weight_g: Animal weight at session start in grams.
+        animal_weight_g: Animal weight at session start in grams.
         parameter_a: Description of parameter A and its purpose.
         parameter_b: Description of parameter B and its purpose.
         maximum_training_time_min: Maximum session duration in minutes.
@@ -102,7 +102,7 @@ class NewTrainingDescriptor(YamlConfig):
     experimenter: str = ""
     """The unique identifier of the experimenter conducting the session."""
 
-    mouse_weight_g: float = 0.0
+    animal_weight_g: float = 0.0
     """The weight of the animal at the start of the session, in grams."""
 
     # Training parameters (persisted across sessions)
@@ -431,7 +431,7 @@ def new_training_logic(
     # Initialize descriptor with current session metadata
     descriptor = NewTrainingDescriptor(
         experimenter=experimenter,
-        mouse_weight_g=animal_weight,
+        animal_weight_g=animal_weight,
     )
 
     # Apply previous session parameters if available

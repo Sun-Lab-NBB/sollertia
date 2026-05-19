@@ -1,11 +1,10 @@
 ---
 name: session-snapshots
 description: >-
-  Reads and writes the per-session frozen position snapshot YAML files (ZaberPositions,
-  MesoscopePositions) on the sle get MCP server. Owns the position snapshot write tools. Use when
-  inspecting the motor positions captured at session start, patching positions after a manual stage
-  adjustment, or recovering a corrupted positions snapshot. The MesoscopeHardwareState snapshot is
-  owned by the assets plugin's /session-hardware-state skill.
+  Reads and writes per-session frozen position snapshots (ZaberPositions, MesoscopePositions)
+  via the `sle get` MCP server. Owns the position snapshot write tools. Use when inspecting
+  motor positions captured at session start, patching positions after a manual adjustment, or
+  recovering a corrupted snapshot.
 user-invocable: true
 ---
 
@@ -154,5 +153,5 @@ the assets plugin's `/session-hardware-state` for the hardware state write. Do n
 | assets plugin `/session-data`                      | Owns the `SessionData` marker file                                        |
 | assets plugin `/session-descriptors`               | Owns the per-session descriptor files                                     |
 | this plugin `/system-configuration`                | Provides `read_session_system_configuration_tool` for cross-reference     |
-| assets plugin `/experiment-configuration`          | Provides `read_session_experiment_configuration_tool` for cross-reference |
+| assets plugin `/experiment-configuration`          | Provides `read_experiment_configuration_tool` for cross-reference (accepts session snapshot path) |
 | this plugin `/zaber-interface`                     | Live Zaber motor configuration during runtime — does not touch snapshots  |
