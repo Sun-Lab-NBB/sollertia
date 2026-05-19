@@ -9,19 +9,22 @@ description: >-
 user-invocable: true
 ---
 
-# Sollertia Unity Task Parameters
+# Sollertia Unity task parameters
 
 Programmatically reads and writes the consolidated **Task Parameters** Unity Editor window for
-`sollertia-unity-tasks` using the Unity relay exposed by `slsa mcp`. This skill is the
-**exclusive** owner of `read_task_parameters_tool` and `write_task_parameters_tool` — no other
-skill in the marketplace may call these.
+`sollertia-unity-tasks` through the Unity relay exposed by `slsa mcp` — the **exclusive** owner of
+`read_task_parameters_tool` and `write_task_parameters_tool`, which no other skill in the
+marketplace may call.
 
 The window itself is owned by `MainWindow`
-(`Assets/Gimbl/Editor/MainWindow.cs`); the read / write surface is a 1:1 mirror of the GUI controls
-plus the option lists and visibility flags the GUI uses to render them. The `Task` component's
-public fields are `[HideInInspector]` and `TaskEditor` replaces the default Inspector with a
-HelpBox pointing at the Parameters window — so this skill is the *only* programmatic entry point
-for those fields.
+(`Assets/Gimbl/Editor/MainWindow.cs`); the read / write surface mirrors the GUI's *field controls*
+plus the option lists and visibility flags the GUI uses to render them. Action-only GUI controls
+that are not exposed through the bridge include: MQTT `Test Connection`, Camera Mapping
+`Refresh Monitor Positions` and `Show Full-Screen Views`, and the Display `Blank Display` /
+`Show Display` toggle button (its underlying effect is reachable through a `display.current_brightness`
+write). The `Task` component's public fields are `[HideInInspector]` and `TaskEditor` replaces the
+default Inspector with a HelpBox pointing at the Parameters window — so this skill is the *only*
+programmatic entry point for those fields.
 
 ---
 
@@ -30,7 +33,7 @@ for those fields.
 **Covers:**
 - Reading the active scene's Actor, MQTT, Display, Camera Mapping, and Task fields in one snapshot
   (`read_task_parameters_tool`)
-- Writing any subset of those fields atomically and receiving the post-write snapshot
+- Writing any subset of those fields and receiving the post-write snapshot on success
   (`write_task_parameters_tool`)
 - The option lists (allowed enum values) and visibility flags returned alongside the state
 - Validation rules that mirror the GUI (zone-gated `require_lick` / `require_wait`, monitor index
@@ -70,8 +73,10 @@ key is a stable string; the values vary by section.
 
 ### `state`
 
-Current values for the five sections. Each section is `None` when the corresponding scene
-component is absent (no `ActorObject`, no `DisplayObject`, etc.).
+Current values for the five sections. The `actor`, `mqtt`, `display`, and `task` sections are
+`None` when the corresponding scene component is absent (no `ActorObject`, no `DisplayObject`,
+etc.). `camera_mapping` is always a list — possibly empty when the OS reports no monitors — and
+is never `None`.
 
 ```json
 {
@@ -103,9 +108,14 @@ Notes:
 - `actor.controller` is the assigned `ControllerOutput`'s GameObject name (`"None"` when null).
 - `display.current_brightness` is the live runtime brightness (the "blank display" toggle in the
   GUI flips this to 0 or back to `brightness`).
-- `display.brightness` is the configured default that the "Show Display" button restores to.
+- `display.brightness` is the configured default that the "Show Display" button restores to. When
+  the active `DisplayObject` has no `DisplaySettings` asset assigned, the snapshot substitutes
+  `100` for `brightness` and `0` for `height_in_vr` so the response stays well-formed; writes to
+  those two fields are silently dropped in that state (see [Validation rules](#validation-rules)).
 - `camera_mapping` is a list whose length equals the number of monitors the OS reports for the
-  current scene; `monitor` is 1-based to match the GUI labels.
+  current scene; `monitor` is 1-based to match the GUI labels. The `left` and `top` fields are
+  output-only — they report the monitor's OS-reported pixel origin and are silently ignored if
+  included in a write payload.
 - `task.track_seed == -1` is the documented sentinel for "nondeterministic seed".
 
 ### `options`
@@ -153,9 +163,9 @@ the `task` section uses this:
 
 The GUI hides `Require Lick` when no `GuidanceZone` exists in the scene and hides `Require Wait`
 when no `OccupancyZone` exists. The bridge mirrors that by **rejecting** writes to those fields
-when the matching zone is absent, so `visibility == false` means "scene does not support this
-toggle — do not attempt to write it." See [Validation rules](#validation-rules) for the exact
-contract.
+when the matching zone is absent. When `visibility.task.<field> == false`, you MUST NOT include
+the matching field in a write payload — the bridge will reject it. See
+[Validation rules](#validation-rules) for the exact contract.
 
 ---
 
@@ -169,15 +179,16 @@ read_task_parameters_tool()
 
 Returns `{"state": ..., "options": ..., "visibility": ..., "success": true}`. Use this snapshot
 as the basis for any downstream decision (display rig confirmation, controller swap, MQTT broker
-verification, Task field audit). The snapshot is a single scene walk; do not poll it in a tight
-loop expecting different results between consecutive frames.
+verification, Task field audit). The snapshot is a single scene walk; you MUST NOT poll it in a
+tight loop expecting different results between consecutive frames.
 
 ### Update a subset of fields
 
 `write_task_parameters_tool` accepts five optional top-level arguments (`actor`, `mqtt`,
 `display`, `camera_mapping`, `task`). Pass only the sections you intend to change; fields inside a
-section are individually optional too. The response is the post-write snapshot in the same shape
-as `read_task_parameters_tool`, so a `read → modify → write` loop never needs a second read.
+section are individually optional too. On success the response is the post-write snapshot in the
+same shape as `read_task_parameters_tool`, so a `read → modify → write → consume_snapshot` loop
+never needs a second read.
 
 ```text
 write_task_parameters_tool(
@@ -186,16 +197,37 @@ write_task_parameters_tool(
 )
 ```
 
+Writes are processed sequentially in the order `actor → mqtt → display → camera_mapping → task`,
+and within each section in declaration order. **Writes are not atomic**: at the first validation
+failure the bridge returns `{"success": false, "error": "..."}` and stops, but any sections (or
+earlier fields within the same section) that already succeeded keep their mutations on scene
+components, `EditorPrefs`, scriptable-object assets, and `Display.transform`. Plan multisection
+writes so a rejection of a later field does not leave the scene in a half-applied state, and read
+back to confirm when in doubt.
+
+On error the response is **only** `{"success": false, "error": "..."}` — no `state`, `options`, or
+`visibility` keys. If a write fails partway through, the snapshot is not returned; a follow-up
+`read_task_parameters_tool()` is the only way to recover the post-failure state.
+
+`Undo` coverage is asymmetric: only the `task` section registers an undo step
+(`Undo.RecordObject(task, "Write Task Parameters")`); writes to `actor`, `mqtt`, `display`, and
+`camera_mapping` cannot be reverted with `Ctrl+Z` in the Editor. You MUST NOT bundle multisection
+writes expecting a single undo to roll them all back.
+
 The bridge marks the active scene dirty when any write succeeds and runs `EditorUtility.SetDirty`
-on any modified `DisplaySettings` or `FullScreenViewsSaved` asset so a subsequent
-`Ctrl+S` / `EditorSceneManager.SaveOpenScenes()` persists every change.
+on any modified `DisplaySettings` asset (and calls `FullScreenViewManager.SaveCameras()`, which
+internally runs `EditorUtility.SetDirty` plus `AssetDatabase.SaveAssets` on the
+`FullScreenViewsSaved` asset). A subsequent `Ctrl+S` / `EditorSceneManager.SaveOpenScenes()`
+persists every scene-level change. A `display.height_in_vr` write additionally translates the
+`DisplayObject` GameObject by setting `display.transform.localPosition = (0, height_in_vr, 0)`,
+so the scene's display rig moves in lockstep with the asset value.
 
 ### Verify a write took effect
 
-The response includes the post-write snapshot, so the simplest verification is to inspect the
-returned dict directly. If you need to re-confirm against a fresh scene walk (for example after
-manual Editor edits that may have raced your write), call `read_task_parameters_tool()` after the
-write returns.
+When the write succeeds, the response includes the post-write snapshot, so the simplest
+verification is to inspect the returned dict directly. When the write fails (`success == false`),
+the snapshot is absent, and you MUST call `read_task_parameters_tool()` to inspect the partially
+applied state.
 
 ### Swap controllers (Linear ↔ Simulated Linear)
 
@@ -210,8 +242,9 @@ allowed = state["options"]["actor"]["controller"]   # ["None", "Linear", "Simula
 write_task_parameters_tool(actor={"controller": "Simulated Linear"})
 ```
 
-Never type a controller name from memory — always pull the list from `options.actor.controller`
-because GameObject renames or future controller additions can change the canonical names.
+You MUST NOT type a controller name from memory — always pull the list from
+`options.actor.controller` because GameObject renames or future controller additions can change the
+canonical names.
 
 ### Update the MQTT broker
 
@@ -250,9 +283,9 @@ can parse; the bridge does not impose a range check here. The GUI itself does no
 out-of-range brightness or a negative `track_length` will write but produce runtime warnings.
 
 The zone-gated rejection of `require_lick` and `require_wait` is **intentional**: a successful
-write guarantees the flag will actually take effect at runtime. Do not paper over a rejection by
-writing the underlying `Task` field through a different path — the missing zone means the toggle
-has nothing to gate.
+write guarantees the flag will actually take effect at runtime. You MUST NOT paper over a
+rejection by writing the underlying `Task` field through a different path — the missing zone means
+the toggle has nothing to gate.
 
 ---
 
@@ -275,17 +308,20 @@ writes against different scenes require an `open_scene_tool` call between them.
 
 The GUI disables several controls while the Editor is in Play Mode:
 
-| Section          | Behavior in Play Mode                                                                                             |
-|------------------|-------------------------------------------------------------------------------------------------------------------|
-| `actor`          | Always editable (the GUI does not gray these out)                                                                 |
-| `mqtt`           | Greyed out — `EditorPrefs` writes still go through, but mutating the live `MQTTClient` mid-session is unsupported |
-| `display`        | Editable; `current_brightness` changes are reflected immediately on the live display                              |
-| `camera_mapping` | The "Show Full-Screen Views" button is disabled; field writes still go through                                    |
-| `task`           | Greyed out — flip via MQTT (`RequireLick` / `RequireWait`) for mid-run changes instead                            |
+| Section          | GUI behavior in Play Mode                                                                                          |
+|------------------|--------------------------------------------------------------------------------------------------------------------|
+| `actor`          | Always editable (the GUI does not grey these out)                                                                  |
+| `mqtt`           | Entire section greyed out — input fields do not accept changes and no `EditorPrefs` writes happen from the GUI     |
+| `display`        | Editable; `current_brightness` changes are reflected immediately on the live display                               |
+| `camera_mapping` | The "Show Full-Screen Views" button is disabled; field writes still go through                                     |
+| `task`           | Greyed out — flip via MQTT (`RequireLick` / `RequireWait`) for mid-run changes instead                             |
 
-The bridge does NOT enforce these gates programmatically — writes still succeed during Play Mode.
-Treat them as a soft contract: prefer the MQTT path for `task.require_lick` / `task.require_wait`
-once a run is in progress, and avoid `mqtt.*` writes mid-session.
+The bridge does NOT enforce these GUI gates — `write_task_parameters_tool` ignores the Editor
+Play Mode state and lets every section through, including `mqtt.*` writes that propagate to
+`EditorPrefs` and the live `MQTTClient`, and `task.require_lick` / `task.require_wait` writes that
+the GUI would refuse. Treat the table above as a soft contract: prefer the MQTT path
+(`RequireLick` / `RequireWait` topics) for guidance toggles once a run is in progress, and avoid
+`mqtt.*` writes mid-session because mutating the live broker connection is unsupported.
 
 Use `get_play_state_tool` (`/play-mode`) to check `state == "edit"` before issuing
 `write_task_parameters_tool` calls that the GUI would refuse to apply.
@@ -306,21 +342,6 @@ Use `get_play_state_tool` (`/play-mode`) to check `state == "edit"` before issui
 
 ---
 
-## Verification checklist
-
-```text
-- [ ] Unity Editor is running and McpBridge is reachable (else /unity-mcp-environment-setup)
-- [ ] read_task_parameters_tool was called before every write to capture the current options list
-- [ ] Write payloads only contain field values present in options.<section>.<field>
-- [ ] require_lick / require_wait writes are gated on visibility.task.<field> == true
-- [ ] camera_mapping entries use 1-based monitor indices matching state.camera_mapping[*].monitor
-- [ ] Post-write snapshot was inspected to confirm the new state matches the requested change
-- [ ] MQTT writes were avoided while the Editor was in Play Mode (use /play-mode to confirm state)
-- [ ] Did not bypass the validation rules by editing the scene file directly to set rejected fields
-```
-
----
-
 ## Related skills
 
 | Skill                                         | Relationship                                                                                  |
@@ -333,3 +354,23 @@ Use `get_play_state_tool` (`/play-mode`) to check `state == "edit"` before issui
 | `/mqtt-contract` (this plugin)                | Reference for the `RequireLick` / `RequireWait` runtime alternative to `task` writes          |
 | `/gimbl-framework` (this plugin)              | Reference for `ActorObject`, `DisplayObject`, `MQTTClient`, and `ControllerOutput` semantics  |
 | assets plugin `/assets-mcp-environment-setup` | Upstream — owns the slsa MCP server diagnostic                                                |
+
+---
+
+## Verification checklist
+
+You MUST verify your work against this checklist before submitting any change that calls
+`write_task_parameters_tool` or any code path that interprets a `read_task_parameters_tool`
+snapshot.
+
+```text
+Task Parameters Compliance:
+- [ ] Unity Editor is running and McpBridge is reachable (else /unity-mcp-environment-setup)
+- [ ] read_task_parameters_tool runs before every write to capture the current options list
+- [ ] Write payloads contain only field values present in options.<section>.<field>
+- [ ] require_lick / require_wait writes are gated on visibility.task.<field> == true
+- [ ] camera_mapping entries use 1-based monitor indices matching state.camera_mapping[*].monitor
+- [ ] Post-write snapshot is inspected to confirm the new state matches the requested change
+- [ ] MQTT writes are avoided while the Editor is in Play Mode (use /play-mode to confirm state)
+- [ ] Validation rules are not bypassed by editing the scene file directly to set rejected fields
+```

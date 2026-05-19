@@ -520,7 +520,7 @@ upstream half of an existing lick-mode region.
 | `/task-prefabs` (this plugin)                | Provides `inspect_prefab_tool` used for Step 6 validation                  |
 | `/task-generator` (this plugin)              | Reference for `BuildSegmentPrefabs`, `Place...Zone`, and validator updates |
 | `/task-parameters` (this plugin)             | Reference if the new zone exposes Inspector-driven fields                  |
-| `/task-scenes` (this plugin)                      | Consumer — places the regenerated task prefab into a scene                 |
+| `/task-scenes` (this plugin)                 | Consumer — places the regenerated task prefab into a scene                 |
 | `/play-mode` (this plugin)                   | Consumer — exercises the new zone at runtime                               |
 | `/mqtt-contract` (this plugin)               | Reference if the new modifier publishes or subscribes to MQTT topics       |
 | `/unity-mcp-environment-setup` (this plugin) | Run first if `inspect_prefab_tool` cannot reach the Unity Editor           |

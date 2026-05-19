@@ -207,7 +207,7 @@ still work, but first-call latency can stretch to several seconds. Re-focus the 
 |-----------------------------------------------|--------------------------------------------------------|
 | assets plugin `/assets-mcp-environment-setup` | Run first — owns the slsa MCP server diagnostic        |
 | `/task-prefabs` (this plugin)                 | Consumer — prefab generation / inspection / validation |
-| `/task-scenes` (this plugin)                       | Consumer — scene and asset management                  |
+| `/task-scenes` (this plugin)                  | Consumer — scene and asset management                  |
 | `/play-mode` (this plugin)                    | Consumer — runtime control                             |
 | `/task-parameters` (this plugin)              | Consumer — Task Parameters read / write                |
 | `/scene-setup` (this plugin)                  | Consumer — Editor-time scene configuration             |
