@@ -86,8 +86,9 @@ reusable `TaskTemplate` YAML files. Each template describes a complete behaviora
 environment, the cue catalog, and the trial structures (each of which carries its own cue sequence, zone
 geometry, and trigger type — there is no separate segment catalog at the template level). This is
 typically the path to the local sollertia-unity-tasks repository's template directory:
-`<local-repo>/Assets/InfiniteCorridorTask/Configurations/`. The Unity-side task generator and the MCP
-`create_task_tool` both refuse templates outside that directory, so this directory is the
+`<local-repo>/Assets/InfiniteCorridorTask/Configurations/`. The MCP `create_task_tool` refuses
+templates outside that directory (see `unity_tools.py`), and the Unity-side `CreateFromTemplate`
+generator scans the same directory (see the unity plugin's skills), so this directory is the
 single source of truth — keep it pointed at the canonical repo path.
 
 Templates are **project-agnostic** — the same template can back many per-project experiment
@@ -122,9 +123,10 @@ authored by `/experiment-configuration`.
 
 All `set_*` tools accept absolute paths and create the directory if it does not exist (working directory)
 or expect the file/directory to exist (credentials, templates). `set_google_credentials_tool` additionally
-requires the credentials path to end in `.json` (the helper rejects other extensions outright). Use
-`get_platform_environment_status_tool` as a one-call health check before handing off to any downstream
-configuration skill.
+requires the credentials path to end in `.json` (the helper rejects other extensions outright).
+`set_task_templates_directory_tool` rejects paths that exist but are not directories with a `ValueError`
+(in addition to the existence check). Use `get_platform_environment_status_tool` as a one-call health
+check before handing off to any downstream configuration skill.
 
 ### Required vs. optional components
 

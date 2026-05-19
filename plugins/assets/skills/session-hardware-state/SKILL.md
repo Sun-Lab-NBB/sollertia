@@ -93,7 +93,10 @@ will fail with a missing-file error — that is expected, not a corrupted sessio
 Which fields end up populated vs. left `None` is **deterministic per session type**, not a
 property of the rig the session ran on. The Mesoscope-VR runtime writes a different subset for
 each session type — other acquisition systems will define their own per-session-type
-populations against their own hardware-state schema:
+populations against their own hardware-state schema. The table below is a runtime-side
+convention owned by `sollertia-experiment` (the acquisition runtime that writes the snapshot);
+sollertia-shared-assets only defines the dataclass schema — see the experiment plugin for the
+authoritative producer:
 
 | Session type           | Populated fields                                                                                                                                                             | Left as `None`                                                                                                               |
 |------------------------|------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|------------------------------------------------------------------------------------------------------------------------------|
@@ -111,9 +114,9 @@ processing pipeline's eligibility checks.
 
 `hardware_state.yaml` (`RawDataFiles.HARDWARE_STATE`) is written by the acquisition runtime
 into a single canonical location today. Additional locations may emerge as downstream
-pipelines start copying the file alongside their outputs; all such copies hold the same schema
-and are read/written by the same tools, and this skill does not distinguish between them
-beyond helping the caller resolve the right path.
+pipelines start copying the file alongside their outputs. All such copies hold the same schema
+and are read/written by the same tools; this skill does not distinguish between them beyond
+helping the caller resolve the right path.
 
 | Location                                 | Populated by                                                                 | Discovery path                                                                                                                        |
 |------------------------------------------|------------------------------------------------------------------------------|---------------------------------------------------------------------------------------------------------------------------------------|
@@ -132,7 +135,7 @@ not flow back to any sibling copy that may exist.
 |-----------------------------------------------|----------------------------------------------------------------------------------------------------------------------|
 | `read_session_hardware_state_tool`            | Loads a hardware-state file at an explicit `file_path`, parsing it with the class for the given `acquisition_system` |
 | `write_session_hardware_state_tool`           | Writes a validated full hardware-state payload to a `file_path` (exclusive). Defaults to `overwrite=True`            |
-| `describe_session_hardware_state_schema_tool` | Returns the hardware-state schema for a given acquisition system (exclusive)                                         |
+| `describe_session_hardware_state_schema_tool` | Returns the hardware-state schema for a given acquisition system (exclusive). `acquisition_system` defaults to `"mesoscope"` |
 
 All three tools take an explicit `acquisition_system` — class selection is the caller's
 responsibility. `read_session_hardware_state_tool` and `write_session_hardware_state_tool`
@@ -146,7 +149,7 @@ Path-resolution hand-offs:
 - Ad-hoc location → the user supplies the path directly.
 
 If you don't know the acquisition system for a given file and it's a raw session snapshot,
-hand off to `/session-data` — call `inspect_sessions_tool` on the session root and read
+hand off to `/session-data`. Call `inspect_sessions_tool` on the session root and read
 `identity.acquisition_system` from the report, or read the marker directly with
 `read_session_data_tool(file_path="<session>/raw_data/session_data.yaml")`. For ad-hoc paths,
 the caller supplies `acquisition_system` directly.

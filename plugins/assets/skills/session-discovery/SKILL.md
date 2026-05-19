@@ -214,6 +214,21 @@ the response.
 
 ---
 
+## Verification checklist
+
+```text
+Session discovery:
+- [ ] Verified sollertia-shared-assets MCP connectivity (invoked /assets-mcp-environment-setup if unavailable)
+- [ ] Confirmed root directory with user
+- [ ] Ran get_data_root_overview_tool and reviewed results
+- [ ] Surfaced error-status sessions to the user
+- [ ] Applied filter_sessions_tool if date, animal, or session-name filtering was requested
+- [ ] Confirmed final session_paths list with user
+- [ ] Handed off to the appropriate downstream skill
+```
+
+---
+
 ## Related skills
 
 | Skill                                   | Relationship                                                                     |
@@ -228,18 +243,3 @@ the response.
 | forging plugin `/behavior-processing`   | Downstream: consumes confirmed session_paths                                     |
 | forging plugin `/dataset-forging`       | Downstream: consumes confirmed session names                                     |
 | forging plugin `/behavior-input-format` | Reference: behavior-processing eligibility rules                                 |
-
----
-
-## Verification checklist
-
-```text
-Session Discovery:
-- [ ] Verified sollertia-shared-assets MCP connectivity (invoked /assets-mcp-environment-setup if unavailable)
-- [ ] Confirmed root directory with user
-- [ ] Ran get_data_root_overview_tool and reviewed results
-- [ ] Surfaced error-status sessions to the user
-- [ ] Applied filter_sessions_tool if date, animal, or session-name filtering was requested
-- [ ] Confirmed final session_paths list with user
-- [ ] Handed off to the appropriate downstream skill
-```

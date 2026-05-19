@@ -221,7 +221,7 @@ Path-resolution hand-offs:
 - Ad-hoc location → the user supplies the path directly.
 
 If you don't know the session type for a given file and it's a raw session snapshot, hand off
-to `/session-data` — call `inspect_sessions_tool` on the session root and read
+to `/session-data`. Call `inspect_sessions_tool` on the session root and read
 `identity.session_type` from the report, or read the marker directly with
 `read_session_data_tool(file_path="<session>/raw_data/session_data.yaml")`. For forged dataset
 copies (or ad-hoc paths) where no sibling `session_data.yaml` is reachable, the caller must

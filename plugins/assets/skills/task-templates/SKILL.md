@@ -246,10 +246,10 @@ trial subclass in the per-project experiment configuration via `/experiment-conf
   type is therefore the template's contract with Unity; the matching experiment-config trial
   class is the experiment config's contract with the runtime's stimulus delivery code.
 - **`cue_offset_cm` lives on `vr_environment`** because the cue-origin shift is an attribute of
-  the corridor geometry itself — every Unity-spawned corridor instance sees the same value. It
-  also controls the per-segment ResetZone placement: the ResetZone sits at segment-local
-  `z = cue_offset_cm / cm_per_unity_unit` so the animal's spawn point (world z = 0) falls inside
-  the zone on every lap restart.
+  the corridor geometry itself — every Unity-spawned corridor instance sees the same value. On
+  the Unity side (`sollertia-unity-tasks`) it also drives the per-segment ResetZone placement so
+  the animal's spawn point falls inside the reset zone on every lap restart — see the unity
+  plugin's skills for the prefab-generation specifics.
 
 ---
 
@@ -435,4 +435,4 @@ for instantiating templates into experiment configurations.
 | `/experiment-configuration`            | Consumer — instantiates templates into per-project experiments                                              |
 | `/library-extension`                   | Cross-cutting recipe to add a new `TriggerType`, runtime trial class, or VR paradigm beyond the corridor    |
 | unity plugin `/task-prefabs`           | Downstream — generates and validates the Unity prefab                                                       |
-| unity plugin `/task-scenes`                 | Downstream — places the generated prefab into a Unity scene                                                 |
+| unity plugin `/task-scenes`            | Downstream — places the generated prefab into a Unity scene                                                 |

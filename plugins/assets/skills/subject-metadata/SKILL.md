@@ -95,12 +95,12 @@ that callers must respect when reading values or constructing a write payload.
 - **Stereotactic coordinates** (`*_ap_coordinate_mm`, `*_ml_coordinate_mm`,
   `*_dv_coordinate_mm` on implants and injections) — `float`, millimetres relative to bregma.
 - **Surgery quality** (`surgery_quality`) — `int`, range 0–3 inclusive:
-  0 = unusable, 1 = below publication threshold, 2 = publication-grade,
+  0 = unusable, 1 = usable but below publication threshold, 2 = publication-grade,
   3 = high-tier publication-grade. Defaults to 0.
 - **Cage** (`cage`) — `int`, the cage number.
 - **Identifiers and codes** (manufacturer codes, subject id (`int`), ear_punch, sex, genotype,
-  status, location_housed, protocol, surgeon, notes) — strings except `id` and `cage` which
-  are integers.
+  status, location_housed, protocol, surgeon, surgery_notes, post_op_notes) — strings except
+  `id` and `cage` which are integers.
 
 For the full field list with types, call `describe_surgery_data_schema_tool`; the runtime schema is
 always authoritative over this summary.
@@ -130,7 +130,7 @@ populated automatically. All copies are **snapshots** of the Google Sheet state 
 their pipeline ran; none is a live view.
 
 Snapshots are not strictly immutable: `write_surgery_data_tool` can amend any one file in
-place. That amendment is local to the one file whose path was passed — it does not flow back
+place. That amendment is local to the one file whose path was passed. It does not flow back
 to the Google Sheet, and it does not update any sibling copy (e.g., writing the session
 snapshot does not update the dataset copy, and vice versa). For a correction that should
 apply everywhere, edit the Google Sheet and let downstream pipelines re-capture it.
