@@ -38,12 +38,12 @@ other skill in the marketplace may call.
 
 ## MCP tool surface
 
-| Tool                 | Purpose                                                                                   |
-|----------------------|-------------------------------------------------------------------------------------------|
-| `list_scenes_tool`   | Lists every scene in the project and flags the active one (exclusive)                     |
-| `open_scene_tool`    | Opens a scene in the Editor with explicit unsaved-changes handling (exclusive)            |
-| `inspect_scene_tool` | Returns the active scene's metadata, dirty flag, and recursive root hierarchy (exclusive) |
-| `list_assets_tool`   | Lists assets of a given type under a path (exclusive)                                     |
+| Tool                 | Purpose                                                                                              |
+|----------------------|------------------------------------------------------------------------------------------------------|
+| `list_scenes_tool`   | Lists every scene path and returns the active-scene path as a separate field (exclusive)             |
+| `open_scene_tool`    | Opens a scene in the Editor with explicit unsaved-changes handling (exclusive)                       |
+| `inspect_scene_tool` | Returns the active scene's metadata, dirty flag, and recursive root-GameObject hierarchy (exclusive) |
+| `list_assets_tool`   | Lists asset paths of a given type under a search path (exclusive)                                    |
 
 `list_assets_tool` is callable as a natural share by `/task-prefabs` when enumerating prefabs
 before inspection. For task creation and deletion (which always operate on the full template →
@@ -72,20 +72,49 @@ prefab + segments + scene bundle), hand off to `/task-prefabs`.
 
 ### Inspect the active scene
 
-Use `inspect_scene_tool` to verify a scene is wired correctly before entering Play Mode. The tool
-returns `scene_path`, `scene_name`, `is_dirty`, and `root_objects` — a recursive hierarchy with
-the transform, components, and collider geometry of every root GameObject.
+Use `inspect_scene_tool` to verify a scene is wired correctly before entering Play Mode.
 
 ```text
 inspect_scene_tool()
 ```
 
+Top-level response:
+
+| Field          | Description                                                                              |
+|----------------|------------------------------------------------------------------------------------------|
+| `scene_path`   | Project-relative path of the active scene (e.g. `Assets/Scenes/MF_Reward.unity`)         |
+| `scene_name`   | The active scene's filename without extension                                            |
+| `is_dirty`     | `true` when the active scene has unsaved edits                                           |
+| `root_objects` | List of recursive node objects (see below), one per root GameObject in hierarchy order   |
+
+Each entry in `root_objects` — and every descendant inside it — has this shape:
+
+| Field                 | Always present?          | Description                                                         |
+|-----------------------|--------------------------|---------------------------------------------------------------------|
+| `name`                | yes                      | GameObject name                                                     |
+| `position`            | yes                      | `transform.localPosition` (local, not world) as `{x, y, z}`         |
+| `rotation`            | yes                      | `transform.localEulerAngles` (local, not world) as `{x, y, z}`      |
+| `scale`               | yes                      | `transform.localScale` as `{x, y, z}`                               |
+| `components`          | yes                      | List of component type names (null components are silently dropped) |
+| `collider_center`     | only with `BoxCollider`  | `BoxCollider.center` as `{x, y, z}`                                 |
+| `collider_size`       | only with `BoxCollider`  | `BoxCollider.size` as `{x, y, z}`                                   |
+| `collider_is_trigger` | only with `BoxCollider`  | `BoxCollider.isTrigger` boolean                                     |
+| `children`            | only when childCount > 0 | List of recursive node objects in transform-child order             |
+
+Two consequences worth flagging:
+
+- A GameObject that has a missing-script slot (broken `MonoBehaviour` GUID after a refactor)
+  exposes a `null` component in Unity; `inspect_scene_tool` silently drops it, so the symptom is
+  "expected script not in `components`" rather than an explicit error.
+- A node with no `BoxCollider` carries no `collider_*` keys, and a leaf node carries no `children`
+  key. Always probe with key-presence checks rather than assuming empty values.
+
 Common pre-flight checks:
 
-- The `Task` component is present on a root GameObject (set up by `create_task_tool` on
+- The `Task` component is present on a root GameObject (seeded by `create_task_tool` on
   `/task-prefabs`).
-- `ActorObject`, `MQTTClient`, the `Display` rig, and the controller GameObjects from
-  `MainWindow.InitializeScene` survived the scene copy. A regression here typically points to a
+- `ActorObject`, `MQTTClient`, the `Display` rig, and the controller GameObjects seeded by
+  `MainWindow.InitializeScene` survived the template copy. A regression here typically points to a
   hand-edited template scene.
 - `is_dirty == false` before calling `enter_play_mode_tool`. A dirty scene means an earlier tool
   call modified the scene without saving.
@@ -105,6 +134,10 @@ list_assets_tool(
 Default `asset_type` is `Prefab` and default `search_path` is `Assets/InfiniteCorridorTask`. Other
 types the Unity AssetDatabase understands: `Scene`, `Material`, `Texture2D`, `AudioClip`,
 `ScriptableObject`, etc.
+
+Response shape: `{asset_type, search_path, assets}`, where `assets` is the alphabetically sorted
+list of project-relative asset paths matching `t:<asset_type>` under `<search_path>`. An invalid
+`asset_type` or a search path outside `Assets/` yields an empty `assets` list rather than an error.
 
 Common uses:
 - Audit every segment prefab under `Assets/InfiniteCorridorTask/Prefabs/`.
@@ -134,6 +167,9 @@ discarding can silently destroy work the user had open in the Editor.
 | `"discard"`                | Switches immediately; unsaved edits are dropped silently                                |
 | Omitted (`None`)           | Returns the dirty-scene error above when the scene is dirty; no-op when scene is clean  |
 
+`EditorSceneManager.SaveOpenScenes()` saves **every** open scene, not just the active one — in
+multi-scene Editor setups, expect `unsaved_changes="save"` to write to every dirty scene file.
+
 After collecting the user's choice, retry with the value:
 
 ```text
@@ -147,10 +183,22 @@ before invoking `open_scene_tool` and ask the user up-front when needed.
 
 ## Path conventions
 
-All tools require **project-relative** paths starting with `Assets/`. Absolute filesystem paths
-are rejected by the Unity AssetDatabase. Task scenes live at `Assets/Scenes/<name>.unity`;
-`Assets/Scenes/ExperimentTemplate.unity` is the protected hand-authored base scene that the
-bridge copies for new task scenes (see `/task-prefabs` for the asset chain).
+All tools on this surface expect **project-relative** paths starting with `Assets/`. The
+underlying APIs enforce this differently per tool:
+
+- `list_assets_tool` uses `AssetDatabase.FindAssets`, which silently returns an empty list when
+  the `search_path` is absolute or sits outside `Assets/`.
+- `open_scene_tool` uses `File.Exists` followed by `EditorSceneManager.OpenScene`. `File.Exists`
+  accepts both relative and absolute paths, but `EditorSceneManager.OpenScene` expects an
+  Asset-relative path; passing an absolute one leads to undefined behavior. Always pass a path
+  copied from `list_scenes_tool`.
+
+Task scenes live at `Assets/Scenes/<name>.unity`. `Assets/Scenes/ExperimentTemplate.unity` is the
+hand-authored base scene the bridge copies for new task scenes (see `/task-prefabs` for the asset
+chain). It is in `McpBridge.DeleteProtectedPaths`, so `delete_asset_tool` refuses it — but
+`delete_task_tool` does **not** consult that list and will delete it if called with
+`template_name="ExperimentTemplate"`. You MUST NOT invoke `delete_task_tool` against
+`ExperimentTemplate`.
 
 ---
 

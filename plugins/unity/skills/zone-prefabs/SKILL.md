@@ -5,7 +5,7 @@ description: >-
   the two canonical templates (`StimulusTriggerZone.prefab` for lick mode, `OccupancyTriggerZone.prefab`
   for occupancy mode) and rewriting the MonoBehaviour script GUIDs, region names, and field defaults.
   Use when adding a new `TriggerType` member or designing a new stimulus-zone variant that mixes
-  existing modifier zones in a new configuration. Skip for task prefab generation (use `/task-prefabs`).
+  existing modifier zones in a new configuration.
 user-invocable: true
 ---
 
