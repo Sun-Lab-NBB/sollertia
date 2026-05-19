@@ -16,6 +16,11 @@ only source of truth for GIMBL in `sollertia-unity-tasks` — you MUST disregard
 knowledge (file names, class shapes, editor windows, MQTT wiring, conventions) that does not
 come from this skill or from the code under `Assets/Gimbl/` itself.
 
+**Reference-only skill.** No upstream — agents arrive here on demand from `/scene-setup` (auto-
+created scene infrastructure), `/task-parameters` (Actor / Display / MQTT class semantics),
+`/mqtt-contract` (channel API + lifecycle), `/task-generator` (segment prefabs and the Actor
+coordinate frame), and `/zone-prefabs` (modifier-script invariants).
+
 ---
 
 ## Scope

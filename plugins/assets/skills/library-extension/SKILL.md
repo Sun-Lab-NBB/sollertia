@@ -199,16 +199,23 @@ framing reflects the new member:
 
 ### Adding a new `TriggerType` member
 
-**Code touches:**
+This skill owns the **Python registry slice** of the cross-cutting recipe. The full extension is
+split three ways and each skill owns its slice — apply all three:
+
+| Slice                                                            | Owning skill                            |
+|------------------------------------------------------------------|-----------------------------------------|
+| Python `TriggerType` enum + factory branch (this skill, below)   | `/library-extension` (this skill)       |
+| Hand-authored zone prefab manufacturing                          | unity plugin `/zone-prefabs` (Step 7)   |
+| `CreateTask` pipeline edits + `DeleteProtectedPaths`             | unity plugin `/task-generator`          |
+
+**Code touches** owned here:
 1. Append the member to `TriggerType` in `configuration/vr_configuration.py`.
 2. Update `create_experiment_configuration` in
    `configuration/configuration_utilities.py` to add the matching `elif trial_structure.trigger_type
    == TriggerType.<NEW>:` branch, instantiating the corresponding runtime trial class (which may
    itself be new — see "Adding a new runtime trial class").
-3. Update Unity-side prefab scaffolding (out of scope for this library; coordinate with the
-   unity plugin's `/task-prefabs`).
 
-**Skill touches:**
+**Skill touches** owned here:
 
 | Skill                       | What to update                                                          |
 |-----------------------------|-------------------------------------------------------------------------|
@@ -304,7 +311,7 @@ table, the required-asset branches, and the skill content.
 | forging plugin `/project-manifest`             | Tabulates new session types in the project manifest                                                     |
 | forging plugin `/dataset-forging-input-format` | Decides eligibility of new session types for dataset forging                                            |
 | unity plugin `/task-prefabs`                   | Generates Unity prefabs for new `TriggerType` members or VR paradigms                                   |
-| unity plugin `/task-scenes`                         | Authors Unity scenes for new acquisition systems or VR paradigms                                        |
+| unity plugin `/task-scenes`                    | Authors Unity scenes for new acquisition systems or VR paradigms                                        |
 | `/commit`                                      | Should be invoked after the cross-cutting changes land                                                  |
 
 ---

@@ -35,11 +35,10 @@ result with `inspect_prefab_tool` — instead of constructing prefab YAML from s
 - Adding a new `TriggerType` member to the shared-assets registry (see assets plugin's
   `/library-extension`)
 - Authoring the new MonoBehaviour script itself (see `/csharp-style` in the automation plugin)
-- Editing protected hand-authored assets — four prefabs (`StimulusTriggerZone.prefab`,
-  `OccupancyTriggerZone.prefab`, `ResetZone.prefab`, `Padding.prefab`), four materials
-  (`_CueShaderReference.mat`, `Floor.mat`, `Wall.mat`, `TargetMat.mat`), and the scene base
-  template (`ExperimentTemplate.unity`) — these are the source templates and shared assets
-  that `CreateTask` and the generated prefabs reference, and they must remain untouched
+- Editing protected hand-authored assets — `/task-generator` "Required shared assets" enumerates
+  the full set (zone base prefabs, shared materials, scene base template). They are source
+  templates and shared assets that `CreateTask` and the generated prefabs reference, and they
+  must remain untouched
 
 ---
 
@@ -358,31 +357,27 @@ Verify:
 If `inspect_prefab_tool` fails, the YAML is broken. Re-read the file, compare to the source
 template via `git diff`, and fix the structural divergence before continuing.
 
-### Step 7: Wire the new prefab into the runtime
+### Step 7: Hand off the remaining wiring
 
-The new prefab is unreferenced after Step 6. To make `CreateTask` actually instantiate it under
-each segment:
+The new prefab is unreferenced after Step 6. The full cross-cutting recipe is split three ways:
 
-1. **Add the new `TriggerType` member.** Hand off to assets plugin's `/library-extension` — it
-   owns the Python-side registry parity check and the per-scenario sibling-skill update list.
-2. **Add a `CreateTask` branch.** Hand off to `/task-generator`. The skill's "Adding a new zone
-   trigger type" section documents the `BuildSegmentPrefabs` switch, the `Place...Zone` helper,
-   and any validator update required.
-3. **Protect the new prefab from deletion.** Add the new prefab path to
-   `McpBridge.DeleteProtectedPaths` (in
-   `Assets/InfiniteCorridorTask/Scripts/Editor/McpBridge.cs`). Skipping this step lets
-   `delete_asset_tool` clobber the hand-authored prefab on a future cleanup pass.
-4. **Accept the new literal in `ConfigLoader`.** Extend the trigger-type branch in
-   `ConfigLoader.ValidateTemplate` so YAML templates declaring the new `trigger_type` value pass
-   validation. Match the existing `lick` / `occupancy` style.
-5. **Register new `IResettable` classes in `ResetZone`.** `ResetZone.Start` discovers resettables
-   by calling `FindObjectsByType<T>` on `StimulusTriggerZone`, `OccupancyZone`, and
-   `OccupancyGuidanceZone` only — subclasses of those three are covered polymorphically, but a
-   standalone `IResettable` needs an explicit `FindObjectsByType<NewZone>` line added to
-   `ResetZone.cs`, or per-lap state for the new zone is never reset.
+| Slice                                                | Owning skill                                                    |
+|------------------------------------------------------|-----------------------------------------------------------------|
+| Python `TriggerType` enum + registry parity          | assets plugin `/library-extension` (Adding a new `TriggerType`) |
+| `CreateTask` pipeline edits + `DeleteProtectedPaths` | `/task-generator` (Adding a new zone trigger type)              |
+| Hand-authored prefab (this skill)                    | Steps 1–6 above                                                 |
 
-Once all wiring steps land, the new prefab is usable by any YAML template that declares the new
-`trigger_type`.
+The only `ResetZone` consideration that lives in this skill (because it depends on the new
+modifier script's class identity) is:
+
+- **Register new `IResettable` classes in `ResetZone`.** `ResetZone.Start` discovers resettables by
+  calling `FindObjectsByType<T>` on `StimulusTriggerZone`, `OccupancyZone`, and
+  `OccupancyGuidanceZone` only — subclasses of those three are covered polymorphically, but a
+  standalone `IResettable` needs an explicit `FindObjectsByType<NewZone>` line added to
+  `ResetZone.cs`, or per-lap state for the new zone is never reset.
+
+Once `/library-extension`, `/task-generator`, and this skill's bullets have all landed, the new
+prefab is usable by any YAML template that declares the new `trigger_type`.
 
 ---
 

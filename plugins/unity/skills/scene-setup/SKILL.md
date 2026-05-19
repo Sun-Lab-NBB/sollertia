@@ -68,8 +68,9 @@ label is `Parameters`; the menu entry is `Window → Task Parameters` to disambi
 
 ### Auto-created scene infrastructure
 
-`OnEnable() → InitializeScene()` ensures the active scene contains the following before the GUI
-renders. Existing objects are left untouched; missing ones are created.
+Opening the window (or opening any scene with the window already open) ensures the active scene
+contains the following before the GUI renders. Existing objects are left untouched; missing ones
+are created.
 
 | GameObject            | Components / behavior                                                                    | Hidden in hierarchy     |
 |-----------------------|------------------------------------------------------------------------------------------|-------------------------|
@@ -81,24 +82,15 @@ renders. Existing objects are left untouched; missing ones are created.
 | `Linear`              | `LinearTreadmill` + `ControllerOutput`                                                   | No                      |
 | `Simulated Linear`    | `SimulatedLinearTreadmill` + `ControllerOutput`                                          | No                      |
 
-The `Linear` and `Simulated Linear` GameObjects are added by
-`MainWindow.EnsureControllers`, which iterates the `ControllerTypes` enum and creates one entry
-per supported subclass. **Both controllers coexist permanently** under the `Controllers` root —
-the active controller is selected via the Actor dropdown, not by adding / removing scripts.
+**Both controllers coexist permanently** under the `Controllers` root — the active controller is
+selected via the Actor dropdown, not by adding or removing scripts. The Unity-default
+`Main Camera` is removed automatically because the Display owns the per-monitor cameras and the
+Actor owns the third-person tracking camera.
 
-`RemoveDefaultMainCamera` removes the Unity-default `Main Camera` left over by the new-scene
-template because the auto-created Display owns the per-monitor cameras and the Actor owns the
-third-person tracking camera. Nothing in the project references `Camera.main` or the `MainCamera`
-tag, so the cleanup is safe.
-
-`InitializeScene` ends with a call to `MainWindow.EnsureMqttDefaults`, which applies the
-project-wide MQTT broker IP / port loaded from `EditorPrefs` (`SollertiaVR_MQTT_IP` /
-`SollertiaVR_MQTT_Port`) with a `127.0.0.1:1883` fallback. This guarantees the scene's
-MQTTClient reports the same broker the GUI would write through the MQTT section regardless of
-whether the underlying scene file was serialized with an empty IP. The same helper plus
-`MainWindow.SyncDisplayBrightnessToSettings` are also invoked synchronously by
-`CreateTask.CreateSceneFromTemplate` so freshly created scenes report defaulted values to MCP
-reads immediately, without waiting for the Parameters window's `delayCall` autoload.
+For the underlying invariants — `MainWindow.InitializeScene` / `EnsureControllers` /
+`EnsureMqttDefaults` / `SyncDisplayBrightnessToSettings` mechanics, the `HideInHierarchy` flag on
+`MQTT Client`, the `delayCall` autoload, and how `CreateTask.CreateSceneFromTemplate` calls the
+same helpers synchronously at scene creation — see `/gimbl-framework` "MainWindow".
 
 ### Required scene contents (post-init)
 
@@ -362,11 +354,13 @@ configuration can be saved and reused.
 
 ## Related skills
 
-| Skill                            | Relationship                                                            |
-|----------------------------------|-------------------------------------------------------------------------|
-| `/task-scenes` (this plugin)     | Upstream — creates or opens the scene this skill configures             |
-| `/task-prefabs` (this plugin)    | Upstream — generates the prefab placed into the scene                   |
-| `/task-parameters` (this plugin) | Programmatic alternative to the GUI flows described here                |
-| `/play-mode` (this plugin)       | Consumer — entered after scene setup passes the pre-Play Mode checklist |
-| `/gimbl-framework` (this plugin) | Reference for `ActorObject`, `DisplayObject`, controller classes        |
-| `/mqtt-contract` (this plugin)   | Topics consumed by `UI-lick-reward` and published by `Simulated Linear` |
+| Skill                                     | Relationship                                                                    |
+|-------------------------------------------|---------------------------------------------------------------------------------|
+| `/task-scenes` (this plugin)              | Upstream — creates or opens the scene this skill configures                     |
+| `/task-prefabs` (this plugin)             | Upstream — generates the prefab placed into the scene                           |
+| `/task-parameters` (this plugin)          | Programmatic alternative to the GUI flows described here                        |
+| `/play-mode` (this plugin)                | Consumer — entered after scene setup passes the pre-Play Mode checklist         |
+| `/gimbl-framework` (this plugin)          | Reference for `MainWindow` invariants, `ActorObject`, `DisplayObject`, etc.     |
+| `/mqtt-contract` (this plugin)            | Topics consumed by `UI-lick-reward` and published by `Simulated Linear`         |
+| assets plugin `/task-templates`           | Upstream — owns the YAML that drove the prefab via `/task-prefabs`              |
+| assets plugin `/experiment-configuration` | Upstream — per-project instantiation of the template (drives `Task.configPath`) |

@@ -92,17 +92,10 @@ is never `None`.
 }
 ```
 
-Section semantics:
-
-| Section          | Source script                                                | Persistence                                                     |
-|------------------|--------------------------------------------------------------|-----------------------------------------------------------------|
-| `actor`          | `Gimbl.ActorObject`                                          | Scene file                                                      |
-| `mqtt`           | `Gimbl.MQTTClient`                                           | `EditorPrefs` (`SollertiaVR_MQTT_IP` / `_Port`)                 |
-| `display`        | `Gimbl.DisplayObject` + `DisplaySettings` asset              | Scene file + `Assets/VRSettings/Displays/<Display>.asset`       |
-| `camera_mapping` | `Gimbl.FullScreenViewManager` + `FullScreenViewsSaved` asset | `Assets/VRSettings/Displays/<scene>-savedFullScreenViews.asset` |
-| `task`           | `SL.Tasks.Task`                                              | Scene file                                                      |
-
-Notes:
+Per-section persistence (scene file vs `EditorPrefs` vs `DisplaySettings` asset vs
+`FullScreenViewsSaved` asset) lives in `/scene-setup` "Scene-specific vs project-wide state" —
+that is the canonical map. The notes below cover only the **response-shape** semantics this skill
+needs to interpret:
 - `actor.model` is derived from the actor's child GameObject whose name starts with `Model `
   (`"None"` when absent).
 - `actor.controller` is the assigned `ControllerOutput`'s GameObject name (`"None"` when null).
@@ -231,8 +224,8 @@ applied state.
 
 ### Swap controllers (Linear ↔ Simulated Linear)
 
-The auto-created scene already contains both controllers under the `Controllers` GameObject (see
-`/scene-setup`). To switch the actor between them:
+Both controllers always exist under `Controllers` (see `/scene-setup` for the rig rationale and the
+hardware-vs-keyboard contract). The programmatic swap is:
 
 ```text
 # Inspect available controllers first so the write payload is well-formed.

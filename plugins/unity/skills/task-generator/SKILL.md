@@ -13,6 +13,10 @@ user-invocable: true
 Documents the `CreateTask.cs` editor pipeline and the prefab anatomy it assumes — the reference for
 **extending** generation rather than invoking it (invocation is owned by `/task-prefabs`).
 
+**Reference-only skill.** No upstream — agents arrive here on demand from `/task-prefabs` (the
+pipeline `create_task_tool` invokes), `/zone-prefabs` (Step 7 wiring), and assets plugin's
+`/library-extension` (when extending the `TriggerType` enum).
+
 ---
 
 ## Scope
@@ -371,17 +375,30 @@ affects both flows. Test through both the menu and the MCP tools after any pipel
 
 ### Adding a new zone trigger type
 
-1. Add a new `triggerType` enum value in `sollertia-shared-assets` via `/task-templates` and run `/library-extension`
-   so the Python registry parity check still passes at import time.
-2. Extend the `trigger_type` literal check in `ConfigLoader.ValidateTemplate` (currently accepts `"lick"` and
-   `"occupancy"` only); without this, every template that uses the new value fails at load time.
-3. Create a new zone base prefab under `Prefabs/<NewZone>TriggerZone.prefab` with the required script and colliders
-   (use `/zone-prefabs` to copy and rewrite the closest canonical template).
-4. Add the new prefab path to `McpBridge.DeleteProtectedPaths` — `BuildSegmentPrefabs` loads zone prefabs by hardcoded
-   path, and an accidental `delete_asset_tool` would break subsequent generation runs.
-5. Add a new `if (trial.triggerType == "<new>")` branch in `BuildSegmentPrefabs` and a corresponding `Place<New>Zone`
-   helper following the pattern of `PlaceLickZone` / `PlaceOccupancyZone`.
-6. Update `/task-prefabs` zone behavior reference with the new trigger type so callers see how to drive it from YAML.
+This skill owns the **`CreateTask` pipeline edits** for a new `TriggerType`. The full cross-cutting
+recipe is split three ways:
+
+| Slice                                        | Owning skill                                  |
+|----------------------------------------------|-----------------------------------------------|
+| Python registry + `TriggerType` enum         | assets plugin `/library-extension`            |
+| Hand-authored zone prefab manufacturing      | `/zone-prefabs`                               |
+| `CreateTask` pipeline edits                  | this skill (steps 1–3 below)                  |
+
+Apply your three skills' bullets in order. The pipeline-side touches owned here:
+
+1. Extend the `trigger_type` literal check in `ConfigLoader.ValidateTemplate` (currently accepts
+   `"lick"` and `"occupancy"` only); without this, every template that uses the new value fails at
+   load time.
+2. Add a new `if (trial.triggerType == "<new>")` branch in `BuildSegmentPrefabs` and a
+   corresponding `Place<New>Zone` helper following the pattern of `PlaceLickZone` /
+   `PlaceOccupancyZone`.
+3. Add the new prefab path to `McpBridge.DeleteProtectedPaths` — `BuildSegmentPrefabs` loads zone
+   prefabs by hardcoded path, and an accidental `delete_asset_tool` would break subsequent
+   generation runs.
+
+Coordinate the prefab manufacturing through `/zone-prefabs` Step 7 and the Python registry parity
+through assets `/library-extension` "Adding a new `TriggerType` member" so each skill bullets only
+its own substeps.
 
 ### Adding a new cue or segment
 
@@ -405,8 +422,9 @@ template instead.
    conversion.
 3. Thread the field through `CreateFromTemplate` to the relevant sub-step.
 4. If the field affects geometry, ordering, or asset count, update the
-   Template → prefab field mapping table in `/task-prefabs` so callers can see how the new field surfaces in the 
-   generated prefab.
+   [Cue prefab anatomy](#cue-prefab-anatomy), [Segment prefab anatomy](#segment-prefab-anatomy),
+   or [Zone placement math](#zone-placement-math) section above so callers can see how the new
+   field surfaces in the generated prefab.
 
 ---
 

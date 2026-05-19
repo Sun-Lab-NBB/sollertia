@@ -16,6 +16,11 @@ topic is declared as a `public const string` in
 `Assets/Gimbl/Scripts/MQTT/MQTTTopics.cs`, which is the single source of truth for topic names,
 payload shapes, and direction. This skill is the audit-ready mirror of that file.
 
+**Reference-only skill.** No upstream — agents arrive here on demand from `/task-prefabs`
+(generated zone scripts own these topics), `/scene-setup` (`UI-lick-reward` subscribes to
+`Lick` / `Stimulus`), `/task-parameters` (runtime alternative for `RequireLick` / `RequireWait`),
+and `/play-mode` (mid-run flag flips).
+
 ---
 
 ## Scope
@@ -56,23 +61,16 @@ payload shapes, and direction. This skill is the audit-ready mirror of that file
   Unity to publish) and `<Name>` (publisher that responds). The former carries no payload; the
   latter carries a JSON-serialized message. Lifecycle markers (`SessionStart` / `SessionStop`)
   are not trigger pairs — they are one-shot lifecycle notifications.
-- **MQTT 5.0 only**: `MQTTClient` connects with `MqttProtocolVersion.V500`. Brokers must accept
-  MQTT 5.0 connections (Mosquitto 2.0+). This matches the `sollertia-experiment` MQTT runtime.
-- **Channel types**: `MQTTChannel` (untyped) sends and receives empty-payload trigger messages.
-  `MQTTChannel<T>` sends and receives `Encoding.UTF8.GetBytes(JsonUtility.ToJson(message))` — a
-  JSON payload whose deserialization target is `T`. You MUST declare `T` with plain **public
-  fields**; `JsonUtility` does not read properties.
 - **Subscription QoS vs publish QoS**: The `qosLevel` constructor parameter on `MQTTChannel`
-  (default `2`) is the **subscription** QoS only — it is forwarded to
-  `MqttClientSubscribeOptionsBuilder` when the channel subscribes. The **publish** QoS is
-  hardcoded to `MqttQualityOfServiceLevel.ExactlyOnce` inside `MQTTClient.Publish`
-  (`MQTTClient.cs:310`) and cannot be lowered per-channel. A "QoS mismatch" symptom from
-  `sollertia-experiment` therefore points at the experiment-side publisher's QoS, not the
-  Unity channel constructor.
-- **In-process loopback**: When the broker is unreachable, `MQTTClient.Publish` routes the message
-  directly to every in-process subscriber on the matching topic so keyboard-only test runs without
-  a broker still reach local subscribers. Production runs with a real broker go through MQTT as
-  normal. See [Diagnosing a missed message](#diagnosing-a-missed-message).
+  (default `2`) is the **subscription** QoS only. The **publish** QoS is hardcoded to
+  `MqttQualityOfServiceLevel.ExactlyOnce` inside `MQTTClient.Publish` and cannot be lowered
+  per-channel. A "QoS mismatch" symptom from `sollertia-experiment` therefore points at the
+  experiment-side publisher's QoS, not the Unity channel constructor.
+
+For the `MQTTChannel` / `MQTTChannel<T>` class API, the MQTT 5.0 protocol requirement, the
+in-process loopback fallback, the `JsonUtility`-needs-public-fields constraint, and the
+`MQTTClient` lifecycle (`Awake` → `OnEnable` connect → `Start`), see `/gimbl-framework`. This
+skill consumes those primitives; it does not redocument them.
 
 ---
 
@@ -210,8 +208,10 @@ External:
 
 ## Lifecycle rules
 
-All channels are created in `Start()` (runtime, not editor) and removed in `OnDestroy()`. You MUST
-add a new channel by following the pattern already established in `Task.cs`:
+`/gimbl-framework` owns the channel lifecycle invariants (construct in `Start()`, never `Awake()`;
+null-conditional `?.` in `OnDestroy()`; typed channels must be stored as `MQTTChannel<TMessage>`;
+typed payloads must use public fields). When adding a new topic, follow the pattern already
+established in `Task.cs`:
 
 ```csharp
 // Start()
@@ -222,21 +222,8 @@ _myListener.receivedEvent.AddListener(OnMyEvent);
 _myListener?.receivedEvent.RemoveListener(OnMyEvent);
 ```
 
-- You MUST call `AddListener` after the channel is constructed and MUST NOT call it from the
-  constructor.
-- You MUST use the null-conditional `?.` in `OnDestroy` — `MQTTClient.Instance` may have torn
-  down before the consumer's destructor runs (common in scene transitions).
-- You MUST decorate a typed channel's `T` with plain public fields (no `{ get; set; }`
-  auto-properties); `JsonUtility` does not read properties.
-- You MUST create channels in `Start()` (which Unity guarantees runs after every `Awake()`) and
-  MUST NOT create them in `Awake()` or a constructor. A `new MQTTChannel(...)` call before
-  `MQTTClient.Instance` is set throws `InvalidOperationException`.
-- **You MUST store typed-channel references as `MQTTChannel<TMessage>`, never as the base
-  `MQTTChannel`.** `MQTTChannel<TMessage>.receivedEvent` shadows the base via `new`
-  (`MQTTChannel.cs:75-78`) because `UnityEvent` and `UnityEvent<T0>` are unrelated types. A
-  base-typed field declaration silently drops the typed callback — the channel's `Send(message)`
-  still works, but `AddListener` callbacks registered against the base `receivedEvent` will
-  never fire on incoming messages.
+The per-symptom diagnosis playbook below names which invariant a symptom violates and points back
+at `/gimbl-framework` for the underlying class-API contract.
 
 ---
 
