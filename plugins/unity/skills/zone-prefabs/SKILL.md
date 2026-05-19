@@ -9,14 +9,11 @@ description: >-
 user-invocable: true
 ---
 
-# Sollertia zone prefabs
+# Sollertia Unity zone prefabs
 
-Authors new hand-authored trigger zone prefabs for `sollertia-unity-tasks` by copying and editing the
-two committed templates rather than constructing prefab YAML from scratch. The two existing prefabs
-(`StimulusTriggerZone.prefab` for lick mode, `OccupancyTriggerZone.prefab` for occupancy mode) share
-a strong invariant skeleton; this skill teaches how to replicate that skeleton for a new variant by
-swapping the modifier scripts and adjusting field defaults, then validating the result with the
-existing `inspect_prefab_tool`.
+Authors new hand-authored trigger zone prefabs for `sollertia-unity-tasks` by copying one of the
+two committed templates, swapping the modifier scripts and field defaults, and validating the
+result with `inspect_prefab_tool` — instead of constructing prefab YAML from scratch.
 
 ---
 
@@ -50,9 +47,9 @@ existing `inspect_prefab_tool`.
 
 Both zone prefabs share a fixed structural skeleton:
 
-- A root GameObject carrying a `Transform`, `MeshFilter` (built-in Cube), `MeshRenderer`
-  (`TargetMat.mat`), `MeshCollider` (non-trigger, same Cube), `BoxCollider` (trigger),
-  `StimulusTriggerZone` script, and `AudioSource`.
+- A root GameObject carrying a `Transform`, `MeshFilter` (built-in Quad), `MeshRenderer`
+  (`TargetMat.mat`), `MeshCollider` (non-trigger, same Quad), `BoxCollider` (trigger), and a
+  `StimulusTriggerZone` script.
 - One or more modifier-zone children, each carrying a `Transform`, a `BoxCollider` (trigger), and
   exactly one `MonoBehaviour` from `SL.Tasks`.
 - A `Transform.localPosition` of `(0, 0.505, 0)` on the root (the `ZoneVerticalOffset` defined in
@@ -101,7 +98,7 @@ new path.
 Hierarchy:
 
 ```text
-StimulusTriggerZone               ← root, 7 components
+StimulusTriggerZone               ← root, 6 components
 └── GuidanceRegion                ← single child, 3 components
 ```
 
@@ -114,7 +111,7 @@ zone entry without occupancy timing.
 Hierarchy:
 
 ```text
-OccupancyTriggerZone              ← root, 7 components
+OccupancyTriggerZone              ← root, 6 components
 └── OccupancyRegion               ← child, 3 components
     └── OccupancyGuidanceRegion   ← grandchild, 3 components
 ```
@@ -127,24 +124,23 @@ new "must-wait-then-acknowledge" pattern where the inner zone reads state off th
 
 ## Invariants you MUST preserve
 
-Copying a template imports every invariant for free. Do not modify the following — they are
-referenced by `CreateTask.PlaceLickZone` / `PlaceOccupancyZone` at task generation, by
+Copying a template imports every invariant for free. You MUST NOT modify the following — they
+are referenced by `CreateTask.PlaceLickZone` / `PlaceOccupancyZone` at task generation, by
 `StimulusTriggerZone.cs` at runtime, or by both.
 
 ### On the root GameObject
 
-| Field                                             | Required value                                                                |
-|---------------------------------------------------|-------------------------------------------------------------------------------|
-| `Transform.m_LocalPosition`                       | `{x: 0, y: 0.505, z: 0}` (the `ZoneVerticalOffset`)                           |
-| `MeshFilter.m_Mesh`                               | `{fileID: 10210, guid: 0000000000000000e000000000000000}`                     |
-| `MeshRenderer.m_Materials[0]`                     | `{fileID: 2100000, guid: 0517064f81d2dc54fac8fa8c97538189}` (`TargetMat.mat`) |
-| `MeshCollider.m_Mesh`                             | same built-in Cube as the MeshFilter                                          |
-| `MeshCollider.m_IsTrigger`                        | `0` (false — this is the physical boundary)                                   |
-| `BoxCollider.m_IsTrigger`                         | `1` (true — this is the StimulusTriggerZone detection)                        |
-| `BoxCollider.m_Size` / `m_Center`                 | Placeholder — `ConfigureRootZoneCollider` overwrites                          |
-| `StimulusTriggerZone.showBoundary`                | `0` (false; `CreateTask` sets it per trial at generation)                     |
-| `StimulusTriggerZone.isActive`                    | `0` (false; `ResetZone.ResetState` activates at lap start)                    |
-| `AudioSource` (presence + default rolloff curves) | Required for stimulus audio                                                   |
+| Field                              | Required value                                                                |
+|------------------------------------|-------------------------------------------------------------------------------|
+| `Transform.m_LocalPosition`        | `{x: 0, y: 0.505, z: 0}` (the `ZoneVerticalOffset`)                           |
+| `MeshFilter.m_Mesh`                | `{fileID: 10210, guid: 0000000000000000e000000000000000}` (built-in Quad)     |
+| `MeshRenderer.m_Materials[0]`      | `{fileID: 2100000, guid: 0517064f81d2dc54fac8fa8c97538189}` (`TargetMat.mat`) |
+| `MeshCollider.m_Mesh`              | Same built-in Quad as the MeshFilter                                          |
+| `MeshCollider.m_IsTrigger`         | `0` (false — this is the physical boundary)                                   |
+| `BoxCollider.m_IsTrigger`          | `1` (true — this is the StimulusTriggerZone detection)                        |
+| `BoxCollider.m_Size` / `m_Center`  | Placeholder — `ConfigureRootZoneCollider` overwrites                          |
+| `StimulusTriggerZone.showBoundary` | `0` (false; `CreateTask` sets it per trial at generation)                     |
+| `StimulusTriggerZone.isActive`     | `0` (false; `ResetZone.ResetState` activates at lap start)                    |
 
 ### On every modifier-zone child
 
@@ -269,10 +265,16 @@ Edit(
 ```
 
 The `m_EditorClassIdentifier` is informational, but updating it preserves diff readability when
-the prefab is opened in the Editor later.
+the prefab is opened in the Editor later. The committed templates leave the field empty on the
+root MonoBehaviour in both prefabs and populate it on modifier MonoBehaviours
+(`Assembly-CSharp::OccupancyZone`, `Assembly-CSharp::OccupancyGuidanceZone`) in
+`OccupancyTriggerZone.prefab`; preserve the source's polarity when editing.
 
-Repeat for every modifier `MonoBehaviour` you are replacing. The root `StimulusTriggerZone` script
-is part of the invariant skeleton — do **not** swap it for a new script.
+Repeat for every modifier `MonoBehaviour` you are replacing. A root or modifier script may be
+replaced with a **subclass** of the original (`StimulusTriggerZone`, `OccupancyZone`,
+`OccupancyGuidanceZone`) without breaking `ResetZone.Start`'s typed `FindObjectsByType<T>`
+discovery; a fully unrelated `IResettable` class is invisible to it and needs an explicit
+registration in `ResetZone.cs` (see Step 7).
 
 #### 4c. Rename modifier regions
 
@@ -373,68 +375,32 @@ each segment:
 4. **Accept the new literal in `ConfigLoader`.** Extend the trigger-type branch in
    `ConfigLoader.ValidateTemplate` so YAML templates declaring the new `trigger_type` value pass
    validation. Match the existing `lick` / `occupancy` style.
+5. **Register new `IResettable` classes in `ResetZone`.** `ResetZone.Start` discovers resettables
+   by calling `FindObjectsByType<T>` on `StimulusTriggerZone`, `OccupancyZone`, and
+   `OccupancyGuidanceZone` only — subclasses of those three are covered polymorphically, but a
+   standalone `IResettable` needs an explicit `FindObjectsByType<NewZone>` line added to
+   `ResetZone.cs`, or per-lap state for the new zone is never reset.
 
-Once all four wiring steps land, the new prefab is usable by any YAML template that declares the
-new `trigger_type`.
+Once all wiring steps land, the new prefab is usable by any YAML template that declares the new
+`trigger_type`.
 
 ---
 
 ## Worked examples
 
-### Example A: Field-only override
+End-to-end walkthroughs of the two non-trivial zone-prefab authoring patterns live in
+[references/worked-examples.md](references/worked-examples.md):
 
-Goal: ship a zone that behaves like `OccupancyTriggerZone` but waits 2500 ms instead of 1000 ms.
+- **Example A:** Inverting an `OccupancyTriggerZone` from "disable trigger" (aversive) to "enable
+  trigger" (rewarding) by writing a new `RewardOccupancyZone` script that preserves the
+  `boundaryDisarmed` field name with flipped polarity, so `StimulusTriggerZone` and
+  `OccupancyGuidanceZone` keep working unchanged.
+- **Example B:** Building a brand-new compound `SpeedLickTriggerZone` that gates lick-triggered
+  stimulus on the animal's traversal speed through an upstream speed-test region — covers a new
+  parent script, a new sibling-region script, and a new `PlaceSpeedLickZone` placement helper.
 
-1. Copy `OccupancyTriggerZone.prefab` → `Prefabs/OccupancyTriggerZone_Long.prefab`.
-2. Rename the root: `m_Name: OccupancyTriggerZone` → `m_Name: OccupancyTriggerZone_Long`.
-3. Override the field: `occupancyDurationMs: 1000` → `occupancyDurationMs: 2500`.
-4. Validate via `inspect_prefab_tool`.
-5. (Optional, if exposing as a new `TriggerType`) Wire downstream per Step 7. If reusing the
-   existing `occupancy` `trigger_type` and just selecting the long variant via a template
-   convention, modify `BuildSegmentPrefabs` to load the new prefab instead.
-
-### Example B: Script swap on an existing region
-
-Goal: replace `OccupancyZone` in the occupancy template with a new `RestPeriodZone` script that
-tracks rest behavior instead of mere occupancy.
-
-1. Author `Assets/InfiniteCorridorTask/Scripts/RestPeriodZone.cs` (invoke `/csharp-style`). Save,
-   let Unity refresh, confirm `RestPeriodZone.cs.meta` exists with a new `guid:`.
-2. Copy `OccupancyTriggerZone.prefab` → `Prefabs/RestPeriodTriggerZone.prefab`.
-3. Rename the root: `m_Name: OccupancyTriggerZone` → `m_Name: RestPeriodTriggerZone`.
-4. Rename the inner region: `m_Name: OccupancyRegion` → `m_Name: RestPeriodRegion`.
-5. Swap the inner `MonoBehaviour` GUID: replace `OccupancyZone`'s GUID with `RestPeriodZone`'s
-   GUID (from its `.cs.meta`). Update `m_EditorClassIdentifier` to
-   `Assembly-CSharp::RestPeriodZone`.
-6. Replace the `occupancyDurationMs` field with whatever fields `RestPeriodZone` declares.
-7. Decide whether to keep the `OccupancyGuidanceRegion` grandchild — if `RestPeriodZone` does not
-   need a child guidance modifier, remove the grandchild's blocks and the inner region's
-   `m_Children` entry.
-8. Validate via `inspect_prefab_tool`.
-9. Wire downstream per Step 7 — new `TriggerType` member, new `BuildSegmentPrefabs` branch,
-   `DeleteProtectedPaths` update, `ConfigLoader` literal.
-
-### Example C: New nested modifier
-
-Goal: add a new "warning" modifier that fires `Lick` events when the animal enters the
-upstream half of an existing lick-mode region.
-
-1. Author `Assets/InfiniteCorridorTask/Scripts/WarningZone.cs` (subclass `MonoBehaviour`,
-   implement `IResettable` if it needs per-lap reset).
-2. Copy `StimulusTriggerZone.prefab` → `Prefabs/WarningTriggerZone.prefab`.
-3. Rename root: `m_Name: StimulusTriggerZone` (or whatever the source `m_Name` is) →
-   `m_Name: WarningTriggerZone`. Leave `GuidanceRegion` in place.
-4. Append four new YAML blocks for a `WarningRegion` GameObject (new fileIDs), nested under
-   `GuidanceRegion`:
-   - Add `WarningRegion`'s Transform fileID to `GuidanceRegion`'s `m_Children` list.
-   - Set `WarningRegion`'s Transform `m_Father` to `GuidanceRegion`'s Transform fileID.
-5. Validate via `inspect_prefab_tool`. Expected hierarchy:
-   ```text
-   WarningTriggerZone
-   └── GuidanceRegion
-       └── WarningRegion
-   ```
-6. Wire downstream per Step 7.
+Load that file when you actually need to extend the zone vocabulary; the workflow above (Steps
+1–7) is enough for routine variants.
 
 ---
 
@@ -450,9 +416,8 @@ upstream half of an existing lick-mode region.
   IDs in the copy is fine. But never reuse an ID that already appears in the same prefab — Unity
   will silently merge the components.
 - **Modifying root invariants.** Changing the `MeshFilter` mesh, the `MeshRenderer` material, the
-  `MeshCollider` setup, the AudioSource component, or `Transform.localPosition.y` on the root
-  breaks the visual boundary or the stimulus playback. Override fields on the modifier scripts
-  instead.
+  `MeshCollider` setup, or `Transform.localPosition.y` on the root breaks the visual boundary or
+  the trigger detection geometry. Override fields on the modifier scripts instead.
 - **Hand-sizing the root BoxCollider.** `ConfigureRootZoneCollider` in `CreateTask.cs` overwrites
   the root collider's size and center at task generation time. Spending edit cycles tuning these
   values is wasted effort.
@@ -483,36 +448,6 @@ upstream half of an existing lick-mode region.
 
 ---
 
-## Verification checklist
-
-```text
-- [ ] The new modifier script exists under Assets/InfiniteCorridorTask/Scripts/ with a valid
-      .cs.meta and a stable GUID
-- [ ] The new prefab path is under Assets/InfiniteCorridorTask/Prefabs/ and the filename matches
-      the intended TriggerType naming
-- [ ] The new prefab's root m_Name matches the prefab filename basename
-- [ ] The new prefab's root Transform.localPosition is exactly (0, 0.505, 0)
-- [ ] The new prefab's root retains MeshFilter (built-in Cube), MeshRenderer (TargetMat.mat),
-      MeshCollider (non-trigger), BoxCollider (trigger), StimulusTriggerZone, and AudioSource
-- [ ] StimulusTriggerZone.showBoundary is 0 and StimulusTriggerZone.isActive is 0 on the root
-- [ ] Every modifier MonoBehaviour's m_Script.guid matches the corresponding .cs.meta guid
-- [ ] Every modifier region's Transform.localPosition is (0, 0, 0)
-- [ ] Every modifier region's BoxCollider is a trigger
-- [ ] m_Children ↔ m_Father pairs match for every parent-child relationship in the prefab
-- [ ] No fileID appears more than once in the same prefab
-- [ ] inspect_prefab_tool returns success and the reported hierarchy matches the intended
-      template-derived shape
-- [ ] McpBridge.DeleteProtectedPaths includes the new prefab path
-- [ ] BuildSegmentPrefabs has a branch that instantiates the new prefab for the new trigger_type
-- [ ] ConfigLoader.ValidateTemplate accepts the new trigger_type literal
-- [ ] /library-extension was invoked on the assets-plugin side to register the new TriggerType
-      member and run the import-time parity check
-- [ ] CSharpier ran cleanly on the modified C# files (the new script, McpBridge.cs, ConfigLoader.cs,
-      CreateTask.cs)
-```
-
----
-
 ## Related skills
 
 | Skill                                        | Relationship                                                               |
@@ -527,3 +462,38 @@ upstream half of an existing lick-mode region.
 | assets plugin `/library-extension`           | Required for new `TriggerType` member and registry parity check            |
 | automation plugin `/csharp-style`            | Required when authoring the new modifier script and editing C# wiring      |
 | automation plugin `/commit`                  | Run after the prefab, script, and wiring changes are ready to commit       |
+
+---
+
+## Verification checklist
+
+You MUST verify this checklist before submitting any new or modified hand-authored zone prefab.
+
+```text
+Zone Prefabs Compliance:
+- [ ] The new modifier script exists under Assets/InfiniteCorridorTask/Scripts/ with a valid
+      .cs.meta and a stable GUID
+- [ ] The new prefab path is under Assets/InfiniteCorridorTask/Prefabs/ and the filename matches
+      the intended TriggerType naming
+- [ ] The new prefab's root m_Name matches the prefab filename basename
+- [ ] The new prefab's root Transform.localPosition is exactly (0, 0.505, 0)
+- [ ] The new prefab's root retains MeshFilter (built-in Quad), MeshRenderer (TargetMat.mat),
+      MeshCollider (non-trigger), BoxCollider (trigger), and StimulusTriggerZone
+- [ ] StimulusTriggerZone.showBoundary is 0 and StimulusTriggerZone.isActive is 0 on the root
+- [ ] Every modifier MonoBehaviour's m_Script.guid matches the corresponding .cs.meta guid
+- [ ] Every modifier region's Transform.localPosition is (0, 0, 0)
+- [ ] Every modifier region's BoxCollider is a trigger
+- [ ] m_Children ↔ m_Father pairs match for every parent-child relationship in the prefab
+- [ ] No fileID appears more than once in the same prefab
+- [ ] inspect_prefab_tool returns success and the reported hierarchy matches the intended
+      template-derived shape
+- [ ] McpBridge.DeleteProtectedPaths includes the new prefab path
+- [ ] BuildSegmentPrefabs has a branch that instantiates the new prefab for the new trigger_type
+- [ ] ConfigLoader.ValidateTemplate accepts the new trigger_type literal
+- [ ] ResetZone.Start finds the new IResettable (subclasses of the three known types are covered
+      polymorphically; a standalone class needs an explicit FindObjectsByType registration)
+- [ ] /library-extension was invoked on the assets-plugin side to register the new TriggerType
+      member and run the import-time parity check
+- [ ] CSharpier ran cleanly on the modified C# files (the new script, McpBridge.cs, ConfigLoader.cs,
+      CreateTask.cs)
+```
