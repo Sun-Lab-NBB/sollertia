@@ -10,9 +10,9 @@ user-invocable: true
 
 # Sollertia Unity MCP environment setup
 
-Diagnoses and resolves Unity Editor relay connectivity for the Unity-family tools exposed by
-`sollertia-shared-assets`. The skill only covers the **Unity-side** wiring — the `slsa mcp` server
-itself is owned by the assets plugin's `/assets-mcp-environment-setup`.
+Diagnoses and resolves the **Unity-side** wiring of the Unity Editor relay used by every
+Unity-family tool exposed by `sollertia-shared-assets` — the `slsa mcp` server itself is owned by
+the assets plugin's `/assets-mcp-environment-setup`.
 
 ---
 
@@ -46,8 +46,11 @@ Claude ↔ slsa mcp (stdio) ↔ HTTP POST to {127.0.0.1, [::1], localhost}:8090 
 The `McpBridge` editor plugin ships with `sollertia-unity-tasks`. It starts the HTTP listener on
 three loopback prefixes automatically when the Editor loads the project — registering all three
 because `HttpListener` performs exact host-header matching. A client requesting `localhost` is
-rejected by a `127.0.0.1` prefix even though they resolve to the same socket. The 13 relayed
-tools are:
+rejected by a `127.0.0.1` prefix even though they resolve to the same socket. The shipped Python
+wrapper (`sollertia-shared-assets/.../interfaces/unity_tools.py:19`) hard-codes
+`http://localhost:8090/` as `_UNITY_BRIDGE_URL`, so the `127.0.0.1` and `[::1]` prefixes exist as
+defensive coverage for ad-hoc `curl` callers — operationally, only the `localhost` prefix needs to
+be reachable for the relay to work. The 13 relayed tools are:
 
 | Tool                         | Owning skill       |
 |------------------------------|--------------------|
@@ -125,14 +128,16 @@ that exercises the relay. If it returns a structured response, Unity-dependent t
 
 ## Common issues and resolutions
 
-| Symptom                                | Cause                                 | Resolution                                        |
-|----------------------------------------|---------------------------------------|---------------------------------------------------|
-| "Unity Editor is not reachable"        | Editor not running                    | Open the Editor with `sollertia-unity-tasks`      |
-| "Unity Editor is not reachable"        | McpBridge not loaded                  | Wait for compile, verify Console for listener log |
-| "Unity Editor is not reachable"        | Port 8090 taken by another process    | Free the port, restart the Editor                 |
-| "Unity bridge returned invalid JSON"   | McpBridge produced malformed response | Restart the Unity Editor                          |
-| Slow first call, then works            | Editor warming up after project load  | Expected — retry after ~30 seconds                |
-| Tools work, but prefab/scene paths 404 | Paths are not project-relative        | Use `Assets/...` paths, never absolute paths      |
+| Symptom                                        | Cause                                                                                        | Resolution                                        |
+|------------------------------------------------|----------------------------------------------------------------------------------------------|---------------------------------------------------|
+| "Unity Editor is not reachable"                | Editor not running                                                                           | Open the Editor with `sollertia-unity-tasks`      |
+| "Unity Editor is not reachable"                | McpBridge not loaded                                                                         | Wait for compile, verify Console for listener log |
+| "Unity Editor is not reachable"                | Port 8090 taken by another process                                                           | Free the port, restart the Editor                 |
+| "Unity Editor is not reachable" after ~30s     | Hard timeout on Python wrapper's `urllib.urlopen(timeout=30)`; Editor busy or hanging        | Retry after the Editor finishes compiling         |
+| "Unity bridge returned invalid JSON"           | McpBridge produced a non-JSON response                                                       | Restart the Unity Editor                          |
+| "Unity bridge returned non-object payload"     | Response parsed as JSON but is not a dict (very rare; should not occur in practice)          | Restart the Unity Editor and file an issue        |
+| Slow first call, then works                    | Editor warming up after project load                                                         | Expected — retry after ~30 seconds                |
+| Tools work, but prefab/scene paths 404         | Paths are not project-relative                                                               | Use `Assets/...` paths, never absolute paths      |
 
 ---
 
@@ -148,56 +153,46 @@ in the project fails to compile (including a file unrelated to the bridge), the 
 starts. From the MCP side this looks identical to "Editor not running."
 
 - Check the Unity Console for compile errors — fix them first.
-- The listener log (`McpBridge: Listening on http://localhost:8090/`) will reappear on the next successful reload.
+- The listener log will reappear on the next successful reload — the full three-prefix line is
+  `McpBridge: Listening on http://127.0.0.1:8090/, http://[::1]:8090/, and http://localhost:8090/`.
 
 ### Moving McpBridge.cs under an assembly definition
 
 `McpBridge.cs` lives at `Assets/InfiniteCorridorTask/Scripts/Editor/` without an enclosing `.asmdef`, so it compiles
-into the default editor assembly. Adding an `.asmdef` to that folder (or any ancestor) without also referencing the
-project's runtime and editor assemblies will break `McpBridge`'s `using SL.Config;` / `using SL.Tasks;` statements, and
-it will stop listening.
+into the default editor assembly. Adding an `.asmdef` to that folder (or any ancestor) without also referencing every
+assembly the bridge depends on will break its imports and the listener will fail to start.
 
-- If an `.asmdef` is introduced, the bridge's references (`SL.Config`, `SL.Tasks`, `UnityEditor`,
-  `UnityEditor.SceneManagement`) must be declared in its `references` array.
+- The bridge declares `namespace SL.Tasks` and imports (`McpBridge.cs:8-20`): `SL.Config`, `Gimbl`, `UnityEditor`,
+  `UnityEditor.SceneManagement`, `UnityEngine`, and `UnityEngine.SceneManagement` (plus the BCL `System.*` namespaces,
+  which are always available). Any introduced `.asmdef` must declare references covering each of those assemblies —
+  notably `Gimbl` (the inlined GIMBL framework) and `SL.Config` (the schema-mirror namespace), both of which sit in
+  separate logical assemblies.
 - Easiest safe path: leave the Editor folder outside any `.asmdef` — the project has worked this way since bridge
   inception.
 
 ### Second Unity instance stealing the port
 
 `HttpListener` claims `localhost:8090` exclusively. If a second Unity Editor starts with the same project path or a
-copy of the repo, its bridge call fails silently in the second Editor's Console:
-
-```text
-McpBridge: Failed to start HTTP listener: Failed to listen on prefix 'http://localhost:8090/' because it conflicts
-with an existing registration on the machine.
-```
+copy of the repo, its bridge call fails silently in the second Editor's Console with a log line whose **prefix** is
+always `McpBridge: Failed to start HTTP listener:` followed by the OS-specific exception text — typically a
+"conflicts with an existing registration" wording on .NET-Windows or an "address already in use" / `EADDRINUSE`
+wording on Linux and Mac.
 
 The MCP tools continue to work against the **first** Editor, which is rarely what the user intended. Close the
 duplicate Editor; only one Unity Editor may own the bridge at a time.
 
 ### Domain reload mid-tool-call
 
-Unity triggers a domain reload after scripts recompile. If `create_task_tool` or `create_task_tool` is
-invoked during a reload, the HTTP request may succeed from the OS but the response never arrives. Wait for
-`get_play_state_tool` to return `state == "edit"` (not `"compiling"`) before issuing mutating tool calls.
+Unity triggers a domain reload after scripts recompile. If a mutating tool (e.g.,
+`create_task_tool`, `delete_task_tool`, `write_task_parameters_tool`) is invoked during a reload, the HTTP request
+may succeed from the OS but the response never arrives. Wait for `get_play_state_tool` to return
+`state == "edit"` (not `"compiling"`) before issuing mutating tool calls.
 
 ### Editor lost focus while headless
 
 On Linux specifically, if the Editor loses OS focus at the moment a `Poll()` tick would have run, the listener can
 fall behind. The current implementation uses `EditorApplication.update` which is throttled while unfocused. Tools
 still work, but first-call latency can stretch to several seconds. Re-focus the Editor window if calls time out.
-
----
-
-## Verification checklist
-
-```text
-- [ ] slsa mcp server is connected (assets plugin's /assets-mcp-environment-setup)
-- [ ] Unity Editor is running with sollertia-unity-tasks open
-- [ ] Unity Console shows "McpBridge: Listening on http://127.0.0.1:8090/, http://[::1]:8090/, and http://localhost:8090/"
-- [ ] curl POST to localhost:8090 returns a JSON success response
-- [ ] get_play_state_tool returns a structured response from Claude
-```
 
 ---
 
@@ -215,3 +210,19 @@ still work, but first-call latency can stretch to several seconds. Re-focus the 
 | `/mqtt-contract` (this plugin)                | Reference for MQTT topics crossing this relay's tools  |
 | `/gimbl-framework` (this plugin)              | Reference for the GIMBL VR framework                   |
 | assets plugin `/task-templates`               | Upstream — prefabs are generated from templates        |
+
+---
+
+## Verification checklist
+
+You MUST verify this checklist before declaring the Unity relay healthy or handing off to any
+downstream Unity-tool skill.
+
+```text
+Unity MCP Environment Compliance:
+- [ ] slsa mcp server is connected (assets plugin's /assets-mcp-environment-setup)
+- [ ] Unity Editor is running with sollertia-unity-tasks open
+- [ ] Unity Console shows "McpBridge: Listening on http://127.0.0.1:8090/, http://[::1]:8090/, and http://localhost:8090/"
+- [ ] curl POST to localhost:8090 returns a JSON success response
+- [ ] get_play_state_tool returns a structured response from Claude
+```
