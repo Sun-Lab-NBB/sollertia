@@ -63,7 +63,7 @@ tools use to parse, validate, or build the corresponding asset.
 |---------------------------------------|--------------------------------------------|----------------------|------------------------------------------------------|
 | `DESCRIPTOR_REGISTRY`                 | `interfaces/mcp_instance.py`               | `SessionTypes`       | Per-session-type descriptor dataclass                |
 | `HARDWARE_STATE_REGISTRY`             | `interfaces/mcp_instance.py`               | `AcquisitionSystems` | Per-system hardware-state dataclass                  |
-| `EXPERIMENT_CONFIGURATION_REGISTRY`   | `interfaces/mcp_instance.py`               | `AcquisitionSystems` | Per-system experiment-configuration dataclass        |
+| `EXPERIMENT_CONFIGURATION_REGISTRY`   | `configuration/configuration_utilities.py` | `AcquisitionSystems` | Per-system experiment-configuration dataclass        |
 | `SYSTEM_RAW_DATA_REGISTRY`            | `data_classes/session_data.py`             | `AcquisitionSystems` | Per-system raw-data sub-dataclass with `build`       |
 | `_experiment_config_factory_registry` | `configuration/configuration_utilities.py` | `AcquisitionSystems` | `TaskTemplate` → experiment-configuration factory fn |
 

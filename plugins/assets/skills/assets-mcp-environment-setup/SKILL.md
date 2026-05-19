@@ -33,8 +33,8 @@ Diagnoses and resolves sollertia-shared-assets MCP server connectivity and envir
 
 ## Architecture
 
-sollertia-shared-assets exposes a single MCP server through the `slsa mcp` Click subcommand
-defined in `pyproject.toml`:
+sollertia-shared-assets exposes a single MCP server through the `slsa mcp` Click subcommand. The
+parent `slsa` entry point is registered in `pyproject.toml`:
 
 ```toml
 [project.scripts]
@@ -46,7 +46,8 @@ slsa = "sollertia_shared_assets.interfaces.cli:slsa_cli"
 - **Purpose**: Discovery, read, write, and schema introspection of *shared* Sollertia configuration
   and runtime data files — the assets consumed by multiple libraries. Configuration and runtime data
   files exclusive to `sollertia-experiment` and `sollertia-forgery` live in those packages and are
-  served by their own MCP servers. Also relays Unity Editor operations for the unity plugin's tools.
+  served by their own MCP servers. Also relays Unity Editor operations consumed by the unity
+  plugin's skills.
 
 The server accepts a `--transport` option (defaults to `stdio`). The assets plugin's `plugin.json`
 configures the Claude assistant to launch the server automatically:
@@ -77,10 +78,10 @@ Installing the plugin alone registers the MCP server but the server will fail to
 
 ### Unity tools
 
-The `slsa mcp` server also serves a family of Unity-relay tools (prefab, scene, play-mode). Those
-tools depend on the Unity Editor running with the `McpBridge` plugin loaded. **That diagnostic is
-owned by the unity plugin's `/unity-mcp-environment-setup`** — this skill only covers the slsa CLI /
-Python environment side of the stack.
+The `slsa mcp` server also serves a family of Unity-relay tools (prefab, scene, play-mode,
+task-parameters). Those tools depend on the Unity Editor running with the `McpBridge` plugin loaded.
+**That diagnostic is owned by the unity plugin's `/unity-mcp-environment-setup`** — this skill only
+covers the slsa CLI / Python environment side of the stack.
 
 ---
 
@@ -138,8 +139,8 @@ If the command fails with an import error:
 pip check sollertia-shared-assets 2>&1 | head -20
 ```
 
-Common version-skew sources are `ataraxis-base-utilities`, `ataraxis-data-structures` (must be `>=6,<7`),
-and `mcp` (must be `>=1,<2`).
+Common version-skew sources are `ataraxis-base-utilities` (must be `>=6,<7`),
+`ataraxis-data-structures` (must be `>=6,<7`), and `mcp` (must be `>=1,<2`).
 
 ### Step 6: Restart the MCP server
 
@@ -148,9 +149,9 @@ the next session.
 
 ### Step 7: Hand off if the issue is Unity-specific
 
-If the slsa server itself is healthy but a Unity-relay tool (prefab / scene / play-mode) returns
-"Unity Editor is not reachable", hand off to the unity plugin's `/unity-mcp-environment-setup` — that
-skill owns the McpBridge / localhost:8090 diagnostic.
+If the slsa server itself is healthy but a Unity-relay tool (prefab / scene / play-mode /
+task-parameters) returns "Unity Editor is not reachable", hand off to the unity plugin's
+`/unity-mcp-environment-setup` — that skill owns the McpBridge / localhost:8090 diagnostic.
 
 ---
 
@@ -161,8 +162,8 @@ skill owns the McpBridge / localhost:8090 diagnostic.
 | `slsa: command not found`         | Environment not activated         | Activate conda/venv and restart                 |
 | `slsa: command not found`         | `sollertia-shared-assets` missing | Install the package (see Step 3)                |
 | Import error on `slsa mcp`        | `ataraxis-data-structures` skew   | Upgrade the package (see Step 5)                |
-| Tools fail "no working directory" | Working directory not initialized | Run `/working-directory` to set it              |
-| Tools fail "templates not set"    | Task templates path not set       | Run `/working-directory`                        |
+| `"working directory ... not set"` | Working directory not initialized | Run `/working-directory` to set it              |
+| `"task templates ... not set"`    | Task templates path not set       | Run `/working-directory`                        |
 | Write tools fail after connect    | Invalid YAML from a previous edit | Use `discover_*` / `read_*` tools               |
 | "Unity Editor is not reachable"   | McpBridge / Editor offline        | See unity plugin `/unity-mcp-environment-setup` |
 
