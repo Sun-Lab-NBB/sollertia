@@ -63,14 +63,14 @@ tools use to parse, validate, or build the corresponding asset.
 |---------------------------------------|--------------------------------------------|----------------------|------------------------------------------------------|
 | `DESCRIPTOR_REGISTRY`                 | `interfaces/mcp_instance.py`               | `SessionTypes`       | Per-session-type descriptor dataclass                |
 | `HARDWARE_STATE_REGISTRY`             | `interfaces/mcp_instance.py`               | `AcquisitionSystems` | Per-system hardware-state dataclass                  |
-| `EXPERIMENT_CONFIGURATION_REGISTRY`   | `interfaces/mcp_instance.py`               | `AcquisitionSystems` | Per-system experiment-configuration dataclass        |
+| `EXPERIMENT_CONFIGURATION_REGISTRY`   | `configuration/configuration_utilities.py` | `AcquisitionSystems` | Per-system experiment-configuration dataclass        |
 | `SYSTEM_RAW_DATA_REGISTRY`            | `data_classes/session_data.py`             | `AcquisitionSystems` | Per-system raw-data sub-dataclass with `build`       |
 | `_experiment_config_factory_registry` | `configuration/configuration_utilities.py` | `AcquisitionSystems` | `TaskTemplate` → experiment-configuration factory fn |
 
 A sixth structure, `_TRIAL_CLASSES` in `interfaces/configuration_tools.py`, maps trial class
-names (e.g. `"WaterRewardTrial"`) to their concrete runtime trial dataclasses. It is not a dispatch
-registry — `list_supported_trial_types_tool` reads it to enumerate the experiment configuration's
-trial vocabulary, and `create_experiment_configuration` in
+names (e.g. `"WaterRewardTrial"`) to their concrete runtime trial dataclasses. It is not a
+dispatch registry. `list_supported_trial_types_tool` reads it to enumerate the experiment
+configuration's trial vocabulary; `create_experiment_configuration` in
 `configuration/configuration_utilities.py` instantiates the matching subclass for each
 `TriggerType` value.
 
@@ -94,10 +94,10 @@ those as additional manual touch points.
 The `sollertia-shared-assets` README owns the canonical, line-numbered recipes. **Do not retype
 them here** — read them, then come back for the cross-skill update map below.
 
-| Scenario                        | README section                                              |
-|---------------------------------|-------------------------------------------------------------|
-| New `SessionTypes` member       | "Adding New Session Types" (≈ lines 261–303 of `README.md`) |
-| New `AcquisitionSystems` member | "Adding New Acquisition Systems" (≈ lines 305–375)          |
+| Scenario                        | README section                       |
+|---------------------------------|--------------------------------------|
+| New `SessionTypes` member       | "Adding New Session Types"           |
+| New `AcquisitionSystems` member | "Adding New Acquisition Systems"     |
 
 For new trial classes, new trigger types, and new VR paradigms, the README does not currently
 carry a step-by-step recipe. Use the **per-scenario touch lists** below as the working spec, then
@@ -119,6 +119,8 @@ touches** (which is what this skill uniquely owns), and the downstream-library c
 3. Register the descriptor in `DESCRIPTOR_REGISTRY` (`interfaces/mcp_instance.py`).
 4. If the new type has required raw assets beyond `session_descriptor.yaml` and
    `system_configuration.yaml`, extend `_required_asset_inventory` in `interfaces/data_tools.py`.
+   The existing `MESOSCOPE_EXPERIMENT` branch requires BOTH `experiment_configuration.yaml`
+   AND `vr_configuration.yaml`; any new Unity-VR session type should mirror both appends.
 5. Run the test suite — `_assert_registry_coverage()` will catch a forgotten descriptor entry,
    but a forgotten required-asset branch will not surface until `inspect_sessions_tool` reports
    the wrong `issues` list.
@@ -300,6 +302,7 @@ table, the required-asset branches, and the skill content.
 | Skill                                          | Relationship                                                                                            |
 |------------------------------------------------|---------------------------------------------------------------------------------------------------------|
 | `/assets-mcp-environment-setup`                | Run if the parity check fails at import time — the failure manifests as an MCP startup error            |
+| `/working-directory`                           | Required prerequisite — bootstraps the working directory consumed by every extension touch-point        |
 | `/session-data`                                | Receives skill touch-ups for new `SessionTypes` and new `AcquisitionSystems`                            |
 | `/session-descriptors`                         | Receives skill touch-ups for new `SessionTypes`                                                         |
 | `/session-hardware-state`                      | Receives skill touch-ups for new `SessionTypes` and new `AcquisitionSystems`                            |

@@ -135,15 +135,20 @@ session root):
 │   ├── surgery_metadata.yaml                  # /subject-metadata
 │   ├── system_configuration.yaml              # frozen system config (owned by sollertia-experiment)
 │   ├── experiment_configuration.yaml          # /experiment-configuration (frozen, experiment sessions only)
+│   ├── vr_configuration.yaml                  # /task-templates frozen snapshot (when the session runs a Unity VR task)
 │   ├── hardware_state.yaml                    # /session-hardware-state
 │   ├── zaber_positions.yaml                   # experiment plugin /session-snapshots
 │   ├── mesoscope_positions.yaml               # experiment plugin /session-snapshots
+│   ├── window_screenshot.png                  # experiment plugin /session-snapshots (Mesoscope-VR)
 │   ├── ax_checksum.txt                        # raw_data integrity checksum (/managing-session-data)
 │   ├── checksum_processing_tracker.yaml       # checksum resolution tracker (/managing-session-data)
-│   ├── nk.bin                                 # uninitialized-session marker (present until the runtime finishes session init; absence ≠ clean acquisition — see the descriptor's `incomplete` field for that)
+│   ├── nk.bin                                 # uninitialized-session marker (see note below)
 │   └── ... acquired data files ...
 └── processed_data/                            # populated by downstream processing pipelines
 ```
+
+`nk.bin` is present until the runtime finishes session init. Its absence is **not** a "clean
+acquisition" signal — see the descriptor's `incomplete` field for that.
 
 ### Path-resolution sub-dataclasses on `SessionData`
 
@@ -155,10 +160,11 @@ populated by `SessionData._build_sub_dataclasses()` (called from both `create` a
 
 - **`instance.raw_data` (`RawData`)** — system-agnostic raw assets:
   `session_data_path`, `session_descriptor_path`, `surgery_metadata_path`, `hardware_state_path`,
-  `system_configuration_path`, `experiment_configuration_path`, `checksum_path`,
-  `checksum_tracker_path`, `nk_path`, `behavior_data_path`, `camera_data_path`. Microcontroller
-  raw data is bundled into the DataLogger archives under `behavior_data_path`, so there is no
-  separate raw microcontroller field.
+  `system_configuration_path`, `experiment_configuration_path`, `vr_configuration_path`,
+  `checksum_path`, `checksum_tracker_path`, `nk_path`, `behavior_data_path`, `camera_data_path`.
+  `vr_configuration_path` is populated only when the session runs a Unity VR task (check
+  `.exists()` before reading). Microcontroller raw data is bundled into the DataLogger archives
+  under `behavior_data_path`, so there is no separate raw microcontroller field.
 - **`instance.processed_data` (`ProcessedData`)** — system-agnostic processed assets:
   `behavior_data_path`, `behavior_tracker_path`, `camera_timestamps_path`, `camera_tracker_path`,
   `video_data_path`, `video_tracker_path`, `microcontroller_data_path`,
@@ -195,7 +201,7 @@ its `raw_data/` subdirectory** — the resolver normalizes both forms before any
 
 ---
 
-## SessionTypes
+## Session types
 
 The canonical `SessionTypes` enum values are `lick training`, `run training`, `window checking`,
 and `mesoscope experiment`. Use `list_supported_session_types_tool` for the authoritative list
@@ -223,10 +229,10 @@ lifecycle statuses across the batch.
 The read / write / describe trio for `session_data.yaml` is **file-path based**, symmetric with
 the equivalent trios for descriptors, hardware state, and surgery metadata. The caller supplies
 the absolute `file_path`; these tools do not resolve session roots or compute lifecycle status.
-**Reading the marker file directly is expected to follow a discovery or health check** — call
+**Reading the marker file directly is expected to follow a discovery or health check.** Call
 `/project-hierarchy`'s `get_data_root_overview_tool` (whole-root walk) or this skill's
 `inspect_sessions_tool` (per-session report) first to determine whether the session holds valid
-data and what its lifecycle status is. Then reach for `read_session_data_tool` only when the raw
+data and its lifecycle status. Then reach for `read_session_data_tool` only when the raw
 YAML payload (including `python_version` / `sollertia_experiment_version` compatibility fields)
 is what you actually need.
 
@@ -307,7 +313,8 @@ inspect_sessions_tool(session_paths=["<absolute>"])
 
 The per-session report's `required_assets` list enumerates every file the session's
 `session_type` requires (the descriptor, the system configuration snapshot, and — for
-`mesoscope experiment` only — the experiment configuration snapshot) with a `present` flag.
+`mesoscope experiment` only — the experiment configuration snapshot and the VR configuration
+snapshot) with a `present` flag.
 The `issues` list restates missing required files as human-readable strings. Use this before
 handing off to the experiment plugin's `/managing-session-data` for preprocessing.
 
@@ -361,6 +368,7 @@ Use this when you need to validate a session-type string before using it in anot
 | Skill                                      | Relationship                                                                                                                                 |
 |--------------------------------------------|----------------------------------------------------------------------------------------------------------------------------------------------|
 | `/assets-mcp-environment-setup`            | Run first if the MCP server is not connected                                                                                                 |
+| `/working-directory`                       | Required prerequisite — bootstraps the local working directory the agent uses to resolve project roots                                       |
 | `/project-hierarchy`                       | Owns `get_data_root_overview_tool` for root-wide discovery                                                                                   |
 | `/session-discovery`                       | Filters the flat `sessions` list from `get_data_root_overview_tool`                                                                          |
 | `/session-descriptors`                     | Sibling — owns the per-session descriptor read/write/schema                                                                                  |
@@ -371,4 +379,4 @@ Use this when you need to validate a session-type string before using it in anot
 | `/experiment-configuration`                | Owns `read_experiment_configuration_tool` (reads both project source and frozen session snapshot)                                            |
 | `/library-extension`                       | Cross-cutting recipe to add new `SessionTypes` or `AcquisitionSystems` members; lists the skill content here that needs updating in lockstep |
 | forging plugin `/datasets`                 | Datasets aggregate sessions                                                                                                                  |
-| experiment plugin `/managing-session-data` | Preprocesses, migrates, and deletes sessions; creates project dirs implicitly when sessions land                                             |
+| experiment plugin `/managing-session-data` | Preprocesses, migrates, and deletes sessions. Project directories must already exist (created via `slsa configure project`) before sessions can be created |

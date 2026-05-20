@@ -26,9 +26,11 @@ animals.
 - The relationship between projects, animals, sessions, experiments, and subjects
 
 **Does not cover:**
-- Creating new projects. Project directories are created **implicitly** by the sollertia-experiment
-  session-creation flow when the first session lands; there is no dedicated project-creation MCP
-  tool. Defer to the experiment plugin's `/managing-session-data` for session creation.
+- Creating new projects. Project directories are created by the `slsa configure project` CLI
+  command (`slsa configure project -p <name> -r <root>`), which creates
+  `<root>/<project>/configuration/`. There is no dedicated project-creation MCP tool. The project
+  directory must already exist before any session or experiment configuration can be authored;
+  `SessionData.create` refuses to create a session when it is missing.
 - Authoring per-project `MesoscopeExperimentConfiguration` (see `/experiment-configuration`)
 - Reading or writing `SessionData` (see `/session-data`)
 - Per-session inventory and health reports (see `/session-data`, which owns `inspect_sessions_tool`)
@@ -145,7 +147,9 @@ anywhere under the data root. Datasets are owned by the forging plugin's `/datas
 | Tool                          | Purpose                                                                                                                                                                                                                                               |
 |-------------------------------|-------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
 | `get_data_root_overview_tool` | Builds the project → animal → session hierarchy from `SessionData` contents, with per-project aggregate counts (animals, sessions-by-type, lifecycle status, `experiment_count`, `dataset_count`) and a flat `sessions` list for downstream filtering |
-| `discover_experiments_tool`   | Lists experiment configurations under a project                                                                                                                                                                                                       |
+
+For per-project experiment-configuration enumeration, use `discover_experiments_tool` via
+`/experiment-configuration` — it owns that tool.
 
 `get_data_root_overview_tool` is the one-call replacement for all previous project / animal /
 session enumeration tools. Per-project aggregates (`sessions_by_type`, `experiment_count`,
@@ -232,11 +236,12 @@ shaped for downstream chaining with `filter_sessions_tool` (see `/session-discov
 
 ### Bootstrap a new project
 
-Project directories are created implicitly by the sollertia-experiment session-creation flow
-when the first session lands — there is no dedicated MCP tool. Hand off to the experiment
-plugin's `/managing-session-data`, which owns session creation and will `mkdir(parents=True)`
-the project and animal directories as part of `SessionData.create`. After the first session is
-created, confirm the project is visible with `get_data_root_overview_tool`.
+Project directories are created by the `slsa configure project` CLI command, not by an MCP
+tool: `slsa configure project -p <project_name> -r <root_directory>` creates
+`<root_directory>/<project_name>/configuration/`. The project directory must exist before
+`SessionData.create` (in the experiment plugin's `/managing-session-data`) can create the first
+session — `SessionData.create` raises `FileNotFoundError` when the project directory is missing.
+After the project exists, confirm it is visible with `get_data_root_overview_tool`.
 
 ---
 
@@ -245,7 +250,7 @@ created, confirm the project is visible with `get_data_root_overview_tool`.
 ```text
 - [ ] sollertia-shared-assets MCP server is connected
 - [ ] get_data_root_overview_tool was used for any project / animal / session enumeration
-- [ ] Project-creation workflows were handed off to the experiment plugin's /managing-session-data
+- [ ] Project-creation workflows were handed off to the `slsa configure project` CLI command (this skill is read-only)
 - [ ] Did not call any write_* or set_* tool from this skill — this skill is read-only
 - [ ] Handed off to /experiment-configuration for any experiment authoring
 - [ ] Handed off to /session-data, /session-descriptors, /subject-metadata, or forging plugin's
@@ -259,7 +264,8 @@ created, confirm the project is visible with `get_data_root_overview_tool`.
 | Skill                                             | Relationship                                                                |
 |---------------------------------------------------|-----------------------------------------------------------------------------|
 | `/assets-mcp-environment-setup`                   | Run first if the MCP server is not connected                                |
-| experiment plugin `/managing-session-data`        | Creates sessions; project directories appear implicitly during that flow    |
+| `/working-directory`                              | Required prerequisite — bootstraps the local working directory the agent uses to resolve project roots |
+| experiment plugin `/managing-session-data`        | Creates sessions. Project directories must exist beforehand (`slsa configure project`) |
 | `/experiment-configuration`                       | Consumes projects to author experiment YAMLs                                |
 | `/session-discovery`                              | Chains `get_data_root_overview_tool` through `filter_sessions_tool`         |
 | `/session-data`                                   | Owns `inspect_sessions_tool` for per-session inventory and health reports   |

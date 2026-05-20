@@ -94,7 +94,8 @@ Each `ExperimentState` carries two distinct codes:
   can slice trials by phase.
 - **`system_state_code`** — the hardware-mode snapshot that the acquisition runtime should
   install for the duration of the state (Mesoscope-VR currently accepts `1` = REST and `2` =
-  RUN; other systems will define their own).
+  RUN, as defined by `sollertia-experiment`'s system-state enum; other systems will define
+  their own).
 
 The two codes are deliberately decoupled. Two consecutive experiment states can reuse the same
 system state (so the hardware mode does not change between phases) while differing in duration
@@ -192,10 +193,11 @@ their absolute paths; use `discover_templates_tool()` to enumerate template path
 
 - MCP server connected (else `/assets-mcp-environment-setup`).
 - The target project directory exists (i.e. `<root>/<project>/configuration/` is on disk).
-  Project directories are created implicitly by the experiment plugin's session-creation flow
-  (via `SessionData.create`), so if the project is missing the user has no sessions there yet
-  and should be directed to the experiment plugin's `/managing-session-data` to create the
-  first session; this skill does not create project directories on its own.
+  Project directories are created by the `slsa configure project -p <name> -r <root>` CLI
+  command (which creates `<root>/<project>/configuration/`). `SessionData.create` raises
+  `FileNotFoundError` when the project is missing, so the project must be created before any
+  experiment configuration or session can be authored. This skill does not create project
+  directories on its own.
 - The target task template exists at a known path. If it doesn't, hand off to `/task-templates`
   to author it — this skill must not call `write_template_tool` directly. The templates directory
   can be enumerated via `discover_templates_tool`, which also returns absolute paths.
@@ -241,6 +243,12 @@ This loads the template via `TaskTemplate.from_yaml`, builds the configuration w
 `create_experiment_configuration` (system fixed to `MESOSCOPE_VR`), then calls
 `populate_default_experiment_states` with `state_count` to seed the `experiment_states` dict
 with default-valued runtime states.
+
+**Heads up:** the autopopulated states have `system_state_code=0`, which is not a valid
+Mesoscope-VR hardware mode (Mesoscope-VR accepts `1` = REST or `2` = RUN). Each state must
+be edited to set `system_state_code` to a valid value before the session can run. The
+reinforcing and aversive guidance counter defaults are only populated for trial classes that
+exist in `trial_structures`; absent trial classes leave their counters at `0`.
 
 ### Step 5: Customize state machine and trial parameters
 
@@ -357,7 +365,7 @@ reason, that is currently not supported by the sollertia-shared-assets MCP layer
 
 ```text
 - [ ] sollertia-shared-assets MCP server is connected
-- [ ] Target project directory exists (handed off to /project-hierarchy if missing)
+- [ ] Target project directory exists (created via `slsa configure project` CLI if missing; `/project-hierarchy` is discovery-only)
 - [ ] Target template exists (handed off to /task-templates if missing) and template_path is known
 - [ ] describe_experiment_configuration_schema_tool was used as the source of truth for field names
 - [ ] file_path was passed to every read/write/validate/create call (absolute path)
@@ -375,13 +383,14 @@ reason, that is currently not supported by the sollertia-shared-assets MCP layer
 
 ## Related skills
 
-| Skill                                     | Relationship                                                                                                                                               |
-|-------------------------------------------|------------------------------------------------------------------------------------------------------------------------------------------------------------|
-| `/working-directory`                      | Provides the templates directory so `/task-templates` knows where to enumerate; this skill needs only absolute paths                                       |
-| `/assets-mcp-environment-setup`           | Run first if the MCP server is not connected                                                                                                               |
-| `/task-templates`                         | Required upstream — owns template authoring and exposes `discover_templates_tool` for absolute template paths                                              |
-| `/project-hierarchy`                      | Required upstream — owns project creation                                                                                                                  |
-| experiment plugin `/system-configuration` | Owns MesoscopeSystemConfiguration (moved out of this plugin)                                                                                               |
-| unity plugin `/task-prefabs`              | Validates template values against the Unity prefab state                                                                                                   |
-| experiment plugin `/experiment-pipeline`  | Phase 4 of the experiment lifecycle is owned by this skill                                                                                                 |
-| `/library-extension`                      | Cross-cutting recipe to add a new `AcquisitionSystems`, runtime trial class, or `TriggerType` member; lists the prose here that needs updating in lockstep |
+| Skill                                      | Relationship                                                                                                                                              |
+|--------------------------------------------|-----------------------------------------------------------------------------------------------------------------------------------------------------------|
+| `/working-directory`                       | Provides the templates directory so `/task-templates` knows where to enumerate; this skill needs only absolute paths                                      |
+| `/assets-mcp-environment-setup`            | Run first if the MCP server is not connected                                                                                                              |
+| `/task-templates`                          | Required upstream — owns template authoring and exposes `discover_templates_tool` for absolute template paths                                             |
+| `/project-hierarchy`                       | Discovers the existing project tree. Project creation is via the `slsa configure project` CLI command, not this skill                                     |
+| experiment plugin `/system-configuration`  | Owns MesoscopeSystemConfiguration (moved out of this plugin)                                                                                              |
+| experiment plugin `/managing-session-data` | Downstream consumer — `SessionData.create` copies the authored `experiment_configuration.yaml` into every new experiment session at acquisition time      |
+| unity plugin `/task-prefabs`               | Validates template values against the Unity prefab state                                                                                                  |
+| experiment plugin `/experiment-pipeline`   | Phase 4 of the experiment lifecycle is owned by this skill                                                                                                |
+| `/library-extension`                       | Cross-cutting recipe to add a new `AcquisitionSystems`, runtime trial class, or `TriggerType` member; lists the prose here that needs updating in lockstep|

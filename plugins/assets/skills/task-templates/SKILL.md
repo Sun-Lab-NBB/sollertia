@@ -47,6 +47,24 @@ template can back many system-specific experiment configurations (currently only
 `MesoscopeExperimentConfiguration`, but the `AcquisitionSystems` enum and factory registry are
 designed for additional systems) across many projects.
 
+### Live templates vs per-session snapshots
+
+A `TaskTemplate` YAML exists in two places, both parsed by the same `TaskTemplate` dataclass:
+
+- **Live template** — `<templates-directory>/<template-name>.yaml`. The authoring surface owned by this
+  skill, shared across projects and sessions, and the source of truth that Unity generation reads from.
+  Editing here is intentional and affects every future session that picks the template.
+- **Per-session frozen snapshot** — `<session>/raw_data/vr_configuration.yaml`. An immutable copy that
+  `SessionData.create()` caches into the session's `raw_data` directory at acquisition time when an
+  `experiment_name` is provided. The snapshot is keyed off the experiment configuration's
+  `unity_scene_name` and records the exact template the session was acquired against. The snapshot is
+  what downstream processing (forgery, analysis) joins to behavioral data; it must not drift after the
+  session is created.
+
+The same MCP tools serve both — pass the live path to author or modify a template, pass the session
+snapshot path to read or validate the frozen copy. `write_template_tool` targets the live surface
+only; snapshots are produced exclusively by `SessionData.create()` and are not callers' to overwrite.
+
 A template defines **what is possible**. An experiment configuration picks a template and parameterizes
 it (state durations, trial weights, reward volumes, project-specific overrides). The two are authored by
 two different skills with two different ownership scopes.
@@ -228,10 +246,10 @@ trial subclass in the per-project experiment configuration via `/experiment-conf
   type is therefore the template's contract with Unity; the matching experiment-config trial
   class is the experiment config's contract with the runtime's stimulus delivery code.
 - **`cue_offset_cm` lives on `vr_environment`** because the cue-origin shift is an attribute of
-  the corridor geometry itself — every Unity-spawned corridor instance sees the same value. It
-  also controls the per-segment ResetZone placement: the ResetZone sits at segment-local
-  `z = cue_offset_cm / cm_per_unity_unit` so the animal's spawn point (world z = 0) falls inside
-  the zone on every lap restart.
+  the corridor geometry itself — every Unity-spawned corridor instance sees the same value. On
+  the Unity side (`sollertia-unity-tasks`) it also drives the per-segment ResetZone placement so
+  the animal's spawn point falls inside the reset zone on every lap restart — see the unity
+  plugin's skills for the prefab-generation specifics.
 
 ---
 
@@ -248,10 +266,15 @@ trial subclass in the per-project experiment configuration via `/experiment-conf
 | `list_supported_trigger_types_tool`   | Enumerates the `TriggerType` enum values (exclusive)                          |
 
 `read_template_tool`, `write_template_tool`, and `validate_template_tool` take an explicit
-`file_path` — path resolution is the caller's responsibility. The canonical home for templates is
-the directory set via `/working-directory`'s `set_task_templates_directory_tool`, and
-`discover_templates_tool()` returns each template's absolute path, which is what you pass to the
-other three tools.
+`file_path` — path resolution is the caller's responsibility. The canonical home for **live**
+templates is the directory set via `/working-directory`'s `set_task_templates_directory_tool`, and
+`discover_templates_tool()` returns each live template's absolute path, which is what you pass to
+`read_template_tool` / `write_template_tool` / `validate_template_tool` when authoring.
+
+To inspect a per-session **frozen snapshot**, pass the session's
+`<session>/raw_data/vr_configuration.yaml` path to `read_template_tool` or `validate_template_tool`.
+`write_template_tool` is for the live surface only; snapshots are produced by `SessionData.create()`
+and must not be overwritten through this tool.
 
 ---
 
@@ -412,4 +435,4 @@ for instantiating templates into experiment configurations.
 | `/experiment-configuration`            | Consumer — instantiates templates into per-project experiments                                              |
 | `/library-extension`                   | Cross-cutting recipe to add a new `TriggerType`, runtime trial class, or VR paradigm beyond the corridor    |
 | unity plugin `/task-prefabs`           | Downstream — generates and validates the Unity prefab                                                       |
-| unity plugin `/task-scenes`                 | Downstream — places the generated prefab into a Unity scene                                                 |
+| unity plugin `/task-scenes`            | Downstream — places the generated prefab into a Unity scene                                                 |
