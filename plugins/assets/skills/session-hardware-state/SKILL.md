@@ -272,6 +272,7 @@ every write.
 | Skill                                  | Relationship                                                                                                                                                                    |
 |----------------------------------------|---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
 | `/assets-mcp-environment-setup`        | Run first if the MCP server is not connected                                                                                                                                    |
+| `/working-directory`                   | Required prerequisite — bootstraps the local working directory the agent uses to resolve project roots                                                                          |
 | `/session-data`                        | Sibling — owns `SessionData` and the session anatomy; surfaces `acquisition_system`                                                                                             |
 | `/session-descriptors`                 | Sibling — owns the per-session-type descriptor read/write/schema                                                                                                                |
 | `/experiment-configuration`            | Owns `read_experiment_configuration_tool` (reads both project source and frozen session snapshot)                                                                               |

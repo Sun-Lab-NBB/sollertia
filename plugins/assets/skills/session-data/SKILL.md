@@ -368,6 +368,7 @@ Use this when you need to validate a session-type string before using it in anot
 | Skill                                      | Relationship                                                                                                                                 |
 |--------------------------------------------|----------------------------------------------------------------------------------------------------------------------------------------------|
 | `/assets-mcp-environment-setup`            | Run first if the MCP server is not connected                                                                                                 |
+| `/working-directory`                       | Required prerequisite — bootstraps the local working directory the agent uses to resolve project roots                                       |
 | `/project-hierarchy`                       | Owns `get_data_root_overview_tool` for root-wide discovery                                                                                   |
 | `/session-discovery`                       | Filters the flat `sessions` list from `get_data_root_overview_tool`                                                                          |
 | `/session-descriptors`                     | Sibling — owns the per-session descriptor read/write/schema                                                                                  |

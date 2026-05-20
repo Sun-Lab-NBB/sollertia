@@ -264,6 +264,7 @@ After the project exists, confirm it is visible with `get_data_root_overview_too
 | Skill                                             | Relationship                                                                |
 |---------------------------------------------------|-----------------------------------------------------------------------------|
 | `/assets-mcp-environment-setup`                   | Run first if the MCP server is not connected                                |
+| `/working-directory`                              | Required prerequisite — bootstraps the local working directory the agent uses to resolve project roots |
 | experiment plugin `/managing-session-data`        | Creates sessions. Project directories must exist beforehand (`slsa configure project`) |
 | `/experiment-configuration`                       | Consumes projects to author experiment YAMLs                                |
 | `/session-discovery`                              | Chains `get_data_root_overview_tool` through `filter_sessions_tool`         |

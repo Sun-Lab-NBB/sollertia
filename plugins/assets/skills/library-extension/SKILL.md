@@ -302,6 +302,7 @@ table, the required-asset branches, and the skill content.
 | Skill                                          | Relationship                                                                                            |
 |------------------------------------------------|---------------------------------------------------------------------------------------------------------|
 | `/assets-mcp-environment-setup`                | Run if the parity check fails at import time — the failure manifests as an MCP startup error            |
+| `/working-directory`                           | Required prerequisite — bootstraps the working directory consumed by every extension touch-point        |
 | `/session-data`                                | Receives skill touch-ups for new `SessionTypes` and new `AcquisitionSystems`                            |
 | `/session-descriptors`                         | Receives skill touch-ups for new `SessionTypes`                                                         |
 | `/session-hardware-state`                      | Receives skill touch-ups for new `SessionTypes` and new `AcquisitionSystems`                            |

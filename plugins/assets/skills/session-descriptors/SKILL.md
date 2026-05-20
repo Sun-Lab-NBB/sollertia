@@ -366,6 +366,7 @@ target(s) that match the durability the user actually wants:
 | Skill                                  | Relationship                                                                                                             |
 |----------------------------------------|--------------------------------------------------------------------------------------------------------------------------|
 | `/assets-mcp-environment-setup`        | Run first if the MCP server is not connected                                                                             |
+| `/working-directory`                   | Required prerequisite — bootstraps the local working directory the agent uses to resolve project roots                   |
 | `/session-data`                        | Sibling — owns `SessionData`, `list_supported_session_types_tool`, and `inspect_sessions_tool` for per-session inventory |
 | `/session-discovery`                   | Resolves raw session roots                                                                                               |
 | `/session-hardware-state`              | Sibling — owns the per-session hardware-state snapshot                                                                   |

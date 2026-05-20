@@ -300,6 +300,7 @@ push an amendment back upstream; copies stay separate until the next capture.
 | Skill                           | Relationship                                                                                           |
 |---------------------------------|--------------------------------------------------------------------------------------------------------|
 | `/assets-mcp-environment-setup` | Run first if the MCP server is not connected                                                           |
+| `/working-directory`            | Required prerequisite — bootstraps the working directory AND the Google credentials path read here     |
 | `/project-hierarchy`            | Owns `get_data_root_overview_tool` and the project tree walk                                           |
 | `/session-discovery`            | Resolves session roots for session-snapshot paths                                                      |
 | `/session-data`                 | Owns `inspect_sessions_tool` that classifies `surgery_metadata.yaml` under a session                   |
