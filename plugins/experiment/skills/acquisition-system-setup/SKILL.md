@@ -30,7 +30,7 @@ and project / experiment creation are owned by the assets plugin and must be inv
 
 **Does not cover** (hand off to the assets plugin):
 - Setting the working directory, Google credentials, or task templates directory → `/working-directory`
-- Reading, writing, or validating system configuration YAML → `/system-configuration`
+- Reading, writing, or validating system configuration YAML → `/mesoscope-vr`
 - Reading, writing, or validating server configuration YAML → `/server-configuration`
 - Creating projects → `/project-hierarchy`
 - Authoring task templates → `/task-templates`
@@ -70,9 +70,9 @@ skill: `ataraxis@video:video-mcp-environment-setup`,
 
 | System      | Description                                 | Schema reference                                                              |
 |-------------|---------------------------------------------|-------------------------------------------------------------------------------|
-| `mesoscope` | Two-photon mesoscope with VR behavioral rig | this plugin `/system-configuration` (MESOSCOPE_REFERENCE.md companion) |
+| `mesoscope` | Two-photon mesoscope with VR behavioral rig | this plugin `/mesoscope-vr` (MESOSCOPE_REFERENCE.md companion) |
 
-When working with a specific acquisition system, hand off to `/system-configuration` to read the canonical
+When working with a specific acquisition system, hand off to `/mesoscope-vr` to read the canonical
 field schema. This skill does not duplicate that schema reference.
 
 ---
@@ -148,10 +148,10 @@ Use when the user wants to confirm that the discovered hardware matches the reco
 **Verification steps:**
 
 1. Run hardware discovery (Phases 1–2 below).
-2. Hand off to the assets plugin's `/system-configuration` for a read-only `read_system_configuration_tool`
+2. Hand off to the assets plugin's `/mesoscope-vr` for a read-only `read_system_configuration_tool`
    call to fetch the recorded values.
 3. Compare discovered values against recorded values and report any drift to the user.
-4. If drift exists, hand off to `/system-configuration` to update the recorded values. Do not edit YAML or call
+4. If drift exists, hand off to `/mesoscope-vr` to update the recorded values. Do not edit YAML or call
    `write_system_configuration_tool` from this skill.
 
 ---
@@ -238,7 +238,7 @@ After discovery completes, report the discovered hardware to the user as a struc
 **If the user is performing initial bringup**, hand off to the assets plugin in this order:
 
 1. `/working-directory` — set the working directory, Google credentials, and task templates directory.
-2. `/system-configuration` — author the host machine's system configuration YAML against the discovered
+2. `/mesoscope-vr` — author the host machine's system configuration YAML against the discovered
    hardware values.
 3. `/server-configuration` — author the remote storage transfer configuration if the host pushes to a
    compute server.
@@ -247,7 +247,7 @@ After discovery completes, report the discovered hardware to the user as a struc
 6. `/experiment-configuration` — author the per-project experiment configuration that wires a template
    to a project.
 
-**If the user is performing verification**, hand off to `/system-configuration` for a read-only fetch of the
+**If the user is performing verification**, hand off to `/mesoscope-vr` for a read-only fetch of the
 recorded values, then report the diff between discovered and recorded.
 
 **If the user is troubleshooting**, use the troubleshooting table below.
@@ -277,7 +277,7 @@ This skill MUST NOT call `set_working_directory_tool`, `set_google_credentials_t
 
 | Error                              | Cause                        | Solution                                  |
 |------------------------------------|------------------------------|-------------------------------------------|
-| Camera not found at expected index | Wrong camera index           | Re-run `list_cameras()`, hand off to `/system-configuration` to update |
+| Camera not found at expected index | Wrong camera index           | Re-run `list_cameras()`, hand off to `/mesoscope-vr` to update |
 | Microcontroller connection failed  | Wrong port or disconnected   | Re-run `list_microcontrollers()`, check USB cables |
 | Zaber motor not responding         | Wrong port or powered off    | Re-run `get_zaber_devices_tool()`, verify power supply |
 | MQTT broker unreachable            | Broker not running           | Start Mosquitto or the configured MQTT broker |
@@ -303,7 +303,7 @@ hand off to the assets plugin skill that owns the affected asset.
 - [ ] get_zaber_devices_tool() returned the expected motor groups
 - [ ] Discovered hardware reported to user as a structured table
 - [ ] Did NOT call any slsa setter tool from this skill
-- [ ] Handed off to /working-directory, /system-configuration, /server-configuration, /project-hierarchy,
+- [ ] Handed off to /working-directory, /mesoscope-vr, /server-configuration, /project-hierarchy,
       /task-templates, or /experiment-configuration for any state mutation
 ```
 
@@ -314,7 +314,7 @@ hand off to the assets plugin skill that owns the affected asset.
 | Skill                                            | Relationship                                                       |
 |--------------------------------------------------|--------------------------------------------------------------------|
 | assets plugin `/working-directory`        | Owns bootstrap state (working dir, credentials, templates dir)     |
-| this plugin `/system-configuration`     | Owns `MesoscopeSystemConfiguration` authoring and validation       |
+| this plugin `/mesoscope-vr`     | Owns `MesoscopeSystemConfiguration` authoring and validation       |
 | forging plugin `/server-configuration`           | Owns `ServerConfiguration` authoring and validation                |
 | assets plugin `/project-hierarchy`        | Owns project creation                                              |
 | assets plugin `/task-templates`           | Owns task template authoring                                       |

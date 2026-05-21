@@ -79,10 +79,10 @@ configuration  configuration  /acquisition-  configuration  /system-       (sle 
 
 ### Phase 2: System configuration
 
-- **Plugin / Skill:** assets plugin → `/system-configuration`
-- **Actions:** Generate or edit `MesoscopeSystemConfiguration` YAML via the `slsa mcp` write
-  tools. Author cameras, microcontrollers, file system paths, Google Sheets, external assets, server
-  configuration.
+- **Plugin / Skill:** experiment plugin → `/mesoscope-vr`
+- **Actions:** Generate or edit `MesoscopeSystemConfiguration` YAML via the `sle get mcp` write
+  tool. Author cameras, microcontrollers, file system paths, Google Sheets, and external assets
+  (Zaber motor ports, Unity MQTT broker).
 - **Handoff condition:** `read_system_configuration_tool` returns a valid configuration; the config
   passes schema validation.
 
@@ -182,7 +182,7 @@ Is the system already configured?
 | You need to…                                       | Use…                                                                           |
 |----------------------------------------------------|--------------------------------------------------------------------------------|
 | Set the working directory or credentials          | assets plugin `/working-directory`                                       |
-| Author the system configuration YAML              | experiment plugin `/system-configuration`                                    |
+| Author the system configuration YAML              | experiment plugin `/mesoscope-vr`                                            |
 | Author the server (remote transfer) configuration | forging plugin `/server-configuration`                                          |
 | Create a project                                  | assets plugin `/project-hierarchy`                                       |
 | Author a task template                            | assets plugin `/task-templates`                                          |
@@ -195,11 +195,13 @@ Is the system already configured?
 | Discover GenICam cameras                          | `ataraxis@video:camera-setup`                                                   |
 | Test camera acquisition interactively             | `ataraxis@video:camera-setup`                                                   |
 | Discover microcontrollers / verify MQTT           | `ataraxis@communication:microcontroller-setup`                                  |
-| Write a new VideoSystem binding                   | `/camera-interface` → `ataraxis@video:camera-interface`                         |
+| Write a new VideoSystem binding                   | `ataraxis@video:camera-interface` (general) / `/mesoscope-vr` (Mesoscope-specific) |
 | Write a new ModuleInterface                       | `/microcontroller-interface` → `ataraxis@communication:microcontroller-interface` |
 | Write firmware for a new module                   | `ataraxis@microcontroller:firmware-module`                                      |
 | Discover or configure Zaber motors                | `/zaber-interface`                                                              |
-| Modify the Mesoscope-VR system itself             | `/modifying-mesoscope-vr-system`                                                |
+| Modify Mesoscope-VR hardware composition          | `/mesoscope-vr`                                                                 |
+| Modify Mesoscope-VR runtime behavior              | `/mesoscope-vr-runtime`                                                         |
+| Design a new acquisition system                   | `/acquisition-system-design`                                                    |
 | Generate / verify Unity task prefab from template | unity plugin `/task-prefabs`                                              |
 | Open / create a Unity scene                       | unity plugin `/task-scenes`                                                    |
 | Enter / exit Unity Play Mode                      | unity plugin `/play-mode`                                                 |

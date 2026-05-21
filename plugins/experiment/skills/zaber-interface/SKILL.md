@@ -23,8 +23,9 @@ Use this skill when:
 - Understanding the ZaberConnection/ZaberDevice/ZaberAxis API hierarchy
 - Configuring motor positions in non-volatile memory
 
-For system-specific integration (modifying sl-shared-assets configuration, integrating into mesoscope-vr), use the
-`/modifying-mesoscope-vr-system` skill instead.
+For Mesoscope-VR-specific integration (modifying `MesoscopeExternalAssets`, extending the `ZaberMotors`
+binding class), use `/mesoscope-vr`. For the platform-general pattern by which an acquisition system
+composes Zaber motors into its binding layer, see `/acquisition-system-design`.
 
 ---
 
@@ -72,8 +73,8 @@ If motors are not detected:
 
 | File                                                              | What to Check                            |
 |-------------------------------------------------------------------|------------------------------------------|
-| `sollertia-experiment/src/sl_experiment/mesoscope_vr/zaber_bindings.py`  | ZaberConnection/Device/Axis patterns     |
-| `sollertia-experiment/src/sl_experiment/mesoscope_vr/binding_classes.py` | ZaberMotors binding class implementation |
+| `sollertia-experiment/src/sollertia_experiment/mesoscope_vr/zaber_bindings.py`  | ZaberConnection/Device/Axis patterns     |
+| `sollertia-experiment/src/sollertia_experiment/mesoscope_vr/binding_classes.py` | ZaberMotors binding class implementation |
 | `sollertia-experiment pyproject.toml`                                    | Current zaber-motion version dependency  |
 
 ---
@@ -169,8 +170,9 @@ Positions are stored in non-volatile USER_DATA variables on each motor controlle
 
 ### Position Restoration
 
-The `ZaberMotors` binding class supports restoring motors to previous session positions using `ZaberPositions` from
-sl-shared-assets. This enables consistent animal positioning across sessions.
+The `ZaberMotors` binding class supports restoring motors to previous session positions using `ZaberPositions`
+(provided by the consuming acquisition system; for Mesoscope-VR, this lives in
+`sollertia_experiment/mesoscope_vr/positions.py`). This enables consistent animal positioning across sessions.
 
 ---
 
@@ -346,7 +348,7 @@ use with the binding library:
 
 ```python
 # Calculate expected checksum
-from sl_experiment.mesoscope_vr import CRCCalculator
+from sollertia_experiment.mesoscope_vr import CRCCalculator
 calculator = CRCCalculator()
 expected = calculator.string_checksum("HeadBar")  # Device label
 ```
@@ -446,7 +448,9 @@ class ZaberMotors:
 
 ## Configuration Requirements
 
-Motor configuration must be defined in sl-shared-assets before implementation.
+Motor configuration must be defined in the consuming acquisition system's configuration module before
+implementation. For Mesoscope-VR, this is `MesoscopeExternalAssets` in
+`sollertia_experiment/mesoscope_vr/configuration.py`.
 
 ### Required Configuration Fields
 
@@ -537,7 +541,7 @@ Before integrating Zaber motors into an acquisition system:
 - [ ] Verified daisy-chain order matches expected configuration
 - [ ] Calculated and verified checksum for each device label
 - [ ] Confirmed motors have predefined positions in non-volatile memory
-- [ ] Created configuration dataclass in sl-shared-assets
+- [ ] Defined port assignment fields in the consuming system's configuration dataclass
 - [ ] Implemented binding class with park/unpark safety patterns
 - [ ] Added position snapshot and restoration support
 - [ ] Integrated into data_acquisition.py lifecycle

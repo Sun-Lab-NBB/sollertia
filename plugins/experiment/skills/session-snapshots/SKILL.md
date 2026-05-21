@@ -34,7 +34,7 @@ off there for any read, write, or schema work on `hardware_state.yaml`.
 - Reading the `SessionData` marker file (see assets plugin `/session-data`)
 - Reading or writing session descriptors (see assets plugin `/session-descriptors`)
 - Reading the frozen system or experiment configuration files at session start (those are read via
-  `/system-configuration` and the assets plugin's `/experiment-configuration` `read_session_*` tools)
+  `/mesoscope-vr` and the assets plugin's `/experiment-configuration` `read_session_*` tools)
 - Reading subject metadata (see assets plugin `/subject-metadata`)
 - Live Zaber motor configuration during runtime (see this plugin's `/zaber-interface`)
 
@@ -88,7 +88,7 @@ For the `MesoscopeHardwareState` read/write/describe trio (`read_session_hardwar
    read_session_mesoscope_positions_tool(session_path="<absolute>")
    ```
 3. **Report to the user.** Optionally cross-reference with the live system configuration via
-   `/system-configuration` to identify drift, or hand off to the assets plugin's
+   `/mesoscope-vr` to identify drift, or hand off to the assets plugin's
    `/session-hardware-state` to also pull the hardware state snapshot.
 
 ### Patching `ZaberPositions` after a manual stage adjustment
@@ -117,7 +117,7 @@ If a position snapshot fails to parse, the read tool returns an error. To recove
 1. Read the other position snapshot in the same session to reconstruct context.
 2. Hand off to the assets plugin's `/session-hardware-state` to read `MesoscopeHardwareState` for
    additional rig context.
-3. Read the frozen system configuration via `/system-configuration`
+3. Read the frozen system configuration via `/mesoscope-vr`
    (`read_session_system_configuration_tool`) to recover hardware ID assignments.
 4. Hand the recovery proposal to the user before writing a replacement snapshot.
 
@@ -152,6 +152,6 @@ the assets plugin's `/session-hardware-state` for the hardware state write. Do n
 | assets plugin `/session-hardware-state`            | Sibling — owns `MesoscopeHardwareState` (the third per-session snapshot)  |
 | assets plugin `/session-data`                      | Owns the `SessionData` marker file                                        |
 | assets plugin `/session-descriptors`               | Owns the per-session descriptor files                                     |
-| this plugin `/system-configuration`                | Provides `read_session_system_configuration_tool` for cross-reference     |
+| this plugin `/mesoscope-vr`                | Provides `read_session_system_configuration_tool` for cross-reference     |
 | assets plugin `/experiment-configuration`          | Provides `read_experiment_configuration_tool` for cross-reference (accepts session snapshot path) |
 | this plugin `/zaber-interface`                     | Live Zaber motor configuration during runtime — does not touch snapshots  |

@@ -7,7 +7,7 @@ Complete API reference for the Zaber motor binding classes used in sollertia-exp
 ## Core Imports
 
 ```python
-from sl_experiment.mesoscope_vr.zaber_bindings import (
+from sollertia_experiment.mesoscope_vr.zaber_bindings import (
     ZaberConnection,
     ZaberDevice,
     ZaberAxis,
@@ -318,7 +318,7 @@ def string_checksum(self, string: str) -> int
 **Example:**
 
 ```python
-from sl_experiment.mesoscope_vr import CRCCalculator
+from sollertia_experiment.mesoscope_vr import CRCCalculator
 
 calculator = CRCCalculator()
 checksum = calculator.string_checksum("HeadBar")
@@ -506,7 +506,7 @@ ataraxis-time>=2.0.0
 ### Basic Motor Control
 
 ```python
-from sl_experiment.mesoscope_vr.zaber_bindings import ZaberConnection
+from sollertia_experiment.mesoscope_vr.zaber_bindings import ZaberConnection
 
 # Connect to motor group
 connection = ZaberConnection(port="/dev/ttyUSB0")
@@ -534,7 +534,7 @@ connection.disconnect()
 ### Multi-Motor Coordination
 
 ```python
-from sl_experiment.mesoscope_vr.zaber_bindings import ZaberConnection
+from sollertia_experiment.mesoscope_vr.zaber_bindings import ZaberConnection
 
 # Connect to daisy-chained motors
 connection = ZaberConnection(port="/dev/ttyUSB0")
@@ -578,8 +578,8 @@ connection.disconnect()
 ### Position Snapshot and Restoration
 
 ```python
-from sl_experiment.mesoscope_vr.zaber_bindings import ZaberConnection
-from sl_shared_assets import ZaberPositions
+from sollertia_experiment.mesoscope_vr.zaber_bindings import ZaberConnection
+from sollertia_experiment.mesoscope_vr import ZaberPositions
 
 # Connect
 connection = ZaberConnection(port="/dev/ttyUSB0")
@@ -603,7 +603,7 @@ connection.disconnect()
 ### Emergency Stop
 
 ```python
-from sl_experiment.mesoscope_vr.zaber_bindings import ZaberConnection
+from sollertia_experiment.mesoscope_vr.zaber_bindings import ZaberConnection
 
 connection = ZaberConnection(port="/dev/ttyUSB0")
 connection.connect()
