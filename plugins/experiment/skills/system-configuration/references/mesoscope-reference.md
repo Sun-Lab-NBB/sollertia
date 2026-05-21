@@ -12,12 +12,12 @@ meaningful defaults.
 
 ### root_directory
 
-| Property       | Value                                              |
-|----------------|----------------------------------------------------|
-| Type           | `str` (path)                                       |
-| Default        | `""` (empty - must be configured)                  |
-| Used by        | `MesoscopeData` class in sollertia-experiment             |
-| Discovery tool | None (user-provided)                               |
+| Property       | Value                                         |
+|----------------|-----------------------------------------------|
+| Type           | `str` (path)                                  |
+| Default        | `""` (empty - must be configured)             |
+| Used by        | `MesoscopeData` class in sollertia-experiment |
+| Discovery tool | None (user-provided)                          |
 
 **What it controls:**
 - Root storage location for all project data on the VRPC (Virtual Reality PC)
@@ -75,12 +75,12 @@ meaningful defaults.
 
 ### mesoscope_directory
 
-| Property       | Value                                              |
-|----------------|----------------------------------------------------|
-| Type           | `str` (path)                                       |
-| Default        | `""` (empty - must be configured)                  |
-| Used by        | `_ScanImagePCData` class in sollertia-experiment          |
-| Discovery tool | None (user-provided)                               |
+| Property       | Value                                            |
+|----------------|--------------------------------------------------|
+| Type           | `str` (path)                                     |
+| Default        | `""` (empty - must be configured)                |
+| Used by        | `_ScanImagePCData` class in sollertia-experiment |
+| Discovery tool | None (user-provided)                             |
 
 **What it controls:**
 - Root directory where ScanImagePC (MATLAB) saves raw mesoscope frame stacks (.TIFF files)
@@ -271,11 +271,11 @@ USB ports and hardware calibration parameters for the three microcontroller boar
 | Discovery tool | None (user preference)                             |
 
 **What it controls:**
-- How frequently microcontrollers must send keepalive messages to confirm responsiveness
-- VRPC closes connection if no keepalive received within timeout period
+- How frequently the VRPC must send keepalive messages to each microcontroller
+- The microcontroller's Kernel triggers an emergency reset if it does not receive a keepalive within the configured interval (the Kernel internally doubles the interval to tolerate brief communication lapses)
 
 **Guidelines:**
-- Too low (< 200ms): False disconnections, CPU overhead
+- Too low (< 200ms): False resets, CPU overhead
 - Too high (> 2000ms): Slow failure detection
 
 ---
@@ -295,6 +295,9 @@ USB ports and hardware calibration parameters for the three microcontroller boar
 - Used to brake wheel when animal needs to stop in VR
 
 **Used by:** `BrakeInterface` class
+
+**Firmware contract:**
+- The firmware accepts a PWM duty-cycle value (`uint8_t`, 0–255), not g·cm. `BrakeInterface` uses the min/max calibration to convert the requested g·cm value into the PWM value sent to the firmware.
 
 **Constraints:**
 - Values are hardware-specific and must be calibrated for each brake unit
@@ -324,16 +327,19 @@ USB ports and hardware calibration parameters for the three microcontroller boar
 
 **Used by:** `EncoderInterface` class
 
+**Verification:**
+- The firmware exposes a `kGetPPR` runtime command (`encoder_module.h` `kModuleCommands::kGetPPR`) that re-measures PPR by counting pulses across 10 full revolutions of the wheel; use it to verify or recalibrate the configured `wheel_encoder_ppr` value.
+
 ---
 
 ### Lick sensor calibration
 
-| Parameter                   | Type  | Default | Valid range | Description                         |
-|-----------------------------|-------|---------|-------------|-------------------------------------|
-| `lick_threshold_adc`        | `int` | `600`   | 0-4095      | ADC threshold for tongue contact    |
-| `lick_signal_threshold_adc` | `int` | `300`   | 0-4095      | Minimum ADC to report (noise floor) |
-| `lick_delta_threshold_adc`  | `int` | `300`   | 0-4095      | Minimum change between readings     |
-| `lick_averaging_pool_size`  | `int` | `2`     | 1-4         | Number of readings to average       |
+| Parameter                   | Type  | Default | Valid range | Description                                                                                                                                        |
+|-----------------------------|-------|---------|-------------|----------------------------------------------------------------------------------------------------------------------------------------------------|
+| `lick_threshold_adc`        | `int` | `600`   | 0-4095      | ADC threshold for tongue contact                                                                                                                   |
+| `lick_signal_threshold_adc` | `int` | `300`   | 0-4095      | Minimum ADC to report (noise floor)                                                                                                                |
+| `lick_delta_threshold_adc`  | `int` | `300`   | 0-4095      | Minimum change between readings                                                                                                                    |
+| `lick_averaging_pool_size`  | `int` | `2`     | 0-4         | Number of firmware reads to average per reported sample (0 disables firmware-side software averaging; Teensy hardware ADC averaging still applies) |
 
 **Discovery tool:** None (hardware-specific calibration)
 
@@ -369,7 +375,7 @@ USB ports and hardware calibration parameters for the three microcontroller boar
 **What they control:**
 - Calibration and filtering for wheel torque sensor
 - Detects force exerted by animal on wheel
-- Quadrature voltage from AD620 amplifier
+- Amplified analog voltage from AD620 instrumentation amplifier
 
 **Used by:** `TorqueInterface` class
 

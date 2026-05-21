@@ -42,13 +42,13 @@ You MUST read the relevant ataraxis skill before writing or modifying any microc
 Sollertia binding layer is intentionally thin — all hardware interaction goes through
 ataraxis-communication-interface and ataraxis-micro-controller.
 
-| Task                                          | Required ataraxis skill                          |
-|-----------------------------------------------|--------------------------------------------------|
-| Hardware discovery / MQTT verification        | `ataraxis@communication:microcontroller-setup`   |
-| Writing PC-side MicroControllerInterface code | `ataraxis@communication:microcontroller-interface` |
-| Implementing a new C++ firmware Module        | `ataraxis@microcontroller:firmware-module`       |
-| Diagnosing MCP server issues                  | `ataraxis@communication:communication-mcp-environment-setup`   |
-| Log archive layout / extraction config        | `ataraxis@communication:log-input-format`        |
+| Task                                          | Required ataraxis skill                                      |
+|-----------------------------------------------|--------------------------------------------------------------|
+| Hardware discovery / MQTT verification        | `ataraxis@communication:microcontroller-setup`               |
+| Writing PC-side MicroControllerInterface code | `ataraxis@communication:microcontroller-interface`           |
+| Implementing a new C++ firmware Module        | `ataraxis@microcontroller:firmware-module`                   |
+| Diagnosing MCP server issues                  | `ataraxis@communication:communication-mcp-environment-setup` |
+| Log archive layout / extraction config        | `ataraxis@communication:log-input-format`                    |
 
 ---
 
@@ -64,12 +64,12 @@ The dataclass groups its fields into three semantic blocks:
 
 **Port assignment (Sollertia → ataraxis-communication-interface):**
 
-| Field            | Role     | Notes                                                  |
-|------------------|----------|--------------------------------------------------------|
-| `actor_port`     | ACTOR    | Microcontroller that drives output hardware (valves, brakes, screen triggers) |
-| `sensor_port`    | SENSOR   | Microcontroller that reads behavioral sensors (lick, torque, mesoscope frame TTL) |
-| `encoder_port`   | ENCODER  | Microcontroller dedicated to the running wheel quadrature encoder |
-| `keepalive_interval_ms` | — | Heartbeat interval used by the binding class to verify all three controllers are responsive |
+| Field                   | Role    | Notes                                                                                       |
+|-------------------------|---------|---------------------------------------------------------------------------------------------|
+| `actor_port`            | ACTOR   | Microcontroller that drives output hardware (valves, brakes, screen triggers)               |
+| `sensor_port`           | SENSOR  | Microcontroller that reads behavioral sensors (lick, torque, mesoscope frame TTL)           |
+| `encoder_port`          | ENCODER | Microcontroller dedicated to the running wheel quadrature encoder                           |
+| `keepalive_interval_ms` | —       | Heartbeat interval used by the binding class to verify all three controllers are responsive |
 
 The Mesoscope-VR system requires **exactly three** microcontrollers in these specific roles. Adding or
 removing controllers requires changes to both the dataclass and the binding class, plus a coordinated
@@ -80,23 +80,28 @@ firmware update.
 These fields parameterize specific firmware Modules running on the three controllers. They are passed
 verbatim to the relevant `ModuleInterface` constructors at runtime.
 
-| Field group                 | Module role            | Controller |
-|-----------------------------|------------------------|------------|
-| `*_brake_strength_g_cm`     | Wheel brake torque limits | ACTOR  |
-| `lick_*_adc`                | Lick sensor thresholds | SENSOR     |
-| `torque_*`                  | Wheel torque sensor    | SENSOR     |
-| `wheel_encoder_*`           | Quadrature encoder     | ENCODER    |
-| `wheel_diameter_cm`         | Encoder unit conversion | ENCODER   |
-| `cm_per_unity_unit`         | VR ↔ real-world distance scale | derived in binding class |
-| `valve_calibration_data`    | Water valve dispense lookup | ACTOR |
-| `screen_trigger_pulse_duration_ms` | VR screen TTL    | ACTOR      |
-| `sensor_polling_delay_ms`   | Generic sensor polling rate | SENSOR |
-| `mesoscope_frame_averaging_pool_size` | Mesoscope TTL ingestion | SENSOR |
+| Field group                           | Module role                    | Controller               |
+|---------------------------------------|--------------------------------|--------------------------|
+| `*_brake_strength_g_cm`               | Wheel brake torque limits      | ACTOR                    |
+| `lick_*_adc`                          | Lick sensor thresholds         | SENSOR                   |
+| `torque_*`                            | Wheel torque sensor            | SENSOR                   |
+| `wheel_encoder_*`                     | Quadrature encoder             | ENCODER                  |
+| `wheel_diameter_cm`                   | Encoder unit conversion        | ENCODER                  |
+| `cm_per_unity_unit`                   | VR ↔ real-world distance scale | derived in binding class |
+| `valve_calibration_data`              | Water valve dispense lookup    | ACTOR                    |
+| `screen_trigger_pulse_duration_ms`    | VR screen TTL                  | ACTOR                    |
+| `sensor_polling_delay_ms`             | Generic sensor polling rate    | SENSOR                   |
+| `mesoscope_frame_averaging_pool_size` | Mesoscope TTL ingestion        | SENSOR                   |
 
 These values **must** match what the firmware expects. Whenever the firmware version on
 `sollertia-micro-controllers` changes, validate that all calibration fields are still consumed in the
 same units and have not been renamed. See `ataraxis@microcontroller:firmware-module` for the firmware
 parameter structure layout.
+
+**Note:** ACTOR runs two `ValveModule` instances (`reward_valve` and `gas_puff_valve`) for water reward
+and aversive air-puff delivery respectively. The `valve_calibration_data` calibration table applies to
+the reward valve only; the gas puff valve uses the firmware's default pulse parameters or per-trial
+configuration sent at runtime.
 
 ### Binding class lifecycle
 
