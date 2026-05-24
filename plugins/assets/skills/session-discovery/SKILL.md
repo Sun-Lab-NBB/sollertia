@@ -124,7 +124,7 @@ its output and returns a filtered subset with the same structure.
 | `exclude_sessions` | `list[str] / None` | `None`     | Session names to exclude (precedence over all inclusion)    |
 | `include_animals`  | `list[str] / None` | `None`     | Animal IDs to include; only these animals considered        |
 | `exclude_animals`  | `list[str] / None` | `None`     | Animal IDs to exclude (precedence over `include_animals`)   |
-| `utc_timezone`     | `bool`             | `True`     | Interpret dates in UTC; `False` for America/New_York        |
+| `utc_timezone`     | `bool`             | `True`     | Interpret dates in UTC; `False` for host local time         |
 
 **Filtering precedence:** Animal filtering is applied before session filtering. Exclusion always
 takes precedence over inclusion. The `exclude_sessions` list overrides both `include_sessions` and

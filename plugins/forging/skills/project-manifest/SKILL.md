@@ -48,7 +48,7 @@ entry point for querying which sessions exist, what processing has been applied,
 |----------------------------|----------------|---------------------------------------------------------------|
 | `animal`                   | `UInt64`       | Unique animal identifier, monotonically increasing            |
 | `session`                  | `String`       | Session name: `YYYY-MM-DD-HH-MM-SS-microseconds` format, UTC  |
-| `date`                     | `Datetime`     | Session timestamp in America/New_York (EST/EDT)               |
+| `date`                     | `Datetime`     | Session timestamp in the host machine's local time            |
 | `type`                     | `String`       | Session type (see session types below)                        |
 | `system`                   | `String`       | Acquisition system used (e.g., `mesoscope-vr`)                |
 | `notes`                    | `String`       | Free-text experimenter notes from session descriptor          |
