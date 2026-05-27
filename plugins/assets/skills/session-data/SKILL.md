@@ -224,7 +224,11 @@ mapping and schemas are owned by `/session-descriptors`.
 `inspect_sessions_tool` accepts `session_paths: list[str]` — pass a single-element list for one
 session, or many paths to inspect a batch. There is no separate single / batch signature. The
 tool returns a flat `sessions` list of per-session reports plus a top-level `counts` tally of
-lifecycle statuses across the batch.
+lifecycle statuses across the batch. Each per-session report opens with an `identity` block —
+`project`, `animal`, `session_name`, `session_type`, `acquisition_system`, and `experiment_name`,
+read off the loaded `SessionData` — so callers can key off the session's identity without a
+separate `read_session_data_tool` call. Sibling skills resolve `identity.session_type` and
+`identity.acquisition_system` from this block (see `/session-descriptors`, `/session-hardware-state`).
 
 The read / write / describe trio for `session_data.yaml` is **file-path based**, symmetric with
 the equivalent trios for descriptors, hardware state, and surgery metadata. The caller supplies

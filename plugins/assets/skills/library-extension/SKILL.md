@@ -179,7 +179,7 @@ framing reflects the new member:
 
 **Code touches:**
 1. Define the new class in `configuration/experiment_configuration.py` as a standalone
-   `@dataclass(slots=True)` (mirror `WaterRewardTrial` / `GasPuffTrial` for shape). The new class
+   `@dataclass(frozen=True, slots=True)` (mirror `WaterRewardTrial` / `GasPuffTrial` for shape). The new class
    carries **only** runtime parameters (rewards, durations, thresholds) — no spatial fields. Those
    live on the matching `TrialStructure` inside the paired task template.
 2. Export it from `configuration/__init__.py`.

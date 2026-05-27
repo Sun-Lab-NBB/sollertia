@@ -144,7 +144,9 @@ user. An `invalid_entries` key appears when input entries lack the required `ses
 ### Step 1: Confirm root directory
 
 Ask the user for the absolute path to the directory to search. A data-root or project-level
-root is the typical input. For project hierarchy conventions, see `/project-hierarchy`.
+root is the typical input. When the host has a data root persisted via `/working-directory`,
+`read_data_root_tool` supplies a default to confirm with the user rather than asking them to type it.
+For project hierarchy conventions, see `/project-hierarchy`.
 
 ### Step 2: Run discovery
 
