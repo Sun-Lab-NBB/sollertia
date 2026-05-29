@@ -45,7 +45,7 @@ verification checklist before reporting an extension complete.
   `/session-data`, `/session-descriptors`, `/session-hardware-state`,
   `/experiment-configuration`, `/task-templates`)
 - System-level acquisition runtime configuration (lives in `sollertia-experiment`, not in this
-  library — see the experiment plugin's `/system-configuration`)
+  library — see the experiment plugin's `/acquisition-system-design`)
 - Server-side processing configuration (lives in `sollertia-forgery` — see the forging plugin's
   `/server-configuration`)
 - Unity prefab and scene authoring (see the unity plugin's `/task-prefabs` and `/task-scenes`)
@@ -137,7 +137,8 @@ member:
 
 **Downstream coordination:**
 - `sollertia-experiment` actually creates sessions of the new type during acquisition. Hand off to
-  the experiment plugin's `/managing-session-data` and `/system-configuration` for the runtime side.
+  the experiment plugin's `/acquisition-system-runtime` (and its `/mesoscope-vr-runtime` instance)
+  for the session-running runtime, and `/data-management` for the post-acquisition session lifecycle.
 - `sollertia-forgery` per-session pipelines (behavior, manifest, dataset forging) may need to
   decide whether the new type is eligible. Hand off to the forging plugin's `/behavior-input-format`,
   `/project-manifest`, and `/dataset-forging-input-format`.
@@ -170,8 +171,15 @@ framing reflects the new member:
 **Downstream coordination:**
 - `sollertia-experiment` owns the system-level hardware/software configuration classes and the
   acquisition runtime for the new system. Hand off to the experiment plugin's
-  `/system-configuration` for system configuration authoring; the runtime work itself is out of
-  scope for this skill.
+  `/acquisition-system-design` for the configuration and binding-class design, and
+  `/acquisition-system-runtime` for the runtime behavior; the runtime work itself is out of scope
+  for this skill.
+- A new acquisition system **optionally benefits from dedicated agentic assets** in the experiment
+  plugin: a per-system instance skill (modeled on `experiment:mesoscope-vr`) and, when the system
+  has non-trivial runtime modes, a per-system runtime skill (modeled on
+  `experiment:mesoscope-vr-runtime`). These are authored through `/acquisition-system-design`'s
+  "Building a new acquisition system from scratch" workflow (steps 9–10). They are not required for
+  the system to run, but omitting them leaves the system driveable yet undocumented for agents.
 - `sollertia-forgery` may need new behavior-processing or video-processing branches per system.
 - `sollertia-unity-tasks` may need new scene scaffolding if the new system uses Unity.
 
@@ -308,8 +316,9 @@ table, the required-asset branches, and the skill content.
 | `/session-hardware-state`                      | Receives skill touch-ups for new `SessionTypes` and new `AcquisitionSystems`                            |
 | `/experiment-configuration`                    | Receives skill touch-ups for new `AcquisitionSystems`, runtime trial classes, and `TriggerType` members |
 | `/task-templates`                              | Receives skill touch-ups for new `TriggerType`, runtime trial classes, and VR paradigm extensions       |
-| experiment plugin `/system-configuration`      | Owns the runtime-side system configuration for any new acquisition system                               |
-| experiment plugin `/managing-session-data`     | Creates sessions of any new session type during acquisition                                             |
+| experiment plugin `/acquisition-system-design` | Owns the runtime-side configuration and binding-class design for any new acquisition system; authors the system's dedicated agentic assets (steps 9–10) |
+| experiment plugin `/acquisition-system-runtime`| Owns the runtime that creates and runs sessions of any new session type during acquisition              |
+| experiment plugin `/data-management`           | Manages the post-acquisition lifecycle (preprocess, migrate, delete) for sessions of any type           |
 | forging plugin `/behavior-input-format`        | Decides eligibility of new session types for behavior processing                                        |
 | forging plugin `/project-manifest`             | Tabulates new session types in the project manifest                                                     |
 | forging plugin `/dataset-forging-input-format` | Decides eligibility of new session types for dataset forging                                            |

@@ -50,6 +50,10 @@ concrete instances, see the per-system skills (currently `experiment:mesoscope-v
 - Zaber motor interface mechanics — see `experiment:zaber-interface`.
 - Per-session metadata, task templates, experiment configuration, server transfer — owned by the
   assets and forging plugins respectively.
+- The `sollertia-shared-assets` enum/registry side of registering a new acquisition system (the
+  `AcquisitionSystems` member, the dispatch registries, the per-system descriptor / hardware-state /
+  experiment-config / raw-data dataclasses, and the experiment-config factory) — owned by the assets
+  plugin's `/library-extension`.
 
 ---
 
@@ -573,8 +577,15 @@ only microcontrollers gains a camera), follow these steps:
 1. **Define the system's hardware composition.** List every hardware lane (microcontrollers,
    cameras, motors, external devices) and the per-lane device count.
 
-2. **Allocate a name and AcquisitionSystems enum value.** Add the new value to
-   `sollertia_shared_assets.AcquisitionSystems` and bump that package's version.
+2. **Register the system on the `sollertia-shared-assets` side.** Adding the
+   `sollertia_shared_assets.AcquisitionSystems` enum value is only the first of several coupled
+   touches — the new system also needs its `<System>HardwareState`, `<System>ExperimentConfiguration`,
+   and `<System>RawData` dataclasses, the matching `HARDWARE_STATE_REGISTRY`,
+   `EXPERIMENT_CONFIGURATION_REGISTRY`, and `SYSTEM_RAW_DATA_REGISTRY` entries, and an experiment-config
+   factory, all guarded by the import-time `_assert_registry_coverage()` parity check. Hand the entire
+   slsa-side recipe off to the assets plugin's `/library-extension` ("Adding a new `AcquisitionSystems`
+   member") and bump that package's version. Do not stop at the enum value — a half-wired registry
+   fails the parity check and the package will not import.
 
 3. **Author the per-lane calibration dataclasses.** One per lane, in the new system's package
    (typically `<system>/configuration.py`).
@@ -591,12 +602,16 @@ only microcontrollers gains a camera), follow these steps:
 
 8. **Wire the system into the package's CLI.** Add `<system>` commands to the `sle` entry points.
 
-9. **Author a new per-system instance skill.** Document the system's hardware lanes, calibration
-   field surface, binding-class composition, and lifecycle. Follow the structure of
-   `experiment:mesoscope-vr`.
+9. **(Optional but recommended) Author dedicated agentic assets for the new system.** A new
+   acquisition system optionally benefits from its own per-system instance skill in this plugin,
+   documenting the system's hardware lanes, calibration field surface, binding-class composition, and
+   lifecycle. Follow the structure of `experiment:mesoscope-vr`. The system runs without it, but
+   omitting it leaves the system driveable yet undocumented for agents (and the pattern skills above
+   keep pointing at Mesoscope-VR as the sole worked instance).
 
-10. **Author a per-system runtime skill** (if the system has non-trivial runtime modes / state
-    machines / training behaviors). Follow the structure of `experiment:mesoscope-vr-runtime`.
+10. **(Optional but recommended) Author a per-system runtime skill** when the system has non-trivial
+    runtime modes / state machines / training behaviors. Follow the structure of
+    `experiment:mesoscope-vr-runtime`.
 
 ### Extending an existing lane (adding a new device to an existing dataclass)
 
@@ -704,6 +719,7 @@ system skills answer "only this one."
 | `ataraxis@communication:microcontroller-interface`     | Low-level MicroControllerInterface mechanics. Microcontroller binding classes compose these.           |
 | `experiment:acquisition-system-setup`                  | Post-flash hardware discovery used to populate system configuration fields.                            |
 | `experiment:pipeline`                                  | End-to-end acquisition-system lifecycle orchestration context.                                         |
+| `assets:library-extension`                             | Owns the `sollertia-shared-assets` enum/registry recipe for a new system; step 2 of the build-a-new-system workflow hands off here. |
 
 ---
 
