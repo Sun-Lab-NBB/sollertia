@@ -318,7 +318,7 @@ def string_checksum(self, string: str) -> int
 **Example:**
 
 ```python
-from sollertia_experiment.mesoscope_vr import CRCCalculator
+from sollertia_experiment.cross_system import CRCCalculator
 
 calculator = CRCCalculator()
 checksum = calculator.string_checksum("HeadBar")
@@ -631,7 +631,7 @@ The `ZaberMotors` class in `binding_classes.py` demonstrates the complete integr
 def __init__(
     self,
     zaber_positions: ZaberPositions | None,
-    zaber_configuration: MesoscopeExternalAssets,
+    zaber_configuration: MesoscopeVRAssets,
 ) -> None:
     # Create connections for each motor group
     self._headbar = ZaberConnection(port=zaber_configuration.headbar_port)

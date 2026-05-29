@@ -1,5 +1,5 @@
 ---
-name: discovering-acquisition-system-hardware
+name: acquisition-system-setup
 description: >-
   Discovers, verifies, and reports the hardware connected to a Sollertia acquisition PC
   (cameras, microcontrollers, Zaber motors, MQTT brokers) via the sollertia-experiment,
@@ -56,7 +56,7 @@ required only because hand-off targets in the assets plugin depend on it.
 |-------------------------|--------------------|-----------------------------|--------------------------------------------------|
 | ataraxis-video-system   | `axvs mcp`         | yes                         | Camera discovery, runtime requirements, CTI      |
 | ataraxis-comm-interface | `axci mcp`         | yes                         | Microcontroller discovery, MQTT broker check     |
-| sollertia-experiment           | `sle get mcp`       | yes                         | Zaber motor discovery                            |
+| sollertia-experiment           | `sle mcp`          | yes                         | Zaber motor discovery                            |
 | sollertia-shared-assets | `slsa mcp` | no (hand-off targets only)  | Read-only verification of recorded configuration |
 
 If a required MCP server is unavailable, hand off to the appropriate plugin's MCP environment setup
@@ -70,7 +70,7 @@ skill: `ataraxis@video:video-mcp-environment-setup`,
 
 | System      | Description                                 | Schema reference                                                              |
 |-------------|---------------------------------------------|-------------------------------------------------------------------------------|
-| `mesoscope` | Two-photon mesoscope with VR behavioral rig | this plugin `/mesoscope-vr` (MESOSCOPE_REFERENCE.md companion) |
+| `mesoscope` | Two-photon mesoscope with VR behavioral rig | this plugin `/mesoscope-vr` (configuration-fields.md companion) |
 
 When working with a specific acquisition system, hand off to `/mesoscope-vr` to read the canonical
 field schema. This skill does not duplicate that schema reference.
@@ -141,14 +141,14 @@ Use when the user wants to confirm that the discovered hardware matches the reco
 
 **When to use:**
 
-- After completing a assets plugin authoring workflow
+- After completing an assets plugin authoring workflow
 - Before running a runtime acquisition session
 - After replacing or relocating a piece of hardware
 
 **Verification steps:**
 
 1. Run hardware discovery (Phases 1–2 below).
-2. Hand off to the assets plugin's `/mesoscope-vr` for a read-only `read_system_configuration_tool`
+2. Hand off to this plugin's `/mesoscope-vr` for a read-only `read_system_configuration_tool`
    call to fetch the recorded values.
 3. Compare discovered values against recorded values and report any drift to the user.
 4. If drift exists, hand off to `/mesoscope-vr` to update the recorded values. Do not edit YAML or call

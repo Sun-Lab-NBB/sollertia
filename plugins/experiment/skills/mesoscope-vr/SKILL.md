@@ -57,7 +57,7 @@ Virtual Reality environment. It is composed of the following hardware lanes:
 | Mesoscope acquisition    | 1 × external software acquisition system (mesoscope DAQ machine)          | (paths only in configuration)|
 
 The lifecycle orchestrator (`_MesoscopeVRSystem` in
-`sollertia_experiment/mesoscope_vr/data_acquisition.py`) composes the three binding classes and
+`sollertia_experiment/mesoscope_vr/system_controller.py`) composes the three binding classes and
 drives the system state machine. The orchestrator is documented in `experiment:mesoscope-vr-runtime`.
 
 ---
@@ -82,7 +82,7 @@ the skills above.
 ## MesoscopeSystemConfiguration
 
 The system's configuration is captured by `MesoscopeSystemConfiguration`, a `YamlConfig`-derived
-dataclass defined in `sollertia_experiment/mesoscope_vr/configuration.py`.
+dataclass defined in `sollertia_experiment/mesoscope_vr/system.py`.
 
 ### Top-level structure
 
@@ -95,7 +95,7 @@ dataclass defined in `sollertia_experiment/mesoscope_vr/configuration.py`.
 | `sheets`           | `MesoscopeGoogleSheets`    | Google Sheet IDs for surgery log and water log                   |
 | `cameras`          | `MesoscopeCameras`         | Face / body camera indices and H.265 encoding parameters         |
 | `microcontrollers` | `MesoscopeMicroControllers`| Per-board ports + per-module calibration data                    |
-| `assets`           | `MesoscopeExternalAssets`  | Zaber motor ports + Unity MQTT broker IP/port                    |
+| `assets`           | `MesoscopeVRAssets`        | Zaber motor ports + nested `vr_task` Unity MQTT configuration     |
 
 For the full field-by-field registry (every field name, type, default, units, and meaning), see
 [`references/configuration-fields.md`](references/configuration-fields.md). That file is a state
@@ -104,27 +104,28 @@ added, removed, or renamed.
 
 ### YAML file lifecycle
 
-The configuration is persisted as `<working_directory>/configuration/mesoscope_system_configuration.yaml`,
-where `<working_directory>` is set per-host by the assets plugin's `/working-directory` skill.
+The configuration is persisted as `mesoscope_system_configuration.yaml` in the platform
+configuration directory resolved by `get_system_configuration_path()`. The host's data root must be
+set first via the assets plugin's `/working-directory` skill (`slsa configure data-root`).
 
 `MesoscopeSystemConfiguration` implements two non-default behaviors documented in
 `experiment:acquisition-system-design`:
 
 - **`__post_init__`** normalizes the valve calibration table from its YAML-natural `dict` shape to
-  the in-memory `tuple[tuple[int | float, int | float], ...]` shape that `ValveInterface` consumes.
+  the in-memory `tuple[tuple[int | float, int | float], ...]` shape that `WaterValveInterface` consumes.
   It also validates that every entry is a 2-tuple of numeric values; malformed entries raise
   `TypeError`.
 - **`save()`** override temporarily converts the valve calibration table back to a `dict` before
   writing to YAML so existing files retain the mapping layout, then restores the tuple form.
 
-The module-level helpers `create_mesoscope_configuration_file()`,
-`get_system_configuration_path()`, and `get_system_configuration_data()` follow the standard
+The module-level helpers `create_system_configuration_file()`,
+`get_system_configuration_path()`, and `get_system_configuration()` follow the standard
 pattern from `experiment:acquisition-system-design`. The CLI entry point for authoring is
-`sle configure system`.
+`sle mesoscope configure`.
 
 ### MCP tool surface
 
-The configuration's read/write/validate surface is hosted on `sle get mcp`
+The configuration's read/write/validate surface is hosted on `sle mcp`
 (`sollertia-experiment`). This skill is the **exclusive** owner of the write tool — no other skill
 in the marketplace may call `write_system_configuration_tool`.
 
@@ -163,7 +164,7 @@ of the platform-general allocation rules — primarily driven by interrupt isola
 
 ### MesoscopeMicroControllers dataclass
 
-`MesoscopeMicroControllers` (in `sollertia_experiment/mesoscope_vr/configuration.py`) holds:
+`MesoscopeMicroControllers` (in `sollertia_experiment/mesoscope_vr/system.py`) holds:
 
 - **Port assignments**: `actor_port`, `sensor_port`, `encoder_port` (Linux USB device paths)
 - **Keepalive**: `keepalive_interval_ms` (500 ms default)
@@ -178,7 +179,7 @@ under the "MesoscopeMicroControllers" section.
 
 `MicroControllerInterfaces` (in `sollertia_experiment/mesoscope_vr/binding_classes.py`) composes
 the three `MicroControllerInterface` instances and the eight Python wrappers from
-`shared_components/module_interfaces.py`.
+`sollertia_experiment/cross_system/module_interfaces.py`.
 
 Construction signature:
 
@@ -281,9 +282,9 @@ lickport:
 Each group connects to its own USB serial port. The daisy-chain order is hardware-cabled and MUST
 match the order the binding class assumes (Z first, then Pitch then Roll for HeadBar, etc.).
 
-### Configuration in MesoscopeExternalAssets
+### Configuration in MesoscopeVRAssets
 
-The Zaber serial port assignments live in `MesoscopeExternalAssets` (alongside the Unity MQTT
+The Zaber serial port assignments live in `MesoscopeVRAssets` (alongside the Unity MQTT
 configuration):
 
 - `headbar_port` (default `/dev/ttyUSB0`)
@@ -292,7 +293,7 @@ configuration):
 
 For the full per-field documentation including Unity MQTT settings, see
 [`references/configuration-fields.md`](references/configuration-fields.md) under the
-"MesoscopeExternalAssets" section.
+"MesoscopeVRAssets" section.
 
 ### ZaberMotors binding class
 
@@ -304,7 +305,7 @@ Construction signature:
 ```python
 ZaberMotors(
     zaber_positions: ZaberPositions | None,
-    zaber_configuration: MesoscopeExternalAssets,
+    zaber_configuration: MesoscopeVRAssets,
 )
 ```
 
@@ -326,16 +327,22 @@ For motor mechanics (park/unpark safety, position management, configuration tool
 
 ### MesoscopeFileSystem
 
-Captures local filesystem layout — five `Path` fields:
+Captures the filesystem layout — two fields:
 
-- `root_directory` — local project root on the acquisition PC
-- `server_directory` — mounted compute server project root
-- `nas_directory` — mounted NAS backup volume project root
-- `mesoscope_directory` — mounted mesoscope-DAQ machine output directory
+- `mesoscope_directory` (`Path`) — the local-filesystem-mounted directory where the Mesoscope-DAQ
+  PC aggregates acquired data during runtime.
+- `storage_directories` (`dict[str, Path]`) — maps each long-term storage destination name to its
+  local-filesystem-mounted project-root path. Seeded with the two `MesoscopeStorageDestination`
+  members (`"NAS"` and `"Server"`), but a system may configure any number of destinations under
+  arbitrary names. A destination left as an empty path is treated as not configured and is skipped
+  during data transfer and removal; the mapping order defines the pull-back preference order.
 
-All default to `Path()` (empty); the user MUST set them per-host. The
-`check_system_mounts_tool` MCP tool validates that every declared path exists and is writable
-before any session starts.
+The local **data root** (the directory under which all projects are stored on this machine) is NOT
+part of this section — it is the platform-shared data root, resolved with `get_data_root()` and set
+with the `slsa configure data-root` command (assets plugin `/working-directory`).
+
+Both fields default to empty paths; the user MUST set them per-host. The `check_system_mounts_tool`
+MCP tool validates that every declared path exists and is writable before any session starts.
 
 ### MesoscopeGoogleSheets
 
@@ -347,15 +354,19 @@ Captures Google Sheets identifiers — two `str` fields:
 Both default to empty strings; the user MUST populate them per-host. Sheet IDs are the long
 alphanumeric segments in the Google Sheets URL.
 
-### MesoscopeExternalAssets (Unity-VR portion)
+### MesoscopeVRAssets (Unity-VR portion)
 
-In addition to Zaber ports, this section holds Unity-VR MQTT settings:
+In addition to the three Zaber ports, this section holds a nested `vr_task` field of type
+`VRTaskConfiguration` (from `sollertia_experiment/vr_task/configuration.py`) that stores the MQTT
+broker discovery fields used to reach the Unity game engine:
 
-- `unity_ip` (default `"127.0.0.1"`) — MQTT broker IP for the Unity game engine
-- `unity_port` (default `1883`) — MQTT broker port
+- `assets.vr_task.ip` (default `"127.0.0.1"`) — IP address of the MQTT broker
+- `assets.vr_task.port` (default `1883`) — port number of the MQTT broker
 
-The Mesoscope-VR runtime uses MQTT to send VR-environment commands to a separately-running Unity
-instance.
+`VRTaskConfiguration` holds only the MQTT discovery fields. The geometric VR parameters (cue
+catalog, corridor geometry, cm-per-Unity-unit conversion) are NOT stored here — they are resolved
+at experiment start from the matching `TaskTemplate` YAML in the shared VR task templates directory.
+For the VR task driver that consumes this configuration, see `experiment:vr-driver-interface`.
 
 For the full per-field documentation of the auxiliary sections, see
 [`references/configuration-fields.md`](references/configuration-fields.md).
@@ -366,7 +377,7 @@ For the full per-field documentation of the auxiliary sections, see
 
 ### Step 1: Verify prerequisites
 
-- The `sle get mcp` server is connected. If not, run `experiment:experiment-mcp-environment-setup`.
+- The `sle mcp` server is connected. If not, run `experiment:experiment-mcp-environment-setup`.
 - The host working directory is set. If not, run the assets plugin's `/working-directory`.
 
 ### Step 2: Determine whether to create or modify
@@ -393,8 +404,9 @@ For a new host, the user-supplied values are:
   plays the actor / sensor / encoder role.
 - **Zaber motor ports** — must come from `experiment:zaber-interface` discovery
   (`get_zaber_devices_tool`).
-- **Filesystem roots** — `root_directory`, `nas_directory`, `mesoscope_directory`, etc. Ask the
-  user for absolute paths.
+- **Filesystem paths** — `mesoscope_directory` and the `storage_directories` destination paths.
+  Ask the user for absolute paths. The platform data root is set separately via
+  `slsa configure data-root` (assets plugin `/working-directory`).
 - **Google Sheet IDs** — ask the user for the sheet IDs (the long alphanumeric segment in the URL).
 - **Calibration data** — defaults in
   [`references/configuration-fields.md`](references/configuration-fields.md) are reasonable
@@ -433,8 +445,8 @@ If the user is also setting up remote storage transfer, hand off to the forging 
 | Camera reindexed                | `cameras.face_camera_index` / `body_camera_index`          |
 | Teensy replaced / re-flashed    | `microcontrollers.actor_port` / `sensor_port` / `encoder_port` |
 | Zaber motor group reconnected   | `assets.headbar_port` / `wheel_port` / `lickport_port`     |
-| Unity broker relocated          | `assets.unity_ip` / `unity_port`                           |
-| Storage volume remounted        | `filesystem.<root>_directory` fields                       |
+| Unity broker relocated          | `assets.vr_task.ip` / `assets.vr_task.port`                |
+| Storage volume remounted        | `filesystem.storage_directories` / `filesystem.mesoscope_directory` |
 | Google Sheet rotated            | `sheets.<sheet>_id`                                        |
 
 For each: read the configuration, mutate the relevant field, write back via
@@ -500,12 +512,12 @@ section to add the new target macro in slmc's `main.cpp`. Then in this skill:
 
 ### Add a new Zaber motor group
 
-1. **Add a `<group>_port` field** to `MesoscopeExternalAssets`.
+1. **Add a `<group>_port` field** to `MesoscopeVRAssets`.
 2. **Extend `ZaberMotors`** to instantiate a new `ZaberConnection` for the new port and pull out
    the per-axis `ZaberAxis` handles in the documented daisy-chain order.
 3. **Add per-group position-restoration logic** to `restore_position()`, `prepare_motors()`, and
    `park_position()`.
-4. **Update the `ZaberPositions` dataclass** in `sollertia_experiment/mesoscope_vr/positions.py`
+4. **Update the `ZaberPositions` dataclass** in `sollertia_experiment/mesoscope_vr/system.py`
    to capture the new group's per-axis positions.
 5. **Bump the `sollertia-experiment` version** and regenerate YAMLs.
 6. **Update this skill's hardware-lane table.**
@@ -518,7 +530,7 @@ For motor-side mechanics (checksum validation, parking, position storage), see
 ## Lifecycle orchestrator handoff
 
 The Mesoscope-VR runtime composes the three binding classes inside `_MesoscopeVRSystem` (in
-`sollertia_experiment/mesoscope_vr/data_acquisition.py`). The orchestrator's responsibilities,
+`sollertia_experiment/mesoscope_vr/system_controller.py`). The orchestrator's responsibilities,
 state machine, training modes, and CLI surface are documented in
 `experiment:mesoscope-vr-runtime`.
 
@@ -548,7 +560,7 @@ This skill is split:
 Out-of-date field documentation is worse than missing documentation — an agent acting on stale
 field info will write malformed YAML that fails schema validation or, worse, validates but
 parameterizes the system incorrectly. When in doubt, re-read
-`sollertia_experiment/mesoscope_vr/configuration.py` and reconcile the references file against
+`sollertia_experiment/mesoscope_vr/system.py` and reconcile the references file against
 ground truth.
 
 ---
@@ -561,6 +573,7 @@ ground truth.
 | `experiment:microcontroller-interface`             | The slmc + sle wrapper layer the microcontroller binding class composes.           |
 | `experiment:mesoscope-vr-runtime`                  | Mesoscope-VR runtime behavior (state machine, training modes, CLI).                |
 | `experiment:zaber-interface`                       | Zaber motor mechanics consumed by `ZaberMotors`.                                   |
+| `experiment:vr-driver-interface`                   | The Unity VR task driver (`VRTaskDriver`) configured by `assets.vr_task`.           |
 | `ataraxis@video:camera-interface`                  | VideoSystem mechanics consumed by `VideoSystems`.                                  |
 | `ataraxis@communication:microcontroller-interface` | MicroControllerInterface mechanics consumed by `MicroControllerInterfaces`.        |
 | `experiment:acquisition-system-setup`              | Source of camera indices, microcontroller ports, Zaber ports via hardware discovery. |
@@ -577,7 +590,7 @@ When authoring or modifying the Mesoscope-VR system configuration:
 
 Prerequisites:
 - [ ] /working-directory has been run on this host
-- [ ] sle get mcp server is connected
+- [ ] sle mcp server is connected
 - [ ] describe_system_configuration_schema_tool was called and used as the source of truth for field names
 - [ ] references/configuration-fields.md was consulted for field semantics
 

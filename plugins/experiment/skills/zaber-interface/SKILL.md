@@ -1,15 +1,18 @@
 ---
-name: implementing-zaber-interface
+name: zaber-interface
 description: >-
   Guides implementation of Zaber motor interfaces using the zaber-motion library. Covers motor discovery, position
   management, safety patterns, and binding class patterns. Use when adding Zaber motor support to any acquisition
   system or troubleshooting motor connectivity.
+user-invocable: true
 ---
 
-# Zaber Interface Implementation
+# Zaber motor interface
 
-Guides the implementation of Zaber motor interfaces using the zaber-motion library. This skill focuses on the low-level
-hardware integration patterns applicable to any acquisition system.
+Guides the implementation of Zaber motor interfaces using the zaber-motion library. This is the
+platform-general Zaber hardware lane — the `ZaberConnection` / `ZaberDevice` / `ZaberAxis` stack in
+`sollertia_experiment/cross_system/zaber_bindings.py` is system-agnostic and consumed by any
+acquisition system's binding layer (currently Mesoscope-VR's `ZaberMotors`).
 
 ---
 
@@ -23,7 +26,7 @@ Use this skill when:
 - Understanding the ZaberConnection/ZaberDevice/ZaberAxis API hierarchy
 - Configuring motor positions in non-volatile memory
 
-For Mesoscope-VR-specific integration (modifying `MesoscopeExternalAssets`, extending the `ZaberMotors`
+For Mesoscope-VR-specific integration (modifying `MesoscopeVRAssets`, extending the `ZaberMotors`
 binding class), use `/mesoscope-vr`. For the platform-general pattern by which an acquisition system
 composes Zaber motors into its binding layer, see `/acquisition-system-design`.
 
@@ -37,7 +40,7 @@ composes Zaber motors into its binding layer, see `/acquisition-system-design`.
 
 Use the sollertia-experiment MCP server for Zaber discovery. Start the server with:
 ```bash
-sle get mcp
+sle mcp
 ```
 
 **MCP Tool for Verification:**
@@ -73,7 +76,7 @@ If motors are not detected:
 
 | File                                                              | What to Check                            |
 |-------------------------------------------------------------------|------------------------------------------|
-| `sollertia-experiment/src/sollertia_experiment/mesoscope_vr/zaber_bindings.py`  | ZaberConnection/Device/Axis patterns     |
+| `sollertia-experiment/src/sollertia_experiment/cross_system/zaber_bindings.py`  | ZaberConnection/Device/Axis patterns     |
 | `sollertia-experiment/src/sollertia_experiment/mesoscope_vr/binding_classes.py` | ZaberMotors binding class implementation |
 | `sollertia-experiment pyproject.toml`                                    | Current zaber-motion version dependency  |
 
@@ -171,8 +174,8 @@ Positions are stored in non-volatile USER_DATA variables on each motor controlle
 ### Position Restoration
 
 The `ZaberMotors` binding class supports restoring motors to previous session positions using `ZaberPositions`
-(provided by the consuming acquisition system; for Mesoscope-VR, this lives in
-`sollertia_experiment/mesoscope_vr/positions.py`). This enables consistent animal positioning across sessions.
+(provided by the consuming acquisition system; for Mesoscope-VR, the `ZaberPositions` dataclass lives in
+`sollertia_experiment/mesoscope_vr/system.py`). This enables consistent animal positioning across sessions.
 
 ---
 
@@ -348,7 +351,7 @@ use with the binding library:
 
 ```python
 # Calculate expected checksum
-from sollertia_experiment.mesoscope_vr import CRCCalculator
+from sollertia_experiment.cross_system import CRCCalculator
 calculator = CRCCalculator()
 expected = calculator.string_checksum("HeadBar")  # Device label
 ```
@@ -359,7 +362,7 @@ Use the MCP tool `get_checksum_tool(input_string)` to calculate checksums for co
 
 ## ZaberAxis API Reference
 
-See [ZABER_INTERFACE_GUIDE.md](ZABER_INTERFACE_GUIDE.md) for the complete API reference including:
+See [references/zaber-api-reference.md](references/zaber-api-reference.md) for the complete API reference including:
 
 - ZaberConnection constructor and methods
 - ZaberDevice configuration validation
@@ -449,8 +452,8 @@ class ZaberMotors:
 ## Configuration Requirements
 
 Motor configuration must be defined in the consuming acquisition system's configuration module before
-implementation. For Mesoscope-VR, this is `MesoscopeExternalAssets` in
-`sollertia_experiment/mesoscope_vr/configuration.py`.
+implementation. For Mesoscope-VR, this is `MesoscopeVRAssets` in
+`sollertia_experiment/mesoscope_vr/system.py`.
 
 ### Required Configuration Fields
 
@@ -528,6 +531,19 @@ class ZaberPositions:
 2. Compare Device Num with expected configuration
 3. Physically reorder cables if necessary
 4. Update configuration to match actual order
+
+---
+
+## Related skills
+
+| Skill                                       | Relationship                                                                 |
+|---------------------------------------------|-------------------------------------------------------------------------------|
+| `/acquisition-system-design`                | Platform-general pattern for composing a Zaber lane into a binding class      |
+| `/mesoscope-vr`                             | Current consumer — composes `ZaberMotors` from `MesoscopeVRAssets`            |
+| `/session-snapshots`                        | Reads/writes the `ZaberPositions` snapshot this lane restores from            |
+| `/acquisition-system-setup`                 | Acquisition-system-level hardware discovery and verification                  |
+| `/experiment-mcp-environment-setup`         | Run first if the `sle mcp` server is not connected                            |
+| `references/zaber-api-reference.md`         | Complete `ZaberConnection` / `ZaberDevice` / `ZaberAxis` API and code examples |
 
 ---
 

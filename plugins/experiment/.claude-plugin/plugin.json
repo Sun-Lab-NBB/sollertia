@@ -1,18 +1,14 @@
 {
   "name": "experiment",
   "version": "1.0.0",
-  "description": "Agentic access to the sollertia-experiment library. Drives acquisition system runtime, hardware interfaces, and session lifecycle management on the experiment host. Backed by the sollertia-experiment MCP servers (sle get, sle manage).",
+  "description": "Agentic access to the sollertia-experiment library. Drives acquisition system runtime, hardware interfaces, and session lifecycle management on the experiment host. Backed by the single sollertia-experiment MCP server (sle mcp), which exposes the tools behind the `sle get` and `sle mesoscope` command groups.",
   "repository": "https://github.com/Sun-Lab-NBB/sollertia",
   "license": "Apache-2.0",
   "skills": "./skills/",
   "mcpServers": {
-    "sollertia-experiment-get": {
+    "sollertia-experiment": {
       "command": "sle",
-      "args": ["get", "mcp"]
-    },
-    "sollertia-experiment-manage": {
-      "command": "sle",
-      "args": ["manage", "mcp"]
+      "args": ["mcp"]
     }
   }
 }

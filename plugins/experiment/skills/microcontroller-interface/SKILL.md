@@ -1,5 +1,5 @@
 ---
-name: sollertia-microcontroller-interface
+name: microcontroller-interface
 description: >-
   Registry of paired Module (sollertia-micro-controllers) and ModuleInterface
   (sollertia-experiment) classes available to Sollertia acquisition systems, plus the
@@ -16,7 +16,7 @@ Documents the Sollertia platform's paired microcontroller interface stack at the
   Arduino-compatible microcontroller boards. The current deployment uses Teensy 4.1 boards, but the
   firmware library is board-agnostic; this skill's conventions apply to any board slmc targets.
 - **sle** (`sollertia-experiment`, Python) — `ModuleInterface` subclasses in
-  `src/sollertia_experiment/shared_components/module_interfaces.py` that wrap each firmware module as a
+  `src/sollertia_experiment/cross_system/module_interfaces.py` that wrap each firmware module as a
   contract pair.
 
 This skill is the canonical registry of paired modules currently available to any Sollertia acquisition
@@ -239,17 +239,20 @@ globally for all targets in `main.cpp` and apply to every module regardless of b
 
 The following conventions extend or deviate from `ataraxis@communication:microcontroller-interface`.
 They apply to every `ModuleInterface` subclass in
-`src/sollertia_experiment/shared_components/module_interfaces.py`.
+`src/sollertia_experiment/cross_system/module_interfaces.py`.
 
 ### File location and naming
 
-- **One shared file**: All `ModuleInterface` subclasses live in `shared_components/module_interfaces.py`,
+- **One shared file**: All `ModuleInterface` subclasses live in `cross_system/module_interfaces.py`,
   not in any system-specific subpackage. The file is system-agnostic — adding a wrapper here makes it
   available to any current or future acquisition-system binding class.
-- **Class naming**: `<FirmwareModuleName-without-Module>Interface`. `EncoderModule` → `EncoderInterface`,
-  `ValveModule` → `ValveInterface`. Specialized wrappers for additional application roles of a
-  single firmware module follow a `<Role>Interface` pattern (`GasPuffValveInterface` for the
-  type-5 gas-puff role).
+- **Class naming**: a single general-purpose wrapper is named
+  `<FirmwareModuleName-without-Module>Interface` — `EncoderModule` → `EncoderInterface`,
+  `LickModule` → `LickInterface`, `BrakeModule` → `BrakeInterface`, `TorqueModule` →
+  `TorqueInterface`, `ScreenModule` → `ScreenInterface`. When a firmware module is consumed in a
+  specific application role (or in more than one role), each wrapper is named after its role
+  instead: `ValveModule` is wrapped by `WaterValveInterface` (id 1) and `GasPuffValveInterface`
+  (id 2), and `TTLModule` is wrapped by `MesoscopeFrameTTLInterface`.
 
 ### Constructor signature
 
@@ -263,7 +266,6 @@ def __init__(
     self,
     encoder_ppr: int,
     wheel_diameter: float,
-    cm_per_unity_unit: float,
     polling_frequency: int,
 ) -> None:
     super().__init__(
@@ -284,11 +286,12 @@ configuration (e.g., `valve_calibration_data` is the calibration tuple, not a ra
 Unit conversions and calibration-driven derived quantities are computed in `__init__` and cached as
 `np.float64` instance attributes rounded to 8 decimals for repeatability. Examples:
 
-- `EncoderInterface`: `_cm_per_pulse = round(pi * wheel_diameter / ppr, 8)`,
-  `_unity_unit_per_pulse = round(pi * wheel_diameter / (ppr * cm_per_unity_unit), 8)`
+- `EncoderInterface`: `_cm_per_pulse = round(pi * wheel_diameter / ppr, 8)` in `__init__`;
+  `_unity_unit_per_pulse` is derived later in `set_unity_scale(cm_per_unity_unit)` (called at
+  experiment start with the conversion value read from the active `TaskTemplate`), not in `__init__`
 - `TorqueInterface`: `_torque_per_adc_unit = round(sensor_capacity * 0.00981 / (max_v - baseline_v), 8)`
 - `BrakeInterface`: minimum/maximum strength in g·cm converted to N·cm using `0.00981`
-- `ValveInterface`: `curve_fit` of the power-law model yields `_scale_coefficient` and
+- `WaterValveInterface`: `curve_fit` of the power-law model yields `_scale_coefficient` and
   `_nonlinearity_exponent`, both rounded to 8 decimals
 
 When a module's calibration requires unit conversion, perform it **in the wrapper**, not in the
@@ -399,7 +402,7 @@ if duration_ms != self._previous_pulse_duration:
 self.send_command(...)
 ```
 
-Exercised by `BrakeInterface.send_pulse`, `ValveInterface.deliver_reward`,
+Exercised by `BrakeInterface.send_pulse`, `WaterValveInterface.deliver_reward`,
 `GasPuffValveInterface.deliver_puff`. Critical for reward-delivery hot paths where the same volume is
 delivered hundreds of times per session.
 
@@ -487,7 +490,7 @@ firmware reflash on every consumer of that module; adding a Python wrapper is a 
      block (or add a new target — see [Controller board allocation](#controller-board-allocation-principles)).
 
 3. **Write the Python wrapper**:
-   - New class in `sle/src/sollertia_experiment/shared_components/module_interfaces.py` following the
+   - New class in `sle/src/sollertia_experiment/cross_system/module_interfaces.py` following the
      sle conventions above and the base `ataraxis@communication:microcontroller-interface` mechanics.
    - Hardcode `module_type`, `module_id`, `name`, `data_codes`, `error_codes` in `super().__init__()`.
    - Expose calibration as keyword-only constructor arguments.
@@ -717,7 +720,7 @@ Firmware (slmc):
 - [ ] slmc release version bumped (git tag — slmc has no manifest version file)
 
 Wrapper (sle):
-- [ ] Class in shared_components/module_interfaces.py named <FirmwareModuleName-without-Module>Interface
+- [ ] Class in cross_system/module_interfaces.py named <FirmwareModuleName-without-Module>Interface (or <Role>Interface for a role-specific wrapper, e.g. WaterValveInterface, MesoscopeFrameTTLInterface)
 - [ ] Constructor exposes calibration as keyword-only parameters; module_type / module_id / name / data_codes / error_codes hardcoded in super().__init__()
 - [ ] Calibration math (unit conversion, curve_fit, derived factors) computed in __init__ and rounded to 8 decimals
 - [ ] SharedMemoryArray (if used) created with exists_ok=True and named f"{module_type}_{module_id}_<purpose>"

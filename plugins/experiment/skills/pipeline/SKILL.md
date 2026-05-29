@@ -1,5 +1,5 @@
 ---
-name: experiment-pipeline
+name: pipeline
 description: >-
   End-to-end orchestration guide for the Sollertia experiment lifecycle: phase ordering and
   handoff conditions from system bringup through experiment design, runtime acquisition, and
@@ -28,7 +28,7 @@ ordering, handoff conditions to phase-specific skills, and the boundary between 
 - Detailed tool usage for any individual phase (see phase-specific skills)
 - MCP server connectivity (see `/experiment-mcp-environment-setup`)
 - Authoring system / experiment / session YAML files (see assets plugin skills)
-- Post-acquisition data analysis (see processing plugin)
+- Post-acquisition data analysis (see forging plugin)
 
 **Handoff rules:** This skill dispatches to phase-specific skills at each stage. Always invoke the
 relevant skill for detailed tool usage, parameter reference, and troubleshooting.
@@ -44,16 +44,16 @@ runtime acquisition is fully deterministic and AI-independent.
 |--------------------------------------|--------------|-----------------------------------------------|
 | Working directory + credentials      | yes          | assets plugin (`slsa mcp`)     |
 | System configuration authoring       | yes          | assets plugin (`slsa mcp`)     |
-| Hardware bringup and verification    | yes          | experiment plugin (`sle get mcp` + ataraxis)   |
+| Hardware bringup and verification    | yes          | experiment plugin (`sle mcp` + ataraxis)   |
 | Experiment design (templates, states)| yes          | assets plugin (`slsa mcp`)     |
-| Pre-session health check             | yes          | experiment plugin (`sle get mcp` + ataraxis)   |
+| Pre-session health check             | yes          | experiment plugin (`sle mcp` + ataraxis)   |
 | **Runtime data acquisition**         | **no**       | sollertia-experiment Python entry points only |
-| Post-acquisition preprocessing       | yes          | experiment plugin (`sle manage mcp`)           |
-| Data management (migrate / delete)   | yes          | experiment plugin (`sle manage mcp`)           |
-| Post-acquisition data analysis       | yes          | processing plugin                             |
+| Post-acquisition preprocessing       | yes          | experiment plugin (`sle mcp`)           |
+| Data management (migrate / delete)   | yes          | experiment plugin (`sle mcp`)           |
+| Post-acquisition data analysis       | yes          | forging plugin                             |
 
 The MCP tool surface intentionally has no "start a recording session" tool. Runtime is launched only
-through the `sle run` CLI, which reads validated configuration files written during the AI-assisted
+through the `sle mesoscope run` CLI, which reads validated configuration files written during the AI-assisted
 phases.
 
 ---
@@ -61,12 +61,14 @@ phases.
 ## Pipeline phases
 
 ```text
-Working      System         Hardware       Experiment     Pre-session    Runtime        Post-process    Handoff to
-Directory →  Configuration →  Bringup    →  Design      →  Health Check →  Acquisition →  & Manage    →  Processing
-    |              |              |              |              |              |              |              |
-configuration  configuration  /acquisition-  configuration  /system-       (sle run CLI,   /data-         processing
- /working-     /system-       system-setup    /experiment-   health-       no MCP)         management    plugin
-  directory     configuration                  configuration  check
+1. Working directory      assets plugin /working-directory
+2. System configuration   /mesoscope-vr
+3. Hardware bringup        /acquisition-system-setup
+4. Experiment design       assets plugin /project-hierarchy → /task-templates → /experiment-configuration
+5. Pre-session check       /system-health-check
+6. Runtime acquisition     sle mesoscope run   (no MCP, no AI)
+7. Post-process & manage   /data-management
+8. Handoff to forging      forging plugin
 ```
 
 ### Phase 1: Working directory and credentials
@@ -74,15 +76,15 @@ configuration  configuration  /acquisition-  configuration  /system-       (sle 
 - **Plugin / Skill:** assets plugin → `/working-directory`
 - **Actions:** Set the local Sollertia working directory; configure Google Sheets credentials and task
   templates directory.
-- **Handoff condition:** `read_working_directory_tool` returns the expected path.
-- **Skip condition:** Working directory already initialized for this host.
+- **Handoff condition:** `get_platform_environment_status_tool` reports the data root (and credentials/templates) healthy.
+- **Skip condition:** The platform data root is already initialized for this host.
 
 ### Phase 2: System configuration
 
 - **Plugin / Skill:** experiment plugin → `/mesoscope-vr`
-- **Actions:** Generate or edit `MesoscopeSystemConfiguration` YAML via the `sle get mcp` write
-  tool. Author cameras, microcontrollers, file system paths, Google Sheets, and external assets
-  (Zaber motor ports, Unity MQTT broker).
+- **Actions:** Generate or edit `MesoscopeSystemConfiguration` YAML via the `sle mcp` write
+  tool. Author cameras, microcontrollers, filesystem paths, Google Sheets, and VR task assets
+  (Zaber motor ports and the nested `vr_task` Unity MQTT configuration).
 - **Handoff condition:** `read_system_configuration_tool` returns a valid configuration; the config
   passes schema validation.
 
@@ -105,8 +107,8 @@ owns exactly one slsa asset and the others must hand off to it.
 
 - **Step 4a — `/project-hierarchy` (assets plugin):** Confirm the project under which the
   experiment will live exists on disk (read-only via `get_data_root_overview_tool`). Project
-  directories are created implicitly when the first session lands there via the experiment
-  plugin's `/managing-session-data` — there is no dedicated project-creation MCP tool.
+  directories are created implicitly when the first session lands there (via `SessionData.create`)
+  — there is no dedicated project-creation MCP tool.
 - **Step 4b — `/task-templates` (assets plugin):** Author or load the task template that
   defines the VR environment, cue catalog, and trial structures (each trial owns its own segment
   geometry — there is no separate segment catalog at the template level). Owns `write_template_tool`.
@@ -128,8 +130,8 @@ owns exactly one slsa asset and the others must hand off to it.
 
 ### Phase 6: Runtime acquisition (no AI)
 
-- **Plugin / Skill:** none — invoked directly via the `sle run` CLI by the experimenter.
-- **Actions:** `sle run` reads the validated system + experiment configuration files, dispatches a
+- **Plugin / Skill:** none — invoked directly via the `sle mesoscope run` CLI by the experimenter.
+- **Actions:** `sle mesoscope run` reads the validated system + experiment configuration files, dispatches a
   hardware-deterministic acquisition session, writes raw data + descriptors into the session directory.
 - **Handoff condition:** Session terminates cleanly; `session_data.yaml` and the appropriate descriptor
   file (lick training / run training / window checking / mesoscope experiment) exist on disk.
@@ -144,14 +146,15 @@ owns exactly one slsa asset and the others must hand off to it.
 - **Handoff condition:** Preprocessed session lives at the canonical storage tier; `processed_data` is
   populated.
 
-### Phase 8: Handoff to processing
+### Phase 8: Handoff to forging
 
-- **Plugin:** processing plugin
-- **Status:** The processing plugin is currently a placeholder while sl-behavior is being absorbed into
-  other Sollertia libraries. When the absorption completes, this phase will dispatch to processing-plugin
-  skills for log archive extraction, behavior data processing, and downstream analysis.
-- **For now:** Hand the user the path to the preprocessed session and tell them to use the relevant
-  per-library tools directly.
+- **Plugin:** forging plugin
+- **Actions:** Once a session is preprocessed and transferred to long-term storage, hand off to the
+  forging plugin's behavior processing subsystem — session discovery / transfer
+  (`/session-transfer`), batch behavior processing (`/behavior-processing`), output verification
+  (`/behavior-results`), and dataset curation (`/datasets`).
+- **Handoff condition:** The preprocessed session is present on the storage destination the forging
+  plugin reads from.
 
 ---
 
@@ -168,11 +171,11 @@ Is the system already configured?
                 ├─ no  → /project-hierarchy → /task-templates → /experiment-configuration
                 └─ yes
                     └─ Is a session already recorded?
-                        ├─ no  → user runs `sle run` (no AI involvement)
+                        ├─ no  → user runs `sle mesoscope run` (no AI involvement)
                         └─ yes
                             └─ Is preprocessing complete?
                                 ├─ no  → /data-management
-                                └─ yes → handoff to processing plugin
+                                └─ yes → handoff to forging plugin
 ```
 
 ---
@@ -201,7 +204,9 @@ Is the system already configured?
 | Discover or configure Zaber motors                | `/zaber-interface`                                                              |
 | Modify Mesoscope-VR hardware composition          | `/mesoscope-vr`                                                                 |
 | Modify Mesoscope-VR runtime behavior              | `/mesoscope-vr-runtime`                                                         |
-| Design a new acquisition system                   | `/acquisition-system-design`                                                    |
+| Drive the Unity VR task / MQTT coupling           | `/vr-driver-interface`                                                          |
+| Design a new acquisition system (static)          | `/acquisition-system-design`                                                    |
+| Implement an acquisition-system runtime loop      | `/acquisition-system-runtime`                                                   |
 | Generate / verify Unity task prefab from template | unity plugin `/task-prefabs`                                              |
 | Open / create a Unity scene                       | unity plugin `/task-scenes`                                                    |
 | Enter / exit Unity Play Mode                      | unity plugin `/play-mode`                                                 |

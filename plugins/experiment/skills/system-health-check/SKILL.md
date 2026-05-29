@@ -1,163 +1,167 @@
 ---
-name: checking-system-health
+name: system-health-check
 description: >-
-  Provides comprehensive pre-flight verification for acquisition systems. Orchestrates MCP tools to check network
-  mounts, hardware connectivity, and system configuration. Use before running acquisition sessions or when
+  Comprehensive pre-flight verification for acquisition systems. Orchestrates MCP tools and skill
+  hand-offs to check platform configuration readiness, network storage mounts, hardware
+  connectivity, and configuration validity. Use before running acquisition sessions or when
   troubleshooting system issues.
+user-invocable: true
 ---
 
-# System Health Check
+# System health check
 
-Provides comprehensive pre-flight verification for acquisition systems by orchestrating multiple MCP tools to validate
-network storage, hardware connectivity, and system configuration.
-
----
-
-## MCP Server Requirements
-
-All four MCP servers must be running to perform a complete system health check.
-
-| Server                  | Start Command      | Tools Used                                   |
-|-------------------------|--------------------|----------------------------------------------|
-| sollertia-experiment           | `sle get mcp`       | Mount checks, Zaber discovery, projects      |
-| sl-shared-assets        | `slsa mcp` | Working directory, credentials, templates    |
-| ataraxis-video-system   | `axvs mcp`         | Camera discovery, video requirements, CTI    |
-| ataraxis-comm-interface | `axci-mcp`         | Microcontroller discovery, MQTT broker       |
-
-If any MCP server is unavailable, inform the user which server is needed and provide the start command.
+Comprehensive pre-flight verification for acquisition systems. Orchestrates the `sle mcp` server,
+the assets plugin's `slsa mcp` server, and hardware-discovery hand-offs to validate that a host is
+ready to run a session. This is the lighter-weight pre-session sweep; full bringup discovery is owned
+by `/acquisition-system-setup`.
 
 ---
 
-## Complete Verification Workflow
+## MCP server requirements
 
-Copy this checklist when performing a system health check:
+| Server                  | CLI command | Used for                                                       |
+|-------------------------|-------------|----------------------------------------------------------------|
+| `sollertia-experiment`  | `sle mcp`   | Mount checks, system-configuration validation, Zaber validation |
+| `sollertia-shared-assets` | `slsa mcp` | Platform configuration status snapshot                         |
+| ataraxis-video-system   | `axvs mcp`  | Camera discovery and video requirements (via `/acquisition-system-setup`) |
+| ataraxis-comm-interface | `axci mcp`  | Microcontroller discovery and MQTT broker check (via `/acquisition-system-setup`) |
+
+If a required server is unavailable, hand off to the owning plugin's MCP environment setup skill
+(`/experiment-mcp-environment-setup`, assets plugin `/assets-mcp-environment-setup`,
+`ataraxis@video:video-mcp-environment-setup`, `ataraxis@communication:communication-mcp-environment-setup`).
+
+---
+
+## Complete verification workflow
 
 ```text
-System Health Check Progress:
-- [ ] Phase 1: Configuration prerequisites verified
+System health check progress:
+- [ ] Phase 1: Platform configuration prerequisites verified
 - [ ] Phase 2: Network storage mounts accessible
-- [ ] Phase 3: Hardware discovery completed
-- [ ] Phase 4: Video system requirements verified
-- [ ] Phase 5: Configuration validation passed
+- [ ] Phase 3: Hardware connectivity confirmed
+- [ ] Phase 4: Configuration validity confirmed
 ```
 
-### Phase 1: Configuration Prerequisites
+### Phase 1: Platform configuration prerequisites
 
-Start with a single-call health snapshot of every Sollertia platform configuration component owned
-by `sollertia-shared-assets`:
+Take a single-call snapshot of every Sollertia platform configuration component owned by
+`sollertia-shared-assets`:
 
 ```text
 get_platform_environment_status_tool()
 ```
 
-This skill is the **exclusive** owner of `get_platform_environment_status_tool`. The tool returns
-a structured report covering working directory readiness, Google credentials, task templates
-directory, system configuration presence and validity, and server configuration presence. Use it as
-the first probe — if every component reports healthy, skip the redundant per-component tools below
-and advance to Phase 2.
+This read-only `slsa` tool reports data-root readiness, Google credentials, task-templates
+directory, and system-configuration presence. If every component reports healthy, advance to
+Phase 2. When a component reports unhealthy, hand off to the owning assets-plugin skill to fix it —
+data root / credentials / templates are set by assets plugin `/working-directory`; this skill never
+writes configuration.
 
-When any component reports unhealthy, fall back to the per-component tools to localize the fault:
+### Phase 2: Network storage mounts
 
-| Check                        | Tool                                | Expected Result                     |
-|------------------------------|-------------------------------------|-------------------------------------|
-| Working directory set        | `get_working_directory_tool`        | Returns valid path                  |
-| System config exists         | `check_system_mounts_tool`          | Returns system name                 |
-| Task templates directory set | `get_task_templates_directory_tool` | Returns valid path to Unity configs |
+```text
+check_system_mounts_tool()
+```
 
-**Task templates directory** must point to the `sl-unity-tasks/Assets/InfiniteCorridorTask/Configurations/` folder.
-If `get_task_templates_directory_tool` returns no path or an invalid one, hand off to the assets plugin's
-`/working-directory` skill to set it. This skill must not call `set_task_templates_directory_tool` directly —
-bootstrap path setters are owned by `/working-directory`.
+Validates `mesoscope_directory` and every configured `filesystem.storage_directories` destination.
+For a path that fails, drill in with `check_mount_accessibility_tool(path=...)`:
 
-### Phase 2: Network Storage Mounts
+- `Exists: No` — the path does not exist; check `/etc/fstab` or systemd mount units.
+- `Mount: No` — the path exists but is not a mount point (a local directory may be used instead of network storage).
+- `Writable: No` — the path exists but the write test failed; check permissions or mount options (uid, gid, file_mode, dir_mode).
 
-| Check                 | Tool                       | Expected Result            |
-|-----------------------|----------------------------|----------------------------|
-| All mounts accessible | `check_system_mounts_tool` | All paths show "OK" status |
+### Phase 3: Hardware connectivity
 
-If any mount fails, use `check_mount_accessibility_tool(path)` for detailed diagnostics on specific paths.
+| Check                     | Tool                          | Server | Expected result                       |
+|---------------------------|-------------------------------|--------|---------------------------------------|
+| Cameras detected          | `list_cameras`                | axvs   | Expected camera indices               |
+| Video runtime ready       | `check_runtime_requirements`  | axvs   | FFMPEG available, GPU detected        |
+| CTI file (Harvesters)     | `get_cti_status`              | axvs   | CTI configured (if using GenICam)     |
+| Microcontrollers detected | `list_microcontrollers`       | axci   | ACTOR/SENSOR/ENCODER ports            |
+| MQTT broker reachable     | `check_mqtt_broker`           | axci   | Connection successful                 |
+| Zaber motors detected     | `get_zaber_devices_tool`      | sle    | All motor groups and axes             |
 
-**Interpreting mount results:**
+These read-only discovery tools are owned by `/acquisition-system-setup` (cameras, microcontrollers,
+MQTT — via the ataraxis video and communication servers) and `/zaber-interface` (Zaber motors). Hand
+off there for full discovery semantics and hardware troubleshooting; this skill calls them read-only
+as a pre-flight sweep.
 
-- `Exists: No` indicates the path does not exist. Check mount configuration in `/etc/fstab` or systemd mount units.
-- `Mount: No` indicates the path exists but is not a mount point. This may indicate a local directory is being used
-  instead of network storage.
-- `Writable: No` indicates the path exists but write test failed. Check permissions or mount options (uid, gid,
-  file_mode, dir_mode).
+### Phase 4: Configuration validity
 
-### Phase 3: Hardware Discovery
+| Check                      | Tool                                             | Expected result                       |
+|----------------------------|--------------------------------------------------|---------------------------------------|
+| System configuration valid | `validate_system_configuration_tool`             | Valid; mounts healthy                 |
+| Zaber configuration valid  | `validate_zaber_configuration_tool(port, device_index, expected_settings)` | VALID for each motor |
 
-| Check                     | Tool                                   | Expected Result                    |
-|---------------------------|----------------------------------------|------------------------------------|
-| Cameras detected          | `list_cameras`                         | Shows expected camera indices      |
-| Microcontrollers detected | `list_microcontrollers`                | Shows ACTOR, SENSOR, ENCODER ports |
-| Zaber motors detected     | `get_zaber_devices_tool`               | Shows all motor groups and axes    |
-| MQTT broker reachable     | `check_mqtt_broker("127.0.0.1", 1883)` | Connection successful              |
-
-### Phase 4: Video System Requirements
-
-| Check                 | Tool                         | Expected Result                        |
-|-----------------------|------------------------------|----------------------------------------|
-| Runtime requirements  | `check_runtime_requirements` | FFMPEG available, GPU detected         |
-| CTI file (Harvesters) | `get_cti_status`             | CTI file configured (if using GeniCam) |
-
-### Phase 5: Configuration Validation
-
-| Check              | Tool                                             | Expected Result              |
-|--------------------|--------------------------------------------------|------------------------------|
-| Projects exist     | `get_projects_tool`                              | Lists expected projects      |
-| Zaber config valid | `validate_zaber_configuration_tool(port, index)` | Status: VALID for each motor |
+Project existence (for a session about to be recorded) is verified through the assets plugin
+`/project-hierarchy`; there is no project-listing tool on `sle mcp`.
 
 ---
 
-## Quick Health Check
+## Quick health check
 
-For a rapid pre-session check, run these tools in sequence:
+For a rapid pre-session check:
 
-1. `check_system_mounts_tool()` verifies all storage is accessible
-2. `list_cameras()` confirms cameras are connected
-3. `list_microcontrollers()` confirms microcontrollers are connected
-4. `get_zaber_devices_tool()` confirms motors are connected
-5. `check_mqtt_broker("127.0.0.1", 1883)` confirms Unity communication ready
+1. `get_platform_environment_status_tool()` — platform configuration healthy.
+2. `check_system_mounts_tool()` — all storage accessible.
+3. Hand off to `/acquisition-system-setup` — cameras, microcontrollers, Zaber motors, and MQTT broker present.
+4. `validate_system_configuration_tool()` — configuration valid.
 
 If all pass, the system is ready for acquisition.
 
 ---
 
-## Troubleshooting Guide
+## Troubleshooting guide
 
-### Mount Failures
+### Mount failures
 
-| Symptom                 | Likely Cause          | Resolution                                              |
+| Symptom                 | Likely cause          | Resolution                                              |
 |-------------------------|-----------------------|---------------------------------------------------------|
-| Path does not exist     | Mount not configured  | Add entry to `/etc/fstab` or create systemd mount unit  |
-| Exists but not mount    | Local directory used  | Check mount status with `mount | grep path`             |
+| Path does not exist     | Mount not configured  | Add an entry to `/etc/fstab` or create a systemd mount unit |
+| Exists but not a mount  | Local directory used  | Check mount status: `mount | grep <path>`               |
 | Not writable            | Permission issue      | Check mount options (uid, gid, file_mode, dir_mode)     |
-| Stale mount             | Network disruption    | Remount: `sudo umount -l /path && sudo mount /path`     |
+| Stale mount             | Network disruption    | Remount: `sudo umount -l <path> && sudo mount <path>`   |
 
-### Hardware Not Detected
+### Hardware not detected / MQTT failures
 
-| Symptom                  | Likely Cause             | Resolution                                            |
-|--------------------------|--------------------------|-------------------------------------------------------|
-| Camera not in list       | USB disconnected         | Check physical connection                             |
-| Wrong camera index       | USB enumeration changed  | Re-run discovery after reboot                         |
-| Microcontroller missing  | Port conflict            | Check `ls /dev/ttyACM*` and ensure no other process   |
-| Zaber not responding     | Power off                | Verify motor power supply is on                       |
-
-### MQTT Connection Failed
-
-| Symptom             | Likely Cause        | Resolution                                         |
-|---------------------|---------------------|----------------------------------------------------|
-| Connection refused  | Broker not running  | Start Mosquitto: `sudo systemctl start mosquitto`  |
-| Timeout             | Wrong IP/port       | Verify Unity PC IP address in configuration        |
+Delegate to `/acquisition-system-setup`'s troubleshooting tables — it owns the discovery tooling and
+the camera/microcontroller/Zaber/MQTT failure modes.
 
 ---
 
-## Post-Check Actions
+## Post-check actions
 
-After completing the health check:
+1. **All checks pass** — the system is ready for session execution.
+2. **Configuration prerequisite unhealthy** — hand off to assets plugin `/working-directory`.
+3. **Mount failures** — resolve OS-level mount issues before proceeding.
+4. **Hardware missing** — hand off to `/acquisition-system-setup`.
+5. **Configuration invalid** — hand off to `/mesoscope-vr` to correct the system configuration.
 
-1. **All checks pass**: System is ready for `/acquisition-system-setup` configuration or session execution.
-2. **Mount failures**: Resolve OS-level mount issues before proceeding.
-3. **Hardware missing**: Check physical connections and re-run discovery.
-4. **Configuration invalid**: Use `/acquisition-system-setup` to update configuration.
+---
+
+## Related skills
+
+| Skill                                       | Relationship                                                       |
+|---------------------------------------------|--------------------------------------------------------------------|
+| `/acquisition-system-setup`                 | Owns the full hardware-discovery sweep this skill hands off to     |
+| `/mesoscope-vr`                             | Owns system-configuration authoring and `validate_system_configuration_tool` |
+| `/experiment-mcp-environment-setup`         | Run first if the `sle mcp` server is not connected                 |
+| `/pipeline`                                 | Phase 5 (pre-session health check) is owned by this skill          |
+| assets plugin `/working-directory`          | Fixes data-root / credentials / templates prerequisites            |
+| assets plugin `/project-hierarchy`          | Confirms the recording project exists                              |
+| `ataraxis@video:camera-setup`               | CTI / video runtime requirement deep-dives                         |
+| `ataraxis@communication:microcontroller-setup` | Microcontroller manifest / discovery deep-dives                |
+
+---
+
+## Verification checklist
+
+```text
+- [ ] sle mcp and slsa mcp connected
+- [ ] get_platform_environment_status_tool reported all components healthy
+- [ ] check_system_mounts_tool reported all mounts OK
+- [ ] Hardware sweep via /acquisition-system-setup confirmed expected hardware
+- [ ] validate_system_configuration_tool passed
+- [ ] validate_zaber_configuration_tool reported VALID for each motor
+- [ ] Did NOT write any configuration from this skill (read-only verification only)
+```

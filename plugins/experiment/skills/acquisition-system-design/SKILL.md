@@ -36,12 +36,15 @@ concrete instances, see the per-system skills (currently `experiment:mesoscope-v
 - Workflows for adding a new hardware lane, building a new acquisition system, extending an existing lane
 
 **Does not cover** (delegated):
-- The per-firmware-module Python wrapper layer (`shared_components/module_interfaces.py`) and slmc
+- The per-firmware-module Python wrapper layer (`cross_system/module_interfaces.py`) and slmc
   firmware Modules — see `experiment:microcontroller-interface`.
 - Concrete Mesoscope-VR composition (the binding-class instances and their YAML field surface) — see
   `experiment:mesoscope-vr`.
+- The platform-general runtime-behavior pattern (state machine, runtime loop, event dispatch) — see
+  `experiment:acquisition-system-runtime`.
 - Concrete Mesoscope-VR runtime behavior (state machine, training modes, CLI) — see
   `experiment:mesoscope-vr-runtime`.
+- The Unity VR task driver lane — see `experiment:vr-driver-interface`.
 - Low-level VideoSystem mechanics — see `ataraxis@video:camera-interface`.
 - Low-level MicroControllerInterface mechanics — see `ataraxis@communication:microcontroller-interface`.
 - Zaber motor interface mechanics — see `experiment:zaber-interface`.
@@ -240,7 +243,7 @@ class <System><Lane>:
 - Use `@dataclass(slots=True)`. The per-lane dataclasses don't inherit from `YamlConfig`, so slots
   are safe and reduce memory.
 - Class name follows the `<System><Lane>` convention: `MesoscopeCameras`, `MesoscopeMicroControllers`,
-  `MesoscopeExternalAssets`, etc.
+  `MesoscopeVRAssets`, etc.
 - Each field has an explicit default — the YAML loader uses defaults when a field is absent.
 - Each field has a triple-quoted docstring immediately after it. `YamlConfig` extracts these and
   writes them as YAML comments.
@@ -560,9 +563,10 @@ only microcontrollers gains a camera), follow these steps:
 6. **Update the per-system instance skill.** Add a section documenting the new lane's calibration
    surface and binding-class composition (for Mesoscope-VR, this is `experiment:mesoscope-vr`).
 
-7. **Regenerate the system configuration YAML.** Use the system's MCP tooling (e.g., `sle configure
-   system`) to write a new configuration file from the updated defaults. Older deployments need
-   their YAML files re-generated against the new schema.
+7. **Regenerate the system configuration YAML.** Use the system's configuration tooling (e.g., the
+   `write_system_configuration_tool` MCP tool, or the `sle mesoscope configure` CLI for Mesoscope-VR)
+   to write a new configuration file from the updated defaults. Older deployments need their YAML
+   files re-generated against the new schema.
 
 ### Building a new acquisition system from scratch
 
@@ -644,12 +648,12 @@ mount-check entry point.
 The Mesoscope-VR acquisition system is the current consumer of every pattern in this skill:
 
 - **System Configuration**: `MesoscopeSystemConfiguration` in
-  `sollertia_experiment/mesoscope_vr/configuration.py`. Composes 5 sections (filesystem, sheets,
-  cameras, microcontrollers, external_assets) plus a top-level `name` field. Implements
+  `sollertia_experiment/mesoscope_vr/system.py`. Composes 5 sections (filesystem, sheets,
+  cameras, microcontrollers, assets) plus a top-level `name` field. Implements
   `__post_init__` for valve calibration tuple normalization and `save()` for tuple→dict YAML
   roundtrip.
 - **Calibration dataclasses**: `MesoscopeFileSystem`, `MesoscopeGoogleSheets`, `MesoscopeCameras`,
-  `MesoscopeMicroControllers`, `MesoscopeExternalAssets`. All use `slots=True` and follow the
+  `MesoscopeMicroControllers`, `MesoscopeVRAssets`. All use `slots=True` and follow the
   field-naming convention.
 - **Binding classes**: `MicroControllerInterfaces`, `VideoSystems`, `ZaberMotors` in
   `sollertia_experiment/mesoscope_vr/binding_classes.py`. Each follows the constructor + `start` +
@@ -693,7 +697,9 @@ system skills answer "only this one."
 | `experiment:microcontroller-interface`                 | The per-module wrapper layer that binding classes compose. Authoritative for slmc/sle conventions.    |
 | `experiment:zaber-interface`                           | Shared Zaber motor interface mechanics. Binding classes that include motors compose this.             |
 | `experiment:mesoscope-vr`                              | The current Mesoscope-VR worked instance of this pattern.                                              |
+| `experiment:acquisition-system-runtime`                | The runtime-behavior counterpart to this static-composition pattern.                                   |
 | `experiment:mesoscope-vr-runtime`                      | Mesoscope-VR-specific runtime behavior (state machine, training modes, CLI). Built on this pattern.    |
+| `experiment:vr-driver-interface`                       | The Unity VR task driver lane an acquisition system composes for VR coupling.                          |
 | `ataraxis@video:camera-interface`                      | Low-level VideoSystem mechanics. Camera binding classes compose VideoSystem instances.                 |
 | `ataraxis@communication:microcontroller-interface`     | Low-level MicroControllerInterface mechanics. Microcontroller binding classes compose these.           |
 | `experiment:acquisition-system-setup`                  | Post-flash hardware discovery used to populate system configuration fields.                            |

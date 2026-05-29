@@ -1,7 +1,7 @@
 # Mesoscope-VR configuration fields
 
 State snapshot of every field in `MesoscopeSystemConfiguration` and its nested calibration
-dataclasses, as defined in `sollertia_experiment/mesoscope_vr/configuration.py`.
+dataclasses, as defined in `sollertia_experiment/mesoscope_vr/system.py`.
 
 This file is the authoritative per-field reference for the Mesoscope-VR YAML configuration. See
 [`../SKILL.md`](../SKILL.md) for the system overview, binding-class composition, and modification
@@ -19,7 +19,7 @@ type/units/default changed.
 | `sheets`           | `MesoscopeGoogleSheets`    | `field(default_factory=...)`           | Google Sheets identifiers (see below)                                |
 | `cameras`          | `MesoscopeCameras`         | `field(default_factory=...)`           | Camera calibration (see below)                                       |
 | `microcontrollers` | `MesoscopeMicroControllers`| `field(default_factory=...)`           | Microcontroller calibration (see below)                              |
-| `assets`           | `MesoscopeExternalAssets`  | `field(default_factory=...)`           | Third-party hardware and external services (see below)               |
+| `assets`           | `MesoscopeVRAssets`        | `field(default_factory=...)`           | Zaber motor ports + nested Unity MQTT task configuration (see below)  |
 
 ### Non-default behaviors
 
@@ -34,18 +34,21 @@ type/units/default changed.
 
 ## MesoscopeFileSystem
 
-Captures filesystem layout — five `Path` fields. All default to `Path()` (empty path); the user
-MUST set them per-host.
+Captures filesystem layout — two fields. Both default to empty paths; the user MUST set them
+per-host.
 
-| Field                 | Type   | Default   | Purpose                                                                                          |
-|-----------------------|--------|-----------|--------------------------------------------------------------------------------------------------|
-| `root_directory`      | `Path` | `Path()`  | Absolute path to the directory where all projects are stored on the main data acquisition PC     |
-| `server_directory`    | `Path` | `Path()`  | Absolute path to the local-filesystem-mounted directory where all projects are stored on the remote compute server |
-| `nas_directory`       | `Path` | `Path()`  | Absolute path to the local-filesystem-mounted directory where all projects are stored on the NAS backup storage volume |
-| `mesoscope_directory` | `Path` | `Path()`  | Absolute path to the local-filesystem-mounted directory where mesoscope-acquired data is aggregated during acquisition by the PC that manages the mesoscope DAQ |
+| Field                  | Type             | Default                                  | Purpose                                                                                          |
+|------------------------|------------------|------------------------------------------|--------------------------------------------------------------------------------------------------|
+| `mesoscope_directory`  | `Path`           | `Path()`                                 | Absolute path to the local-filesystem-mounted directory where mesoscope-acquired data is aggregated during acquisition by the PC that manages the mesoscope DAQ |
+| `storage_directories`  | `dict[str, Path]`| `{"NAS": Path(), "Server": Path()}`      | Maps each long-term storage destination name to its local-filesystem-mounted project-root path. Seeded with the `MesoscopeStorageDestination` members `"NAS"` and `"Server"`; any number of destinations may be configured under arbitrary names. An empty path means the destination is not configured and is skipped during transfer/removal; mapping order defines pull-back preference |
 
-**Mount checks:** All four paths are validated by `check_system_mounts_tool` at every session
-start. A missing or unwritable path aborts the runtime.
+The local **data root** (the directory under which projects are stored on this machine) is NOT in
+this section — it is the platform-shared data root, resolved with `get_data_root()` and set with
+`slsa configure data-root`.
+
+**Mount checks:** `mesoscope_directory` and every configured `storage_directories` path are
+validated by `check_system_mounts_tool` at every session start. A missing or unwritable path
+aborts the runtime.
 
 ---
 
@@ -127,10 +130,12 @@ internally.
 | `wheel_encoder_report_ccw`             | `bool`  | `True`  | Whether to report counter-clockwise rotation                                         |
 | `wheel_encoder_delta_threshold_pulse`  | `int`   | `15`    | Minimum pulse-count delta for reporting a rotation event                            |
 | `wheel_encoder_polling_delay_us`       | `int`   | `500`   | Delay (microseconds) between consecutive encoder state readouts                     |
-| `cm_per_unity_unit`                    | `float` | `10.0`  | Length of one Unity VR distance unit in real-world centimeters                       |
 
-`EncoderInterface(encoder_ppr, wheel_diameter, cm_per_unity_unit, polling_frequency)` consumes
-these; `set_parameters(report_ccw, report_cw, delta_threshold)` is sent at session start.
+`EncoderInterface(encoder_ppr, wheel_diameter, polling_frequency)` consumes these;
+`set_parameters(report_ccw, report_cw, delta_threshold)` is sent at session start. The
+centimeters-per-Unity-unit conversion is NOT a configuration field — it is read from the active
+`TaskTemplate` (`vr_environment.cm_per_unity_unit`) and applied at experiment start via
+`EncoderInterface.set_unity_scale()`.
 
 ### Lick sensor calibration (consumes `LickInterface`)
 
@@ -170,13 +175,13 @@ averaging_pool_size)` is sent at session start.
 `ScreenInterface.set_parameters(pulse_duration)` consumes this at session start (converted to
 microseconds before sending).
 
-### Mesoscope frame TTL (consumes `TTLInterface`)
+### Mesoscope frame TTL (consumes `MesoscopeFrameTTLInterface`)
 
 | Field                                  | Type   | Default | Purpose                                                                          |
 |----------------------------------------|--------|---------|----------------------------------------------------------------------------------|
 | `mesoscope_frame_averaging_pool_size`  | `int`  | `0`     | Number of digital readouts averaged when determining mesoscope frame TTL state   |
 
-`TTLInterface.set_parameters(averaging_pool_size)` consumes this.
+`MesoscopeFrameTTLInterface.set_parameters(averaging_pool_size)` consumes this.
 
 ### Generic sensor polling
 
@@ -184,28 +189,29 @@ microseconds before sending).
 |-----------------------------|--------|---------|--------------------------------------------------------------------------|
 | `sensor_polling_delay_ms`   | `int`  | `1`     | Delay (milliseconds) between consecutive readouts of any non-encoder sensor |
 
-Converted to microseconds and passed as `polling_frequency` to `TTLInterface`, `LickInterface`, and
-`TorqueInterface` constructors.
+Converted to microseconds and passed as `polling_frequency` to `MesoscopeFrameTTLInterface`,
+`LickInterface`, and `TorqueInterface` constructors.
 
-### Valve calibration (consumes `ValveInterface`)
+### Valve calibration (consumes `WaterValveInterface`)
 
 | Field                      | Type                                                        | Default                                                              | Purpose                                       |
 |----------------------------|-------------------------------------------------------------|----------------------------------------------------------------------|-----------------------------------------------|
 | `valve_calibration_data`   | `dict[int \| float, int \| float] \| tuple[tuple[int \| float, int \| float], ...]` | `((15000, 1.10), (30000, 3.0), (45000, 6.25), (60000, 10.90))`        | Maps valve open durations (microseconds) → dispensed volume (microliters) |
 
-`ValveInterface(valve_calibration_data)` consumes the tuple form; the dataclass's `__post_init__`
-normalizes from `dict` on YAML load. `ValveInterface` fits a power-law model
+`WaterValveInterface(valve_calibration_data)` consumes the tuple form; the dataclass's `__post_init__`
+normalizes from `dict` on YAML load. `WaterValveInterface` fits a power-law model
 (`a * pulse_duration ** b`) to this calibration data using `scipy.optimize.curve_fit`.
 
-**Recalibration**: Use the `experiment:mesoscope-vr-runtime` skill (or `ValveInterface.calibrate_valve()`
+**Recalibration**: Use the `experiment:mesoscope-vr-runtime` skill (or `WaterValveInterface.calibrate_valve()`
 directly) to gather new calibration points. Replace the entire tuple; do NOT mix old and new
 measurements.
 
 ---
 
-## MesoscopeExternalAssets
+## MesoscopeVRAssets
 
-Captures third-party hardware ports and external service endpoints — five fields.
+Captures the Virtual Reality task assets — the three Zaber motor ports plus a nested `vr_task`
+configuration. Four fields.
 
 ### Zaber motor ports
 
@@ -218,16 +224,21 @@ Captures third-party hardware ports and external service endpoints — five fiel
 Ports come from `experiment:zaber-interface` discovery (`get_zaber_devices_tool`). The
 daisy-chain order is hardware-cabled and MUST match the order the binding class assumes.
 
-### Unity VR MQTT
+### Unity VR task (`vr_task`)
 
-| Field         | Type   | Default       | Purpose                                                |
-|---------------|--------|---------------|--------------------------------------------------------|
-| `unity_ip`    | `str`  | `"127.0.0.1"` | MQTT broker IP for the Unity VR game engine            |
-| `unity_port`  | `int`  | `1883`        | MQTT broker port for the Unity VR game engine          |
+`vr_task` is a nested `VRTaskConfiguration` (from `sollertia_experiment/vr_task/configuration.py`).
+It stores only the MQTT broker discovery fields used to reach Unity.
+
+| Field          | Type   | Default       | Purpose                                                          |
+|----------------|--------|---------------|------------------------------------------------------------------|
+| `vr_task.ip`   | `str`  | `"127.0.0.1"` | IP address of the MQTT broker used to reach the Unity game engine |
+| `vr_task.port` | `int`  | `1883`        | Port number of the MQTT broker used to reach the Unity game engine |
 
 The Mesoscope-VR runtime publishes VR-environment commands over MQTT. The broker is typically
 co-hosted on the acquisition PC (localhost) but may be relocated to a separate machine for
-multi-PC rigs.
+multi-PC rigs. The geometric VR parameters (cue catalog, corridor geometry, cm-per-Unity-unit) are
+NOT stored here — they are resolved at experiment start from the matching `TaskTemplate` YAML. See
+`experiment:vr-driver-interface`.
 
 ---
 

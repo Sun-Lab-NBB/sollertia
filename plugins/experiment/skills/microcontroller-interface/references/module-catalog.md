@@ -5,7 +5,7 @@ stack:
 
 - **sollertia-micro-controllers** firmware: C++ `Module` subclasses in `src/*.h`
 - **sollertia-experiment** Python: `ModuleInterface` subclasses in
-  `src/sollertia_experiment/shared_components/module_interfaces.py`
+  `src/sollertia_experiment/cross_system/module_interfaces.py`
 
 This file documents **what is currently deployed**, not the rules for extending the stack. See
 [`../SKILL.md`](../SKILL.md) for the conventions, cross-side contract, allocation rules, and
@@ -20,11 +20,11 @@ The Sollertia platform currently uses type codes 1-7.
 
 | Type | Module          | Interface                                               | Direction       | Instance ids in use | Notes                                                                 |
 |------|-----------------|---------------------------------------------------------|-----------------|---------------------|-----------------------------------------------------------------------|
-| 1    | `TTLModule`     | `TTLInterface`                                          | Input OR Output | 1                   | Per-instance pin mode is set at compile time via `kOutput` template   |
+| 1    | `TTLModule`     | `MesoscopeFrameTTLInterface`                                          | Input OR Output | 1                   | Per-instance pin mode is set at compile time via `kOutput` template   |
 | 2    | `EncoderModule` | `EncoderInterface`                                      | Input           | 1                   | Uses `ENCODER_USE_INTERRUPTS`; incompatible with other interrupt libs |
 | 3    | `BrakeModule`   | `BrakeInterface`                                        | Output          | 1                   | PWM-controlled electromagnetic particle brake                         |
 | 4    | `LickModule`    | `LickInterface`                                         | Input           | 1                   | Analog ADC-threshold conductive sensor                                |
-| 5    | `ValveModule`   | `ValveInterface` (id 1), `GasPuffValveInterface` (id 2) | Output          | 1, 2                | Same firmware module; two Python wrappers with different calibration  |
+| 5    | `ValveModule`   | `WaterValveInterface` (id 1), `GasPuffValveInterface` (id 2) | Output     | 1, 2                | Same firmware module; two Python wrappers with different calibration  |
 | 6    | `TorqueModule`  | `TorqueInterface`                                       | Input           | 1                   | AD620-amplified analog torque sensor                                  |
 | 7    | `ScreenModule`  | `ScreenInterface`                                       | Output          | 1                   | Pulses FET gates on VR-screen power boards                            |
 
@@ -43,7 +43,7 @@ names the C++ class, template parameters, custom event codes, and commands; the 
 names the interface class, constructor calibration knobs, shared-memory state surfaced to other
 processes, and the public methods exposed to consumers.
 
-### TTLModule + TTLInterface (type 1)
+### TTLModule + MesoscopeFrameTTLInterface (type 1)
 
 **Firmware**: `src/ttl_module.h` — `TTLModule<kPin, kOutput, kStartOn>`. A single instance is either an
 output or an input, not both. Output mode supports `SendPulse`, `ToggleOn`, `ToggleOff`; input mode
@@ -57,7 +57,7 @@ supports `CheckState` with state-change suppression to limit PC traffic.
 | Commands            | 1 kSendPulse, 2 kToggleOn, 3 kToggleOff, 4 kCheckState                     |
 | Wrong-mode handling | Output commands on an input instance emit code 53 and abort                |
 
-**Wrapper**: `TTLInterface(polling_frequency: int)`. Currently exposes only the input-side surface
+**Wrapper**: `MesoscopeFrameTTLInterface(polling_frequency: int)`. Currently exposes only the input-side surface
 (`set_monitoring_state`, `pulse_count`) because the Mesoscope-VR consumer uses TTL only for receiving
 mesoscope-frame trigger pulses. Output-side command codes are not exposed; if a consumer needs them, add
 them as new instance attributes following the existing pattern. The wrapper hard-codes `name="mesoscope_frame"`
@@ -83,14 +83,16 @@ Implements amortization on the non-reported direction to suppress micro-jitter i
 | Commands             | 1 kCheckState, 2 kReset, 3 kGetPPR (BLOCKING, offline only)                                                                                |
 | Interrupt dependency | `ENCODER_USE_INTERRUPTS` consumes interrupt slots; module is incompatible with other `AttachInterrupt()`-using libraries on the same board |
 
-**Wrapper**: `EncoderInterface(encoder_ppr, wheel_diameter, cm_per_unity_unit, polling_frequency)`. Computes
-`cm_per_pulse` and `unity_unit_per_pulse` conversion factors in `__init__` (rounded to 8 decimals) and
-maintains a 2-element shared-memory tracker for total distance (cm) and absolute Unity position.
+**Wrapper**: `EncoderInterface(encoder_ppr, wheel_diameter, polling_frequency)`. Computes
+`cm_per_pulse` in `__init__` (rounded to 8 decimals) and maintains a 2-element shared-memory tracker
+for total distance (cm) and absolute Unity position. The centimeters-per-Unity-unit conversion is
+NOT a constructor argument — it is supplied at experiment start via `set_unity_scale(cm_per_unity_unit)`
+(the value is read from the active `TaskTemplate`), which derives `unity_unit_per_pulse`.
 
 - Shared memory: `<type>_<id>_distance_tracker` — `np.float64[2]` (index 0: cumulative cm; index 1: absolute Unity-unit position)
-- Public methods: `set_parameters(report_ccw, report_cw, delta_threshold)`, `set_monitoring_state(*, state)`,
-  `cm_per_pulse` (property), `absolute_position` (property), `traveled_distance` (property),
-  `reset_distance_tracker()`
+- Public methods: `set_parameters(report_ccw, report_cw, delta_threshold)`, `set_unity_scale(cm_per_unity_unit)`,
+  `set_monitoring_state(*, state)`, `cm_per_pulse` (property), `absolute_position` (property),
+  `traveled_distance` (property), `reset_distance_tracker()`
 
 ### BrakeModule + BrakeInterface (type 3)
 
@@ -137,7 +139,7 @@ contact.
 - Public methods: `set_parameters(signal_threshold, delta_threshold, average_pool_size)`,
   `set_monitoring_state(*, state)`, `lick_count` (property), `lick_threshold` (property)
 
-### ValveModule + ValveInterface + GasPuffValveInterface (type 5, ids 1 and 2)
+### ValveModule + WaterValveInterface + GasPuffValveInterface (type 5, ids 1 and 2)
 
 **Firmware**: `src/valve_module.h` — `ValveModule<kValvePin, kNormallyClosed, kStartClosed, kTonePin=255, kNormallyOff=true, kStartOff=true>`.
 Drives a solenoid valve with an optional co-driven tone buzzer. When `kTonePin == 255` the tone subsystem
@@ -153,7 +155,7 @@ calibration.
 | Commands           | 1 kSendPulse, 2 kToggleOn, 3 kToggleOff, 4 kCalibrate (BLOCKING, offline only), 5 kTonePulse                                                                        |
 | Safety bound       | Pulse durations longer than ~400 ms trigger the keepalive watchdog on the host PC; the wrappers cap requested durations to `_MAXIMUM_VALVE_PULSE_DURATION_MS = 400` |
 
-**Wrapper A — `ValveInterface(valve_calibration_data)`**: water-reward solenoid with audible tone. Fits a
+**Wrapper A — `WaterValveInterface(valve_calibration_data)`**: water-reward solenoid with audible tone. Fits a
 power-law model (`a * pulse_duration ** b`) to the supplied calibration tuple in `__init__` using
 `scipy.optimize.curve_fit` and inverts it to map requested volumes to pulse durations. Uses a
 `PrecisionTimer` (initialized in `initialize_remote_assets` because it is non-picklable) to integrate
@@ -173,7 +175,7 @@ delivered volume across open/close transitions reported by the firmware.
   instantaneous valve state)
 - Public methods: `set_state(*, state)`, `deliver_puff(duration_ms)`, `puff_count` (property)
 
-> **Multi-instance pattern**: Two `ValveInterface`-style wrappers exist because the same firmware module
+> **Multi-instance pattern**: Two valve wrappers exist because the same firmware module
 > serves two application roles (water reward + gas aversive). When a single firmware module can be
 > physically reused with different calibration or semantics, add a new wrapper class with the same
 > `module_type` and a fresh `module_id` rather than creating a new firmware module.
