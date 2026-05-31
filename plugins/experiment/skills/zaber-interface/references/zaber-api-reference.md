@@ -1,13 +1,13 @@
-# Zaber Motor API Reference
+# Zaber motor API reference
 
 Complete API reference for the Zaber motor binding classes used in sollertia-experiment.
 
 ---
 
-## Core Imports
+## Core imports
 
 ```python
-from sollertia_experiment.mesoscope_vr.zaber_bindings import (
+from sollertia_experiment.cross_system.zaber_bindings import (
     ZaberConnection,
     ZaberDevice,
     ZaberAxis,
@@ -19,7 +19,7 @@ from sollertia_experiment.mesoscope_vr.zaber_bindings import (
 
 ---
 
-## ZaberConnection Class
+## ZaberConnection class
 
 Manages a serial USB port and all Zaber devices available through that port.
 
@@ -56,7 +56,7 @@ class ZaberConnection:
 |----------------|--------|----------------------------------------------------------|
 | `is_connected` | `bool` | True if connection is active and devices are responding  |
 
-### get_device Method
+### get_device method
 
 ```python
 def get_device(self, index: int) -> ZaberDevice
@@ -74,7 +74,7 @@ def get_device(self, index: int) -> ZaberDevice
 
 ### Lifecycle
 
-```
+```text
 ┌──────────────────────────────────────────────────────────────────────────┐
 │                      ZaberConnection Lifecycle                            │
 ├──────────────────────────────────────────────────────────────────────────┤
@@ -103,7 +103,7 @@ def get_device(self, index: int) -> ZaberDevice
 
 ---
 
-## ZaberDevice Class
+## ZaberDevice class
 
 Manages a Zaber controller that controls a single motor axis.
 
@@ -129,7 +129,7 @@ class ZaberDevice:
 - `ValueError` if checksum validation fails (USER_DATA_0 mismatch)
 - Prompts for confirmation if unsafe device was not properly shut down
 
-### Configuration Validation
+### Configuration validation
 
 On initialization, ZaberDevice validates:
 
@@ -151,7 +151,7 @@ On initialization, ZaberDevice validates:
 
 ---
 
-## ZaberAxis Class
+## ZaberAxis class
 
 Interfaces with a Zaber motor for motion control.
 
@@ -197,7 +197,7 @@ class ZaberAxis:
 | `mount_position`       | `int`  | Predefined mount position (native units)              |
 | `maintenance_position` | `int`  | Predefined maintenance position (native units)        |
 
-### home Method
+### home method
 
 ```python
 def home(self) -> None
@@ -211,7 +211,7 @@ commands.
 - Does nothing if motor is parked or busy
 - Call `is_busy` or `wait_until_idle()` to check completion
 
-### move Method
+### move method
 
 ```python
 def move(self, position: int) -> None
@@ -230,7 +230,7 @@ Moves the motor to the specified absolute position.
 - Does nothing if motor is parked, busy, or not homed
 - Does nothing if position exceeds motion limits
 
-### stop Method
+### stop method
 
 ```python
 def stop(self) -> None
@@ -244,14 +244,14 @@ Stops motor movement with deceleration.
 - Second rapid call: immediate stop (no deceleration)
 - Non-blocking
 
-### Communication Timing
+### Communication timing
 
 ZaberAxis enforces a 5ms minimum delay between consecutive hardware interactions to prevent overwhelming the serial
 interface. This timing is handled automatically by internal `_padded_method_call()`.
 
 ---
 
-## Non-Volatile Memory Settings
+## Non-volatile memory settings
 
 Zaber controllers store configuration in non-volatile USER_DATA variables:
 
@@ -274,7 +274,7 @@ Zaber controllers store configuration in non-volatile USER_DATA variables:
   be positioned in a way that makes homing dangerous (e.g., could cause collision). This flag should NOT be modified
   to work around improper shutdown - use `shutdown_flag` instead.
 
-### Motion Limit Settings
+### Motion limit settings
 
 | Setting         | Zaber Constant | Purpose                                     |
 |-----------------|----------------|---------------------------------------------|
@@ -284,7 +284,7 @@ Zaber controllers store configuration in non-volatile USER_DATA variables:
 
 ---
 
-## CRCCalculator Class
+## CRCCalculator class
 
 Calculates CRC32-XFER checksums for device label validation.
 
@@ -301,7 +301,7 @@ class CRCCalculator:
 |--------------------|---------|-----------------------------------------------|
 | `string_checksum`  | `int`   | Calculates CRC32-XFER checksum for string     |
 
-### string_checksum Method
+### string_checksum method
 
 ```python
 def string_checksum(self, string: str) -> int
@@ -328,7 +328,7 @@ print(f"Checksum for 'HeadBar': {checksum}")
 
 ---
 
-## Discovery Functions
+## Discovery functions
 
 ### discover_zaber_devices
 
@@ -354,7 +354,7 @@ def get_zaber_devices_info() -> str
 
 ---
 
-## Configuration Functions
+## Configuration functions
 
 ### get_zaber_device_settings
 
@@ -407,12 +407,12 @@ def set_zaber_device_setting(
 
 **Parameters:**
 
-| Parameter      | Type        | Description                                               |
-|----------------|-------------|-----------------------------------------------------------|
-| `port`         | `str`       | Serial port path                                          |
-| `device_index` | `int`       | Zero-based index in daisy-chain                           |
-| `setting`      | `str`       | Setting name (see table below)                            |
-| `value`        | `int \| str`| Value to write (int for positions/flags, str for labels)  |
+| Parameter      | Type         | Description                                              |
+|----------------|--------------|----------------------------------------------------------|
+| `port`         | `str`        | Serial port path                                         |
+| `device_index` | `int`        | Zero-based index in daisy-chain                          |
+| `setting`      | `str`        | Setting name (see table below)                           |
+| `value`        | `int \| str` | Value to write (int for positions/flags, str for labels) |
 
 **Valid Settings:**
 
@@ -432,7 +432,8 @@ def set_zaber_device_setting(
 
 - `ConnectionError`: If unable to connect to the specified port.
 - `IndexError`: If device_index is out of range.
-- `ValueError`: If setting name is invalid, value type is incorrect, or value is out of range.
+- `TypeError`: If the value type does not match the setting (a non-string label, or a noninteger position or flag).
+- `ValueError`: If the setting name is invalid or the value is out of range.
 
 **Notes:** Label changes automatically update USER_DATA_0 (checksum) to maintain device validation. The `checksum`
 setting cannot be modified directly as it is managed by the binding library.
@@ -482,7 +483,7 @@ def validate_zaber_device_configuration(port: str, device_index: int) -> ZaberVa
 
 ## Dependencies
 
-### External Requirements
+### External requirements
 
 | Dependency       | Required | Purpose                                        |
 |------------------|----------|------------------------------------------------|
@@ -490,23 +491,21 @@ def validate_zaber_device_configuration(port: str, device_index: int) -> ZaberVa
 | USB serial port  | Yes      | Physical connection to Zaber controllers       |
 | Port permissions | Yes      | User must be in `dialout` group on Linux       |
 
-### Python Requirements
+### Python requirements
 
-```
-zaber-motion>=6.0.0
-crc>=7.0.0
-tabulate>=0.9.0
-ataraxis-time>=2.0.0
-```
+Python package versions are declared and pinned in the `dependencies` array of
+`sollertia-experiment/pyproject.toml`, which is the authoritative source and is enforced at install time. Consult
+that file for the current `zaber-motion`, `crc`, `tabulate2`, `ataraxis-time`, and `ataraxis-base-utilities` pins
+rather than duplicating version numbers here.
 
 ---
 
-## Code Examples
+## Code examples
 
-### Basic Motor Control
+### Basic motor control
 
 ```python
-from sollertia_experiment.mesoscope_vr.zaber_bindings import ZaberConnection
+from sollertia_experiment.cross_system.zaber_bindings import ZaberConnection
 
 # Connect to motor group
 connection = ZaberConnection(port="/dev/ttyUSB0")
@@ -531,10 +530,10 @@ motor.park()
 connection.disconnect()
 ```
 
-### Multi-Motor Coordination
+### Multi-motor coordination
 
 ```python
-from sollertia_experiment.mesoscope_vr.zaber_bindings import ZaberConnection
+from sollertia_experiment.cross_system.zaber_bindings import ZaberConnection
 
 # Connect to daisy-chained motors
 connection = ZaberConnection(port="/dev/ttyUSB0")
@@ -575,24 +574,22 @@ roll_axis.park()
 connection.disconnect()
 ```
 
-### Position Snapshot and Restoration
+### Position snapshot and restoration
 
 ```python
-from sollertia_experiment.mesoscope_vr.zaber_bindings import ZaberConnection
-from sollertia_experiment.mesoscope_vr import ZaberPositions
+from sollertia_experiment.cross_system.zaber_bindings import ZaberConnection
 
 # Connect
 connection = ZaberConnection(port="/dev/ttyUSB0")
 connection.connect()
 motor = connection.get_device(index=0).axis
 
-# Take position snapshot
-current_position = int(motor.get_position())
-positions = ZaberPositions(headbar_z=current_position)
+# Take a position snapshot (the consuming system persists this however it tracks per-session state)
+saved_position = int(motor.get_position())
 
-# Later: restore from snapshot
+# Later: restore from the snapshot
 motor.unpark()
-motor.move(position=positions.headbar_z)
+motor.move(position=saved_position)
 while motor.is_busy:
     pass
 motor.park()
@@ -600,10 +597,10 @@ motor.park()
 connection.disconnect()
 ```
 
-### Emergency Stop
+### Emergency stop
 
 ```python
-from sollertia_experiment.mesoscope_vr.zaber_bindings import ZaberConnection
+from sollertia_experiment.cross_system.zaber_bindings import ZaberConnection
 
 connection = ZaberConnection(port="/dev/ttyUSB0")
 connection.connect()
@@ -621,74 +618,124 @@ connection.disconnect()
 
 ---
 
-## Integration with ZaberMotors Binding Class
+## Binding class patterns
 
-The `ZaberMotors` class in `binding_classes.py` demonstrates the complete integration pattern:
+When implementing Zaber motor support in a binding class, follow these patterns:
 
-### Initialization Pattern
+### Basic structure
 
 ```python
-def __init__(
-    self,
-    zaber_positions: ZaberPositions | None,
-    zaber_configuration: MesoscopeVRAssets,
-) -> None:
-    # Create connections for each motor group
-    self._headbar = ZaberConnection(port=zaber_configuration.headbar_port)
-    self._wheel = ZaberConnection(port=zaber_configuration.wheel_port)
-    self._lickport = ZaberConnection(port=zaber_configuration.lickport_port)
+class SystemZaberMotors:
+    """Manages Zaber motor groups for the acquisition system.
 
-    # Connect and extract axes
-    self._headbar.connect()
-    self._headbar_z = self._headbar.get_device(index=0).axis
-    self._headbar_pitch = self._headbar.get_device(index=1).axis
-    self._headbar_roll = self._headbar.get_device(index=2).axis
+    Args:
+        zaber_positions: Previous session positions or None for defaults.
+        zaber_configuration: Motor configuration from system config.
 
-    # Store previous positions for restoration
-    self._previous_positions = zaber_positions
+    Attributes:
+        _connection: ZaberConnection for the motor group.
+        _axis: ZaberAxis for the motor.
+    """
+
+    def __init__(
+        self,
+        zaber_positions: SystemZaberPositions | None,
+        zaber_configuration: ExternalAssetsConfig,
+    ) -> None:
+        # Initialize connection
+        self._connection: ZaberConnection = ZaberConnection(
+            port=zaber_configuration.motor_port
+        )
+
+        # Connect and get device/axis
+        self._connection.connect()
+        self._axis: ZaberAxis = self._connection.get_device(index=0).axis
+
+        # Store previous positions for restoration
+        self._previous_positions = zaber_positions
+
+    def restore_position(self) -> None:
+        """Restores motors to previous session positions."""
+        self.unpark_motors()
+
+        if self._previous_positions is not None:
+            self._axis.move(position=self._previous_positions.motor_position)
+        else:
+            self._axis.move(position=self._axis.mount_position)
+
+        self.wait_until_idle()
+        self.park_motors()
+
+    def wait_until_idle(self) -> None:
+        """Blocks until all motors finish moving."""
+        while self._axis.is_busy:
+            pass
+
+    def disconnect(self) -> None:
+        """Shuts down motors and closes connection."""
+        self._connection.disconnect()
+
+    def park_motors(self) -> None:
+        """Parks all motors to prevent accidental movement."""
+        self._axis.park()
+
+    def unpark_motors(self) -> None:
+        """Unparks motors to allow movement commands."""
+        self._axis.unpark()
 ```
 
-### Movement Pattern
+### Key patterns
+
+| Pattern                | Purpose                                          |
+|------------------------|--------------------------------------------------|
+| Park/unpark guards     | Prevent accidental movement during idle periods  |
+| Position restoration   | Maintain consistent animal positioning           |
+| Wait until idle        | Coordinate multi-motor movements                 |
+| Destructor disconnect  | Ensure proper shutdown on garbage collection     |
+
+---
+
+## Configuration requirements
+
+Motor configuration must be defined in the consuming acquisition system's configuration module before
+implementation. Each acquisition system defines its own configuration class exposing the per-motor-group serial
+ports; consult that system's own skill for the concrete class.
+
+### Required configuration fields
+
+| Field          | Type  | Description                                  |
+|----------------|-------|----------------------------------------------|
+| `*_port`       | `str` | Serial port path (e.g., `/dev/ttyUSB0`)      |
+
+### Configuration dataclass pattern
 
 ```python
-def park_position(self) -> None:
-    """Moves all motors to park positions."""
-    # 1. Unpark to allow movement
-    self.unpark_motors()
+@dataclass()
+class SystemExternalAssets:
+    """External asset configuration for the acquisition system."""
 
-    # 2. Issue all move commands (non-blocking)
-    self._headbar_z.move(position=self._headbar_z.park_position)
-    self._headbar_pitch.move(position=self._headbar_pitch.park_position)
-    self._headbar_roll.move(position=self._headbar_roll.park_position)
-    self._wheel_x.move(position=self._wheel_x.park_position)
+    primary_motor_port: str = "/dev/ttyUSB0"
+    """Serial port for the first motor group."""
 
-    # 3. Wait for all movements to complete
-    self.wait_until_idle()
-
-    # 4. Park to prevent accidental movement
-    self.park_motors()
+    secondary_motor_port: str = "/dev/ttyUSB1"
+    """Serial port for the second motor group."""
 ```
 
-### Wait Pattern
+### Position data pattern
 
 ```python
-def wait_until_idle(self) -> None:
-    """Blocks until all motors finish moving."""
-    while (
-        self._headbar_z.is_busy
-        or self._headbar_pitch.is_busy
-        or self._headbar_roll.is_busy
-        or self._wheel_x.is_busy
-    ):
-        pass  # Built-in delay in is_busy prevents overwhelming interface
-```
+@dataclass()
+class SystemZaberPositions:
+    """Stores motor positions for session restoration (one int field per managed motor axis)."""
 
-### Disconnect Pattern
+    z: int = 0
+    """Z-axis position in native motor units."""
 
-```python
-def disconnect(self) -> None:
-    """Shuts down all motors and closes connections."""
-    self._headbar.disconnect()
-    self._wheel.disconnect()
-    self._lickport.disconnect()
+    pitch: int = 0
+    """Pitch-axis position in native motor units."""
+
+    roll: int = 0
+    """Roll-axis position in native motor units."""
+
+    # ... one int field per additional motor axis
 ```

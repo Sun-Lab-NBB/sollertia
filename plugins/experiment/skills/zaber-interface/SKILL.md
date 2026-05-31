@@ -16,7 +16,23 @@ acquisition system's binding layer (currently Mesoscope-VR's `ZaberMotors`).
 
 ---
 
-## When to Use This Skill
+## Scope
+
+**Covers:**
+- Discovering Zaber motors and recording their port and daisy-chain assignments
+- Reading, modifying, and validating motor configuration in non-volatile memory (positions, flags, labels, checksum)
+- The `ZaberConnection` / `ZaberDevice` / `ZaberAxis` API hierarchy and its safety patterns
+- Composing Zaber motors into an acquisition system's binding class
+
+**Does not cover:**
+- Mesoscope-VR-specific integration — modifying `MesoscopeVRAssets` or extending `ZaberMotors` (see `/mesoscope-vr`)
+- The platform-general pattern for composing a Zaber lane into a binding class (see `/acquisition-system-design`)
+- Reading or writing the `ZaberPositions` session snapshot (see `/session-snapshots`)
+- The `zaber-motion` library internals (third-party; consult its own documentation)
+
+---
+
+## When to use this skill
 
 Use this skill when:
 
@@ -32,11 +48,11 @@ composes Zaber motors into its binding layer, see `/acquisition-system-design`.
 
 ---
 
-## Verification Requirements
+## Verification requirements
 
 **Before writing any Zaber code, verify the hardware is connected and accessible.**
 
-### Step 0: Hardware Verification
+### Step 0: Hardware verification
 
 Use the sollertia-experiment MCP server for Zaber discovery. Start the server with:
 ```bash
@@ -56,7 +72,7 @@ sle mcp
 3. **Verify device order**: Confirm daisy-chain order matches expected configuration
 
 **Expected output from `get_zaber_devices_tool()`:**
-```
+```text
 +----------------+------------+-------+---------+-------------+---------+-------------+
 |      Port      | Device Num |  ID   |  Label  |    Name     | Axis ID | Axis Label  |
 +----------------+------------+-------+---------+-------------+---------+-------------+
@@ -72,21 +88,21 @@ If motors are not detected:
 - Ensure motors are powered on before connecting USB
 - Check for port conflicts with other applications
 
-### Step 1: Content Verification
+### Step 1: Content verification
 
-| File                                                              | What to Check                            |
-|-------------------------------------------------------------------|------------------------------------------|
+| File                                                                            | What to Check                            |
+|---------------------------------------------------------------------------------|------------------------------------------|
 | `sollertia-experiment/src/sollertia_experiment/cross_system/zaber_bindings.py`  | ZaberConnection/Device/Axis patterns     |
 | `sollertia-experiment/src/sollertia_experiment/mesoscope_vr/binding_classes.py` | ZaberMotors binding class implementation |
-| `sollertia-experiment pyproject.toml`                                    | Current zaber-motion version dependency  |
+| `sollertia-experiment pyproject.toml`                                           | Current zaber-motion version dependency  |
 
 ---
 
-## Architecture Overview
+## Architecture overview
 
 Zaber motor control uses a tri-class hierarchy:
 
-```
+```text
 ┌─────────────────────────────────────────────────────────────────────────────────┐
 │                        ZaberConnection (Port Level)                             │
 │  ────────────────────────────────────────────────────────────────────────────── │
@@ -119,11 +135,11 @@ Zaber motor control uses a tri-class hierarchy:
 
 ---
 
-## Motor Discovery
+## Motor discovery
 
 Use the MCP tool `get_zaber_devices_tool()` to discover connected Zaber motors.
 
-### Discovery Output Fields
+### Discovery output fields
 
 | Field       | Description                                                          |
 |-------------|----------------------------------------------------------------------|
@@ -135,11 +151,11 @@ Use the MCP tool `get_zaber_devices_tool()` to discover connected Zaber motors.
 | Axis ID     | Axis number within the device (always 1 for single-axis controllers) |
 | Axis Label  | User-assigned axis label stored in non-volatile memory               |
 
-### Daisy-Chain Ordering
+### Daisy-chain ordering
 
 Motors connected to the same serial port form a daisy-chain. The device number reflects physical position:
 
-```
+```text
 USB Port ──► Device 1 ──► Device 2 ──► Device 3
              (index 0)    (index 1)    (index 2)
 ```
@@ -149,11 +165,11 @@ to move incorrectly.
 
 ---
 
-## Position Management
+## Position management
 
 Zaber motors use predefined positions stored in non-volatile memory for safe operation.
 
-### Position Types
+### Position types
 
 | Position    | Purpose                                           | When Used                        |
 |-------------|---------------------------------------------------|----------------------------------|
@@ -161,7 +177,7 @@ Zaber motors use predefined positions stored in non-volatile memory for safe ope
 | Mount       | Position for mounting animal into enclosure       | Session start, animal mounting   |
 | Maintenance | Position for system maintenance and cleaning      | Between sessions, maintenance    |
 
-### Position Storage
+### Position storage
 
 Positions are stored in non-volatile USER_DATA variables on each motor controller:
 
@@ -171,37 +187,37 @@ Positions are stored in non-volatile USER_DATA variables on each motor controlle
 | USER_DATA_12  | Maintenance position (native motor units)            |
 | USER_DATA_13  | Mount position (native motor units)                  |
 
-### Position Restoration
+### Position restoration
 
-The `ZaberMotors` binding class supports restoring motors to previous session positions using `ZaberPositions`
-(provided by the consuming acquisition system; for Mesoscope-VR, the `ZaberPositions` dataclass lives in
-`sollertia_experiment/mesoscope_vr/system.py`). This enables consistent animal positioning across sessions.
+A consuming acquisition system's binding class can restore motors to their previous-session positions from a
+position snapshot the system provides and persists. This enables consistent positioning across sessions. For the
+Mesoscope-VR implementation, see `/mesoscope-vr` (the `ZaberMotors` consumer) and `/session-snapshots` (the snapshot).
 
 ---
 
-## Agentic Configuration Management
+## Agentic configuration management
 
 Use MCP tools to read and modify Zaber motor configuration stored in non-volatile memory.
 
-### Available MCP Tools
+### Available MCP tools
 
-| Tool                                                                          | Purpose                        |
-|-------------------------------------------------------------------------------|--------------------------------|
-| `get_zaber_devices_tool()`                                                    | Discover connected motors      |
-| `get_zaber_device_settings_tool(port, device_index)`                          | Read device configuration      |
-| `set_zaber_device_setting_tool(port, device_index, setting, value, confirm)`  | Modify device setting          |
-| `validate_zaber_configuration_tool(port, device_index)`                       | Validate device configuration  |
-| `get_checksum_tool(input_string)`                                             | Calculate CRC32-XFER checksum  |
+| Tool                                                                                  | Purpose                       |
+|---------------------------------------------------------------------------------------|-------------------------------|
+| `get_zaber_devices_tool()`                                                            | Discover connected motors     |
+| `get_zaber_device_settings_tool(port, device_index)`                                  | Read device configuration     |
+| `set_zaber_device_setting_tool(port, device_index, setting, value, *, confirm=False)` | Modify device setting         |
+| `validate_zaber_configuration_tool(port, device_index)`                               | Validate device configuration |
+| `get_checksum_tool(input_string)`                                                     | Calculate CRC32-XFER checksum |
 
-### Configuration Workflow
+### Configuration workflow
 
-#### Reading Current Configuration
+#### Reading current configuration
 
 1. Discover devices: `get_zaber_devices_tool()`
 2. Read settings: `get_zaber_device_settings_tool(port="/dev/ttyUSB0", device_index=0)`
 3. Validate configuration: `validate_zaber_configuration_tool(port="/dev/ttyUSB0", device_index=0)`
 
-#### Modifying Configuration
+#### Modifying configuration
 
 **Safety Protocol:**
 
@@ -211,7 +227,7 @@ Use MCP tools to read and modify Zaber motor configuration stored in non-volatil
 4. Execute change: `set_zaber_device_setting_tool(..., confirm=True)`
 5. Verify change: `get_zaber_device_settings_tool()`
 
-### Configurable Settings
+### Configurable settings
 
 | Setting                  | Type  | Description                              | Constraints                   |
 |--------------------------|-------|------------------------------------------|-------------------------------|
@@ -223,14 +239,14 @@ Use MCP tools to read and modify Zaber motor configuration stored in non-volatil
 | `device_label`           | `str` | Device identifier                        | Auto-updates checksum         |
 | `axis_label`             | `str` | Axis identifier (optional, see below)    | No constraints                |
 
-### Read-Only Settings
+### Read-only settings
 
-| Setting            | Description                      |
-|--------------------|----------------------------------|
-| `checksum`         | Auto-calculated from device_label|
-| `limit_min`        | Hardware motion limit            |
-| `limit_max`        | Hardware motion limit            |
-| `current_position` | Live motor position              |
+| Setting            | Description                       |
+|--------------------|-----------------------------------|
+| `checksum`         | Auto-calculated from device_label |
+| `limit_min`        | Hardware motion limit             |
+| `limit_max`        | Hardware motion limit             |
+| `current_position` | Live motor position               |
 
 ### Understanding shutdown_flag vs unsafe_flag
 
@@ -264,7 +280,7 @@ Use MCP tools to read and modify Zaber motor configuration stored in non-volatil
 - For Zaber single-axis controllers, the device_label is sufficient for identification.
 - Do not flag missing axis_label as a configuration problem.
 
-### Initial Device Setup Workflow
+### Initial device setup workflow
 
 For new motors not yet configured for use with the binding library:
 
@@ -277,7 +293,7 @@ For new motors not yet configured for use with the binding library:
    Set to `1` if the motor can be positioned unsafely for homing (e.g., where homing could cause collision).
 6. **Validate**: `validate_zaber_configuration_tool(port, index)`
 
-### Improper Shutdown Recovery Workflow
+### Improper shutdown recovery workflow
 
 When a motor with `unsafe_flag=1` was not properly shut down:
 
@@ -291,13 +307,13 @@ hardware constraints and should only be changed if the hardware assembly changes
 
 ---
 
-## Safety Patterns
+## Safety patterns
 
-### Park/Unpark Workflow
+### Park/unpark workflow
 
 Motors use a parking mechanism to prevent accidental movement:
 
-```
+```text
 ┌─────────────────────────────────────────────────────────────────────────┐
 │                        Motor Safety State Machine                       │
 ├─────────────────────────────────────────────────────────────────────────┤
@@ -332,7 +348,7 @@ Motors use a parking mechanism to prevent accidental movement:
 
 **Critical pattern:** Always call `unpark_motors()` before movement and `park_motors()` after completion.
 
-### Shutdown Safety
+### Shutdown safety
 
 Motors use non-volatile flags to detect improper shutdown:
 
@@ -344,7 +360,7 @@ Motors use non-volatile flags to detect improper shutdown:
 If a motor with `unsafe_flag=True` was not properly shut down, the system prompts for manual verification before
 proceeding.
 
-### Checksum Validation
+### Checksum validation
 
 Each device stores a CRC32-XFER checksum of its label in USER_DATA_0. This validates that the motor is configured for
 use with the binding library:
@@ -360,7 +376,7 @@ Use the MCP tool `get_checksum_tool(input_string)` to calculate checksums for co
 
 ---
 
-## ZaberAxis API Reference
+## ZaberAxis API reference
 
 See [references/zaber-api-reference.md](references/zaber-api-reference.md) for the complete API reference including:
 
@@ -372,131 +388,22 @@ See [references/zaber-api-reference.md](references/zaber-api-reference.md) for t
 
 ---
 
-## Binding Class Patterns
+## Binding class patterns and configuration
 
-When implementing Zaber motor support in a binding class, follow these patterns:
+When composing Zaber motors into an acquisition system's binding class, follow these established
+binding-class patterns: park/unpark guards around every movement, position restoration from a
+previous-session snapshot, a `wait_until_idle()` barrier before parking, and connection teardown
+on disconnect. The consuming system supplies the motor port assignments and a position dataclass
+(one field per managed motor axis).
 
-### Basic Structure
-
-```python
-class ZaberMotors:
-    """Manages Zaber motor groups for the acquisition system.
-
-    Args:
-        zaber_positions: Previous session positions or None for defaults.
-        zaber_configuration: Motor configuration from system config.
-
-    Attributes:
-        _connection: ZaberConnection for the motor group.
-        _axis: ZaberAxis for the motor.
-    """
-
-    def __init__(
-        self,
-        zaber_positions: ZaberPositions | None,
-        zaber_configuration: ExternalAssetsConfig,
-    ) -> None:
-        # Initialize connection
-        self._connection: ZaberConnection = ZaberConnection(
-            port=zaber_configuration.motor_port
-        )
-
-        # Connect and get device/axis
-        self._connection.connect()
-        self._axis: ZaberAxis = self._connection.get_device(index=0).axis
-
-        # Store previous positions for restoration
-        self._previous_positions = zaber_positions
-
-    def restore_position(self) -> None:
-        """Restores motors to previous session positions."""
-        self.unpark_motors()
-
-        if self._previous_positions is not None:
-            self._axis.move(position=self._previous_positions.motor_position)
-        else:
-            self._axis.move(position=self._axis.mount_position)
-
-        self.wait_until_idle()
-        self.park_motors()
-
-    def wait_until_idle(self) -> None:
-        """Blocks until all motors finish moving."""
-        while self._axis.is_busy:
-            pass
-
-    def disconnect(self) -> None:
-        """Shuts down motors and closes connection."""
-        self._connection.disconnect()
-
-    def park_motors(self) -> None:
-        """Parks all motors to prevent accidental movement."""
-        self._axis.park()
-
-    def unpark_motors(self) -> None:
-        """Unparks motors to allow movement commands."""
-        self._axis.unpark()
-```
-
-### Key Patterns
-
-| Pattern                | Purpose                                          |
-|------------------------|--------------------------------------------------|
-| Park/unpark guards     | Prevent accidental movement during idle periods  |
-| Position restoration   | Maintain consistent animal positioning           |
-| Wait until idle        | Coordinate multi-motor movements                 |
-| Destructor disconnect  | Ensure proper shutdown on garbage collection     |
-
----
-
-## Configuration Requirements
-
-Motor configuration must be defined in the consuming acquisition system's configuration module before
-implementation. For Mesoscope-VR, this is `MesoscopeVRAssets` in
-`sollertia_experiment/mesoscope_vr/system.py`.
-
-### Required Configuration Fields
-
-| Field          | Type  | Description                                  |
-|----------------|-------|----------------------------------------------|
-| `*_port`       | `str` | Serial port path (e.g., `/dev/ttyUSB0`)      |
-
-### Configuration Dataclass Pattern
-
-```python
-@dataclass()
-class SystemExternalAssets:
-    """External asset configuration for the acquisition system."""
-
-    headbar_port: str = "/dev/ttyUSB0"
-    """Serial port for the headbar motor group."""
-
-    wheel_port: str = "/dev/ttyUSB1"
-    """Serial port for the wheel position motor."""
-```
-
-### Position Data Pattern
-
-```python
-@dataclass()
-class ZaberPositions:
-    """Stores motor positions for session restoration."""
-
-    headbar_z: int = 0
-    """Headbar Z-axis position in native motor units."""
-
-    headbar_pitch: int = 0
-    """Headbar pitch-axis position in native motor units."""
-
-    headbar_roll: int = 0
-    """Headbar roll-axis position in native motor units."""
-```
+For the full binding-class skeleton, the key-patterns table, and the configuration and position
+dataclass patterns, see [references/zaber-api-reference.md](references/zaber-api-reference.md).
 
 ---
 
 ## Troubleshooting
 
-### Motor Not Detected
+### Motor not detected
 
 1. Verify USB cable is connected and motor is powered
 2. Check port permissions: `ls -la /dev/ttyUSB*`
@@ -504,28 +411,28 @@ class ZaberPositions:
 4. Verify no other application is using the port
 5. Run `get_zaber_devices_tool()` to check discovery
 
-### Checksum Validation Failure
+### Checksum validation failure
 
 1. Motor not configured for use with binding library
 2. Calculate expected checksum: `get_checksum_tool("DeviceLabel")`
 3. Use Zaber Launcher to set USER_DATA_0 to calculated checksum
 4. Verify device label matches expected value
 
-### Improper Shutdown Warning
+### Improper shutdown warning
 
 1. Motor was not shut down properly in previous session
 2. Verify motor is positioned safely for homing
 3. Enter 'yes' when prompted to proceed
 4. Or manually set USER_DATA_1 to 1 in Zaber Launcher
 
-### Movement Not Executing
+### Movement not executing
 
 1. Verify motor is unparked: `is_parked` property
 2. Verify motor is homed: `is_homed` property
 3. Verify motor is idle: `is_busy` property
 4. Check target position is within limits
 
-### Daisy-Chain Order Mismatch
+### Daisy-chain order mismatch
 
 1. Run `get_zaber_devices_tool()` to see actual order
 2. Compare Device Num with expected configuration
@@ -536,22 +443,22 @@ class ZaberPositions:
 
 ## Related skills
 
-| Skill                                       | Relationship                                                                 |
-|---------------------------------------------|-------------------------------------------------------------------------------|
-| `/acquisition-system-design`                | Platform-general pattern for composing a Zaber lane into a binding class      |
-| `/mesoscope-vr`                             | Current consumer — composes `ZaberMotors` from `MesoscopeVRAssets`            |
-| `/session-snapshots`                        | Reads/writes the `ZaberPositions` snapshot this lane restores from            |
-| `/acquisition-system-setup`                 | Acquisition-system-level hardware discovery and verification                  |
-| `/experiment-mcp-environment-setup`         | Run first if the `sle mcp` server is not connected                            |
-| `references/zaber-api-reference.md`         | Complete `ZaberConnection` / `ZaberDevice` / `ZaberAxis` API and code examples |
+| Skill                               | Relationship                                                                   |
+|-------------------------------------|--------------------------------------------------------------------------------|
+| `/acquisition-system-design`        | Platform-general pattern for composing a Zaber lane into a binding class       |
+| `/mesoscope-vr`                     | Current consumer — composes `ZaberMotors` from `MesoscopeVRAssets`             |
+| `/session-snapshots`                | Reads/writes the `ZaberPositions` snapshot this lane restores from             |
+| `/acquisition-system-setup`         | Acquisition-system-level hardware discovery and verification                   |
+| `/experiment-mcp-environment-setup` | Run first if the `sle mcp` server is not connected                             |
+| `references/zaber-api-reference.md` | Complete `ZaberConnection` / `ZaberDevice` / `ZaberAxis` API and code examples |
 
 ---
 
-## Implementation Checklist
+## Implementation checklist
 
 Before integrating Zaber motors into an acquisition system:
 
-```
+```text
 - [ ] Discovered motors using get_zaber_devices_tool()
 - [ ] Recorded port assignments for each motor group
 - [ ] Verified daisy-chain order matches expected configuration
