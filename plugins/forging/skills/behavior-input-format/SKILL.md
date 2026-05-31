@@ -5,7 +5,7 @@ description: >-
   the Mesoscope-VR runtime NPZ archive, ataraxis-video-system camera-timestamp feathers, and
   ataraxis-communication-interface microcontroller feathers. Use when the user asks about
   upstream handoff, module eligibility, or why a behavior job is missing on disk.
-user-invocable: true
+user-invocable: false
 ---
 
 # Behavior input format

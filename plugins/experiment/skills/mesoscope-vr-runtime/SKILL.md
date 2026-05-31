@@ -5,7 +5,7 @@ description: >-
   _MesoscopeVRSystem orchestrator, the per-mode runtime logic functions, the BehaviorVisualizer and
   RuntimeControlUI, and the `sle mesoscope` CLI commands. Use when adding a new training mode or
   session type, extending the state machine, modifying visualizers, or wiring new CLI commands.
-user-invocable: true
+user-invocable: false
 ---
 
 # Mesoscope-VR runtime

@@ -6,7 +6,7 @@ description: >-
   create / write / validate experiment configuration tools and schema introspection. Use when
   creating a new experiment configuration, customizing trial parameters, or instantiating a
   task template for a project.
-user-invocable: true
+user-invocable: false
 ---
 
 # Sollertia experiment configuration

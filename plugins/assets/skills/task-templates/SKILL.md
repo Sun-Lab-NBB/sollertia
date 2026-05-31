@@ -6,7 +6,7 @@ description: >-
   server. Owns write_template_tool, validate_template_tool, and the schema / trial / trigger-type
   introspection helpers. Use when designing or modifying a task template or preparing it for
   per-project experiment configurations.
-user-invocable: true
+user-invocable: false
 ---
 
 # Sollertia task templates

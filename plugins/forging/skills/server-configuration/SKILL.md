@@ -4,7 +4,7 @@ description: >-
   Authors and modifies the ServerConfiguration YAML for sollertia-forgery via the `sl-mcp` MCP
   server (remote storage transfer settings, cloud compute server credentials). Use when
   setting up remote data transfer for a new Sollertia host or rotating server credentials.
-user-invocable: true
+user-invocable: false
 ---
 
 # Sollertia server configuration

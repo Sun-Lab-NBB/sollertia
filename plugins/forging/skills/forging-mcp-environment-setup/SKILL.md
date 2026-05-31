@@ -4,7 +4,7 @@ description: >-
   Diagnoses and resolves sollertia-forgery MCP server connectivity issues (environment,
   command availability, Python version, dependencies). Use when the MCP tools are
   unavailable, the server fails to start, or a new session needs sollertia-forgery tools.
-user-invocable: true
+user-invocable: false
 ---
 
 # MCP environment setup

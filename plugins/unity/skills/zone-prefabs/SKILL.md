@@ -6,7 +6,7 @@ description: >-
   for occupancy mode) and rewriting the MonoBehaviour script GUIDs, region names, and field defaults.
   Use when adding a new `TriggerType` member or designing a new stimulus-zone variant that mixes
   existing modifier zones in a new configuration.
-user-invocable: true
+user-invocable: false
 ---
 
 # Sollertia Unity zone prefabs

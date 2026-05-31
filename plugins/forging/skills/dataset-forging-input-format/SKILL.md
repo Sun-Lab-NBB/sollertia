@@ -6,7 +6,7 @@ description: >-
   required hardware-state / experiment-configuration YAMLs. Use when the user asks why a
   forging job failed, how datasets map to directories, or which upstream pipelines must
   complete first.
-user-invocable: true
+user-invocable: false
 ---
 
 # Dataset forging input format

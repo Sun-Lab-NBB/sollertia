@@ -6,7 +6,7 @@ description: >-
   describe_session_hardware_state_schema_tool. Tools are file-path based — the caller supplies
   the path. Use when inspecting the hardware configuration active at acquisition, repairing a
   corrupted snapshot, or amending hardware-state fields.
-user-invocable: true
+user-invocable: false
 ---
 
 # Sollertia session hardware state

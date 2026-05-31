@@ -6,7 +6,7 @@ description: >-
   MQTTClient / MQTTChannel / MQTTTopics, and the MainWindow Task Parameters editor. Use when
   reading or modifying code that instantiates GIMBL components, wiring a new script to the MQTT
   broker, or diagnosing null-reference errors during scene init.
-user-invocable: true
+user-invocable: false
 ---
 
 # GIMBL framework reference

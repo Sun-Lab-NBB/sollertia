@@ -6,7 +6,7 @@ description: >-
   removal of every generated artifact for a task), inspect_prefab_tool, and delete_asset_tool
   (individual cue / material cleanup). Use when a template needs a matching task built or removed,
   or when auditing prefab hierarchy and colliders.
-user-invocable: true
+user-invocable: false
 ---
 
 # Sollertia Unity task prefabs

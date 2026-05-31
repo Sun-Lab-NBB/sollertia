@@ -5,7 +5,7 @@ description: >-
   (sollertia-experiment) classes available to Sollertia acquisition systems, plus the
   conventions on top of the ataraxis base templates and principles for adding modules or
   controller boards. Use when extending hardware support or modifying a paired Module + Interface.
-user-invocable: true
+user-invocable: false
 ---
 
 # Sollertia microcontroller interface

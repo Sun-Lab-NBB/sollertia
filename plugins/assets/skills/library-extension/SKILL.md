@@ -6,7 +6,7 @@ description: >-
   registry touch list, import-time parity check, and sibling-skill enumeration updates. Use
   when adding a new AcquisitionSystems / SessionTypes / TriggerType member, runtime trial
   class, or extending the template vocabulary beyond the infinite corridor.
-user-invocable: true
+user-invocable: false
 ---
 
 # Sollertia library extension

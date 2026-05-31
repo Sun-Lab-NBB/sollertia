@@ -5,7 +5,7 @@ description: >-
   (batch prep, execution, progress, cancel, retry, cleanup). Use when transferring sessions
   to archive, deleting sessions, or managing transfer-tracker lifecycle. Consumes confirmed
   session paths from `/session-discovery`.
-user-invocable: true
+user-invocable: false
 ---
 
 # Session transfer

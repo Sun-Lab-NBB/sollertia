@@ -6,7 +6,7 @@ description: >-
   callers project sections from the returned dict. Tools are file-path based — the caller
   supplies the path. Use when looking up or fixing an animal's surgical history, implants,
   drugs, or injections.
-user-invocable: true
+user-invocable: false
 ---
 
 # Sollertia subject metadata

@@ -5,7 +5,7 @@ description: >-
   and task templates directory via the sollertia-shared-assets MCP server. Prerequisite for every
   other assets-plugin skill. Use when setting up Sollertia on a new host, relocating the data root,
   or when configuration tools fail because the working directory is not set.
-user-invocable: true
+user-invocable: false
 ---
 
 # Sollertia working directory setup

@@ -7,7 +7,7 @@ description: >-
   orchestrator that owns the master start/stop. Use when designing a new acquisition system from
   scratch, adding a new hardware lane to an existing system, or auditing an existing system's
   configuration/binding layer for pattern compliance.
-user-invocable: true
+user-invocable: false
 ---
 
 # Acquisition system design
@@ -261,11 +261,11 @@ Field names encode three pieces of information separated by underscores:
 <device-or-module>_<parameter>_<unit>
 ```
 
-| Component | Examples | Notes |
-|-----------|----------|-------|
-| `<device-or-module>` | `face_camera`, `lick`, `torque`, `wheel_encoder` | The device's role in the system, not the underlying hardware brand |
-| `<parameter>`        | `index`, `threshold`, `delta_threshold`, `polling_delay`, `ppr` | The semantic name of the calibration value |
-| `<unit>`             | `adc`, `us`, `ms`, `cm`, `g_cm`, `pulse` | Only included when the unit is non-obvious from the parameter name |
+| Component            | Examples                                                        | Notes                                                              |
+|----------------------|-----------------------------------------------------------------|--------------------------------------------------------------------|
+| `<device-or-module>` | `face_camera`, `lick`, `torque`, `wheel_encoder`                | The device's role in the system, not the underlying hardware brand |
+| `<parameter>`        | `index`, `threshold`, `delta_threshold`, `polling_delay`, `ppr` | The semantic name of the calibration value                         |
+| `<unit>`             | `adc`, `us`, `ms`, `cm`, `g_cm`, `pulse`                        | Only included when the unit is non-obvious from the parameter name |
 
 **Examples:**
 - `face_camera_index: int` — index, no unit needed (it's an integer position)
@@ -278,15 +278,15 @@ millivolts? a count?). Always disambiguate via the unit suffix when the unit is 
 
 ### Field type conventions
 
-| Type        | When to use                                                                          |
-|-------------|--------------------------------------------------------------------------------------|
-| `int`       | Counts, ADC units, frame rates, encoder pulse counts, durations in microseconds      |
-| `float`     | Physical measurements (cm, g·cm), conversion ratios, calibration coefficients         |
-| `str`       | Filesystem paths (use `Path` if the path is consumed as a Path; `str` if as a string), serial ports, hostnames |
-| `bool`      | Behavior flags (`report_ccw`, `report_cw`)                                            |
-| `Path`      | Filesystem paths consumed directly as `Path` objects                                  |
-| `tuple[tuple[T, T], ...]` | Lookup tables (e.g., valve calibration: pulse duration → volume)         |
-| `<EnumType>`| Enum values for encoder presets, pixel formats, etc.                                  |
+| Type                      | When to use                                                                                                    |
+|---------------------------|----------------------------------------------------------------------------------------------------------------|
+| `int`                     | Counts, ADC units, frame rates, encoder pulse counts, durations in microseconds                                |
+| `float`                   | Physical measurements (cm, g·cm), conversion ratios, calibration coefficients                                  |
+| `str`                     | Filesystem paths (use `Path` if the path is consumed as a Path; `str` if as a string), serial ports, hostnames |
+| `bool`                    | Behavior flags (`report_ccw`, `report_cw`)                                                                     |
+| `Path`                    | Filesystem paths consumed directly as `Path` objects                                                           |
+| `tuple[tuple[T, T], ...]` | Lookup tables (e.g., valve calibration: pulse duration → volume)                                               |
+| `<EnumType>`              | Enum values for encoder presets, pixel formats, etc.                                                           |
 
 **Anti-pattern:** Using `Any` or untyped fields. Every field has an explicit, narrow type.
 
@@ -399,14 +399,14 @@ rather than silently leaving `_started=False`.
 
 ### Lifecycle method conventions
 
-| Method                            | When                                                                            |
-|-----------------------------------|---------------------------------------------------------------------------------|
-| `start()`                         | Mandatory. Idempotent. Brings the lane online.                                  |
-| `stop()`                          | Mandatory. Idempotent. Tears the lane down.                                     |
-| `start_<sub_device>()`            | Optional. When per-device lifecycle granularity is useful (e.g., starting one camera at a time). |
-| `save_<sub_device>_frames()`      | Optional. When the lane has a "saving" distinct from "acquiring" (cameras).     |
-| `restore_position()`              | Optional. When the lane has cross-session state (motors).                       |
-| `is_started` property             | Optional. Read-only view of `_started`.                                         |
+| Method                       | When                                                                                             |
+|------------------------------|--------------------------------------------------------------------------------------------------|
+| `start()`                    | Mandatory. Idempotent. Brings the lane online.                                                   |
+| `stop()`                     | Mandatory. Idempotent. Tears the lane down.                                                      |
+| `start_<sub_device>()`       | Optional. When per-device lifecycle granularity is useful (e.g., starting one camera at a time). |
+| `save_<sub_device>_frames()` | Optional. When the lane has a "saving" distinct from "acquiring" (cameras).                      |
+| `restore_position()`         | Optional. When the lane has cross-session state (motors).                                        |
+| `is_started` property        | Optional. Read-only view of `_started`.                                                          |
 
 ---
 
@@ -499,12 +499,12 @@ Three contracts must hold for the architecture to function:
 Each per-lane calibration dataclass field that feeds a wrapper constructor MUST match the wrapper's
 keyword-argument name conceptually (allowing for unit-suffix differences):
 
-| Dataclass field                    | Wrapper constructor kwarg | Note |
-|------------------------------------|---------------------------|------|
-| `lick_threshold_adc`               | `lick_threshold`          | Unit suffix dropped at the API boundary |
-| `wheel_encoder_ppr`                | `encoder_ppr`             | Slight rename allowed |
-| `minimum_brake_strength_g_cm`      | `minimum_brake_strength`  | Unit suffix dropped at the API boundary |
-| `valve_calibration_data`           | `valve_calibration_data`  | Exact match |
+| Dataclass field               | Wrapper constructor kwarg | Note                                    |
+|-------------------------------|---------------------------|-----------------------------------------|
+| `lick_threshold_adc`          | `lick_threshold`          | Unit suffix dropped at the API boundary |
+| `wheel_encoder_ppr`           | `encoder_ppr`             | Slight rename allowed                   |
+| `minimum_brake_strength_g_cm` | `minimum_brake_strength`  | Unit suffix dropped at the API boundary |
+| `valve_calibration_data`      | `valve_calibration_data`  | Exact match                             |
 
 When a wrapper changes its constructor signature, the corresponding dataclass field's name SHOULD
 be updated in the same change set to maintain conceptual agreement. Drift here is allowed but
@@ -710,19 +710,19 @@ system skills answer "only this one."
 
 ## Related skills
 
-| Skill                                                  | Relationship                                                                                            |
-|--------------------------------------------------------|---------------------------------------------------------------------------------------------------------|
-| `experiment:microcontroller-interface`                 | The per-module wrapper layer that binding classes compose. Authoritative for slmc/sle conventions.    |
-| `experiment:zaber-interface`                           | Shared Zaber motor interface mechanics. Binding classes that include motors compose this.             |
-| `experiment:mesoscope-vr`                              | The current Mesoscope-VR worked instance of this pattern.                                              |
-| `experiment:acquisition-system-runtime`                | The runtime-behavior counterpart to this static-composition pattern.                                   |
-| `experiment:mesoscope-vr-runtime`                      | Mesoscope-VR-specific runtime behavior (state machine, training modes, CLI). Built on this pattern.    |
-| `experiment:vr-driver-interface`                       | The Unity VR task driver lane an acquisition system composes for VR coupling.                          |
-| `ataraxis@video:camera-interface`                      | Low-level VideoSystem mechanics. Camera binding classes compose VideoSystem instances.                 |
-| `ataraxis@communication:microcontroller-interface`     | Low-level MicroControllerInterface mechanics. Microcontroller binding classes compose these.           |
-| `experiment:acquisition-system-setup`                  | Post-flash hardware discovery used to populate system configuration fields.                            |
-| `experiment:pipeline`                                  | End-to-end acquisition-system lifecycle orchestration context.                                         |
-| `assets:library-extension`                             | Owns the `sollertia-shared-assets` enum/registry recipe for a new system; step 2 of the build-a-new-system workflow hands off here. |
+| Skill                                              | Relationship                                                                                                                        |
+|----------------------------------------------------|-------------------------------------------------------------------------------------------------------------------------------------|
+| `experiment:microcontroller-interface`             | The per-module wrapper layer that binding classes compose. Authoritative for slmc/sle conventions.                                  |
+| `experiment:zaber-interface`                       | Shared Zaber motor interface mechanics. Binding classes that include motors compose this.                                           |
+| `experiment:mesoscope-vr`                          | The current Mesoscope-VR worked instance of this pattern.                                                                           |
+| `experiment:acquisition-system-runtime`            | The runtime-behavior counterpart to this static-composition pattern.                                                                |
+| `experiment:mesoscope-vr-runtime`                  | Mesoscope-VR-specific runtime behavior (state machine, training modes, CLI). Built on this pattern.                                 |
+| `experiment:vr-driver-interface`                   | The Unity VR task driver lane an acquisition system composes for VR coupling.                                                       |
+| `ataraxis@video:camera-interface`                  | Low-level VideoSystem mechanics. Camera binding classes compose VideoSystem instances.                                              |
+| `ataraxis@communication:microcontroller-interface` | Low-level MicroControllerInterface mechanics. Microcontroller binding classes compose these.                                        |
+| `experiment:acquisition-system-setup`              | Post-flash hardware discovery used to populate system configuration fields.                                                         |
+| `experiment:pipeline`                              | End-to-end acquisition-system lifecycle orchestration context.                                                                      |
+| `assets:library-extension`                         | Owns the `sollertia-shared-assets` enum/registry recipe for a new system; step 2 of the build-a-new-system workflow hands off here. |
 
 ---
 

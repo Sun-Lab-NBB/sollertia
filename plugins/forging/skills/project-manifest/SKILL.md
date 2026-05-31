@@ -5,7 +5,7 @@ description: >-
   and the sollertia-forgery MCP tools for reading, generating, and cleaning manifests. Use
   when answering questions about project state, session processing status, or when generating
   a manifest.
-user-invocable: true
+user-invocable: false
 ---
 
 # Project manifest

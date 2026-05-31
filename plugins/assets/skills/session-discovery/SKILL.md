@@ -6,7 +6,7 @@ description: >-
   get_data_root_overview_tool through filter_sessions_tool to produce `session_paths` lists
   consumed by downstream batch skills. Use when locating sessions ahead of any batch workflow
   or filtering a previously discovered list.
-user-invocable: true
+user-invocable: false
 ---
 
 # Session discovery

@@ -5,7 +5,7 @@ description: >-
   sollertia-shared-assets MCP server's Unity relay. Owns list_scenes_tool, open_scene_tool,
   inspect_scene_tool, and list_assets_tool. Use when listing, switching, or inspecting task
   scenes, or when enumerating project assets.
-user-invocable: true
+user-invocable: false
 ---
 
 # Sollertia Unity task scenes

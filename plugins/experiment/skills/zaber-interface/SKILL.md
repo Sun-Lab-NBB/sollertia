@@ -4,7 +4,7 @@ description: >-
   Guides implementation of Zaber motor interfaces using the zaber-motion library. Covers motor discovery, position
   management, safety patterns, and binding class patterns. Use when adding Zaber motor support to any acquisition
   system or troubleshooting motor connectivity.
-user-invocable: true
+user-invocable: false
 ---
 
 # Zaber motor interface

@@ -6,7 +6,7 @@ description: >-
   and the file-path based read / write / describe trio for session_data.yaml. Use when
   inspecting one or more sessions, auditing lifecycle status, or repairing a corrupted
   SessionData marker.
-user-invocable: true
+user-invocable: false
 ---
 
 # Sollertia session data

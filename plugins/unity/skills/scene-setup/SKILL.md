@@ -6,7 +6,7 @@ description: >-
   SimulatedLinearTreadmill controllers from the Actor section, and the optional UI lick-reward
   feedback canvas. Use when preparing a new scene for Play Mode, swapping hardware for the
   simulated treadmill, or fixing missing display / controller errors.
-user-invocable: true
+user-invocable: false
 ---
 
 # Sollertia Unity scene setup

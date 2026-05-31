@@ -5,7 +5,7 @@ description: >-
   via the `sle mcp` server. Owns the position snapshot write tools. Use when inspecting
   motor positions captured at session start, patching positions after a manual adjustment, or
   recovering a corrupted snapshot.
-user-invocable: true
+user-invocable: false
 ---
 
 # Sollertia session position snapshots

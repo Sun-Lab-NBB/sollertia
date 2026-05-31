@@ -5,7 +5,7 @@ description: >-
   verification. Use when evaluating behavior-processing results, when the user asks about
   runtime state, trial data, camera timestamps, or microcontroller feather contents, or when
   auditing completed sessions for downstream analysis.
-user-invocable: true
+user-invocable: false
 ---
 
 # Processing results

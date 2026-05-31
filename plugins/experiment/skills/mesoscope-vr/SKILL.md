@@ -6,7 +6,7 @@ description: >-
   YAML file lifecycle, the per-lane binding classes that compose the system, and the workflows
   for modifying hardware or calibration. Use when configuring, modifying, or auditing
   Mesoscope-VR's hardware and configuration layer.
-user-invocable: true
+user-invocable: false
 ---
 
 # Mesoscope-VR system

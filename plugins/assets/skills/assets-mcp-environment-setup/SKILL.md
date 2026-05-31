@@ -4,7 +4,7 @@ description: >-
   Diagnoses and resolves sollertia-shared-assets MCP server connectivity issues (environment,
   `slsa` command availability, Python version, dependencies). Use when the MCP tools are
   unavailable, the server fails to start, or a new session needs the assets plugin's tools.
-user-invocable: true
+user-invocable: false
 ---
 
 # Sollertia assets MCP environment setup

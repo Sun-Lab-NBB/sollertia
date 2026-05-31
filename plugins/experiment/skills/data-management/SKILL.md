@@ -4,7 +4,7 @@ description: >-
   Manages acquisition session data via the `sle mcp` server: preprocessing sessions (single or in
   bulk), migrating animals between projects, and deleting sessions with mandatory confirmation. Use
   when the user asks to preprocess, migrate, or delete session data.
-user-invocable: true
+user-invocable: false
 ---
 
 # Managing session data

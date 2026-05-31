@@ -5,7 +5,7 @@ description: >-
   sessions) via the sollertia-shared-assets MCP server. Wraps the single
   get_data_root_overview_tool that builds the tree from SessionData contents. Use when
   enumerating projects, animals, or sessions, or walking the project tree.
-user-invocable: true
+user-invocable: false
 ---
 
 # Sollertia project hierarchy

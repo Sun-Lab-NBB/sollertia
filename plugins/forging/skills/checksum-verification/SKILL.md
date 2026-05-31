@@ -5,7 +5,7 @@ description: >-
   server (batch prep, execution, progress, cancel, retry, cleanup, project-wide overview).
   Use when verifying or regenerating data-integrity checksums or managing checksum-tracker
   lifecycle across a project.
-user-invocable: true
+user-invocable: false
 ---
 
 # Checksum verification

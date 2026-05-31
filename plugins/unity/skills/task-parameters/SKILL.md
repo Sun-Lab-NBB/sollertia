@@ -6,7 +6,7 @@ description: >-
   write_task_parameters_tool, which mirror the Actor, MQTT, Display, Camera Mapping, and Task
   sections of `Window → Task Parameters`. Use when inspecting or programmatically changing per-scene
   Task / Actor / Display / MQTT / Camera Mapping settings without opening the Editor window manually.
-user-invocable: true
+user-invocable: false
 ---
 
 # Sollertia Unity task parameters

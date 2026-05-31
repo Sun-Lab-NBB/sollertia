@@ -5,7 +5,7 @@ description: >-
   `McpBridge` (HTTP listener on 127.0.0.1:8090, [::1]:8090, and localhost:8090; Editor running;
   script compiled). Use when Unity relay tools fail with "Unity Editor is not reachable" or when
   starting a session that needs the Unity tools.
-user-invocable: true
+user-invocable: false
 ---
 
 # Sollertia Unity MCP environment setup

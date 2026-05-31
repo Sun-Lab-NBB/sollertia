@@ -6,7 +6,7 @@ description: >-
   ataraxis-video-system, and ataraxis-communication-interface MCP tools. Use when bringing up
   a new acquisition PC, troubleshooting hardware connectivity, or verifying discovered
   hardware against the recorded system configuration.
-user-invocable: true
+user-invocable: false
 ---
 
 # Discovering acquisition system hardware

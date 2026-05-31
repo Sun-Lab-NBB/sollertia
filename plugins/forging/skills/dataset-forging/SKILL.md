@@ -5,7 +5,7 @@ description: >-
   sollertia-forgery MCP server (dataset resolution, batch prep, execution, progress, cancel,
   retry, cleanup). Use when assembling analysis-ready feathers from processed behavior and
   cindra outputs or managing forging jobs across a dataset.
-user-invocable: true
+user-invocable: false
 ---
 
 # Dataset forging

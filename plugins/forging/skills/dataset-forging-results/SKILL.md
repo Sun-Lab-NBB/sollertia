@@ -5,7 +5,7 @@ description: >-
   dataset-level tracker state, and output verification. Use when evaluating forged datasets,
   when the user asks about fluorescence array shapes or trial masking semantics, or when
   auditing datasets before downstream analysis.
-user-invocable: true
+user-invocable: false
 ---
 
 # Dataset forging results

@@ -5,7 +5,7 @@ description: >-
   preparation, job execution, progress monitoring, cancellation, retry, cleanup). Use when
   processing confirmed session paths through the runtime / camera / microcontroller pipeline
   or managing behavior-processing jobs across sessions.
-user-invocable: true
+user-invocable: false
 ---
 
 # Behavior processing

@@ -6,7 +6,7 @@ description: >-
   Owns write_session_descriptor_tool and describe_session_descriptor_schema_tool; tools are
   file-path based, accepting raw session snapshots or forged dataset copies. Use when
   repairing, amending, or inspecting a descriptor for any of the four session types.
-user-invocable: true
+user-invocable: false
 ---
 
 # Sollertia session descriptors

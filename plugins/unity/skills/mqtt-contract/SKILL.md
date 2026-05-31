@@ -6,7 +6,7 @@ description: >-
   All topics are flat PascalCase constants centralized in Assets/Gimbl/Scripts/MQTT/MQTTTopics.cs.
   Use when authoring or modifying MQTT wiring, diagnosing a missed message, or adding a new
   trigger zone, lifecycle marker, or UI subscriber.
-user-invocable: true
+user-invocable: false
 ---
 
 # Sollertia Unity MQTT contract

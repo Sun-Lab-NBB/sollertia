@@ -5,7 +5,7 @@ description: >-
   handoff conditions from system bringup through experiment design, runtime acquisition, and
   post-acquisition handoff. Use when planning a full data collection workflow or deciding
   which experiment skill to invoke next.
-user-invocable: true
+user-invocable: false
 ---
 
 # Sollertia experiment pipeline

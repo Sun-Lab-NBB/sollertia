@@ -5,7 +5,7 @@ description: >-
   reads, the MQTT topic contract with the Unity game engine, the VRTaskEvent model surfaced per
   runtime cycle, the guidance toggles, and the cue-sequence trial decomposition. Use when modifying
   Unity coupling, adding an MQTT topic or VR task event, or wiring a new acquisition system to Unity.
-user-invocable: true
+user-invocable: false
 ---
 
 # VR task driver interface

@@ -5,7 +5,7 @@ description: >-
   membership) for sollertia-forgery via the `sl-mcp` MCP server. Owns the dataset write tools
   and schema introspection. Use when curating a dataset, adding sessions, or introspecting
   dataset structure.
-user-invocable: true
+user-invocable: false
 ---
 
 # Sollertia datasets

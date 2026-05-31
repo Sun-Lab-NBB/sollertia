@@ -5,7 +5,7 @@ description: >-
   YAML task templates, the anatomy of the generated cue and segment prefabs, and the placement of
   the hand-authored zone prefabs. Use when modifying `CreateTask.cs`, adding a new zone type,
   hand-authoring a zone prefab, or diagnosing generated-prefab geometry mismatches.
-user-invocable: true
+user-invocable: false
 ---
 
 # Sollertia Unity task generator

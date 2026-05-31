@@ -6,7 +6,7 @@ description: >-
   machine and per-cycle event loop, typed event dispatch from the hardware lanes, descriptor
   consumption, and the visualizer/control-UI surface. Use when designing the runtime layer of a new
   acquisition system, adding a runtime mode/state, or auditing an existing runtime for pattern compliance.
-user-invocable: true
+user-invocable: false
 ---
 
 # Acquisition system runtime

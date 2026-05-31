@@ -5,7 +5,7 @@ description: >-
   `sle mcp` command availability, Python version, dependencies). Use when the experiment
   MCP tools are unavailable, the server fails to start, or a new session needs
   sollertia-experiment tools.
-user-invocable: true
+user-invocable: false
 ---
 
 # Sollertia experiment MCP environment setup
