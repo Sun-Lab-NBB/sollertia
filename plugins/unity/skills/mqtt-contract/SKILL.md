@@ -240,7 +240,7 @@ You MUST work through this checklist before introducing a new MQTT topic:
 - [ ] Channel direction (subscriber vs publisher) matches the intent
 - [ ] Start() constructs the channel and registers AddListener callbacks; OnDestroy() removes them with `?.`
 - [ ] Payload class (if typed) is a public class with public fields (JsonUtility constraint)
-- [ ] sollertia-experiment is aware of the topic on its side — coordinate the change across both repos
+- [ ] `experiment:vr-driver-interface` is updated on its side (`_VRTaskMQTTTopics`) — coordinate the change across both repos
 - [ ] This skill's topic catalog is updated with the new entry
 ```
 
@@ -345,11 +345,12 @@ work through its likely cause and first check.
 
 ## Related skills
 
-| Skill                            | Relationship                                                            |
-|----------------------------------|-------------------------------------------------------------------------|
-| `/gimbl-framework` (this plugin) | Owns `MQTTClient`, `MQTTChannel`, and `MQTTChannel<T>` class references |
-| `/task-prefabs` (this plugin)    | Generated prefabs wire the zones whose scripts own these topics         |
-| `/task-parameters` (this plugin) | Editor-time alternative for `RequireLick` / `RequireWait` flags         |
-| `/scene-setup` (this plugin)     | `UI-lick-reward` subsystem subscribes to `Lick` and `Stimulus`          |
-| `/play-mode` (this plugin)       | MQTT activity is only live while the Editor is in `playing` state       |
-| assets plugin `/task-templates`  | YAML cue codes appear as `byte` values in `CueSequence` payloads        |
+| Skill                                    | Relationship                                                                        |
+|------------------------------------------|-------------------------------------------------------------------------------------|
+| `/gimbl-framework` (this plugin)         | Owns `MQTTClient`, `MQTTChannel`, and `MQTTChannel<T>` class references             |
+| `/task-prefabs` (this plugin)            | Generated prefabs wire the zones whose scripts own these topics                     |
+| `/task-parameters` (this plugin)         | Editor-time alternative for `RequireLick` / `RequireWait` flags                     |
+| `/scene-setup` (this plugin)             | `UI-lick-reward` subsystem subscribes to `Lick` and `Stimulus`                      |
+| `/play-mode` (this plugin)               | MQTT activity is only live while the Editor is in `playing` state                   |
+| assets plugin `/task-templates`          | YAML cue codes appear as `byte` values in `CueSequence` payloads                    |
+| experiment plugin `/vr-driver-interface` | Host (Python) side — `_VRTaskMQTTTopics` mirrors this catalog; change both together |

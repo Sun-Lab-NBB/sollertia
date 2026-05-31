@@ -202,10 +202,11 @@ framing reflects the new member:
 
 **Skill touches:**
 
-| Skill                       | What to update                                                                                                                                                                 |
-|-----------------------------|--------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
-| `/experiment-configuration` | The "Templates vs experiment configurations" framing, the trigger → trial-class pairing convention, the `trial_structures` schema description, and the "Common patterns" table |
-| `/task-templates`           | The trial-class enumeration in the template vocabulary section                                                                                                                 |
+| Skill                                    | What to update                                                                                                                                                                 |
+|------------------------------------------|--------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| `/experiment-configuration`              | The "Templates vs experiment configurations" framing, the trigger → trial-class pairing convention, the `trial_structures` schema description, and the "Common patterns" table |
+| `/task-templates`                        | The trial-class enumeration in the template vocabulary section                                                                                                                 |
+| experiment plugin `/vr-driver-interface` | The `DecomposedTrials.trigger_types` semantics table (e.g. `LICK` = reward, `OCCUPANCY` = aversive) and the orchestrator's per-trigger dispatch note                           |
 
 ### Adding a new `TriggerType` member
 
@@ -307,24 +308,25 @@ table, the required-asset branches, and the skill content.
 
 ## Related skills
 
-| Skill                                          | Relationship                                                                                            |
-|------------------------------------------------|---------------------------------------------------------------------------------------------------------|
-| `/assets-mcp-environment-setup`                | Run if the parity check fails at import time — the failure manifests as an MCP startup error            |
-| `/working-directory`                           | Required prerequisite — bootstraps the working directory consumed by every extension touch-point        |
-| `/session-data`                                | Receives skill touch-ups for new `SessionTypes` and new `AcquisitionSystems`                            |
-| `/session-descriptors`                         | Receives skill touch-ups for new `SessionTypes`                                                         |
-| `/session-hardware-state`                      | Receives skill touch-ups for new `SessionTypes` and new `AcquisitionSystems`                            |
-| `/experiment-configuration`                    | Receives skill touch-ups for new `AcquisitionSystems`, runtime trial classes, and `TriggerType` members |
-| `/task-templates`                              | Receives skill touch-ups for new `TriggerType`, runtime trial classes, and VR paradigm extensions       |
-| experiment plugin `/acquisition-system-design` | Owns the runtime-side configuration and binding-class design for any new acquisition system; authors the system's dedicated agentic assets (steps 9–10) |
-| experiment plugin `/acquisition-system-runtime`| Owns the runtime that creates and runs sessions of any new session type during acquisition              |
-| experiment plugin `/data-management`           | Manages the post-acquisition lifecycle (preprocess, migrate, delete) for sessions of any type           |
-| forging plugin `/behavior-input-format`        | Decides eligibility of new session types for behavior processing                                        |
-| forging plugin `/project-manifest`             | Tabulates new session types in the project manifest                                                     |
-| forging plugin `/dataset-forging-input-format` | Decides eligibility of new session types for dataset forging                                            |
-| unity plugin `/task-prefabs`                   | Generates Unity prefabs for new `TriggerType` members or VR paradigms                                   |
-| unity plugin `/task-scenes`                    | Authors Unity scenes for new acquisition systems or VR paradigms                                        |
-| `/commit`                                      | Should be invoked after the cross-cutting changes land                                                  |
+| Skill                                           | Relationship                                                                                                                                            |
+|-------------------------------------------------|---------------------------------------------------------------------------------------------------------------------------------------------------------|
+| `/assets-mcp-environment-setup`                 | Run if the parity check fails at import time — the failure manifests as an MCP startup error                                                            |
+| `/working-directory`                            | Required prerequisite — bootstraps the working directory consumed by every extension touch-point                                                        |
+| `/session-data`                                 | Receives skill touch-ups for new `SessionTypes` and new `AcquisitionSystems`                                                                            |
+| `/session-descriptors`                          | Receives skill touch-ups for new `SessionTypes`                                                                                                         |
+| `/session-hardware-state`                       | Receives skill touch-ups for new `SessionTypes` and new `AcquisitionSystems`                                                                            |
+| `/experiment-configuration`                     | Receives skill touch-ups for new `AcquisitionSystems`, runtime trial classes, and `TriggerType` members                                                 |
+| `/task-templates`                               | Receives skill touch-ups for new `TriggerType`, runtime trial classes, and VR paradigm extensions                                                       |
+| experiment plugin `/acquisition-system-design`  | Owns the runtime-side configuration and binding-class design for any new acquisition system; authors the system's dedicated agentic assets (steps 9–10) |
+| experiment plugin `/acquisition-system-runtime` | Owns the runtime that creates and runs sessions of any new session type during acquisition                                                              |
+| experiment plugin `/data-management`            | Manages the post-acquisition lifecycle (preprocess, migrate, delete) for sessions of any type                                                           |
+| forging plugin `/behavior-input-format`         | Decides eligibility of new session types for behavior processing                                                                                        |
+| forging plugin `/project-manifest`              | Tabulates new session types in the project manifest                                                                                                     |
+| forging plugin `/dataset-forging-input-format`  | Decides eligibility of new session types for dataset forging                                                                                            |
+| unity plugin `/task-prefabs`                    | Generates Unity prefabs for new `TriggerType` members or VR paradigms                                                                                   |
+| unity plugin `/task-scenes`                     | Authors Unity scenes for new acquisition systems or VR paradigms                                                                                        |
+| `/commit`                                       | Should be invoked after the cross-cutting changes land                                                                                                  |
+| experiment plugin `/vr-driver-interface`        | Consumes the `TriggerType` enum via `DecomposedTrials.trigger_types`                                                                                    |
 
 ---
 

@@ -106,6 +106,9 @@ for board roles.
 | `encoder_port`          | `str`  | `"/dev/ttyACM2"`   | USB port used by the ENCODER microcontroller                                           |
 | `keepalive_interval_ms` | `int`  | `500`              | Interval (ms) at which controllers expect and send keepalive messages during runtime   |
 
+Default ports use the Linux device-path form (`/dev/ttyACM*`); the value is OS-specific (e.g. `COMx` on
+Windows) and is set per host from discovery.
+
 Ports come from `experiment:acquisition-system-setup` discovery
 (`ataraxis@communication:microcontroller-setup`'s `list_microcontrollers` tool). The user must
 confirm which physical Teensy plays the ACTOR / SENSOR / ENCODER role and assign ports accordingly.
@@ -220,6 +223,9 @@ configuration. Four fields.
 | `headbar_port`   | `str`  | `"/dev/ttyUSB0"`   | USB port for the HeadBar Zaber motor group (3-axis: Z, Pitch, Roll, in daisy-chain order) |
 | `lickport_port`  | `str`  | `"/dev/ttyUSB1"`   | USB port for the LickPort Zaber motor group (3-axis: Z, Y, X, in daisy-chain order) |
 | `wheel_port`     | `str`  | `"/dev/ttyUSB2"`   | USB port for the Wheel Zaber motor group (1-axis: X)                                |
+
+Default ports use the Linux device-path form (`/dev/ttyUSB*`); the value is OS-specific (e.g. `COMx` on
+Windows) and is set per host from discovery.
 
 Ports come from `experiment:zaber-interface` discovery (`get_zaber_devices_tool`). The
 daisy-chain order is hardware-cabled and MUST match the order the binding class assumes.

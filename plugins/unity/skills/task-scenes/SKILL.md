@@ -224,6 +224,9 @@ chain). It is in `McpBridge.DeleteProtectedPaths`, so `delete_asset_tool` refuse
 | `/task-parameters` (this plugin)             | Consumer — reads / writes Actor / MQTT / Display / Camera Mapping / Task fields after opening |
 | `/play-mode` (this plugin)                   | Consumer — typically entered after opening a target scene                                     |
 | assets plugin `/task-templates`              | Upstream — template filename defines the conventional scene name                              |
+| `/mqtt-contract` (this plugin)               | Active scene name is also exchanged over the `SceneName` / `SceneNameTrigger` wire pair       |
+| experiment plugin `/vr-driver-interface`     | Host verifies the active scene name during the `setup()` handshake                            |
+| assets plugin `/experiment-configuration`    | Owns `unity_scene_name`, which selects the scene to open                                      |
 
 ---
 

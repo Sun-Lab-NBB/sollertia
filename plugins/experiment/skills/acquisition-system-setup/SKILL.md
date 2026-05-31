@@ -106,10 +106,11 @@ Before invoking this skill, ensure:
 
 1. All network shares are mounted and accessible from the acquisition PC.
 2. The mount points have appropriate read/write permissions.
-3. Mounts persist across reboots (`/etc/fstab` or systemd mount units).
+3. Mounts persist across reboots (configured via the OS-appropriate mechanism — e.g. `/etc/fstab` or
+   systemd mount units on Linux).
 
 ```bash
-# Verify mounts are accessible
+# Verify mounts are accessible (Linux example; use the OS-appropriate listing on Windows/macOS)
 ls /mnt/server/data
 ls /mnt/nas/backup
 ls /mnt/mesoscope/data  # mesoscope systems only
@@ -226,8 +227,9 @@ Note the port assignments. For the mesoscope system, the expected motor groups a
 
 **Device path convention:**
 
-- Microcontrollers use `/dev/ttyACM*` (USB CDC ACM)
-- Zaber motors use `/dev/ttyUSB*` (USB serial adapters)
+On Linux, microcontrollers enumerate as `/dev/ttyACM*` (USB CDC ACM) and Zaber motors as `/dev/ttyUSB*`
+(USB serial adapters). On Windows and macOS the path format differs (e.g. `COMx` on Windows), but the
+CDC-ACM (microcontroller) vs USB-serial (Zaber) device-type distinction still holds.
 
 Do not confuse these device types when reporting discovered hardware.
 

@@ -127,7 +127,8 @@ Expected: a path inside the active environment's `site-packages`. If the import 
 ### Step 5: Verify core dependencies
 
 ```bash
-python -c "import mcp, polars, numpy, numba, scipy, ataraxis_time, ataraxis_base_utilities, ataraxis_data_structures, sollertia_shared_assets; print('ok')"
+python -c "import mcp, polars, numpy, numba, scipy, ataraxis_time, ataraxis_base_utilities, \
+ataraxis_data_structures, sollertia_shared_assets; print('ok')"
 ```
 
 Expected: prints `ok`. Any `ImportError` indicates a missing or version-incompatible dependency — see
@@ -145,7 +146,7 @@ mamba activate slf_dev
 pip install -e .
 ```
 
-Run inside `/home/cyberaxolotl/Desktop/GitHubRepos/sollertia-forgery`. The editable installation wires the
+Run inside the cloned `sollertia-forgery` repository directory. The editable installation wires the
 `sl-mcp` entry point into the environment's `bin/` so Claude Code can launch it by name.
 
 ### uv
@@ -163,6 +164,9 @@ python3.14 -m venv .venv
 source .venv/bin/activate
 pip install -e .
 ```
+
+On Windows, replace `source .venv/bin/activate` with `.venv\Scripts\activate` in the uv and pip
+workflows above (the conda / mamba workflow is identical on all platforms).
 
 ---
 

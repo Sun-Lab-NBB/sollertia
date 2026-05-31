@@ -26,7 +26,8 @@ concrete instances, see the per-system skills (currently `experiment:mesoscope-v
 ## Scope
 
 **Covers:**
-- Three-layer architecture (System Configuration YAML → Calibration dataclasses + Binding classes → Lifecycle orchestrator)
+- Three-layer architecture (System Configuration YAML → Calibration dataclasses + Binding classes →
+  Lifecycle orchestrator)
 - Top-level system configuration pattern (`@dataclass` + `YamlConfig`, composition, validation, YAML roundtrip)
 - Per-lane calibration dataclass pattern (naming, field conventions, units in field names)
 - Per-lane binding class pattern (constructor signature, lifecycle methods, idempotency, `__del__` semantics)
@@ -272,7 +273,8 @@ Field names encode three pieces of information separated by underscores:
 - `wheel_encoder_polling_delay_us: int` — microseconds explicit
 - `wheel_diameter_cm: float` — centimeters explicit
 
-**Anti-pattern:** ambiguous parameter names. `lick_threshold: int` is ambiguous (is it ADC units? millivolts? a count?). Always disambiguate via the unit suffix when the unit is non-obvious.
+**Anti-pattern:** ambiguous parameter names. `lick_threshold: int` is ambiguous (is it ADC units?
+millivolts? a count?). Always disambiguate via the unit suffix when the unit is non-obvious.
 
 ### Field type conventions
 
@@ -298,8 +300,9 @@ starting points the user overrides per-host.
   `wheel_diameter_cm: float = 15.0333` is the actual diameter of the reference wheel).
 - `Path()` (empty path) is the default for any filesystem field — the user MUST set it for each
   deployment; an empty path triggers a mount-check failure at load time.
-- Serial-port defaults SHOULD be the typical Linux USB device path (`/dev/ttyACM0`, `/dev/ttyUSB0`)
-  that helps users on the reference platform but is expected to be overridden.
+- Serial-port defaults SHOULD be a representative USB device path for the reference platform
+  (e.g. `/dev/ttyACM0`/`/dev/ttyUSB0` on Linux, `COMx` on Windows) — the value is OS-specific and is
+  expected to be overridden per host.
 
 ---
 

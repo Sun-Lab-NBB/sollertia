@@ -186,7 +186,8 @@ Confirm the `sollertia-shared-assets` MCP server is connected. If not, hand off 
 ### Step 2: Set the working directory
 
 Ask the user where they want Sollertia to cache local state if it has not already been decided. A
-typical choice on Linux is `~/sollertia/` or `~/.local/share/sollertia/`. Then call:
+choices are `~/sollertia/` or `~/.local/share/sollertia/` on Linux, `~/Library/Application Support/sollertia/`
+on macOS, and `%LOCALAPPDATA%\sollertia\` on Windows. Then call:
 
 ```text
 set_working_directory_tool(directory="<absolute path>")

@@ -457,6 +457,7 @@ Load that file when you actually need to extend the zone vocabulary; the workflo
 | assets plugin `/library-extension`           | Required for new `TriggerType` member and registry parity check            |
 | automation plugin `/csharp-style`            | Required when authoring the new modifier script and editing C# wiring      |
 | automation plugin `/commit`                  | Run after the prefab, script, and wiring changes are ready to commit       |
+| experiment plugin `/vr-driver-interface`     | Host pairs `DecomposedTrials.trigger_types` with these trigger zones       |
 
 ---
 

@@ -444,13 +444,14 @@ template instead.
 
 ## Related skills
 
-| Skill                               | Relationship                                                       |
-|-------------------------------------|--------------------------------------------------------------------|
-| `/task-prefabs` (this plugin)       | Consumer — invokes `create_task_tool` and validates output         |
-| `/mqtt-contract` (this plugin)      | Zone scripts (authored here) own MQTT topics described there       |
-| `/gimbl-framework` (this plugin)    | Segment prefabs place GIMBL-derived `Actor` coordinate frame usage |
-| assets plugin `/task-templates`     | Upstream — owns YAML authoring and schema evolution                |
-| `/csharp-style` (automation plugin) | Enforced when editing `CreateTask.cs` or adding new generator code |
+| Skill                                    | Relationship                                                       |
+|------------------------------------------|--------------------------------------------------------------------|
+| `/task-prefabs` (this plugin)            | Consumer — invokes `create_task_tool` and validates output         |
+| `/mqtt-contract` (this plugin)           | Zone scripts (authored here) own MQTT topics described there       |
+| `/gimbl-framework` (this plugin)         | Segment prefabs place GIMBL-derived `Actor` coordinate frame usage |
+| assets plugin `/task-templates`          | Upstream — owns YAML authoring and schema evolution                |
+| `/csharp-style` (automation plugin)      | Enforced when editing `CreateTask.cs` or adding new generator code |
+| experiment plugin `/vr-driver-interface` | Host decomposes the cue sequence these generated prefabs render    |
 
 ---
 

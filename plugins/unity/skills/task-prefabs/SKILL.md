@@ -367,19 +367,20 @@ either visual geometry or standard Unity components every GameObject carries.
 
 ## Related skills
 
-| Skill                                         | Relationship                                                    |
-|-----------------------------------------------|-----------------------------------------------------------------|
-| `/unity-mcp-environment-setup` (this plugin)  | Run first if Unity Editor is unreachable                        |
-| `/task-scenes` (this plugin)                  | Consumer — opens / inspects the scene this skill produced       |
-| `/play-mode` (this plugin)                    | Consumer — exercises the prefab at runtime                      |
-| `/scene-setup` (this plugin)                  | Consumer — configures displays / controller before Play Mode    |
-| `/task-parameters` (this plugin)              | Consumer — reads / writes the generated `Task` component fields |
-| `/task-generator` (this plugin)               | Reference for the `CreateTask` pipeline this tool invokes       |
-| `/mqtt-contract` (this plugin)                | Reference for MQTT topics wired by generated zone scripts       |
-| `/gimbl-framework` (this plugin)              | Reference for `ActorObject` coordinate frame usage              |
-| assets plugin `/task-templates`               | Upstream — owns the YAML template the prefab is built from      |
-| assets plugin `/experiment-configuration`     | Downstream — per-project instantiation of the template          |
-| assets plugin `/assets-mcp-environment-setup` | Run first — owns the slsa MCP server diagnostic                 |
+| Skill                                         | Relationship                                                        |
+|-----------------------------------------------|---------------------------------------------------------------------|
+| `/unity-mcp-environment-setup` (this plugin)  | Run first if Unity Editor is unreachable                            |
+| `/task-scenes` (this plugin)                  | Consumer — opens / inspects the scene this skill produced           |
+| `/play-mode` (this plugin)                    | Consumer — exercises the prefab at runtime                          |
+| `/scene-setup` (this plugin)                  | Consumer — configures displays / controller before Play Mode        |
+| `/task-parameters` (this plugin)              | Consumer — reads / writes the generated `Task` component fields     |
+| `/task-generator` (this plugin)               | Reference for the `CreateTask` pipeline this tool invokes           |
+| `/mqtt-contract` (this plugin)                | Reference for MQTT topics wired by generated zone scripts           |
+| `/gimbl-framework` (this plugin)              | Reference for `ActorObject` coordinate frame usage                  |
+| assets plugin `/task-templates`               | Upstream — owns the YAML template the prefab is built from          |
+| assets plugin `/experiment-configuration`     | Downstream — per-project instantiation of the template              |
+| assets plugin `/assets-mcp-environment-setup` | Run first — owns the slsa MCP server diagnostic                     |
+| experiment plugin `/vr-driver-interface`      | Host consumes the cues and zones in the generated prefab at runtime |
 
 ---
 

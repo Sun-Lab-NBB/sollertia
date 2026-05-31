@@ -68,7 +68,7 @@ sle mcp
 **Verification workflow:**
 
 1. **Discover Zaber devices**: Run `get_zaber_devices_tool()` to identify connected motors
-2. **Note port assignments**: Record which `/dev/ttyUSB*` port corresponds to which motor group
+2. **Note port assignments**: Record which serial port the discovery tool reports for each motor group
 3. **Verify device order**: Confirm daisy-chain order matches expected configuration
 
 **Expected output from `get_zaber_devices_tool()`:**
@@ -82,19 +82,25 @@ sle mcp
 +----------------+------------+-------+---------+-------------+---------+-------------+
 ```
 
+> **OS note.** Serial-port paths are OS-specific. This skill shows the Linux form (`/dev/ttyUSB0`); on Windows
+> the same port appears as a `COM3`-style name, on macOS as `/dev/tty.usbserial-XXXX`. Always use the path the
+> discovery tool reports for the host.
+
 If motors are not detected:
 - Check USB connections and power supplies
-- Verify port permissions (`sudo usermod -a -G dialout $USER`)
+- Verify the OS grants the current user access to the serial port. On Linux, add the user to the `dialout`
+  group (`sudo usermod -a -G dialout $USER`, then re-login); on Windows or macOS, install the vendor's
+  USB-serial driver and confirm no other application holds the port open
 - Ensure motors are powered on before connecting USB
 - Check for port conflicts with other applications
 
 ### Step 1: Content verification
 
-| File                                                                            | What to Check                            |
-|---------------------------------------------------------------------------------|------------------------------------------|
-| `sollertia-experiment/src/sollertia_experiment/cross_system/zaber_bindings.py`  | ZaberConnection/Device/Axis patterns     |
-| `sollertia-experiment/src/sollertia_experiment/mesoscope_vr/binding_classes.py` | ZaberMotors binding class implementation |
-| `sollertia-experiment pyproject.toml`                                           | Current zaber-motion version dependency  |
+| File                                                                            | What to Check                                                       |
+|---------------------------------------------------------------------------------|---------------------------------------------------------------------|
+| `sollertia-experiment/src/sollertia_experiment/cross_system/zaber_bindings.py`  | ZaberConnection/Device/Axis patterns                                |
+| `sollertia-experiment/src/sollertia_experiment/mesoscope_vr/binding_classes.py` | Example/reference ZaberMotors binding class (Mesoscope-VR-specific) |
+| `sollertia-experiment pyproject.toml`                                           | Current zaber-motion version dependency                             |
 
 ---
 
@@ -406,8 +412,10 @@ dataclass patterns, see [references/zaber-api-reference.md](references/zaber-api
 ### Motor not detected
 
 1. Verify USB cable is connected and motor is powered
-2. Check port permissions: `ls -la /dev/ttyUSB*`
-3. Add user to dialout group: `sudo usermod -a -G dialout $USER` (requires logout)
+2. Confirm the host lists the serial port using an OS-appropriate method (Linux: `ls -la /dev/ttyUSB*`;
+   Windows: Device Manager → Ports; macOS: `ls -la /dev/tty.usbserial-*`)
+3. Ensure the user can access the port (Linux: add the user to the `dialout` group with
+   `sudo usermod -a -G dialout $USER`, then re-login; Windows/macOS: install the vendor USB-serial driver)
 4. Verify no other application is using the port
 5. Run `get_zaber_devices_tool()` to check discovery
 

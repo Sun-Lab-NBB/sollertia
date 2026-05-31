@@ -27,13 +27,15 @@ For Mesoscope-VR's runtime behavior (state machine, training modes, CLI), see
 - Mesoscope-VR system overview (hardware composition, controllers, cameras, motors)
 - `MesoscopeSystemConfiguration` dataclass — top-level configuration class structure and file lifecycle
 - Per-lane calibration dataclass surface — pointer to the full registry in `references/configuration-fields.md`
-- Per-lane binding classes (`MicroControllerInterfaces`, `VideoSystems`, `ZaberMotors`) — composition and lifecycle wiring
+- Per-lane binding classes (`MicroControllerInterfaces`, `VideoSystems`, `ZaberMotors`) — composition
+  and lifecycle wiring
 - MCP tool surface for reading, writing, and validating the configuration YAML
 - Configuration authoring and modification workflows
 
 **Does not cover** (delegated):
 - The platform-general design pattern this system implements — see `experiment:acquisition-system-design`
-- Mesoscope-VR runtime behavior (state machine, training modes, visualizers, session descriptors, CLI commands) — see `experiment:mesoscope-vr-runtime`
+- Mesoscope-VR runtime behavior (state machine, training modes, visualizers, session descriptors,
+  CLI commands) — see `experiment:mesoscope-vr-runtime`
 - Per-firmware-module Python wrappers and slmc firmware Modules — see `experiment:microcontroller-interface`
 - Low-level VideoSystem API — see `ataraxis@video:camera-interface`
 - Low-level Zaber motor API — see `experiment:zaber-interface`
@@ -166,7 +168,8 @@ of the platform-general allocation rules — primarily driven by interrupt isola
 
 `MesoscopeMicroControllers` (in `sollertia_experiment/mesoscope_vr/system.py`) holds:
 
-- **Port assignments**: `actor_port`, `sensor_port`, `encoder_port` (Linux USB device paths)
+- **Port assignments**: `actor_port`, `sensor_port`, `encoder_port` (OS-specific USB device paths;
+  Linux defaults shown, overridden per host)
 - **Keepalive**: `keepalive_interval_ms` (500 ms default)
 - **Per-module calibration**: ~25 fields that parameterize the eight module wrappers running on the
   three boards (brake strength, lick thresholds, torque calibration, encoder PPR, wheel diameter,
@@ -229,8 +232,10 @@ System IDs are allocated from the DataLogger source-ID convention. The non-conti
 `MesoscopeCameras` holds per-camera parameters:
 
 - **Indices**: `face_camera_index`, `body_camera_index` (positions in the Harvester-managed camera list)
-- **Display rates**: `face_camera_display_frame_rate`, `body_camera_display_frame_rate` (live preview FPS, independent of save rate)
-- **Encoding**: `face_camera_quantization`, `body_camera_quantization`, `face_camera_preset`, `body_camera_preset` (H.265 quantization parameter and `EncoderSpeedPresets` enum)
+- **Display rates**: `face_camera_display_frame_rate`, `body_camera_display_frame_rate` (live preview
+  FPS, independent of save rate)
+- **Encoding**: `face_camera_quantization`, `body_camera_quantization`, `face_camera_preset`,
+  `body_camera_preset` (H.265 quantization parameter and `EncoderSpeedPresets` enum)
 
 For the full per-field documentation, see [`references/configuration-fields.md`](references/configuration-fields.md)
 under the "MesoscopeCameras" section.
@@ -290,6 +295,9 @@ configuration):
 - `headbar_port` (default `/dev/ttyUSB0`)
 - `wheel_port` (default `/dev/ttyUSB2`)
 - `lickport_port` (default `/dev/ttyUSB1`)
+
+These defaults use the Linux device-path form; the value is OS-specific (e.g. `COMx` on Windows) and is
+overridden per host.
 
 For the full per-field documentation including Unity MQTT settings, see
 [`references/configuration-fields.md`](references/configuration-fields.md) under the

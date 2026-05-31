@@ -38,6 +38,9 @@ class ZaberConnection:
 
 **Raises:** `TypeError` if port is not a string.
 
+> Serial-port paths are OS-specific (`/dev/ttyUSB0` on Linux, `COMx` on Windows, `/dev/tty.usbserial-*` on
+> macOS); the examples in this reference use the Linux form. Use whichever path the host reports.
+
 **Notes:**
 - Constructor does NOT establish connection - call `connect()` first
 - Multiple ZaberConnection instances cannot share the same port
@@ -485,18 +488,17 @@ def validate_zaber_device_configuration(port: str, device_index: int) -> ZaberVa
 
 ### External requirements
 
-| Dependency       | Required | Purpose                                        |
-|------------------|----------|------------------------------------------------|
-| zaber-motion     | Yes      | Python bindings for Zaber ASCII protocol       |
-| USB serial port  | Yes      | Physical connection to Zaber controllers       |
-| Port permissions | Yes      | User must be in `dialout` group on Linux       |
+| Dependency       | Required | Purpose                                                     |
+|------------------|----------|-------------------------------------------------------------|
+| zaber-motion     | Yes      | Python bindings for Zaber ASCII protocol                    |
+| USB serial port  | Yes      | Physical connection to Zaber controllers                    |
+| Port permissions | Yes      | OS-level serial-port access (e.g. `dialout` group on Linux) |
 
 ### Python requirements
 
 Python package versions are declared and pinned in the `dependencies` array of
 `sollertia-experiment/pyproject.toml`, which is the authoritative source and is enforced at install time. Consult
-that file for the current `zaber-motion`, `crc`, `tabulate2`, `ataraxis-time`, and `ataraxis-base-utilities` pins
-rather than duplicating version numbers here.
+that file for the current `zaber-motion`, `crc`, `tabulate2`, `ataraxis-time`, and `ataraxis-base-utilities` pins.
 
 ---
 

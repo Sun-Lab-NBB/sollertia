@@ -1,7 +1,7 @@
 ---
 name: vr-driver-interface
 description: >-
-  The Virtual Reality task driver hardware lane: the VRTaskDriver class, the VRTaskConfiguration it
+  Documents the Virtual Reality task driver hardware lane: the VRTaskDriver class, the VRTaskConfiguration it
   reads, the MQTT topic contract with the Unity game engine, the VRTaskEvent model surfaced per
   runtime cycle, the guidance toggles, and the cue-sequence trial decomposition. Use when modifying
   Unity coupling, adding an MQTT topic or VR task event, or wiring a new acquisition system to Unity.
@@ -38,7 +38,8 @@ generation — lives in the unity plugin. This skill owns the **host (Python) si
 - The Unity-side framework and game objects — see `unity:gimbl-framework`
 - The Unity-side MQTT topic registration / `MQTTTopics` constant set — see `unity:mqtt-contract`
 - Unity task prefab / scene generation from templates — see `unity:task-prefabs`, `unity:task-scenes`
-- `TaskTemplate` authoring (cue catalog, corridor geometry, per-trial cue motifs, trigger types) — owned by the assets plugin's `/task-templates`
+- `TaskTemplate` authoring (cue catalog, corridor geometry, per-trial cue motifs, trigger types) —
+  owned by the assets plugin's `/task-templates`
 - The runtime state machine that consumes the driver's events — see `experiment:mesoscope-vr-runtime`
 - The platform-general runtime/orchestrator pattern — see `experiment:acquisition-system-runtime`
 
@@ -46,13 +47,13 @@ generation — lives in the unity plugin. This skill owns the **host (Python) si
 
 ## Authoritative bases
 
-| Concern                                              | Authority                                              |
-|------------------------------------------------------|--------------------------------------------------------|
-| `MQTTCommunication` mechanics (connect, monitored topics, get_data) | `ataraxis@communication:microcontroller-interface` |
-| Unity-side MQTT topic contract (`MQTTTopics`)        | `unity:mqtt-contract`                                  |
-| Unity-side VR framework and game objects             | `unity:gimbl-framework`                                |
-| `TaskTemplate` schema (cue catalog, geometry, motifs, trigger types) | assets plugin `/task-templates`        |
-| Runtime that consumes this driver                    | `experiment:mesoscope-vr-runtime`                      |
+| Concern                                                              | Authority                                          |
+|----------------------------------------------------------------------|----------------------------------------------------|
+| `MQTTCommunication` mechanics (connect, monitored topics, get_data)  | `ataraxis@communication:microcontroller-interface` |
+| Unity-side MQTT topic contract (`MQTTTopics`)                        | `unity:mqtt-contract`                              |
+| Unity-side VR framework and game objects                             | `unity:gimbl-framework`                            |
+| `TaskTemplate` schema (cue catalog, geometry, motifs, trigger types) | assets plugin `/task-templates`                    |
+| Runtime that consumes this driver                                    | `experiment:mesoscope-vr-runtime`                  |
 
 The driver builds on `ataraxis_communication_interface.MQTTCommunication` and only documents the
 Sollertia VR contract layered on top.
@@ -63,10 +64,10 @@ Sollertia VR contract layered on top.
 
 The driver reads `VRTaskConfiguration` (`sollertia_experiment/vr_task/configuration.py`):
 
-| Field  | Type  | Default       | Purpose                                                          |
-|--------|-------|---------------|------------------------------------------------------------------|
+| Field  | Type  | Default       | Purpose                                                           |
+|--------|-------|---------------|-------------------------------------------------------------------|
 | `ip`   | `str` | `"127.0.0.1"` | IP address of the MQTT broker used to reach the Unity game engine |
-| `port` | `int` | `1883`        | Port number of the MQTT broker                                   |
+| `port` | `int` | `1883`        | Port number of the MQTT broker                                    |
 
 `VRTaskConfiguration` stores **only** the MQTT broker discovery fields. For Mesoscope-VR it is nested
 under `MesoscopeSystemConfiguration.assets.vr_task` (see `experiment:mesoscope-vr`). The geometric VR
@@ -82,20 +83,20 @@ are NOT stored here — they live in the `TaskTemplate` resolved at experiment s
 published by `sollertia-unity-tasks` (see `unity:mqtt-contract`). Both sides MUST agree on these
 strings exactly.
 
-| Topic enum            | Wire string          | Direction        | Payload                                          |
-|-----------------------|----------------------|------------------|--------------------------------------------------|
-| `SESSION_START`       | `SessionStart`       | Unity → runtime  | empty trigger (Unity MQTT client started)        |
-| `SESSION_STOP`        | `SessionStop`        | Unity → runtime  | empty trigger (Unity application quit)           |
-| `MOTION`              | `Motion`             | runtime → Unity  | `TreadmillMessage` `{movement: float}` (Unity-unit delta) |
-| `LICK`                | `Lick`               | runtime → Unity  | empty trigger                                    |
-| `STIMULUS`            | `Stimulus`           | Unity → runtime  | empty trigger (a stimulus trigger zone fired)    |
-| `DELAY`               | `Delay`              | Unity → runtime  | `TriggerDelayMessage` `{delayMilliseconds: uint}` |
-| `CUE_SEQUENCE_TRIGGER`| `CueSequenceTrigger` | runtime → Unity  | empty trigger (request flattened cue sequence)   |
-| `CUE_SEQUENCE`        | `CueSequence`        | Unity → runtime  | `SequenceMessage` `{cueSequence: byte[]}`        |
-| `SCENE_NAME_TRIGGER`  | `SceneNameTrigger`   | runtime → Unity  | empty trigger (request active scene name)        |
-| `SCENE_NAME`          | `SceneName`          | Unity → runtime  | `SceneNameMessage` `{name: string}`              |
-| `REQUIRE_LICK`        | `RequireLick`        | runtime → Unity  | `BoolMessage` `{value: bool}` (inverse of reinforcing guidance) |
-| `REQUIRE_WAIT`        | `RequireWait`        | runtime → Unity  | `BoolMessage` `{value: bool}` (inverse of aversive guidance) |
+| Topic enum             | Wire string          | Direction       | Payload                                                         |
+|------------------------|----------------------|-----------------|-----------------------------------------------------------------|
+| `SESSION_START`        | `SessionStart`       | Unity → runtime | empty trigger (Unity MQTT client started)                       |
+| `SESSION_STOP`         | `SessionStop`        | Unity → runtime | empty trigger (Unity application quit)                          |
+| `MOTION`               | `Motion`             | runtime → Unity | `TreadmillMessage` `{movement: float}` (Unity-unit delta)       |
+| `LICK`                 | `Lick`               | runtime → Unity | empty trigger                                                   |
+| `STIMULUS`             | `Stimulus`           | Unity → runtime | empty trigger (a stimulus trigger zone fired)                   |
+| `DELAY`                | `Delay`              | Unity → runtime | `TriggerDelayMessage` `{delayMilliseconds: uint}`               |
+| `CUE_SEQUENCE_TRIGGER` | `CueSequenceTrigger` | runtime → Unity | empty trigger (request flattened cue sequence)                  |
+| `CUE_SEQUENCE`         | `CueSequence`        | Unity → runtime | `SequenceMessage` `{cueSequence: byte[]}`                       |
+| `SCENE_NAME_TRIGGER`   | `SceneNameTrigger`   | runtime → Unity | empty trigger (request active scene name)                       |
+| `SCENE_NAME`           | `SceneName`          | Unity → runtime | `SceneNameMessage` `{name: string}`                             |
+| `REQUIRE_LICK`         | `RequireLick`        | runtime → Unity | `BoolMessage` `{value: bool}` (inverse of reinforcing guidance) |
+| `REQUIRE_WAIT`         | `RequireWait`        | runtime → Unity | `BoolMessage` `{value: bool}` (inverse of aversive guidance)    |
 
 The driver subscribes to the inbound subset it surfaces or resolves internally
 (`CUE_SEQUENCE`, `SESSION_STOP`, `SESSION_START`, `SCENE_NAME`, `STIMULUS`, `DELAY`) when constructing
@@ -108,12 +109,12 @@ its `MQTTCommunication`.
 `cycle()` consumes **at most one** MQTT message per call and returns a typed `VRTaskEvent`. The
 asynchronous Unity messages it surfaces are enumerated by `VRTaskEventKind` (`IntEnum`):
 
-| Kind                      | Value | Source topic   | Meaning / caller action                                            |
-|---------------------------|-------|----------------|--------------------------------------------------------------------|
-| `NONE`                    | 0     | (buffer empty or a handshake topic) | No dispatchable event this cycle                  |
-| `STIMULUS_TRIGGERED`      | 1     | `STIMULUS`     | The animal triggered the current trial's stimulus; deliver reward/puff |
-| `TRIGGER_DELAY_REQUESTED` | 2     | `DELAY`        | Unity requests a brake pulse of `delay_ms` milliseconds            |
-| `UNITY_TERMINATED`        | 3     | `SESSION_STOP` | Unity runtime ended; the system must enter an emergency pause      |
+| Kind                      | Value | Source topic                        | Meaning / caller action                                                |
+|---------------------------|-------|-------------------------------------|------------------------------------------------------------------------|
+| `NONE`                    | 0     | (buffer empty or a handshake topic) | No dispatchable event this cycle                                       |
+| `STIMULUS_TRIGGERED`      | 1     | `STIMULUS`                          | The animal triggered the current trial's stimulus; deliver reward/puff |
+| `TRIGGER_DELAY_REQUESTED` | 2     | `DELAY`                             | Unity requests a brake pulse of `delay_ms` milliseconds                |
+| `UNITY_TERMINATED`        | 3     | `SESSION_STOP`                      | Unity runtime ended; the system must enter an emergency pause          |
 
 `VRTaskEvent` (frozen dataclass) carries `kind: VRTaskEventKind` and `delay_ms: int = 0` (populated
 only for `TRIGGER_DELAY_REQUESTED`). Handshake topics consumed during `cycle()` (`SESSION_START`,
@@ -123,13 +124,13 @@ dispatched.
 `VRTaskState` (dataclass, the driver's `state` property) is the single source of truth shared between
 the setup handshake and per-cycle events:
 
-| Field                          | Type              | Purpose                                                       |
-|--------------------------------|-------------------|---------------------------------------------------------------|
-| `position`                     | `np.float64`      | Current absolute animal position (Unity units)                |
-| `cue_sequence`                 | `NDArray[uint8]`  | The session's flattened wall-cue sequence                     |
-| `terminated`                   | `bool`            | Whether Unity has unexpectedly terminated                     |
-| `reinforcing_guidance_enabled` | `bool`            | Reinforcing-trial guidance state                              |
-| `aversive_guidance_enabled`    | `bool`            | Aversive-trial guidance state                                 |
+| Field                          | Type             | Purpose                                        |
+|--------------------------------|------------------|------------------------------------------------|
+| `position`                     | `np.float64`     | Current absolute animal position (Unity units) |
+| `cue_sequence`                 | `NDArray[uint8]` | The session's flattened wall-cue sequence      |
+| `terminated`                   | `bool`           | Whether Unity has unexpectedly terminated      |
+| `reinforcing_guidance_enabled` | `bool`           | Reinforcing-trial guidance state               |
+| `aversive_guidance_enabled`    | `bool`           | Aversive-trial guidance state                  |
 
 ---
 
@@ -146,19 +147,23 @@ VRTaskDriver(
 )
 ```
 
-| Method / property                       | Purpose                                                                                  |
-|-----------------------------------------|------------------------------------------------------------------------------------------|
-| `connect()` / `disconnect()`            | Open / close the MQTT connection to Unity                                                |
-| `setup()`                               | Interactive start-of-session handshake: verify scene name → drive VR display verification → re-arm Unity → fetch the cue sequence. The caller MUST enable the VR screens before and disable them after. |
-| `push_position(absolute_position)`      | Forward the animal's position to Unity as a movement delta (only emits on change)        |
-| `push_lick_event()`                     | Notify Unity that the animal licked                                                      |
-| `set_reinforcing_guidance(*, enabled)`  | Toggle reinforcing guidance (publishes `RequireLick` = `not enabled`)                    |
-| `set_aversive_guidance(*, enabled)`     | Toggle aversive guidance (publishes `RequireWait` = `not enabled`)                       |
-| `cycle() -> VRTaskEvent`                | Consume the next pending Unity message and return it as a typed event                    |
-| `resume_after_unity_restart()`          | Re-fetch the cue sequence and clear `terminated` after Unity is restarted                |
-| `state` (property)                      | The current `VRTaskState`                                                                |
-| `cue_sequence_distances` (property)     | Cumulative distance (cm) to complete each decomposed trial                               |
-| `trial_names` (property)                | The name of each decomposed trial, in sequence order                                     |
+| Method / property                      | Purpose                                                                           |
+|----------------------------------------|-----------------------------------------------------------------------------------|
+| `connect()` / `disconnect()`           | Open / close the MQTT connection to Unity                                         |
+| `setup()`                              | Interactive start-of-session handshake; see the Setup handshake note below.       |
+| `push_position(absolute_position)`     | Forward the animal's position to Unity as a movement delta (only emits on change) |
+| `push_lick_event()`                    | Notify Unity that the animal licked                                               |
+| `set_reinforcing_guidance(*, enabled)` | Toggle reinforcing guidance (publishes `RequireLick` = `not enabled`)             |
+| `set_aversive_guidance(*, enabled)`    | Toggle aversive guidance (publishes `RequireWait` = `not enabled`)                |
+| `cycle() -> VRTaskEvent`               | Consume the next pending Unity message and return it as a typed event             |
+| `resume_after_unity_restart()`         | Re-fetch the cue sequence and clear `terminated` after Unity is restarted         |
+| `state` (property)                     | The current `VRTaskState`                                                         |
+| `cue_sequence_distances` (property)    | Cumulative distance (cm) to complete each decomposed trial                        |
+| `trial_names` (property)               | The name of each decomposed trial, in sequence order                              |
+
+> **Setup handshake.** `setup()` is interactive (console prompts) and runs scene-name check → VR display
+> verification → Unity re-arm → cue-sequence fetch. The caller MUST enable the VR screens before the call and
+> disable them after; the display-verification stage needs them rendering.
 
 > **Guidance inversion.** Unity's `RequireLick` / `RequireWait` flags are the inverse of guidance: a
 > `True` value forces the animal to perform the behavior unaided (the unguided case), so enabling
@@ -178,15 +183,17 @@ trial sequence the acquisition system can act on, using the per-trial cue motifs
   decomposition runs so re-decomposition after a Unity restart is cheap.
 - `DecomposedTrials` (frozen dataclass) — aligned per-trial sequences (index `i` = the i-th trial):
 
-  | Field                  | Type                    | Purpose                                                              |
-  |------------------------|-------------------------|----------------------------------------------------------------------|
-  | `cumulative_distances` | `NDArray[float64]`      | Cumulative distance (cm) to reach the end of each trial              |
-  | `trial_names`          | `tuple[str, ...]`       | Join key the runtime uses to look up per-trial parameters in its experiment configuration |
+  | Field                  | Type                      | Purpose                                                                                          |
+  |------------------------|---------------------------|--------------------------------------------------------------------------------------------------|
+  | `cumulative_distances` | `NDArray[float64]`        | Cumulative distance (cm) to reach the end of each trial                                          |
+  | `trial_names`          | `tuple[str, ...]`         | Join key the runtime uses to look up per-trial parameters in its experiment configuration        |
   | `trigger_types`        | `tuple[TriggerType, ...]` | `TriggerType.LICK` = positive (reward-zone) trial; `OCCUPANCY` = aversive (occupancy-zone) trial |
 
 `TriggerType` is owned by `sollertia-shared-assets` (and its enum is extended via the assets plugin's
-`/library-extension`). The orchestrator calls the driver's decomposition results
-(`trial_names`, `cue_sequence_distances`, `trigger_types`) to build its per-trial parameter arrays.
+`/library-extension`). The orchestrator reads the driver's `trial_names` — joining them against its
+experiment configuration's trial structures to build the per-trial reward/puff arrays — along with
+`cue_sequence_distances` and `state.cue_sequence`. `trigger_types` is an internal `DecomposedTrials`
+field that the driver does not expose as a property.
 
 ---
 
@@ -196,7 +203,7 @@ The runtime orchestrator owns the driver lifecycle (see `experiment:mesoscope-vr
 
 1. `__init__` constructs the `VRTaskDriver` from `assets.vr_task` + the loaded `TaskTemplate`, **only**
    for `SessionTypes.MESOSCOPE_EXPERIMENT` sessions (`self._vr_task` is `None` otherwise).
-2. `start()` enables the VR screens, calls `connect()` then `setup()`, then disables the screens.
+2. `start()` calls `connect()`, enables the VR screens, calls `setup()`, then disables the screens.
 3. Each runtime iteration: `_data_cycle()` calls `push_position()` / `push_lick_event()`; `_unity_cycle()`
    calls `cycle()` and dispatches the returned `VRTaskEvent` (reward on `STIMULUS_TRIGGERED`, brake
    pulse on `TRIGGER_DELAY_REQUESTED`, emergency pause on `UNITY_TERMINATED`).
@@ -217,6 +224,8 @@ Adding a topic is a coordinated change with the Unity project (`sollertia-unity-
 4. Coordinate the Unity-side registration — see `unity:mqtt-contract`.
 5. Bump `sollertia-experiment` version.
 
+---
+
 ## Workflow: adding a VR task event
 
 1. Add a member to `VRTaskEventKind`.
@@ -236,9 +245,21 @@ Update this skill when:
 - The `VRTaskDriver` public method surface changes.
 - The trial-decomposition data model (`DecomposedTrials`) changes.
 
-This skill is NOT updated when the Unity-side `MQTTTopics` constant set changes presentation (owned by
-`unity:mqtt-contract`) or the `TaskTemplate` schema changes (owned by assets plugin `/task-templates`)
-— but a wire-string change on either side is a contract break that MUST be reconciled on both.
+The VR task is a single contract spread across three libraries — the host driver (this skill), the Unity
+game engine, and the shared-assets data model. The MQTT wire strings, the active scene name, the cue /
+trial-structure data, and the trigger-type vocabulary are SHARED state: changing any of them is a
+cross-library change that MUST land on every node in its row below, in the same change set. Never edit one
+side alone — Unity and the host silently desynchronize at runtime.
+
+| Contract dimension           | experiment (host)                             | unity (game engine)                                              | assets (data model)                                    |
+|------------------------------|-----------------------------------------------|------------------------------------------------------------------|--------------------------------------------------------|
+| MQTT wire strings / payloads | `_VRTaskMQTTTopics` (this skill)              | `unity:mqtt-contract`, `unity:gimbl-framework` (`MQTTTopics.cs`) | —                                                      |
+| Active scene name            | `expected_scene_name` + `SceneName` handshake | `unity:task-scenes`, `unity:task-prefabs`                        | `assets:experiment-configuration` (`unity_scene_name`) |
+| Cue catalog / trial motifs   | `decompose_cue_sequence` (this skill)         | `unity:task-generator`, `unity:task-prefabs`                     | `assets:task-templates` (`TaskTemplate`)               |
+| TriggerType / trigger zones  | `DecomposedTrials.trigger_types` (this skill) | `unity:zone-prefabs`, `unity:task-generator`                     | `assets:library-extension`, `assets:task-templates`    |
+
+A wire-string, scene-name, cue-schema, or trigger-type change is a contract break that MUST be reconciled
+across every node in the matching row above — on both/all sides at once.
 
 When in doubt, re-read `sollertia_experiment/vr_task/driver.py`,
 `sollertia_experiment/vr_task/configuration.py`, and
@@ -248,17 +269,18 @@ When in doubt, re-read `sollertia_experiment/vr_task/driver.py`,
 
 ## Related skills
 
-| Skill                                       | Relationship                                                              |
-|---------------------------------------------|---------------------------------------------------------------------------|
-| `experiment:mesoscope-vr-runtime`           | Owns the orchestrator that composes and drives this driver                |
-| `experiment:mesoscope-vr`                   | Defines `assets.vr_task` (`VRTaskConfiguration`) in the system config     |
-| `experiment:acquisition-system-runtime`     | Platform-general runtime pattern this lane plugs into                     |
-| `ataraxis@communication:microcontroller-interface` | `MQTTCommunication` mechanics the driver builds on                |
-| `unity:mqtt-contract`                       | Unity side of the MQTT topic contract (`MQTTTopics`)                      |
-| `unity:gimbl-framework`                     | Unity-side VR framework and game objects                                  |
-| `unity:task-prefabs`                        | Unity task prefab generation from templates                               |
-| assets plugin `/task-templates`             | Authors the `TaskTemplate` (cue motifs, trigger types) decomposed here    |
-| assets plugin `/library-extension`          | Owns the `TriggerType` enum used by `DecomposedTrials`                    |
+| Skill                                              | Relationship                                                                 |
+|----------------------------------------------------|------------------------------------------------------------------------------|
+| `experiment:mesoscope-vr-runtime`                  | Owns the orchestrator that composes and drives this driver                   |
+| `experiment:mesoscope-vr`                          | Defines `assets.vr_task` (`VRTaskConfiguration`) in the system config        |
+| `experiment:acquisition-system-runtime`            | Platform-general runtime pattern this lane plugs into                        |
+| `ataraxis@communication:microcontroller-interface` | `MQTTCommunication` mechanics the driver builds on                           |
+| `unity:mqtt-contract`                              | Unity side of the MQTT topic contract (`MQTTTopics`)                         |
+| `unity:gimbl-framework`                            | Unity-side VR framework and game objects                                     |
+| `unity:task-prefabs`                               | Unity task prefab generation from templates                                  |
+| assets plugin `/task-templates`                    | Authors the `TaskTemplate` (cue motifs, trigger types) decomposed here       |
+| assets plugin `/library-extension`                 | Owns the `TriggerType` enum used by `DecomposedTrials`                       |
+| assets plugin `/experiment-configuration`          | Owns `unity_scene_name` (verified by `setup()`) and the per-trial parameters |
 
 ---
 

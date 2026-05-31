@@ -68,7 +68,8 @@ For a path that fails, drill in with `check_mount_accessibility_tool(path=...)`:
 
 - `Exists: No` — the path does not exist; check `/etc/fstab` or systemd mount units.
 - `Mount: No` — the path exists but is not a mount point (a local directory may be used instead of network storage).
-- `Writable: No` — the path exists but the write test failed; check permissions or mount options (uid, gid, file_mode, dir_mode).
+- `Writable: No` — the path exists but the write test failed; check permissions or mount options
+  (uid, gid, file_mode, dir_mode).
 
 ### Phase 3: Hardware connectivity
 
@@ -115,12 +116,15 @@ If all pass, the system is ready for acquisition.
 
 ### Mount failures
 
-| Symptom                 | Likely cause          | Resolution                                              |
-|-------------------------|-----------------------|---------------------------------------------------------|
-| Path does not exist     | Mount not configured  | Add an entry to `/etc/fstab` or create a systemd mount unit |
-| Exists but not a mount  | Local directory used  | Check mount status: `mount | grep <path>`               |
-| Not writable            | Permission issue      | Check mount options (uid, gid, file_mode, dir_mode)     |
-| Stale mount             | Network disruption    | Remount: `sudo umount -l <path> && sudo mount <path>`   |
+| Symptom                | Likely cause         | Resolution                                                  |
+|------------------------|----------------------|-------------------------------------------------------------|
+| Path does not exist    | Mount not configured | Add an entry to `/etc/fstab` or create a systemd mount unit |
+| Exists but not a mount | Local directory used | Check mount status: `mount \| grep <path>`                  |
+| Not writable           | Permission issue     | Check mount options (uid, gid, file_mode, dir_mode)         |
+| Stale mount            | Network disruption   | Remount: `sudo umount -l <path> && sudo mount <path>`       |
+
+The remediation commands above are Linux examples; on Windows or macOS use the OS-appropriate mount tooling
+(the symptom and likely cause are OS-independent).
 
 ### Hardware not detected / MQTT failures
 

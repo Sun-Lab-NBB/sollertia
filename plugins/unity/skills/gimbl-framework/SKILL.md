@@ -548,10 +548,11 @@ full display rig (three monitors) before committing.
 
 ## Related skills
 
-| Skill                               | Relationship                                                                                   |
-|-------------------------------------|------------------------------------------------------------------------------------------------|
-| `/mqtt-contract` (this plugin)      | Topic catalog for every channel constructed on top of `MQTTChannel`                            |
-| `/scene-setup` (this plugin)        | User-facing workflow for the MainWindow Task Parameters window                                 |
-| `/task-parameters` (this plugin)    | Programmatic mirror of the same window's Actor / MQTT / Display / Camera Mapping / Task fields |
-| `/task-generator` (this plugin)     | Segment prefabs sit inside the actor's coordinate frame                                        |
-| `/csharp-style` (automation plugin) | GIMBL code is held to the same C# conventions as the project                                   |
+| Skill                                    | Relationship                                                                                   |
+|------------------------------------------|------------------------------------------------------------------------------------------------|
+| `/mqtt-contract` (this plugin)           | Topic catalog for every channel constructed on top of `MQTTChannel`                            |
+| `/scene-setup` (this plugin)             | User-facing workflow for the MainWindow Task Parameters window                                 |
+| `/task-parameters` (this plugin)         | Programmatic mirror of the same window's Actor / MQTT / Display / Camera Mapping / Task fields |
+| `/task-generator` (this plugin)          | Segment prefabs sit inside the actor's coordinate frame                                        |
+| `/csharp-style` (automation plugin)      | GIMBL code is held to the same C# conventions as the project                                   |
+| experiment plugin `/vr-driver-interface` | Python peer of `MQTTClient` / `MQTTTopics` — the host end of the wire contract                 |

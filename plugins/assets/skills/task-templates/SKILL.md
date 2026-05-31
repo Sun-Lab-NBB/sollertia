@@ -428,11 +428,12 @@ for instantiating templates into experiment configurations.
 
 ## Related skills
 
-| Skill                                  | Relationship                                                                                                |
-|----------------------------------------|-------------------------------------------------------------------------------------------------------------|
-| `/working-directory`                   | Required prerequisite — owns the templates directory path                                                   |
-| `/assets-mcp-environment-setup`        | Run first if the MCP server is not connected                                                                |
-| `/experiment-configuration`            | Consumer — instantiates templates into per-project experiments                                              |
-| `/library-extension`                   | Cross-cutting recipe to add a new `TriggerType`, runtime trial class, or VR paradigm beyond the corridor    |
-| unity plugin `/task-prefabs`           | Downstream — generates and validates the Unity prefab                                                       |
-| unity plugin `/task-scenes`            | Downstream — places the generated prefab into a Unity scene                                                 |
+| Skill                                    | Relationship                                                                                             |
+|------------------------------------------|----------------------------------------------------------------------------------------------------------|
+| `/working-directory`                     | Required prerequisite — owns the templates directory path                                                |
+| `/assets-mcp-environment-setup`          | Run first if the MCP server is not connected                                                             |
+| `/experiment-configuration`              | Consumer — instantiates templates into per-project experiments                                           |
+| `/library-extension`                     | Cross-cutting recipe to add a new `TriggerType`, runtime trial class, or VR paradigm beyond the corridor |
+| unity plugin `/task-prefabs`             | Downstream — generates and validates the Unity prefab                                                    |
+| unity plugin `/task-scenes`              | Downstream — places the generated prefab into a Unity scene                                              |
+| experiment plugin `/vr-driver-interface` | Consumer — decomposes the cue sequence into trials using these motifs and trigger types                  |

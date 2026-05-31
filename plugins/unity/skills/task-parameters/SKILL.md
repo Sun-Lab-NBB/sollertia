@@ -204,13 +204,13 @@ On error the response is **only** `{"success": false, "error": "..."}` — no `s
 
 `Undo` coverage is asymmetric: only the `task` section registers an undo step
 (`Undo.RecordObject(task, "Write Task Parameters")`); writes to `actor`, `mqtt`, `display`, and
-`camera_mapping` cannot be reverted with `Ctrl+Z` in the Editor. You MUST NOT bundle multisection
+`camera_mapping` cannot be reverted with `Ctrl+Z` (`Cmd+Z` on macOS) in the Editor. You MUST NOT bundle multisection
 writes expecting a single undo to roll them all back.
 
 The bridge marks the active scene dirty when any write succeeds and runs `EditorUtility.SetDirty`
 on any modified `DisplaySettings` asset (and calls `FullScreenViewManager.SaveCameras()`, which
 internally runs `EditorUtility.SetDirty` plus `AssetDatabase.SaveAssets` on the
-`FullScreenViewsSaved` asset). A subsequent `Ctrl+S` / `EditorSceneManager.SaveOpenScenes()`
+`FullScreenViewsSaved` asset). A subsequent `Ctrl+S` (`Cmd+S` on macOS) / `EditorSceneManager.SaveOpenScenes()`
 persists every scene-level change. A `display.height_in_vr` write additionally translates the
 `DisplayObject` GameObject by setting `display.transform.localPosition = (0, height_in_vr, 0)`,
 so the scene's display rig moves in lockstep with the asset value.
@@ -347,6 +347,7 @@ Use `get_play_state_tool` (`/play-mode`) to check `state == "edit"` before issui
 | `/mqtt-contract` (this plugin)                | Reference for the `RequireLick` / `RequireWait` runtime alternative to `task` writes          |
 | `/gimbl-framework` (this plugin)              | Reference for `ActorObject`, `DisplayObject`, `MQTTClient`, and `ControllerOutput` semantics  |
 | assets plugin `/assets-mcp-environment-setup` | Upstream — owns the slsa MCP server diagnostic                                                |
+| experiment plugin `/vr-driver-interface`      | Host sets `RequireLick` / `RequireWait` at runtime via `set_*_guidance`                       |
 
 ---
 

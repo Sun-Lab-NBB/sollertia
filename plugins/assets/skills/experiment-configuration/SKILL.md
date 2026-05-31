@@ -383,14 +383,15 @@ reason, that is currently not supported by the sollertia-shared-assets MCP layer
 
 ## Related skills
 
-| Skill                                      | Relationship                                                                                                                                              |
-|--------------------------------------------|-----------------------------------------------------------------------------------------------------------------------------------------------------------|
-| `/working-directory`                       | Provides the templates directory so `/task-templates` knows where to enumerate; this skill needs only absolute paths                                      |
-| `/assets-mcp-environment-setup`            | Run first if the MCP server is not connected                                                                                                              |
-| `/task-templates`                          | Required upstream — owns template authoring and exposes `discover_templates_tool` for absolute template paths                                             |
-| `/project-hierarchy`                       | Discovers the existing project tree. Project creation is via the `slsa configure project` CLI command, not this skill                                     |
-| experiment plugin `/system-configuration`  | Owns MesoscopeSystemConfiguration (moved out of this plugin)                                                                                              |
-| experiment plugin `/managing-session-data` | Downstream consumer — `SessionData.create` copies the authored `experiment_configuration.yaml` into every new experiment session at acquisition time      |
-| unity plugin `/task-prefabs`               | Validates template values against the Unity prefab state                                                                                                  |
-| experiment plugin `/experiment-pipeline`   | Phase 4 of the experiment lifecycle is owned by this skill                                                                                                |
-| `/library-extension`                       | Cross-cutting recipe to add a new `AcquisitionSystems`, runtime trial class, or `TriggerType` member; lists the prose here that needs updating in lockstep|
+| Skill                                      | Relationship                                                                                                                                               |
+|--------------------------------------------|------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| `/working-directory`                       | Provides the templates directory so `/task-templates` knows where to enumerate; this skill needs only absolute paths                                       |
+| `/assets-mcp-environment-setup`            | Run first if the MCP server is not connected                                                                                                               |
+| `/task-templates`                          | Required upstream — owns template authoring and exposes `discover_templates_tool` for absolute template paths                                              |
+| `/project-hierarchy`                       | Discovers the existing project tree. Project creation is via the `slsa configure project` CLI command, not this skill                                      |
+| experiment plugin `/system-configuration`  | Owns MesoscopeSystemConfiguration (moved out of this plugin)                                                                                               |
+| experiment plugin `/managing-session-data` | Downstream consumer — `SessionData.create` copies the authored `experiment_configuration.yaml` into every new experiment session at acquisition time       |
+| unity plugin `/task-prefabs`               | Validates template values against the Unity prefab state                                                                                                   |
+| experiment plugin `/experiment-pipeline`   | Phase 4 of the experiment lifecycle is owned by this skill                                                                                                 |
+| `/library-extension`                       | Cross-cutting recipe to add a new `AcquisitionSystems`, runtime trial class, or `TriggerType` member; lists the prose here that needs updating in lockstep |
+| experiment plugin `/vr-driver-interface`   | Verifies `unity_scene_name` against the live scene; consumes the per-trial parameters at runtime                                                           |
