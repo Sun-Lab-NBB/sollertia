@@ -41,7 +41,7 @@ see `experiment:mesoscope-vr-runtime`.
 - Concrete Mesoscope-VR runtime behavior (its states, modes, CLI, visualizer) — see `experiment:mesoscope-vr-runtime`
 - Per-firmware-module wrapper APIs the orchestrator consumes — see `experiment:microcontroller-interface`
 - The Unity VR task driver event source — see `experiment:vr-driver-interface`
-- Session descriptors / `SessionTypes` authoring — owned by the assets plugin's `/session-descriptors`
+- Session descriptors / `SessionTypes` authoring — owned by `assets:session-descriptors`
 - Session-data lifecycle after acquisition (preprocess, transfer, delete) — see `experiment:data-management`
 
 ---
@@ -265,16 +265,16 @@ pattern not captured here, add it.
 
 ## Related skills
 
-| Skill                                       | Relationship                                                              |
-|---------------------------------------------|---------------------------------------------------------------------------|
-| `experiment:acquisition-system-design`      | Static composition counterpart (configuration, binding classes, construction/shutdown order) |
-| `experiment:mesoscope-vr-runtime`           | The current worked instance of this pattern                               |
-| `experiment:mesoscope-vr`                   | The current worked instance of the static design pattern                  |
-| `experiment:microcontroller-interface`      | Per-module wrapper APIs and the SharedMemoryArray accessors the loop reads |
-| `experiment:vr-driver-interface`            | The typed-event asset-lane source (`VRTaskEvent`) the loop dispatches      |
-| assets plugin `/session-descriptors`        | Authors the descriptors and `SessionTypes` the runtime consumes           |
-| `experiment:data-management`                | Post-acquisition session-data lifecycle                                   |
-| `experiment:pipeline`                       | Where the runtime phase sits in the end-to-end lifecycle                  |
+| Skill                                  | Relationship                                                                                 |
+|----------------------------------------|----------------------------------------------------------------------------------------------|
+| `experiment:acquisition-system-design` | Static composition counterpart (configuration, binding classes, construction/shutdown order) |
+| `experiment:mesoscope-vr-runtime`      | The current worked instance of this pattern                                                  |
+| `experiment:mesoscope-vr`              | The current worked instance of the static design pattern                                     |
+| `experiment:microcontroller-interface` | Per-module wrapper APIs and the SharedMemoryArray accessors the loop reads                   |
+| `experiment:vr-driver-interface`       | The typed-event asset-lane source (`VRTaskEvent`) the loop dispatches                        |
+| assets plugin `/session-descriptors`   | Authors the descriptors and `SessionTypes` the runtime consumes                              |
+| `experiment:data-management`           | Post-acquisition session-data lifecycle                                                      |
+| `experiment:pipeline`                  | Where the runtime phase sits in the end-to-end lifecycle                                     |
 
 ---
 
