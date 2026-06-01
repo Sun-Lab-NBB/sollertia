@@ -1,18 +1,18 @@
 ---
 name: vr-driver-interface
 description: >-
-  Documents the Virtual Reality task driver hardware lane: the VRTaskDriver class, the VRTaskConfiguration it
-  reads, the MQTT topic contract with the Unity game engine, the VRTaskEvent model surfaced per
-  runtime cycle, the guidance toggles, and the cue-sequence trial decomposition. Use when modifying
-  Unity coupling, adding an MQTT topic or VR task event, or wiring a new acquisition system to Unity.
+  Documents the Virtual Reality task driver subsystem: the VRTaskDriver class and its
+  configuration, the MQTT topic contract with the Unity game engine, the per-cycle VRTaskEvent
+  model, and the cue-sequence trial decomposition. Use when modifying Unity coupling, adding an
+  MQTT topic or VR task event, or wiring a new acquisition system to Unity.
 user-invocable: false
 ---
 
 # VR task driver interface
 
-Documents the Virtual Reality task driver — the host-side hardware lane that couples a Sollertia
+Documents the Virtual Reality task driver — the host-side hardware subsystem that couples a Sollertia
 acquisition runtime to the Unity game engine implemented in `sollertia-unity-tasks`. This is the
-platform-general VR lane, parallel to `experiment:microcontroller-interface` (microcontrollers) and
+platform-general VR subsystem, parallel to `experiment:microcontroller-interface` (microcontrollers) and
 `experiment:zaber-interface` (motors): the `VRTaskDriver` in
 `sollertia_experiment/vr_task/driver.py` is hardware-agnostic and composed by an acquisition
 system's runtime orchestrator (currently Mesoscope-VR's `_MesoscopeVRSystem`).
@@ -273,7 +273,7 @@ When in doubt, re-read `sollertia_experiment/vr_task/driver.py`,
 |----------------------------------------------------|------------------------------------------------------------------------------|
 | `experiment:mesoscope-vr-runtime`                  | Owns the orchestrator that composes and drives this driver                   |
 | `experiment:mesoscope-vr`                          | Defines `assets.vr_task` (`VRTaskConfiguration`) in the system config        |
-| `experiment:acquisition-system-runtime`            | Platform-general runtime pattern this lane plugs into                        |
+| `experiment:acquisition-system-runtime`            | Platform-general runtime pattern this subsystem plugs into                   |
 | `ataraxis@communication:microcontroller-interface` | `MQTTCommunication` mechanics the driver builds on                           |
 | `unity:mqtt-contract`                              | Unity side of the MQTT topic contract (`MQTTTopics`)                         |
 | `unity:gimbl-framework`                            | Unity-side VR framework and game objects                                     |

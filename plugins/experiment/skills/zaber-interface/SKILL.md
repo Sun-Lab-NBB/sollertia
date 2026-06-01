@@ -1,16 +1,16 @@
 ---
 name: zaber-interface
 description: >-
-  Guides implementation of Zaber motor interfaces using the zaber-motion library. Covers motor discovery, position
-  management, safety patterns, and binding class patterns. Use when adding Zaber motor support to any acquisition
-  system or troubleshooting motor connectivity.
+  Guides implementation of Zaber motor interfaces using the zaber-motion library. Covers motor
+  discovery, position management, safety patterns, and binding class patterns. Use when adding
+  Zaber motor support to any acquisition system or troubleshooting motor connectivity.
 user-invocable: false
 ---
 
 # Zaber motor interface
 
 Guides the implementation of Zaber motor interfaces using the zaber-motion library. This is the
-platform-general Zaber hardware lane — the `ZaberConnection` / `ZaberDevice` / `ZaberAxis` stack in
+platform-general Zaber hardware subsystem — the `ZaberConnection` / `ZaberDevice` / `ZaberAxis` stack in
 `sollertia_experiment/cross_system/zaber_bindings.py` is system-agnostic and consumed by any
 acquisition system's binding layer (currently Mesoscope-VR's `ZaberMotors`).
 
@@ -26,7 +26,7 @@ acquisition system's binding layer (currently Mesoscope-VR's `ZaberMotors`).
 
 **Does not cover:**
 - Mesoscope-VR-specific integration — modifying `MesoscopeVRAssets` or extending `ZaberMotors` (see `/mesoscope-vr`)
-- The platform-general pattern for composing a Zaber lane into a binding class (see `/acquisition-system-design`)
+- The platform-general pattern for composing a Zaber subsystem into a binding class (see `/acquisition-system-design`)
 - Reading or writing the `ZaberPositions` session snapshot (see `/session-snapshots`)
 - The `zaber-motion` library internals (third-party; consult its own documentation)
 
@@ -453,9 +453,9 @@ dataclass patterns, see [references/zaber-api-reference.md](references/zaber-api
 
 | Skill                               | Relationship                                                                   |
 |-------------------------------------|--------------------------------------------------------------------------------|
-| `/acquisition-system-design`        | Platform-general pattern for composing a Zaber lane into a binding class       |
+| `/acquisition-system-design`        | Platform-general pattern for composing a Zaber subsystem into a binding class  |
 | `/mesoscope-vr`                     | Current consumer — composes `ZaberMotors` from `MesoscopeVRAssets`             |
-| `/session-snapshots`                | Reads/writes the `ZaberPositions` snapshot this lane restores from             |
+| `/session-snapshots`                | Reads/writes the `ZaberPositions` snapshot this subsystem restores from        |
 | `/acquisition-system-setup`         | Acquisition-system-level hardware discovery and verification                   |
 | `/experiment-mcp-environment-setup` | Run first if the `sle mcp` server is not connected                             |
 | `references/zaber-api-reference.md` | Complete `ZaberConnection` / `ZaberDevice` / `ZaberAxis` API and code examples |

@@ -35,7 +35,7 @@ Unity VR task driver the orchestrator uses to couple to the game engine, see
 - Workflow for adding a new training mode (cross-repo: sollertia-shared-assets + sollertia-experiment)
 
 **Does not cover** (delegated):
-- Mesoscope-VR hardware composition (binding classes, calibration dataclasses, system YAML) — see `experiment:mesoscope-vr`
+- Mesoscope-VR hardware composition (binding classes, configuration dataclasses, system YAML) — see `experiment:mesoscope-vr`
 - The platform-general runtime pattern — see `experiment:acquisition-system-runtime`
 - The Unity VR task driver, its MQTT topic vocabulary, and trial decomposition — see `experiment:vr-driver-interface`
 - Per-firmware-module wrappers and slmc Module classes — see `experiment:microcontroller-interface`
@@ -160,7 +160,7 @@ The orchestrator's `__init__` receives the started `DataLogger`, the loaded
 After construction the orchestrator owns `self._microcontrollers`, `self._cameras`, `self._zaber`,
 `self._vr_task` (`VRTaskDriver | None`), `self._ui`, `self._visualizer`, and `self._trial_state`.
 
-The construction/teardown ordering constraints (hardware-lane order, keepalive enforcement) come
+The construction/teardown ordering constraints (hardware-subsystem order, keepalive enforcement) come
 from `experiment:acquisition-system-runtime`.
 
 ### State transitions

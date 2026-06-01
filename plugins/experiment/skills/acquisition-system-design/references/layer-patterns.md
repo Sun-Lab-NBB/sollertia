@@ -10,16 +10,16 @@ cross-layer contracts that hold the architecture together. Loaded on demand from
 
 The top-level system configuration is a single `@dataclass` that inherits from
 `ataraxis_data_structures.YamlConfig` and composes one nested dataclass per concern (per hardware
-lane, plus auxiliary host-state concerns like filesystem paths and external service IDs).
+subsystem, plus auxiliary host-state concerns like filesystem paths and external service IDs).
 
 ### Class definition pattern
 
 ```python
 from dataclasses import dataclass, field
-from ataraxis_data_structures import YamlConfig
+from sollertia_experiment.cross_system import SystemConfiguration
 
 @dataclass
-class <System>SystemConfiguration(YamlConfig):
+class <System>SystemConfiguration(SystemConfiguration):
     """Defines the hardware and software asset configuration for the <System> data acquisition system."""
 
     name: str = "<system_name>"
@@ -34,7 +34,7 @@ class <System>SystemConfiguration(YamlConfig):
     microcontrollers: <System>MicroControllers = field(default_factory=<System>MicroControllers)
     """Stores the microcontrollers configuration."""
 
-    # Additional per-lane sections as needed: external_assets, sheets, etc.
+    # Additional per-subsystem sections as needed: external_assets, sheets, etc.
 ```
 
 **Rules:**
@@ -99,42 +99,67 @@ def save(self, path: Path) -> None:
 - This pattern is needed only when the YAML "natural" shape differs from the in-memory shape. Most
   fields don't need it.
 
-### Module-level helpers
+### Configuration-file lifecycle (shared cross-system registry)
 
-Every system configuration module SHOULD expose three module-level helper functions for
-configuration file lifecycle:
+The configuration-file lifecycle — create, resolve, load — is shared across systems. It lives in a
+cross-system module (`sollertia_experiment/cross_system/system_configuration.py`) driven by a registry
+that maps each `AcquisitionSystems` member to its `SystemConfiguration` subclass. (The experiment
+package owns this registry because the `SystemConfiguration` classes are defined there;
+`sollertia-shared-assets` owns the keyed-by-system registries for experiment configuration, hardware
+state, and raw data.)
+
+A host-machine belongs to exactly one acquisition system at a time: its working directory holds exactly
+one `<system>_system_configuration.yaml`. The shared discovery reads whichever single file is present,
+so the getters resolve the local system from disk and take no `system` argument.
+
+The shared module exposes:
 
 ```python
-def create_system_configuration_file(system: AcquisitionSystems | str = ...) -> None:
-    """Creates the .YAML configuration file for the data acquisition system."""
+class SystemConfiguration(YamlConfig):
+    """Base class for every system's configuration: the common registry type + a default save()."""
 
-def get_system_configuration_path() -> Path:
-    """Returns the expected path to the local system configuration YAML."""
-
-def get_system_configuration() -> <System>SystemConfiguration:
-    """Loads the local configuration file and verifies it belongs to this acquisition system."""
+def register_system_configuration(system, configuration_class: type[SystemConfiguration]) -> None: ...
+def create_system_configuration_file(system: AcquisitionSystems | str) -> None: ...  # registry-driven; any registered system
+def get_system_configuration_path() -> Path: ...                                     # the single on-disk file; errors if != 1
+def get_system_configuration_data() -> SystemConfiguration: ...                       # loads it, class resolved via the registry
 ```
 
+Each system's package contributes two things; the path resolution, file discovery, and creation come
+from the shared helpers:
+
+1. **Register** its `SystemConfiguration` subclass at import time:
+   `register_system_configuration(AcquisitionSystems.<SYSTEM>, <System>SystemConfiguration)`.
+2. **Expose a thin typed wrapper** that narrows the return type and validates the machine's system:
+
+```python
+def get_system_configuration() -> <System>SystemConfiguration:
+    data = get_system_configuration_data()
+    if not isinstance(data, <System>SystemConfiguration):
+        console.error(...)   # this PC belongs to a different acquisition system
+    return data
+```
+
+It may also expose a no-arg `create_system_configuration_file()` that defaults to its own system, and
+re-export the shared `get_system_configuration_path`, for CLI/MCP convenience.
+
 **Rules:**
-- `create_system_configuration_file` removes any pre-existing `*_system_configuration.yaml` in the
-  target directory so exactly one file remains. It writes the defaults; the user edits afterward.
-- `get_system_configuration_path` returns the canonical path under `get_working_directory()` (from
-  `sollertia_shared_assets`). The system configuration ALWAYS lives in
-  `<working_directory>/configuration/<system>_system_configuration.yaml`.
-- `get_system_configuration` raises a clear error (via `console.error`) if the file does not exist,
-  pointing the user at the system's `configure` CLI command (`sle mesoscope configure` for Mesoscope-VR).
-- Only `create_system_configuration_file` accepts the `AcquisitionSystems` enum (defaulting to the
-  package's supported system) and rejects any other value; the two getters take no arguments.
-  `get_system_configuration` additionally verifies that the loaded file belongs to this acquisition
-  system.
+- The shared `create_system_configuration_file` removes any pre-existing `*_system_configuration.yaml`
+  so exactly one remains, then writes the registered class's defaults. The canonical path is
+  `<working_directory>/configuration/<system>_system_configuration.yaml` (`get_working_directory()`
+  from `sollertia_shared_assets`); the filename is derived from the system name, not stored separately.
+- The per-system typed wrapper asserts the concrete `<System>SystemConfiguration` type; the
+  cross-system getters return the shared `SystemConfiguration` base.
+- `SystemConfiguration`'s default `save()` calls `to_yaml`; a system overrides it when the on-disk YAML
+  shape must differ from the in-memory shape (the `__post_init__` / `save()` pattern above).
 
 ---
 
-## Layer 2a: Per-lane calibration dataclasses
+## Layer 2a: Per-subsystem configuration dataclasses
 
-For each hardware lane (cameras, microcontrollers, motors, external assets), the system configuration
-embeds a per-lane calibration dataclass. Each dataclass captures the **physical parameters** of the
-lane's hardware that the binding class uses to instantiate per-device wrappers.
+For each hardware subsystem (cameras, microcontrollers, motors, external assets), the system configuration
+embeds a per-subsystem configuration dataclass. Each dataclass captures the **parameters** of the
+subsystem's hardware that the binding class uses to instantiate per-device wrappers (physical
+calibration values for some fields, plain operating settings for others).
 
 ### Class definition pattern
 
@@ -142,17 +167,17 @@ lane's hardware that the binding class uses to instantiate per-device wrappers.
 from dataclasses import dataclass
 
 @dataclass(slots=True)
-class <System><Lane>:
-    """Stores the <lane> configuration of the <System> data acquisition system."""
+class <System><Subsystem>:
+    """Stores the <subsystem> configuration of the <System> data acquisition system."""
 
     <device>_<parameter>_<unit>: <type> = <default>
     """One-line description of what the field parameterizes, with units explicit where applicable."""
 ```
 
 **Rules:**
-- Use `@dataclass(slots=True)`. The per-lane dataclasses don't inherit from `YamlConfig`, so slots
+- Use `@dataclass(slots=True)`. The per-subsystem dataclasses don't inherit from `YamlConfig`, so slots
   are safe and reduce memory.
-- Class name follows the `<System><Lane>` convention: `MesoscopeCameras`, `MesoscopeMicroControllers`,
+- Class name follows the `<System><Subsystem>` convention: `MesoscopeCameras`, `MesoscopeMicroControllers`,
   `MesoscopeVRAssets`, etc.
 - Each field has an explicit default — the YAML loader uses defaults when a field is absent.
 - Each field has a triple-quoted docstring immediately after it. `YamlConfig` extracts these and
@@ -169,7 +194,7 @@ Field names encode three pieces of information separated by underscores:
 | Component            | Examples                                                        | Notes                                                              |
 |----------------------|-----------------------------------------------------------------|--------------------------------------------------------------------|
 | `<device-or-module>` | `face_camera`, `lick`, `torque`, `wheel_encoder`                | The device's role in the system, not the underlying hardware brand |
-| `<parameter>`        | `index`, `threshold`, `delta_threshold`, `polling_delay`, `ppr` | The semantic name of the calibration value                         |
+| `<parameter>`        | `index`, `threshold`, `delta_threshold`, `polling_delay`, `ppr` | The semantic name of the parameter                                 |
 | `<unit>`             | `adc`, `us`, `ms`, `cm`, `g_cm`, `pulse`                        | Only included when the unit is non-obvious from the parameter name |
 
 **Examples:**
@@ -211,32 +236,32 @@ starting points the user overrides per-host.
 
 ---
 
-## Layer 2b: Per-lane binding classes
+## Layer 2b: Per-subsystem binding classes
 
-For each hardware lane, the acquisition system has one binding class that composes the lane's
+For each hardware subsystem, the acquisition system has one binding class that composes the subsystem's
 per-device wrappers and orchestrates their lifecycle.
 
 ### Class definition pattern
 
 ```python
-class <System><Lane>Bindings:
-    """Interfaces with the <lane> devices used in the <system> data acquisition system."""
+class <System><Subsystem>Bindings:
+    """Interfaces with the <subsystem> devices used in the <system> data acquisition system."""
 
     def __init__(
         self,
         data_logger: DataLogger,
-        <lane>_configuration: <System><Lane>,
+        <subsystem>_configuration: <System><Subsystem>,
         # optional: output_directory, previous_state, etc.
     ) -> None:
         # 1. Initialize the _started lifecycle flag
         self._started: bool = False
 
         # 2. Cache the configuration (sometimes needed for runtime parameter updates)
-        self._configuration: <System><Lane> = <lane>_configuration
+        self._configuration: <System><Subsystem> = <subsystem>_configuration
 
         # 3. Instantiate per-device wrappers using configuration fields
         self.<device_a>: <DeviceA>Interface = <DeviceA>Interface(
-            <calibration_param>=<lane>_configuration.<field>,
+            <parameter>=<subsystem>_configuration.<field>,
             ...
         )
         # ... more wrappers ...
@@ -253,12 +278,11 @@ class <System><Lane>Bindings:
         self.stop()
 
     def start(self) -> None:
-        """Starts the communication processes and configures hardware with runtime parameters."""
+        """Brings the subsystem online (the exact bring-up sequence is subsystem-type-specific)."""
         if self._started:
             return
-        # Start each underlying controller
-        # Call initialize_local_assets() on each wrapper that has SharedMemoryArray
-        # Send runtime parameter updates (set_parameters calls)
+        # Bring-up sequence varies by subsystem type — see references/subsystem-types.md.
+        # (Microcontroller subsystems: start controllers → initialize_local_assets() → set_parameters().)
         self._started = True
 
     def stop(self) -> None:
@@ -269,10 +293,16 @@ class <System><Lane>Bindings:
         # Stop each underlying controller (this also resets the wrapped hardware)
 ```
 
+The skeleton above shows a microcontroller-style binding (it wraps `module_interfaces` and uses the
+`_started` / `start()` / `stop()` lifecycle); camera and third-party-SDK subsystems share the
+constructor and ownership rules below but differ in their method surface (see
+[subsystem-types.md](subsystem-types.md)).
+
 **Rules:**
-- **Constructor takes** `data_logger` first (when the lane logs to DataLogger), then the per-lane
-  calibration dataclass, then any optional supplementary inputs (output directory, previous-session
-  state snapshot, etc.). Order matters: `data_logger` is the most-shared dependency.
+- **Constructor takes** `data_logger` first (when the subsystem logs to DataLogger), then the per-subsystem
+  configuration dataclass, then any optional supplementary inputs (output directory, previous-session
+  state snapshot, etc.). Order matters: `data_logger` is the most-shared dependency. SDK-connection
+  subsystems (e.g., Zaber motors) may omit `data_logger` entirely.
 - **Per-device wrappers are public attributes** (`self.brake`, `self.lick`, `self._face_camera`).
   The convention is public attributes for wrappers the lifecycle orchestrator may directly access
   (e.g., to issue commands at runtime), private (`_underscore`) for internal-only wrappers.
@@ -284,38 +314,35 @@ class <System><Lane>Bindings:
 - **`_started` idempotency**: `start()` and `stop()` are no-ops when already in the target state.
   The lifecycle orchestrator may double-call them during error recovery; both calls must be safe.
 
-### Calling order inside `start()`
+### Bring-up sequence (subsystem-type-specific)
 
-The exact order matters:
+The bring-up sequence and method surface are specific to each subsystem type. The full per-type
+sequences are documented in [subsystem-types.md](subsystem-types.md):
 
-1. **Start each underlying controller** (`MicroControllerInterface.start()`, `VideoSystem.start()`,
-   `ZaberConnection.connect()`). This spawns the controller's communication subprocess.
-2. **Call `initialize_local_assets()` on each wrapper with SharedMemoryArray.** This connects the
-   parent process to the shared memory the wrapper created in `__init__`. Without this, the
-   wrapper's `lick_count` / `delivered_volume` / etc. properties return stale data.
-3. **Send runtime parameter updates** via `wrapper.set_parameters(...)` using values from
-   `self._configuration`. The wrappers were instantiated with calibration parameters in `__init__`;
-   `set_parameters` pushes the runtime parameter struct (which mirrors the firmware's
-   `CustomRuntimeParameters`) to the device. These two happen at different times and serve different
-   purposes — see `experiment:microcontroller-interface` for the wrapper-side detail.
+- **Microcontroller subsystems**: start each controller → `initialize_local_assets()` on every
+  `SharedMemoryArray`-backed wrapper → push runtime parameters via `set_parameters()`.
+- **Camera subsystems**: a `start_<role>_camera()` (acquisition) → `save_<role>_camera_frames()`
+  (saving) split.
+- **Third-party-SDK subsystems**: connect in `__init__`; expose `connect` / `disconnect` plus position
+  methods for their lifecycle.
 
-If any of these three steps fails, the wrapper's runtime state is unsafe and `start()` MUST raise
-rather than silently leaving `_started=False`.
+The one invariant across types: if any bring-up step fails, the subsystem's runtime state is unsafe
+and bring-up MUST raise rather than silently leaving the subsystem half-started.
 
 ### Lifecycle method conventions
 
 | Method                       | When                                                                                             |
 |------------------------------|--------------------------------------------------------------------------------------------------|
-| `start()`                    | Mandatory. Idempotent. Brings the lane online.                                                   |
-| `stop()`                     | Mandatory. Idempotent. Tears the lane down.                                                      |
+| `start()`                    | Mandatory. Idempotent. Brings the subsystem online.                                              |
+| `stop()`                     | Mandatory. Idempotent. Tears the subsystem down.                                                 |
 | `start_<sub_device>()`       | Optional. When per-device lifecycle granularity is useful (e.g., starting one camera at a time). |
-| `save_<sub_device>_frames()` | Optional. When the lane has a "saving" distinct from "acquiring" (cameras).                      |
-| `restore_position()`         | Optional. When the lane has cross-session state (motors).                                        |
+| `save_<sub_device>_frames()` | Optional. When the subsystem has a "saving" distinct from "acquiring" (cameras).                 |
+| `restore_position()`         | Optional. When the subsystem has cross-session state (motors).                                   |
 | `is_started` property        | Optional. Read-only view of `_started`.                                                          |
 
-Lanes that wrap a third-party SDK connection (e.g., the Zaber motor lane) may expose `connect` (in
-`__init__`) / `disconnect` plus position methods (`restore_position`, `park` / `unpark`) in place of
-`start` / `stop`.
+Subsystems that wrap a third-party SDK connection (e.g., the Zaber motor subsystem) expose `connect` (in
+`__init__`) / `disconnect` plus position methods (`restore_position`, `park_motors` / `unpark_motors`)
+for their lifecycle.
 
 ---
 
@@ -327,77 +354,89 @@ per acquisition system that composes the Layer-2 binding classes and owns the ma
 This skill documents the *contract* the orchestrator must honor; the specific state machine and
 runtime modes for any given system are documented in that system's behavior/runtime skill.
 
-### Construction order
+### Construction and bring-up order
 
-When the orchestrator builds its binding classes, the order MUST be:
+**Construction (instantiation)** is fixed by one hard build dependency — the DataLogger must exist
+before any controller:
 
 ```text
 DataLogger(...)              ── instantiated first (owns the output directory each controller registers against)
-    ↓
-MQTTCommunication() ──── if the system uses MQTT (e.g., for Unity-VR communication)
     ↓
 MicroControllerInterfaces(...)
     ↓
 VideoSystems(...)
     ↓
-<other lane bindings>... (any other lanes — motors, custom devices)
+<other subsystem bindings>... (motors, custom devices)
     ↓
-DataLogger.start(), then .start() on each binding class, in the same order
+VRTaskDriver(...)            ── last, and only when the system drives Unity (experiment sessions)
 ```
 
-Reasons for this order:
-- The DataLogger MUST be instantiated before any controller is constructed, because each
-  `MicroControllerInterface.__init__` writes a manifest entry to the DataLogger's output directory.
-  Its communication process is then started first (before any binding class) inside the orchestrator's
-  `start()`.
-- Microcontrollers SHOULD start before cameras because some camera triggers come from
-  microcontroller TTL output; the camera receiving a trigger from an unstarted controller is a
-  startup race.
-- Zaber motors SHOULD initialize before or after the others depending on whether their position is
-  consumed by a downstream calibration step (e.g., reading current position to compute a Unity
-  initial state).
+Each `MicroControllerInterface.__init__` registers a manifest entry in the DataLogger's output
+directory, so the DataLogger (and its started communication process) MUST precede every controller.
+The remaining instantiation order follows the subsystem list; runtime behavior is governed by the
+*bring-up* staging below.
+
+**Bring-up (start)** is staged by the runtime state
+machine and governed by two principles:
+
+1. **Dependency ordering — start an asset only after the assets it depends on are running.**
+   *Concrete example (Mesoscope-VR):* the microcontrollers are started before the Unity VR setup runs,
+   because Unity's interactive setup requires the VR screens to be powered on, and the screens are
+   driven by an ACTOR microcontroller module. Running Unity setup against dark screens is unhelpful.
+
+2. **Keep as few assets running as possible until interactive setup is done.** The interactive setup
+   phase, such as Unity environment setup or mesoscope alignment — are lengthy and operator-driven, so
+   starting only what each step strictly needs keeps the main PC's resources free.
+   *Concrete example (Mesoscope-VR):* the behavior cameras and any microcontroller sensors not needed
+   for setup stay off until setup completes; only the screen-driving microcontroller is up for Unity
+   setup. This frees CPU cores so an operator can preprocess a previous session while setting up the
+   next.
+
+The precise staging (which asset starts in which runtime state) is the runtime skill's domain — see
+`experiment:acquisition-system-runtime` and the per-system runtime skill. The design contract here is
+only that the orchestrator (a) honors construction and runtime dependencies and (b) defers
+resource-heavy assets until interactive setup needs them.
 
 ### Shutdown order
 
-Reverse of construction:
+Shutdown applies the **same dependency principle in reverse**: stop each asset before the assets that
+record from or depend on it, and stop the DataLogger last.
 
-```text
-.stop() on each binding class, in reverse order
-    ↓
-DataLogger.stop()
-```
+- **A producer is stopped before its recorder.** *Concrete example (Mesoscope-VR):* the microcontrollers
+  record the mesoscope's frame-clock TTL pulses, so the mesoscope is shut down before the
+  microcontrollers — otherwise the recorder would stop while the source is still emitting.
+- **The DataLogger is stopped last.** Every binding class's `stop()` may write final messages to it,
+  and it records the data streams from all sources, so it MUST outlive every consumer.
 
-The reverse-order rule is non-negotiable: each binding class's `stop()` may write final messages to
-the DataLogger, so the DataLogger must outlive every consumer. After shutdown, the downstream
-preprocessing pipeline calls `assemble_log_archives()` (from `ataraxis_data_structures`) to
-consolidate the per-source log entries into the final session output; this runs as a separate
-preprocessing step, not inside the orchestrator's `stop()`.
+After shutdown, the downstream preprocessing pipeline calls `assemble_log_archives()` (from
+`ataraxis_data_structures`) to consolidate the per-source log entries into the final session output;
+this runs as a separate preprocessing step, not inside the orchestrator's `stop()`.
 
-### Keepalive enforcement
+### Keepalive
 
-For systems that use microcontroller keepalive, the orchestrator (or the
-`MicroControllerInterfaces` binding class on its behalf) is responsible for:
+AXCI handles microcontroller keepalive. Once a `MicroControllerInterface` is constructed with a
+non-zero `keepalive_interval`, it sends keepalive messages to its controller at that interval and
+raises a `RuntimeError` if the controller misses its deadline (the `KEEPALIVE_TIMEOUT` Kernel event,
+code 10, after the microcontroller performs its emergency reset).
 
-- Setting the `keepalive_interval` on each `MicroControllerInterface` from the configuration's
-  `keepalive_interval_ms` field.
-- Monitoring for keepalive-timeout errors (`KEEPALIVE_TIMEOUT` event code 10 on the kernel channel)
-  and aborting the session if any controller misses its deadline.
+The orchestrator/binding-class responsibility is **configuration**: pass each `MicroControllerInterface`
+its `keepalive_interval` (from the configuration's `keepalive_interval_ms` field; `0` disables
+keepalive) at construction. AXCI owns detection and aborting. See
+`experiment:microcontroller-interface` for the per-interface keepalive surface.
 
-This skill's `experiment:microcontroller-interface` counterpart documents the per-wrapper
-keepalive surface; the orchestrator-side enforcement is a system-design responsibility.
+### Cross-subsystem synchronization
 
-### Cross-lane synchronization
+When two subsystems must agree at runtime (e.g., one subsystem's state feeds another's startup), the
+orchestrator wires the cross-subsystem signals. Examples:
 
-When two lanes must agree at runtime (e.g., camera frame capture triggered by a microcontroller TTL),
-the orchestrator wires the cross-lane signals. Examples:
-
-- Camera trigger pin connected to a microcontroller output → orchestrator's runtime logic ensures
-  the camera is acquiring before issuing the microcontroller's start-trigger command.
+- A subsystem that emits TTL into a microcontroller input (a camera or instrument frame-clock, say) →
+  the orchestrator brings the microcontroller's monitoring online before the emitter starts, so the
+  microcontroller (the TTL *receiver*) timestamps the pulses from the first one.
 - Motor position needed to compute Unity initial state → orchestrator reads the position from the
   motor binding class and passes it to the Unity MQTT setup.
 
-Cross-lane signaling lives in the orchestrator, NOT in the individual binding classes. Each binding
-class stays oblivious to the existence of other lanes; the orchestrator is the only place that knows
+Cross-subsystem signaling lives in the orchestrator, NOT in the individual binding classes. Each binding
+class stays oblivious to the existence of other subsystems; the orchestrator is the only place that knows
 the full hardware composition.
 
 ---
@@ -406,9 +445,9 @@ the full hardware composition.
 
 Three contracts must hold for the architecture to function:
 
-### Contract 1: Calibration field naming agreement
+### Contract 1: Configuration field naming agreement
 
-Each per-lane calibration dataclass field that feeds a wrapper constructor MUST match the wrapper's
+Each per-subsystem configuration dataclass field that feeds a wrapper constructor MUST match the wrapper's
 keyword-argument name conceptually (allowing for unit-suffix differences):
 
 | Dataclass field               | Wrapper constructor kwarg | Note                                    |
@@ -424,13 +463,13 @@ causes confusion during debugging.
 
 ### Contract 2: Schema versioning
 
-Any change to a calibration dataclass field (add, remove, rename, type-change) is a **schema change**
+Any change to a configuration dataclass field (add, remove, rename, type-change) is a **schema change**
 and MUST be paired with a version bump on the package that owns the dataclass. Older YAML files
 written against the old schema MUST fail to load (with a clear error) rather than silently producing
 a misconfigured system.
 
 `YamlConfig`'s default behavior is permissive — extra fields in the YAML are ignored, missing fields
-fall back to defaults. Both are dangerous for calibration. The pattern is:
+fall back to defaults. Both are dangerous for configuration. The pattern is:
 
 - Add a field: bump the consumer library's minor version. Older YAML files load with the new field
   at its default (acceptable if the default is safe; explicit error if not).

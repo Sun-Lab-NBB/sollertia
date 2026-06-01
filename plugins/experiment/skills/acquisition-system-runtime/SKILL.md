@@ -2,10 +2,10 @@
 name: acquisition-system-runtime
 description: >-
   Documents the platform-general runtime pattern for a Sollertia data acquisition system: the
-  configuration-time/runtime split, per-mode runtime logic entry points, the orchestrator's state
-  machine and per-cycle event loop, typed event dispatch from the hardware lanes, descriptor
-  consumption, and the visualizer/control-UI surface. Use when designing the runtime layer of a new
-  acquisition system, adding a runtime mode/state, or auditing an existing runtime for pattern compliance.
+  per-mode logic functions, the orchestrator's state machine and per-cycle loop, typed-event
+  dispatch, and the visualizer/control-UI surface. Use when designing the runtime layer of a
+  new acquisition system, adding a runtime mode/state, or auditing an existing runtime for
+  pattern compliance.
 user-invocable: false
 ---
 
@@ -14,7 +14,7 @@ user-invocable: false
 Documents the platform-general **runtime behavior** pattern for a Sollertia data acquisition system —
 how the host-PC stack drives the binding classes through a session once they are composed. It is the
 dynamic-behavior counterpart to `experiment:acquisition-system-design`, which covers the static
-composition (configuration → calibration dataclasses → binding classes → orchestrator construction).
+composition (configuration YAML → configuration dataclasses → binding classes → orchestrator construction).
 
 This is a **pattern skill** — it documents the conventions and contracts every Sollertia acquisition
 runtime shares, not any single system's specific states or modes. For the concrete worked instance,
@@ -27,17 +27,19 @@ see `experiment:mesoscope-vr-runtime`.
 **Covers:**
 - The configuration-time / runtime split (AI assists configuration; runtime is deterministic and AI-free)
 - Per-mode runtime logic functions — the public entry points that run a session
-- The orchestrator's dynamic responsibilities: the system-state machine, the per-cycle runtime loop, and lifecycle (start/stop/pause/resume)
+- The orchestrator's dynamic responsibilities: the system-state machine, the per-cycle runtime loop,
+  and lifecycle (start/stop/pause/resume)
 - The two state axes: system state (hardware configuration) vs runtime state (within-session stage)
-- Typed-event dispatch from the hardware lanes into the runtime loop
-- Session-descriptor consumption (the "session plan") vs the DataLogger archive (the "session result")
+- Typed-event dispatch from the hardware subsystems into the runtime loop
+- Session-descriptor consumption (plan parameters plus runtime summary) and the DataLogger archive
 - The real-time visualizer and interactive control-UI pattern
 - Log message codes and their downstream consumption
 - The CLI surface pattern for launching sessions
 - Workflows for adding a runtime mode and for building a runtime for a new system
 
 **Does not cover** (delegated):
-- Static composition (configuration YAML, calibration dataclasses, binding-class construction/shutdown order) — see `experiment:acquisition-system-design`
+- Static composition (configuration YAML, configuration dataclasses, binding-class construction/shutdown
+  order) — see `experiment:acquisition-system-design`
 - Concrete Mesoscope-VR runtime behavior (its states, modes, CLI, visualizer) — see `experiment:mesoscope-vr-runtime`
 - Per-firmware-module wrapper APIs the orchestrator consumes — see `experiment:microcontroller-interface`
 - The Unity VR task driver event source — see `experiment:vr-driver-interface`
@@ -56,33 +58,34 @@ AI-assisted phases.
 
 A runtime layer therefore has two consumers:
 
-- **Configuration time (AI-assisted):** the CLI command builds a `SessionData` and a session
-  descriptor from flags and writes them to disk.
-- **Runtime (deterministic):** the per-mode logic function reads those files and drives the hardware
-  with no further AI involvement.
+- **Configuration time (AI-assisted):** the AI writes the validated system- and experiment-level
+  configuration files through the MCP tool surface during the earlier setup phases.
+- **Runtime (deterministic):** the CLI forwards its flags to the per-mode logic function, which reads
+  those configuration files, builds the session's `SessionData` and descriptor, and drives the
+  hardware with no further AI involvement.
 
 ---
 
 ## Runtime architecture
 
-```
+```text
 ┌──────────────────────────────────────────────────────────────────────────────┐
 │  CLI command group (one subcommand per runtime mode)                         │
-│  builds SessionData + descriptor (with flag overrides), writes them, then     │
-│  calls the per-mode runtime logic function                                    │
+│  collects shared session args + per-mode flag overrides and forwards         │
+│  them to the per-mode runtime logic function                                 │
 └────────────────────────────────────────────────────┬─────────────────────────┘
                                                      │
 ┌────────────────────────────────────────────────────▼─────────────────────────┐
 │  Per-mode runtime logic functions                                            │
-│  start DataLogger → construct the orchestrator → load the descriptor →        │
-│  drive state transitions and the runtime cycle loop → tear down in reverse    │
+│  build SessionData + descriptor (flag overrides) → construct orchestrator    │
+│  → drive state transitions and the per-cycle runtime loop → tear down        │
 └────────────────────────────────────────────────────┬─────────────────────────┘
                                                      │ composes (Layer 3 of acquisition-system-design)
 ┌────────────────────────────────────────────────────▼─────────────────────────┐
 │  Runtime orchestrator (one per acquisition system)                           │
-│  - owns the binding classes, DataLogger, and any asset-lane drivers          │
+│  - owns the binding classes, DataLogger, and any asset-subsystem drivers     │
 │  - owns the system-state machine + the within-session runtime state          │
-│  - per cycle: pumps each hardware lane, dispatches typed events, updates UI   │
+│  - per cycle: syncs hardware state, dispatches events, services UI           │
 └──────────────────────────────────────────────────────────────────────────────┘
 ```
 
@@ -97,12 +100,16 @@ stop.
 Each runtime mode a system supports has one top-level function that is the public entry point for a
 session of that mode. Every such function follows the same shape:
 
-1. Validate inputs and prepare the session's output directories.
-2. Start the `DataLogger`.
-3. Construct the runtime orchestrator (Layer 3 of `experiment:acquisition-system-design`).
-4. Load the session-specific descriptor (the runtime parameters written to disk by the CLI).
-5. Drive the state transitions and the per-cycle runtime loop for the session's lifetime.
-6. Tear down in the reverse order on completion or interrupt.
+1. Validate inputs (read the AI-written configuration files, verify project/animal membership) and
+   build the session's `SessionData` data hierarchy.
+2. Build the session descriptor: instantiate it with defaults, inherit parameters from the animal's
+   previous session of this mode (if one exists on disk), and apply the per-flag overrides forwarded
+   by the CLI.
+3. Construct the runtime orchestrator (Layer 3 of `experiment:acquisition-system-design`), passing the
+   in-memory descriptor. For recording modes the orchestrator owns and starts the `DataLogger`;
+   maintenance modes start a standalone `DataLogger` first.
+4. Drive the state transitions and the per-cycle runtime loop for the session's lifetime.
+5. Tear down in the reverse order on completion or interrupt.
 
 These functions are the only supported surface for starting a session — direct construction of the
 orchestrator from notebooks or scripts is not supported. Modes that perform maintenance rather than
@@ -119,11 +126,22 @@ A runtime distinguishes two orthogonal state axes:
 - **System state** — the hardware configuration the system is currently in (which actuators are
   engaged, which sensors are active). It is a system-specific enumeration with one member per
   hardware mode. A dedicated method per state drives the binding classes into that configuration and
-  logs the transition. System-state transitions are **idempotent** — re-entering the current state is
-  a no-op.
-- **Runtime state (stage)** — an integer "stage" code that advances *within* a session (e.g., across
-  trial phases). A single method updates and logs it. The pause/resume machinery restores the
-  pre-pause runtime stage when a session resumes from a paused (idle) state.
+  logs the transition. These state methods are **convergent and unconditional** — they never
+  short-circuit on the current system state, so re-entering a state re-runs its full configuration
+  sequence and logs a fresh transition. The hardware itself is not necessarily re-commanded, though:
+  each per-actuator driver wrapper short-circuits on its own cached state, so re-entry only drives the
+  actuators not already in the target setting.
+- **Runtime state (stage)** — an integer "stage" code that partitions a session into an ordered
+  sequence of phases (e.g., trial blocks). Unlike system state, it touches **no hardware**: a single
+  method updates the cached stage and logs it, with no binding-class calls. The stage vocabulary and
+  the points at which it advances are **session-plan data defined by the experimenter**, not hardware
+  policy. In an experiment mode the ordered stage sequence comes from the experiment configuration and
+  is stepped through by the per-mode logic function, while simpler modes may hold a single fixed stage
+  code for the whole session. Its only role is to stamp within-session boundaries onto the logged
+  timeline so the downstream behavior pipeline can segment the recording: system state is what changes
+  the rig, runtime state merely marks the transitions for analysis. The pause/resume machinery
+  preserves the pre-pause stage across an idle interval and re-logs it on resume, keeping the timeline
+  correct.
 
 Both axes are logged to the DataLogger as distinct event codes so downstream processing can
 reconstruct the full state timeline.
@@ -133,24 +151,28 @@ reconstruct the full state timeline.
 The session's heartbeat is a single cycle method the logic function calls repeatedly. Each cycle fans
 out to one bounded step per concern, so no single concern can starve the others:
 
-- **Data pump** — drain each microcontroller lane's incoming data, update trackers, and forward
-  derived quantities (position, licks) to any downstream lanes and the visualizer.
-- **Event pump** — consume **at most one** typed event from each asynchronous asset-lane driver and
+- **Data sync** — read each microcontroller subsystem's current state once per cycle through its
+  shared-memory-backed accessors (position, lick count, dispensed volume). Update the orchestrator's
+  trackers from the change since the previous cycle, and forward derived quantities to downstream
+  subsystems and the visualizer. Microcontroller messages are received and parsed **asynchronously** off
+  the main loop and published to shared memory — this step samples the latest published value, not a per-cycle
+  message backlog.
+- **Event dispatch** — consume **at most one** typed event from each asynchronous asset-subsystem driver and
   dispatch it (see below).
-- **UI pump** — service the interactive control UI (pause/resume, parameter modifiers, manual commands).
-- **Auxiliary pumps** — any system-specific per-cycle bookkeeping (e.g., external-acquisition sync).
+- **UI service** — service the interactive control UI (pause/resume, parameter modifiers, manual commands).
+- **Auxiliary tasks** — any system-specific per-cycle bookkeeping (e.g., external-acquisition sync).
 
-Keeping each pump bounded per cycle is the core latency contract: the loop must return promptly so the
-keepalive to every microcontroller lane stays within its interval (see
+Keeping each step bounded per cycle is the core latency contract: the loop must return promptly so the
+keepalive to every microcontroller subsystem stays within its interval (see
 `experiment:acquisition-system-design`'s keepalive enforcement).
 
-### Typed-event dispatch from hardware lanes
+### Typed-event dispatch from hardware subsystems
 
-Asynchronous hardware lanes (e.g., the VR task driver) surface their per-cycle messages as **typed
-events** rather than raw payloads. The lane's driver parses the transport message and returns a small
+Asynchronous hardware subsystems (e.g., the VR task driver) surface their per-cycle messages as **typed
+events** rather than raw payloads. The subsystem's driver parses the transport message and returns a small
 typed value (an event kind plus any payload fields); the orchestrator switches on the kind and acts on
 its own hardware (deliver a reward, pulse a brake, enter an emergency pause). This keeps transport
-parsing inside the lane and hardware policy inside the orchestrator. The canonical example is the VR
+parsing inside the subsystem and hardware policy inside the orchestrator. The canonical example is the VR
 task driver's `VRTaskEvent` — see `experiment:vr-driver-interface`.
 
 ### Lifecycle
@@ -164,18 +186,21 @@ terminate handles end-of-session shutdown. Construction/teardown ordering is own
 
 ## Session-descriptor consumption
 
-The session descriptor is the **session plan** — the runtime parameters for one session, authored as a
-dataclass owned by `sollertia-shared-assets` (see assets plugin `/session-descriptors`). The runtime
-treats it as **read-only**:
+The session descriptor holds the runtime parameters for one session, authored as a dataclass owned by
+`sollertia-shared-assets` (see assets plugin `/session-descriptors`):
 
-- The CLI instantiates the descriptor with defaults, applies per-flag overrides, and writes it to the
-  session directory before the runtime begins.
-- The logic function reads it from disk at session start and uses it to parameterize the state machine.
-- Runtime-discovered values (total reward delivered, trials completed) are recorded in the **DataLogger
-  archive** (the "session result"), never written back into the descriptor.
+- The per-mode logic function instantiates the descriptor with defaults, inherits parameters from the
+  animal's previous session of the same mode (if one exists on disk), and applies the per-flag
+  overrides forwarded by the CLI.
+- The orchestrator receives the finalized descriptor in-memory, caches it to disk at construction (so
+  an interrupted session can still be preprocessed), and uses it to parameterize the state machine.
+- At session end the orchestrator updates the descriptor in place with runtime-discovered values (the
+  dispensed water volume, the final run-speed/duration thresholds, the completion flag), prompts the
+  operator for notes, and re-saves it.
 
-The descriptor is the plan; the DataLogger archive is the result. Keeping them separate makes a session
-reproducible from its descriptor and auditable from its archive.
+The descriptor therefore carries both the session plan and a summary of its outcome, while the
+DataLogger archive carries the full sample-by-sample record. The descriptor makes a session
+reproducible and human-readable at a glance; the archive makes it auditable in full.
 
 ---
 
@@ -189,8 +214,9 @@ Two operator-facing surfaces are standard:
 - **An interactive control UI** for operator actions during a session (pause/resume, threshold
   modifiers, manual commands).
 
-Both are constructed by the orchestrator and driven from the runtime loop's UI pump. Adding a runtime
-mode with new display needs is a change to the visualizer's mode enumeration and its plotting logic.
+Both are constructed by the orchestrator. The control UI is serviced by the runtime loop's UI-service
+step, while the visualizer is fed by the data-sync step and repainted once per cycle. Adding a runtime mode with
+new display needs is a change to the visualizer's mode enumeration and its plotting logic.
 
 ---
 
@@ -198,7 +224,7 @@ mode with new display needs is a change to the visualizer's mode enumeration and
 
 The orchestrator emits a system-specific `IntEnum` of log message codes to the DataLogger — at minimum
 one for each state axis (system state, runtime state) plus codes for guidance/parameter changes and
-periodic snapshots. New events take the next unused code. These codes are the contract consumed by the
+event-driven snapshots. New events take the next unused code. These codes are the contract consumed by the
 downstream behavior pipeline (forging plugin), so a code's meaning is durable — never recycle a freed
 value.
 
@@ -208,8 +234,9 @@ value.
 
 Runtime modes are exposed as subcommands of the system's CLI group. Shared session arguments (user,
 project, animal, etc.) are supplied on the parent command and inherited by each mode subcommand. Each
-subcommand builds a `SessionData`, builds the descriptor with overrides, writes the descriptor, and
-calls the per-mode logic function. The CLI is the only public surface for starting a session.
+subcommand is a thin wrapper: it collects its per-mode flag overrides and forwards them, with the
+inherited session arguments, to the per-mode logic function (which builds the `SessionData` and
+descriptor). The CLI is the only public surface for starting a session.
 
 ---
 
@@ -225,18 +252,20 @@ calls the per-mode logic function. The CLI is the only public surface for starti
 6. **Export and version-bump** the new function/descriptor; pin the new shared-assets minimum.
 7. **Update the per-system runtime skill** (for Mesoscope-VR, `experiment:mesoscope-vr-runtime`).
 
+---
+
 ## Workflow: building a runtime for a new acquisition system
 
 1. Compose the system statically first (see `experiment:acquisition-system-design`).
 2. Define the system-state enumeration (one member per hardware mode) and the runtime-state stage codes.
 3. Define the log message code enumeration (one per state axis, plus domain events).
-4. Implement the orchestrator's per-cycle loop with one bounded pump per hardware lane present.
+4. Implement the orchestrator's per-cycle loop with one bounded step per hardware subsystem present.
 5. Implement the per-mode logic functions for the system's session types.
 6. Add the CLI command group and subcommands.
 7. Author the per-system runtime skill documenting the concrete states, modes, and CLI.
 
-A new system will diverge from the current instance wherever its hardware lanes differ — fewer or more
-pumps, a different state set, no VR coupling, etc. The patterns above are conventions, not a fixed
+A new system will diverge from the current instance wherever its hardware subsystems differ — fewer or more
+steps, a different state set, no VR coupling, etc. The patterns above are conventions, not a fixed
 template; apply the ones that fit the system's hardware.
 
 ---
@@ -255,7 +284,7 @@ states, modes, and commands; read this skill for the pattern they instantiate.
 ## Maintenance contract
 
 Update this skill when a **platform-general** runtime convention changes (the cycle-loop contract, the
-two-state-axis model, the descriptor plan/result split, the typed-event dispatch pattern, the CLI
+two-state-axis model, the descriptor parameter/summary lifecycle, the typed-event dispatch pattern, the CLI
 pattern). Do NOT update it for changes to any single system's concrete states, modes, visualizer
 modes, or CLI commands — those belong in the per-system runtime skill
 (`experiment:mesoscope-vr-runtime`). When a new acquisition system's runtime reveals a genuinely shared
@@ -271,7 +300,7 @@ pattern not captured here, add it.
 | `experiment:mesoscope-vr-runtime`      | The current worked instance of this pattern                                                  |
 | `experiment:mesoscope-vr`              | The current worked instance of the static design pattern                                     |
 | `experiment:microcontroller-interface` | Per-module wrapper APIs and the SharedMemoryArray accessors the loop reads                   |
-| `experiment:vr-driver-interface`       | The typed-event asset-lane source (`VRTaskEvent`) the loop dispatches                        |
+| `experiment:vr-driver-interface`       | The typed-event asset-subsystem source (`VRTaskEvent`) the loop dispatches                   |
 | assets plugin `/session-descriptors`   | Authors the descriptors and `SessionTypes` the runtime consumes                              |
 | `experiment:data-management`           | Post-acquisition session-data lifecycle                                                      |
 | `experiment:pipeline`                  | Where the runtime phase sits in the end-to-end lifecycle                                     |
@@ -283,12 +312,12 @@ pattern not captured here, add it.
 ```text
 When designing or auditing an acquisition-system runtime:
 - [ ] Runtime is launchable only via the CLI (no MCP "start session" tool)
-- [ ] Per-mode logic functions follow the standard shape (DataLogger → orchestrator → descriptor → loop → teardown)
+- [ ] Per-mode logic functions follow the standard shape (SessionData → descriptor → orchestrator → loop → teardown)
 - [ ] System state and runtime state are distinct axes, each logged with its own code
-- [ ] System-state transitions are idempotent
-- [ ] The per-cycle loop has one bounded pump per hardware lane; keepalive interval is never exceeded
-- [ ] Asynchronous lanes surface typed events; the orchestrator dispatches on event kind
-- [ ] The descriptor is read-only at runtime; results go to the DataLogger archive
+- [ ] System-state methods drive the binding classes into the target configuration and log the transition
+- [ ] The per-cycle loop has one bounded step per hardware subsystem; keepalive interval is never exceeded
+- [ ] Asynchronous subsystems surface typed events; the orchestrator dispatches on event kind
+- [ ] Descriptor built by the logic function, updated with runtime results at session end; archive holds the full record
 - [ ] Log message codes are append-only (no recycled values)
 - [ ] The per-system runtime skill documents the concrete states, modes, and CLI
 ```

@@ -17,8 +17,8 @@ type/units/default changed.
 | `name`             | `str`                      | `"mesoscope"`                          | Human-readable system label                                          |
 | `filesystem`       | `MesoscopeFileSystem`      | `field(default_factory=...)`           | Filesystem paths (see below)                                         |
 | `sheets`           | `MesoscopeGoogleSheets`    | `field(default_factory=...)`           | Google Sheets identifiers (see below)                                |
-| `cameras`          | `MesoscopeCameras`         | `field(default_factory=...)`           | Camera calibration (see below)                                       |
-| `microcontrollers` | `MesoscopeMicroControllers`| `field(default_factory=...)`           | Microcontroller calibration (see below)                              |
+| `cameras`          | `MesoscopeCameras`         | `field(default_factory=...)`           | Camera configuration (see below)                                       |
+| `microcontrollers` | `MesoscopeMicroControllers`| `field(default_factory=...)`           | Microcontroller configuration (see below)                              |
 | `assets`           | `MesoscopeVRAssets`        | `field(default_factory=...)`           | Zaber motor ports + nested Unity MQTT task configuration (see below)  |
 
 ### Non-default behaviors
@@ -69,8 +69,8 @@ Sheet IDs are the long alphanumeric segments in Google Sheets URLs
 
 ## MesoscopeCameras
 
-Captures per-camera calibration. The Mesoscope-VR system uses two cameras (face, body) — see
-[Cameras section in SKILL.md](../SKILL.md#hardware-lane-cameras) for their roles.
+Captures per-camera configuration. The Mesoscope-VR system uses two cameras (face, body) — see
+[Cameras section in SKILL.md](../SKILL.md#hardware-subsystem-cameras) for their roles.
 
 | Field                              | Type                       | Default                          | Purpose                                                                            |
 |------------------------------------|----------------------------|----------------------------------|------------------------------------------------------------------------------------|
@@ -94,7 +94,7 @@ Captures per-camera calibration. The Mesoscope-VR system uses two cameras (face,
 ## MesoscopeMicroControllers
 
 Captures port assignments + per-module calibration for the three Teensy 4.1 boards (ACTOR, SENSOR,
-ENCODER). See [Microcontrollers section in SKILL.md](../SKILL.md#hardware-lane-microcontrollers)
+ENCODER). See [Microcontrollers section in SKILL.md](../SKILL.md#hardware-subsystem-microcontrollers)
 for board roles.
 
 ### Port and keepalive
@@ -250,8 +250,8 @@ NOT stored here — they are resolved at experiment start from the matching `Tas
 
 ## Field-naming convention recap
 
-All calibration fields follow `<device-or-module>_<parameter>_<unit>` per
-`experiment:acquisition-system-design`'s [Calibration dataclass field naming
+All configuration fields follow `<device-or-module>_<parameter>_<unit>` per
+`experiment:acquisition-system-design`'s [Configuration field naming
 convention](../../acquisition-system-design/SKILL.md#field-naming-convention):
 
 | Component                  | Examples                                          |
@@ -261,7 +261,7 @@ convention](../../acquisition-system-design/SKILL.md#field-naming-convention):
 | `<unit>`                   | `adc`, `us`, `ms`, `cm`, `g_cm`, `pulse`                       |
 
 Adding a new field that violates this convention is a maintenance hazard — future agents auditing
-calibration values will need extra context to interpret the value's units.
+configuration values will need extra context to interpret the value's units.
 
 ---
 

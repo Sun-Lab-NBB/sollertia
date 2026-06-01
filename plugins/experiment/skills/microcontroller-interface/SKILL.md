@@ -23,7 +23,7 @@ Documents the Sollertia platform's paired microcontroller interface stack at the
 
 This skill is the canonical registry of paired modules currently available to any Sollertia acquisition
 system and the source of truth for the slmc/sle conventions layered on top of the ataraxis base templates.
-Binding-class composition (assembling `MicroControllerInterface` instances, calibration dataclasses,
+Binding-class composition (assembling `MicroControllerInterface` instances, configuration dataclasses,
 system configurations) is **system-specific** and lives in per-system skills (currently
 `experiment:mesoscope-vr` for hardware composition and `experiment:mesoscope-vr-runtime` for
 runtime behavior), not here. The platform-general pattern those skills follow lives in
@@ -50,7 +50,7 @@ runtime behavior), not here. The platform-general pattern those skills follow li
 - Microcontroller discovery, manifest management via MCP tools — see `ataraxis@communication:microcontroller-setup`.
 - C++ style, Python style, header guards conventions enforcement —
   see `automation:cpp-style`, `automation:python-style`.
-- **Binding-class composition** (per-system `MicroControllerInterfaces`, calibration dataclasses,
+- **Binding-class composition** (per-system `MicroControllerInterfaces`, configuration dataclasses,
   system configuration YAML, runtime orchestration) — covered by `experiment:acquisition-system-design`
   for the platform-general pattern and `experiment:mesoscope-vr` for the current Mesoscope-VR
   instance. This skill ends at the Python wrapper layer; everything that composes

@@ -1,11 +1,10 @@
 ---
 name: mesoscope-vr
 description: >-
-  Knowledge repository for the Mesoscope-VR data acquisition system: hardware lane inventory
-  (microcontrollers, cameras, Zaber motors), the MesoscopeSystemConfiguration dataclass and its
-  YAML file lifecycle, the per-lane binding classes that compose the system, and the workflows
-  for modifying hardware or calibration. Use when configuring, modifying, or auditing
-  Mesoscope-VR's hardware and configuration layer.
+  Knowledge repository for the Mesoscope-VR data acquisition system: its hardware subsystem
+  inventory, the MesoscopeSystemConfiguration dataclass and YAML lifecycle, the per-subsystem
+  binding classes, and the hardware/calibration modification workflows. Use when configuring,
+  modifying, or auditing Mesoscope-VR's hardware and configuration layer.
 user-invocable: false
 ---
 
@@ -26,8 +25,8 @@ For Mesoscope-VR's runtime behavior (state machine, training modes, CLI), see
 **Covers:**
 - Mesoscope-VR system overview (hardware composition, controllers, cameras, motors)
 - `MesoscopeSystemConfiguration` dataclass — top-level configuration class structure and file lifecycle
-- Per-lane calibration dataclass surface — pointer to the full registry in `references/configuration-fields.md`
-- Per-lane binding classes (`MicroControllerInterfaces`, `VideoSystems`, `ZaberMotors`) — composition
+- Per-subsystem configuration dataclass surface — pointer to the full registry in `references/configuration-fields.md`
+- Per-subsystem binding classes (`MicroControllerInterfaces`, `VideoSystems`, `ZaberMotors`) — composition
   and lifecycle wiring
 - MCP tool surface for reading, writing, and validating the configuration YAML
 - Configuration authoring and modification workflows
@@ -48,9 +47,9 @@ For Mesoscope-VR's runtime behavior (state machine, training modes, CLI), see
 ## System overview
 
 Mesoscope-VR is a head-fixed 2-Photon Random Access Mesoscope (2P-RAM) imaging system with a
-Virtual Reality environment. It is composed of the following hardware lanes:
+Virtual Reality environment. It is composed of the following hardware subsystems:
 
-| Lane                     | Devices                                                                   | Binding class                |
+| Subsystem                | Devices                                                                   | Binding class                |
 |--------------------------|---------------------------------------------------------------------------|------------------------------|
 | Microcontrollers         | 3 × Teensy 4.1 boards (ACTOR, SENSOR, ENCODER)                            | `MicroControllerInterfaces`  |
 | Cameras                  | 2 × GenICam scientific cameras (face camera, body camera)                 | `VideoSystems`               |
@@ -66,7 +65,7 @@ drives the system state machine. The orchestrator is documented in `experiment:m
 
 ## Authoritative bases
 
-Read these skills before reading the hardware-lane sections below:
+Read these skills before reading the hardware-subsystem sections below:
 
 | Concern                                              | Authority                                              |
 |------------------------------------------------------|--------------------------------------------------------|
@@ -83,7 +82,7 @@ the skills above.
 
 ## MesoscopeSystemConfiguration
 
-The system's configuration is captured by `MesoscopeSystemConfiguration`, a `YamlConfig`-derived
+The system's configuration is captured by `MesoscopeSystemConfiguration`, a `SystemConfiguration`-derived
 dataclass defined in `sollertia_experiment/mesoscope_vr/system.py`.
 
 ### Top-level structure
@@ -120,9 +119,11 @@ set first via the assets plugin's `/working-directory` skill (`slsa configure da
 - **`save()`** override temporarily converts the valve calibration table back to a `dict` before
   writing to YAML so existing files retain the mapping layout, then restores the tuple form.
 
-The module-level helpers `create_system_configuration_file()`,
-`get_system_configuration_path()`, and `get_system_configuration()` follow the standard
-pattern from `experiment:acquisition-system-design`. The CLI entry point for authoring is
+`MesoscopeSystemConfiguration` is registered with the shared cross-system configuration registry at
+import time, and the package exposes a typed `get_system_configuration() -> MesoscopeSystemConfiguration`
+accessor. Creating the file (`create_system_configuration_file()`), resolving its path
+(`get_system_configuration_path()`), and loading it are handled by the shared `cross_system` helpers,
+following the pattern in `experiment:acquisition-system-design`. The CLI entry point for authoring is
 `sle mesoscope configure`.
 
 ### MCP tool surface
@@ -150,7 +151,7 @@ field, read first, mutate the dictionary, then write the whole thing back.
 
 ---
 
-## Hardware lane: Microcontrollers
+## Hardware subsystem: Microcontrollers
 
 The Mesoscope-VR system uses **three Teensy 4.1 microcontrollers** in dedicated roles:
 
@@ -194,7 +195,7 @@ MicroControllerInterfaces(
 ```
 
 The constructor instantiates wrappers in three blocks (ACTOR, SENSOR, ENCODER) using the
-calibration dataclass fields, then wraps each block in a `MicroControllerInterface` with the
+configuration dataclass fields, then wraps each block in a `MicroControllerInterface` with the
 corresponding controller ID and port. Wrappers are exposed as public attributes:
 
 - ACTOR: `self.brake`, `self.valve`, `self.gas_puff_valve`, `self.screens`
@@ -214,7 +215,7 @@ slmc + sle convention details, see `experiment:microcontroller-interface`.
 
 ---
 
-## Hardware lane: Cameras
+## Hardware subsystem: Cameras
 
 The Mesoscope-VR system uses **two GenICam scientific cameras** (Harvester-managed) for animal
 behavior recording:
@@ -273,7 +274,7 @@ For VideoSystem mechanics, encoding configuration, and frame acquisition pattern
 
 ---
 
-## Hardware lane: Zaber motors
+## Hardware subsystem: Zaber motors
 
 The Mesoscope-VR system uses **three Zaber motor groups** for positioning the headbar, wheel, and
 lickport:
@@ -480,11 +481,11 @@ This crosses repositories. Follow the workflow in `experiment:microcontroller-in
 "Adding a paired Module + Interface" section first to author the firmware Module + Python wrapper.
 Then in this skill:
 
-1. **Add calibration fields** to `MesoscopeMicroControllers` for the new module's runtime
+1. **Add configuration fields** to `MesoscopeMicroControllers` for the new module's runtime
    parameters. Follow the `<device>_<parameter>_<unit>` naming convention. Update
    [`references/configuration-fields.md`](references/configuration-fields.md).
 2. **Extend `MicroControllerInterfaces`** to instantiate the new wrapper inside the appropriate
-   board's wrapper block (ACTOR / SENSOR / ENCODER) using the new calibration fields. Add it to
+   board's wrapper block (ACTOR / SENSOR / ENCODER) using the new configuration fields. Add it to
    the board's `module_interfaces` tuple.
 3. **Extend `MicroControllerInterfaces.start()`** if the new wrapper needs `initialize_local_assets()`
    (i.e., uses `SharedMemoryArray`) or per-module runtime parameter pushes (i.e., has a
@@ -492,7 +493,7 @@ Then in this skill:
 4. **Bump the `sollertia-experiment` version** in `pyproject.toml`.
 5. **Regenerate the system configuration YAML** on every deployment so the new fields appear.
 6. **Update this skill** — if the new module changes the boards' module inventory in the table at
-   the top of [Hardware lane: Microcontrollers](#hardware-lane-microcontrollers), update that table.
+   the top of [Hardware subsystem: Microcontrollers](#hardware-subsystem-microcontrollers), update that table.
 
 ### Add a new module that needs a new microcontroller board
 
@@ -502,7 +503,7 @@ section to add the new target macro in slmc's `main.cpp`. Then in this skill:
 1. **Add a new port field** to `MesoscopeMicroControllers` (e.g., `<role>_port`).
 2. **Add a new construction block** in `MicroControllerInterfaces.__init__` for the new board,
    using the new port and a fresh `controller_id` not currently in use (101, 152, 203 are taken).
-3. **Update this skill's hardware-lane table** to list the new board, its controller ID, role, and
+3. **Update this skill's hardware-subsystem table** to list the new board, its controller ID, role, and
    modules.
 4. **Bump the `sollertia-experiment` version** and regenerate YAMLs.
 
@@ -512,11 +513,11 @@ section to add the new target macro in slmc's `main.cpp`. Then in this skill:
    pattern. Update [`references/configuration-fields.md`](references/configuration-fields.md).
 2. **Extend `VideoSystems`** to instantiate a new `VideoSystem` with the new camera's parameters
    and a fresh `system_id` (51 and 62 are taken; pick a value that doesn't collide with the
-   DataLogger source range used by other lanes).
+   DataLogger source range used by other subsystems).
 3. **Add per-camera lifecycle methods** (`start_<role>_camera`, `save_<role>_camera_frames`) and
    update `stop()` to include the new camera.
 4. **Bump the `sollertia-experiment` version** and regenerate YAMLs.
-5. **Update this skill's hardware-lane table.**
+5. **Update this skill's hardware-subsystem table.**
 
 ### Add a new Zaber motor group
 
@@ -528,7 +529,7 @@ section to add the new target macro in slmc's `main.cpp`. Then in this skill:
 4. **Update the `ZaberPositions` dataclass** in `sollertia_experiment/mesoscope_vr/system.py`
    to capture the new group's per-axis positions.
 5. **Bump the `sollertia-experiment` version** and regenerate YAMLs.
-6. **Update this skill's hardware-lane table.**
+6. **Update this skill's hardware-subsystem table.**
 
 For motor-side mechanics (checksum validation, parking, position storage), see
 `experiment:zaber-interface`.
@@ -559,10 +560,10 @@ skill. A change to the runtime state machine or the CLI is in scope for the runt
 This skill is split:
 
 - **SKILL.md** (this file) — durable Mesoscope-VR composition and workflows. Update when a
-  hardware lane is added/removed, the system's binding-class structure changes, or a
+  hardware subsystem is added/removed, the system's binding-class structure changes, or a
   modification workflow's steps change.
 - **[`references/configuration-fields.md`](references/configuration-fields.md)** — state snapshot
-  of every dataclass field. Update whenever any calibration dataclass field is added, removed,
+  of every dataclass field. Update whenever any configuration dataclass field is added, removed,
   renamed, or has its type/units changed.
 
 Out-of-date field documentation is worse than missing documentation — an agent acting on stale
@@ -612,11 +613,11 @@ Authoring:
 - [ ] Did not call write_server_configuration_tool — handed off to forging plugin /server-configuration if needed
 
 Modifying:
-- [ ] Hardware-lane modifications followed the cross-repo workflow (slmc + sle)
-- [ ] Calibration field naming follows <device>_<parameter>_<unit>
+- [ ] Hardware-subsystem modifications followed the cross-repo workflow (slmc + sle)
+- [ ] Configuration field naming follows <device>_<parameter>_<unit>
 - [ ] references/configuration-fields.md updated to reflect new/changed fields
 - [ ] sollertia-experiment version bumped on any dataclass schema change
 - [ ] Binding class extended for new wrappers / cameras / motor groups
 - [ ] All affected deployments had their YAML regenerated
-- [ ] This skill's hardware-lane tables updated if board/camera/motor inventory changed
+- [ ] This skill's hardware-subsystem tables updated if board/camera/motor inventory changed
 ```
