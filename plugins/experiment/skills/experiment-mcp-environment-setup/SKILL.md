@@ -25,7 +25,7 @@ Diagnoses and resolves sollertia-experiment MCP server connectivity and environm
 
 **Does not cover:**
 - MCP tool usage for Zaber discovery/configuration (see `/zaber-interface`)
-- MCP tool usage for session preprocessing/migration (see `/data-management`)
+- MCP tool usage for session preprocessing/deletion and animal migration (see `/data-management`)
 - sollertia-shared-assets `slsa mcp` server (see the assets plugin's
   `/assets-mcp-environment-setup`)
 - sollertia-experiment package development workflows
@@ -45,11 +45,11 @@ sle = "sollertia_experiment.interfaces.entry_points:sle_cli"
 `sle` is a Click group with three children: the `mcp` command, the `get` command group
 (hardware-agnostic discovery), and the `mesoscope` command group (Mesoscope-VR configuration,
 runtime, and session management). The single `sle mcp` server exposes the tools that back **both**
-the `get` and `mesoscope` groups to AI agents — there is no longer a separate server per group.
+the `get` and `mesoscope` groups to AI agents.
 
-| Server                 | CLI command | Purpose                                                                                                                                                                    |
-|------------------------|-------------|----------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
-| `sollertia-experiment` | `sle mcp`   | All experiment tools: Zaber discovery/config, mount checks, system configuration read/write/validate, position snapshots, session preprocess/delete/migrate, CRC checksums |
+| Server                 | CLI command | Purpose                                                                                                                                                                              |
+|------------------------|-------------|--------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| `sollertia-experiment` | `sle mcp`   | All experiment tools: Zaber discovery/config, mount checks, system configuration read/write/validate, position snapshots, session preprocess/delete, animal migration, CRC checksums |
 
 The server accepts a `--transport` option (defaults to `stdio`). The experiment plugin's `plugin.json`
 configures the Claude assistant to launch it automatically:
@@ -109,7 +109,7 @@ pip list 2>/dev/null | grep sollertia-experiment
 ```
 
 Based on the output, guide the user through the appropriate resolution. The pattern is identical to
-the ataraxis MCP environment setup workflow — see `ataraxis@communication:communication-mcp-environment-setup` for
+the ataraxis MCP environment setup workflow — see `ataraxis@communication:mcp-environment-setup` for
 the full conda / venv / uv decision tree. The only substitution is the package name:
 
 ```bash
@@ -141,7 +141,7 @@ sle mcp --help
 If either command fails with an import error, a dependency is missing or broken. Run:
 
 ```bash
-pip check sollertia-experiment 2>&1 | head -20
+pip check 2>&1 | head -20
 ```
 
 Report any missing or incompatible dependencies to the user. Common causes include version skew with
@@ -169,15 +169,15 @@ plugin will automatically reconnect the server on the next session.
 
 ## Related skills
 
-| Skill                                         | Relationship                                                               |
-|-----------------------------------------------|----------------------------------------------------------------------------|
-| `/zaber-interface`                            | Requires the `sollertia-experiment` MCP for device discovery and settings  |
-| `/data-management`                            | Requires the `sollertia-experiment` MCP for preprocess/delete/migrate      |
-| `/session-snapshots`                          | Requires the `sollertia-experiment` MCP for position snapshot read/write   |
-| `/mesoscope-vr`                               | Requires the `sollertia-experiment` MCP for system configuration authoring |
-| `/system-health-check`                        | Uses the server as part of the pre-session validation sweep                |
-| `/pipeline`                                   | Orchestrates all phases that depend on MCP server connectivity             |
-| assets plugin `/assets-mcp-environment-setup` | Equivalent diagnostic for the `slsa mcp` server                            |
+| Skill                                         | Relationship                                                                               |
+|-----------------------------------------------|--------------------------------------------------------------------------------------------|
+| `/zaber-interface`                            | Requires the `sollertia-experiment` MCP for device discovery and settings                  |
+| `/data-management`                            | Requires the `sollertia-experiment` MCP for session preprocess/delete and animal migration |
+| `/session-snapshots`                          | Requires the `sollertia-experiment` MCP for position snapshot read/write                   |
+| `/mesoscope-vr`                               | Requires the `sollertia-experiment` MCP for system configuration authoring                 |
+| `/system-health-check`                        | Uses the server as part of the pre-session validation sweep                                |
+| `/pipeline`                                   | Orchestrates all phases that depend on MCP server connectivity                             |
+| assets plugin `/assets-mcp-environment-setup` | Equivalent diagnostic for the `slsa mcp` server                                            |
 
 ---
 

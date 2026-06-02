@@ -40,17 +40,17 @@ relevant skill for detailed tool usage, parameter reference, and troubleshooting
 The Sollertia platform inherits the ataraxis principle: AI assistance operates at configuration time;
 runtime acquisition is fully deterministic and AI-independent.
 
-| Phase                                | AI-assisted? | Where it lives                                |
-|--------------------------------------|--------------|-----------------------------------------------|
-| Working directory + credentials      | yes          | assets plugin (`slsa mcp`)     |
-| System configuration authoring       | yes          | assets plugin (`slsa mcp`)     |
-| Hardware bringup and verification    | yes          | experiment plugin (`sle mcp` + ataraxis)   |
-| Experiment design (templates, states)| yes          | assets plugin (`slsa mcp`)     |
-| Pre-session health check             | yes          | experiment plugin (`sle mcp` + ataraxis)   |
-| **Runtime data acquisition**         | **no**       | sollertia-experiment Python entry points only |
-| Post-acquisition preprocessing       | yes          | experiment plugin (`sle mcp`)           |
-| Data management (migrate / delete)   | yes          | experiment plugin (`sle mcp`)           |
-| Post-acquisition data analysis       | yes          | forging plugin                             |
+| Phase                                 | AI-assisted? | Where it lives                                |
+|---------------------------------------|--------------|-----------------------------------------------|
+| Working directory + credentials       | yes          | assets plugin (`slsa mcp`)                    |
+| System configuration authoring        | yes          | assets plugin (`slsa mcp`)                    |
+| Hardware bringup and verification     | yes          | experiment plugin (`sle mcp` + ataraxis)      |
+| Experiment design (templates, states) | yes          | assets plugin (`slsa mcp`)                    |
+| Pre-session health check              | yes          | experiment plugin (`sle mcp` + ataraxis)      |
+| **Runtime data acquisition**          | **no**       | sollertia-experiment Python entry points only |
+| Post-acquisition preprocessing        | yes          | experiment plugin (`sle mcp`)                 |
+| Data management (migrate / delete)    | yes          | experiment plugin (`sle mcp`)                 |
+| Post-acquisition data analysis        | yes          | forging plugin                                |
 
 The MCP tool surface intentionally has no "start a recording session" tool. Runtime is launched only
 through the `sle mesoscope run` CLI, which reads validated configuration files written during the AI-assisted
@@ -182,34 +182,34 @@ Is the system already configured?
 
 ## Cross-plugin handoffs at a glance
 
-| You need to…                                       | Use…                                                                           |
-|----------------------------------------------------|--------------------------------------------------------------------------------|
-| Set the working directory or credentials          | assets plugin `/working-directory`                                       |
-| Author the system configuration YAML              | experiment plugin `/mesoscope-vr`                                            |
-| Author the server (remote transfer) configuration | forging plugin `/server-configuration`                                          |
-| Create a project                                  | assets plugin `/project-hierarchy`                                       |
-| Author a task template                            | assets plugin `/task-templates`                                          |
-| Author a per-project experiment configuration     | assets plugin `/experiment-configuration`                                |
-| Read a session marker / inspect session metadata  | assets plugin `/session-data`                                            |
-| Read or repair a session descriptor               | assets plugin `/session-descriptors`                                     |
-| Read or patch a frozen runtime snapshot           | experiment plugin `/session-snapshots`                                       |
-| Look up animal surgery / implants / drugs         | assets plugin `/subject-metadata`                                        |
-| Curate or read a dataset                          | forging plugin `/datasets`                                                      |
-| Discover GenICam cameras                          | `ataraxis@video:camera-setup`                                                   |
-| Test camera acquisition interactively             | `ataraxis@video:camera-setup`                                                   |
-| Discover microcontrollers / verify MQTT           | `ataraxis@communication:microcontroller-setup`                                  |
+| You need to…                                      | Use…                                                                               |
+|---------------------------------------------------|------------------------------------------------------------------------------------|
+| Set the working directory or credentials          | assets plugin `/working-directory`                                                 |
+| Author the system configuration YAML              | experiment plugin `/mesoscope-vr`                                                  |
+| Author the server (remote transfer) configuration | forging plugin `/server-configuration`                                             |
+| Create a project                                  | assets plugin `/project-hierarchy`                                                 |
+| Author a task template                            | assets plugin `/task-templates`                                                    |
+| Author a per-project experiment configuration     | assets plugin `/experiment-configuration`                                          |
+| Read a session marker / inspect session metadata  | assets plugin `/session-data`                                                      |
+| Read or repair a session descriptor               | assets plugin `/session-descriptors`                                               |
+| Read or patch a frozen runtime snapshot           | experiment plugin `/session-snapshots`                                             |
+| Look up animal surgery / implants / drugs         | assets plugin `/subject-metadata`                                                  |
+| Curate or read a dataset                          | forging plugin `/datasets`                                                         |
+| Discover GenICam cameras                          | `ataraxis@video:camera-setup`                                                      |
+| Test camera acquisition interactively             | `ataraxis@video:camera-setup`                                                      |
+| Discover microcontrollers / verify MQTT           | `ataraxis@communication:microcontroller-setup`                                     |
 | Write a new VideoSystem binding                   | `ataraxis@video:camera-interface` (general) / `/mesoscope-vr` (Mesoscope-specific) |
-| Write a new ModuleInterface                       | `/microcontroller-interface` → `ataraxis@communication:microcontroller-interface` |
-| Write firmware for a new module                   | `ataraxis@microcontroller:firmware-module`                                      |
-| Discover or configure Zaber motors                | `/zaber-interface`                                                              |
-| Modify Mesoscope-VR hardware composition          | `/mesoscope-vr`                                                                 |
-| Modify Mesoscope-VR runtime behavior              | `/mesoscope-vr-runtime`                                                         |
-| Drive the Unity VR task / MQTT coupling           | `/vr-driver-interface`                                                          |
-| Design a new acquisition system (static)          | `/acquisition-system-design`                                                    |
-| Implement an acquisition-system runtime loop      | `/acquisition-system-runtime`                                                   |
-| Generate / verify Unity task prefab from template | unity plugin `/task-prefabs`                                              |
-| Open / create a Unity scene                       | unity plugin `/task-scenes`                                                    |
-| Enter / exit Unity Play Mode                      | unity plugin `/play-mode`                                                 |
+| Write a new ModuleInterface                       | `/microcontroller-interface` → `ataraxis@communication:microcontroller-interface`  |
+| Write firmware for a new module                   | `ataraxis@microcontroller:firmware-module`                                         |
+| Discover or configure Zaber motors                | `/zaber-interface`                                                                 |
+| Modify Mesoscope-VR hardware composition          | `/mesoscope-vr`                                                                    |
+| Modify Mesoscope-VR runtime behavior              | `/mesoscope-vr-runtime`                                                            |
+| Drive the Unity VR task / MQTT coupling           | `/vr-driver-interface`                                                             |
+| Design a new acquisition system (static)          | `/acquisition-system-design`                                                       |
+| Implement an acquisition-system runtime loop      | `/acquisition-system-runtime`                                                      |
+| Generate / verify Unity task prefab from template | unity plugin `/task-prefabs`                                                       |
+| Open / create a Unity scene                       | unity plugin `/task-scenes`                                                        |
+| Enter / exit Unity Play Mode                      | unity plugin `/play-mode`                                                          |
 
 ---
 

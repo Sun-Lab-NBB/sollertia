@@ -19,12 +19,12 @@ by `/acquisition-system-setup`.
 
 ## MCP server requirements
 
-| Server                  | CLI command | Used for                                                       |
-|-------------------------|-------------|----------------------------------------------------------------|
-| `sollertia-experiment`  | `sle mcp`   | Mount checks, system-configuration validation, Zaber validation |
-| `sollertia-shared-assets` | `slsa mcp` | Platform configuration status snapshot                         |
-| ataraxis-video-system   | `axvs mcp`  | Camera discovery and video requirements (via `/acquisition-system-setup`) |
-| ataraxis-comm-interface | `axci mcp`  | Microcontroller discovery and MQTT broker check (via `/acquisition-system-setup`) |
+| Server                    | CLI command | Used for                                                                          |
+|---------------------------|-------------|-----------------------------------------------------------------------------------|
+| `sollertia-experiment`    | `sle mcp`   | Mount checks, system-configuration validation, Zaber validation                   |
+| `sollertia-shared-assets` | `slsa mcp`  | Platform configuration status snapshot                                            |
+| ataraxis-video-system     | `axvs mcp`  | Camera discovery and video requirements (via `/acquisition-system-setup`)         |
+| ataraxis-comm-interface   | `axci mcp`  | Microcontroller discovery and MQTT broker check (via `/acquisition-system-setup`) |
 
 If a required server is unavailable, hand off to the owning plugin's MCP environment setup skill
 (`/experiment-mcp-environment-setup`, assets plugin `/assets-mcp-environment-setup`,
@@ -89,10 +89,10 @@ as a pre-flight sweep.
 
 ### Phase 4: Configuration validity
 
-| Check                      | Tool                                             | Expected result                       |
-|----------------------------|--------------------------------------------------|---------------------------------------|
-| System configuration valid | `validate_system_configuration_tool`             | Valid; mounts healthy                 |
-| Zaber configuration valid  | `validate_zaber_configuration_tool(port, device_index, expected_settings)` | VALID for each motor |
+| Check                      | Tool                                                                       | Expected result       |
+|----------------------------|----------------------------------------------------------------------------|-----------------------|
+| System configuration valid | `validate_system_configuration_tool`                                       | Valid; mounts healthy |
+| Zaber configuration valid  | `validate_zaber_configuration_tool(port, device_index, expected_settings)` | VALID for each motor  |
 
 Project existence (for a session about to be recorded) is verified through the assets plugin
 `/project-hierarchy`; there is no project-listing tool on `sle mcp`.
@@ -145,16 +145,16 @@ the camera/microcontroller/Zaber/MQTT failure modes.
 
 ## Related skills
 
-| Skill                                       | Relationship                                                       |
-|---------------------------------------------|--------------------------------------------------------------------|
-| `/acquisition-system-setup`                 | Owns the full hardware-discovery sweep this skill hands off to     |
-| `/mesoscope-vr`                             | Owns system-configuration authoring and `validate_system_configuration_tool` |
-| `/experiment-mcp-environment-setup`         | Run first if the `sle mcp` server is not connected                 |
-| `/pipeline`                                 | Phase 5 (pre-session health check) is owned by this skill          |
-| assets plugin `/working-directory`          | Fixes data-root / credentials / templates prerequisites            |
-| assets plugin `/project-hierarchy`          | Confirms the recording project exists                              |
-| `ataraxis@video:camera-setup`               | CTI / video runtime requirement deep-dives                         |
-| `ataraxis@communication:microcontroller-setup` | Microcontroller manifest / discovery deep-dives                |
+| Skill                                          | Relationship                                                                 |
+|------------------------------------------------|------------------------------------------------------------------------------|
+| `/acquisition-system-setup`                    | Owns the full hardware-discovery sweep this skill hands off to               |
+| `/mesoscope-vr`                                | Owns system-configuration authoring and `validate_system_configuration_tool` |
+| `/experiment-mcp-environment-setup`            | Run first if the `sle mcp` server is not connected                           |
+| `/pipeline`                                    | Phase 5 (pre-session health check) is owned by this skill                    |
+| assets plugin `/working-directory`             | Fixes data-root / credentials / templates prerequisites                      |
+| assets plugin `/project-hierarchy`             | Confirms the recording project exists                                        |
+| `ataraxis@video:camera-setup`                  | CTI / video runtime requirement deep-dives                                   |
+| `ataraxis@communication:microcontroller-setup` | Microcontroller manifest / discovery deep-dives                              |
 
 ---
 

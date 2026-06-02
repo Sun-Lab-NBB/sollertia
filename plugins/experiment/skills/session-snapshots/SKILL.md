@@ -63,12 +63,12 @@ out of sync with reality.
 
 ## MCP tool surface
 
-| Tool                                          | MCP server   | Purpose                                                              |
-|-----------------------------------------------|--------------|----------------------------------------------------------------------|
-| `read_session_zaber_positions_tool`           | `sle mcp` | Reads `ZaberPositions` for a session                                 |
-| `write_session_zaber_positions_tool`          | `sle mcp` | Writes (patches) `ZaberPositions` (exclusive to this skill)          |
-| `read_session_mesoscope_positions_tool`       | `sle mcp` | Reads `MesoscopePositions` for a session                             |
-| `write_session_mesoscope_positions_tool`      | `sle mcp` | Writes (patches) `MesoscopePositions` (exclusive to this skill)      |
+| Tool                                     | MCP server | Purpose                                                         |
+|------------------------------------------|------------|-----------------------------------------------------------------|
+| `read_session_zaber_positions_tool`      | `sle mcp`  | Reads `ZaberPositions` for a session                            |
+| `write_session_zaber_positions_tool`     | `sle mcp`  | Writes (patches) `ZaberPositions` (exclusive to this skill)     |
+| `read_session_mesoscope_positions_tool`  | `sle mcp`  | Reads `MesoscopePositions` for a session                        |
+| `write_session_mesoscope_positions_tool` | `sle mcp`  | Writes (patches) `MesoscopePositions` (exclusive to this skill) |
 
 For the `MesoscopeHardwareState` read/write/describe trio (`read_session_hardware_state_tool`,
 `write_session_hardware_state_tool`, `describe_session_hardware_state_schema_tool`), hand off to the
@@ -146,12 +146,12 @@ the assets plugin's `/session-hardware-state` for the hardware state write. Do n
 
 ## Related skills
 
-| Skill                                              | Relationship                                                              |
-|----------------------------------------------------|---------------------------------------------------------------------------|
-| this plugin `/experiment-mcp-environment-setup`    | Run first if `sle mcp` is not connected                                |
-| assets plugin `/session-hardware-state`            | Sibling — owns `MesoscopeHardwareState` (the third per-session snapshot)  |
-| assets plugin `/session-data`                      | Owns the `SessionData` marker file                                        |
-| assets plugin `/session-descriptors`               | Owns the per-session descriptor files                                     |
-| this plugin `/mesoscope-vr`                | Provides `read_session_system_configuration_tool` for cross-reference     |
-| assets plugin `/experiment-configuration`          | Provides `read_experiment_configuration_tool` for cross-reference (accepts session snapshot path) |
-| this plugin `/zaber-interface`                     | Live Zaber motor configuration during runtime — does not touch snapshots  |
+| Skill                                           | Relationship                                                                                      |
+|-------------------------------------------------|---------------------------------------------------------------------------------------------------|
+| this plugin `/experiment-mcp-environment-setup` | Run first if `sle mcp` is not connected                                                           |
+| assets plugin `/session-hardware-state`         | Sibling — owns `MesoscopeHardwareState` (the third per-session snapshot)                          |
+| assets plugin `/session-data`                   | Owns the `SessionData` marker file                                                                |
+| assets plugin `/session-descriptors`            | Owns the per-session descriptor files                                                             |
+| this plugin `/mesoscope-vr`                     | Provides `read_session_system_configuration_tool` for cross-reference                             |
+| assets plugin `/experiment-configuration`       | Provides `read_experiment_configuration_tool` for cross-reference (accepts session snapshot path) |
+| this plugin `/zaber-interface`                  | Live Zaber motor configuration during runtime — does not touch snapshots                          |
