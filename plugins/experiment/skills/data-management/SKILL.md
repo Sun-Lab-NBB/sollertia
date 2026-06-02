@@ -138,10 +138,10 @@ strategy depends on whether the host has any long-term storage destinations conf
 (`filesystem.storage_directories`):
 
 - **With configured destinations** — the first configured destination is treated as the source of
-  truth. Each session is pulled back from it, re-preprocessed under the target project, and the
-  obsolete source-project copies are purged. This mode requires that **no non-preprocessed sessions
-  remain in the local data root** for the source animal; `migrate_animal_tool` aborts with an error if
-  any do.
+  truth. Any session that still resides only in the local data root is **preprocessed automatically**
+  first (moving it to the destinations), then each session is pulled back from the source of truth,
+  re-preprocessed under the target project, and the obsolete source-project copies are purged. No
+  manual preprocessing step is required before migration.
 - **Without configured destinations** — all data lives only on the acquisition host, so migration
   relocates each locally stored session directory to the target project and reassigns it entirely
   on-premises.
@@ -151,12 +151,18 @@ directories are created by the `slsa configure project` CLI command (`slsa confi
 -r <root>`), not by an MCP tool — `SessionData.create` raises `FileNotFoundError` when the project is
 missing. Use the assets plugin `/project-hierarchy` to verify whether the destination project exists.
 
+Migration **fails with an error if any session cannot be preprocessed or migrated** (for example, when
+the animal is absent from the surgery sheet that preprocessing reads). Each session is handled as an
+isolated unit that cleans up after itself on failure, so once the underlying problem is resolved,
+re-running `migrate_animal_tool` resumes from the failed session — already-migrated sessions are not
+reprocessed.
+
 ```text
 Animal migration progress:
 - [ ] Destination project exists (verify via /project-hierarchy); created with `slsa configure project` if missing
-- [ ] If storage destinations are configured, preprocessed any non-preprocessed local sessions first
 - [ ] Confirmed migration with the user (source, destination, animal_id)
 - [ ] Executed migrate_animal_tool
+- [ ] On failure, resolved the reported error and re-ran migrate_animal_tool to resume
 - [ ] Reported completion
 ```
 
@@ -206,12 +212,12 @@ warning, confirm via AskUserQuestion, delete only if confirmed, and report befor
 
 ## Error handling
 
-| Error                                            | Cause                                            | Solution                                                   |
-|--------------------------------------------------|--------------------------------------------------|------------------------------------------------------------|
-| "Session directory must be inside the data root" | Path is on a storage destination, not local      | Only process sessions under `get_data_root()`              |
-| "target project does not exist"                  | Destination project not created                  | Create it with `slsa configure project`                    |
-| "non-preprocessed session data"                  | Non-preprocessed local sessions exist for animal | Preprocess all local sessions before migration             |
-| "requires explicit confirmation"                 | `confirm_deletion` not set to `True`             | Get user confirmation via AskUserQuestion, then set `True` |
+| Error                                            | Cause                                       | Solution                                                   |
+|--------------------------------------------------|---------------------------------------------|------------------------------------------------------------|
+| "Session directory must be inside the data root" | Path is on a storage destination, not local | Only process sessions under `get_data_root()`              |
+| "target project does not exist"                  | Destination project not created             | Create it with `slsa configure project`                    |
+| Preprocessing failure                            | Session cannot be preprocessed or migrated  | Resolve the error and re-run the migration to resume       |
+| "requires explicit confirmation"                 | `confirm_deletion` not set to `True`        | Get user confirmation via AskUserQuestion, then set `True` |
 
 ---
 
