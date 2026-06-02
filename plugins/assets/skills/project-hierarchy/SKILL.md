@@ -268,7 +268,7 @@ shaped for downstream chaining with `filter_sessions_tool` (see `/session-discov
 Project directories are created by the `slsa configure project` CLI command, not by an MCP
 tool: `slsa configure project -p <project_name> -r <root_directory>` creates
 `<root_directory>/<project_name>/configuration/`. The project directory must exist before
-`SessionData.create` (in the experiment plugin's `/managing-session-data`) can create the first
+`SessionData.create` (in the experiment plugin's `/data-management`) can create the first
 session — `SessionData.create` raises `FileNotFoundError` when the project directory is missing.
 After the project exists, confirm it with `slsa get projects` (directories strategy, so it shows the new
 project even before it holds any sessions). `get_data_root_overview_tool` will not yet list it — that
@@ -296,7 +296,7 @@ tool is marker-based, and a brand-new project has no session markers.
 |--------------------------------------------|--------------------------------------------------------------------------------------------------------|
 | `/assets-mcp-environment-setup`            | Run first if the MCP server is not connected                                                           |
 | `/working-directory`                       | Required prerequisite — bootstraps the local working directory the agent uses to resolve project roots |
-| experiment plugin `/managing-session-data` | Creates sessions. Project directories must exist beforehand (`slsa configure project`)                 |
+| experiment plugin `/data-management` | Creates sessions. Project directories must exist beforehand (`slsa configure project`)                 |
 | `/experiment-configuration`                | Consumes projects to author experiment YAMLs                                                           |
 | `/session-discovery`                       | Chains `get_data_root_overview_tool` through `filter_sessions_tool`                                    |
 | `/session-data`                            | Owns `inspect_sessions_tool` for per-session inventory and health reports                              |

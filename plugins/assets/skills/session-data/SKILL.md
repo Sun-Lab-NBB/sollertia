@@ -49,7 +49,7 @@ flow. The inventory side of "which descriptors and assets exist for a session" i
   `get_data_root_overview_tool`)
 - Datasets that aggregate sessions (see forging plugin's `/datasets`)
 - Preprocessing, deleting, or migrating sessions (see the experiment plugin's
-  `/managing-session-data`)
+  `/data-management`)
 
 ---
 
@@ -140,8 +140,8 @@ session root):
 │   ├── zaber_positions.yaml                   # experiment plugin /session-snapshots
 │   ├── mesoscope_positions.yaml               # experiment plugin /session-snapshots
 │   ├── window_screenshot.png                  # experiment plugin /session-snapshots (Mesoscope-VR)
-│   ├── ax_checksum.txt                        # raw_data integrity checksum (/managing-session-data)
-│   ├── checksum_processing_tracker.yaml       # checksum resolution tracker (/managing-session-data)
+│   ├── ax_checksum.txt                        # raw_data integrity checksum (/data-management)
+│   ├── checksum_processing_tracker.yaml       # checksum resolution tracker (/data-management)
 │   ├── nk.bin                                 # uninitialized-session marker (see note below)
 │   └── ... acquired data files ...
 └── processed_data/                            # populated by downstream processing pipelines
@@ -320,7 +320,7 @@ The per-session report's `required_assets` list enumerates every file the sessio
 `mesoscope experiment` only — the experiment configuration snapshot and the VR configuration
 snapshot) with a `present` flag.
 The `issues` list restates missing required files as human-readable strings. Use this before
-handing off to the experiment plugin's `/managing-session-data` for preprocessing.
+handing off to the experiment plugin's `/data-management` for preprocessing.
 
 ### Batch lifecycle audit across a data root
 
@@ -332,10 +332,10 @@ handing off to the experiment plugin's `/managing-session-data` for preprocessin
    `/session-discovery`). The batch report gives you the same status plus full per-session
    inventory in one call.
 3. For sessions reported as `uninitialized`, coordinate purging via the experiment plugin's
-   `/managing-session-data` — these have no data of value.
+   `/data-management` — these have no data of value.
 4. For sessions reported as `incomplete` or `error`, read the per-session `issues` list and
    hand off to `/session-descriptors`, `/session-hardware-state`, the experiment plugin's
-   `/session-snapshots`, or `/managing-session-data` to remediate.
+   `/session-snapshots`, or `/data-management` to remediate.
 
 ### Querying supported session types
 
@@ -357,7 +357,7 @@ Use this when you need to validate a session-type string before using it in anot
 - [ ] read_session_data_tool was only called when the raw payload fields
       (python_version / sollertia_experiment_version) were actually needed
 - [ ] inspect_sessions_tool was called before handing off to the experiment plugin's
-      /managing-session-data for preprocessing (issues list is empty for required_assets)
+      /data-management for preprocessing (issues list is empty for required_assets)
 - [ ] write_session_data_tool was only invoked for explicit repair workflows — not during
       normal acquisition, which is the acquisition runtime's responsibility
 - [ ] Handed off to /session-descriptors, /session-hardware-state, /subject-metadata,
@@ -383,4 +383,4 @@ Use this when you need to validate a session-type string before using it in anot
 | `/experiment-configuration`                | Owns `read_experiment_configuration_tool` (reads both project source and frozen session snapshot)                                            |
 | `/library-extension`                       | Cross-cutting recipe to add new `SessionTypes` or `AcquisitionSystems` members; lists the skill content here that needs updating in lockstep |
 | forging plugin `/datasets`                 | Datasets aggregate sessions                                                                                                                  |
-| experiment plugin `/managing-session-data` | Preprocesses, migrates, and deletes sessions. Project directories must already exist (created via `slsa configure project`) before sessions can be created |
+| experiment plugin `/data-management` | Preprocesses, migrates, and deletes sessions. Project directories must already exist (created via `slsa configure project`) before sessions can be created |

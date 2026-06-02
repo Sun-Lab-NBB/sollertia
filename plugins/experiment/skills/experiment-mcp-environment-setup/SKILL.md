@@ -47,9 +47,9 @@ sle = "sollertia_experiment.interfaces.entry_points:sle_cli"
 runtime, and session management). The single `sle mcp` server exposes the tools that back **both**
 the `get` and `mesoscope` groups to AI agents — there is no longer a separate server per group.
 
-| Server                  | CLI command | Purpose                                                                                  |
-|-------------------------|-------------|------------------------------------------------------------------------------------------|
-| `sollertia-experiment`  | `sle mcp`   | All experiment tools: Zaber discovery/config, mount checks, system configuration read/write/validate, position snapshots, session preprocess/delete/migrate, CRC checksums |
+| Server                 | CLI command | Purpose                                                                                                                                                                    |
+|------------------------|-------------|----------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| `sollertia-experiment` | `sle mcp`   | All experiment tools: Zaber discovery/config, mount checks, system configuration read/write/validate, position snapshots, session preprocess/delete/migrate, CRC checksums |
 
 The server accepts a `--transport` option (defaults to `stdio`). The experiment plugin's `plugin.json`
 configures the Claude assistant to launch it automatically:
@@ -67,11 +67,11 @@ The `sle` CLI must be on PATH when the Claude assistant starts. A single
 
 ### Dual-distribution model
 
-| Component                                          | Distributed via              | What it provides                                       |
-|----------------------------------------------------|------------------------------|--------------------------------------------------------|
-| Skills (`/zaber-interface`, `/data-management`, …) | sollertia experiment plugin  | Skill files that guide agents through workflows       |
+| Component                                          | Distributed via              | What it provides                                                  |
+|----------------------------------------------------|------------------------------|-------------------------------------------------------------------|
+| Skills (`/zaber-interface`, `/data-management`, …) | sollertia experiment plugin  | Skill files that guide agents through workflows                   |
 | MCP server registration                            | sollertia experiment plugin  | The plugin entry that tells the assistant how to start the server |
-| MCP server code (`sle mcp`)                        | sollertia-experiment pip pkg | The actual CLI command and server implementation     |
+| MCP server code (`sle mcp`)                        | sollertia-experiment pip pkg | The actual CLI command and server implementation                  |
 
 Installing the plugin alone registers the MCP server and makes skills available, but the server will
 fail to start because the CLI command is not present. The pip package must also be installed in the
@@ -156,28 +156,28 @@ plugin will automatically reconnect the server on the next session.
 
 ## Common issues and resolutions
 
-| Symptom                                  | Cause                                           | Resolution                                                          |
-|------------------------------------------|-------------------------------------------------|---------------------------------------------------------------------|
-| `sle: command not found`                 | Environment not activated                       | Activate conda/venv, restart the assistant                         |
-| `sle: command not found`                 | sollertia-experiment not installed              | `pip install sollertia-experiment` in the active environment       |
-| Import error on `sle mcp`                | Version skew with sollertia-shared-assets       | `pip install --upgrade sollertia-experiment sollertia-shared-assets` |
-| Python version mismatch                  | Wrong environment activated                     | Activate environment with Python >=3.14,<3.15                      |
-| Tools fail with "no system configuration"| `slsa` working directory not initialized        | Run `/working-directory` from the assets plugin                    |
-| Tool fails with Zaber connection error   | Not an environment issue                        | Check `/zaber-interface` for hardware troubleshooting              |
+| Symptom                                   | Cause                                     | Resolution                                                           |
+|-------------------------------------------|-------------------------------------------|----------------------------------------------------------------------|
+| `sle: command not found`                  | Environment not activated                 | Activate conda/venv, restart the assistant                           |
+| `sle: command not found`                  | sollertia-experiment not installed        | `pip install sollertia-experiment` in the active environment         |
+| Import error on `sle mcp`                 | Version skew with sollertia-shared-assets | `pip install --upgrade sollertia-experiment sollertia-shared-assets` |
+| Python version mismatch                   | Wrong environment activated               | Activate environment with Python >=3.14,<3.15                        |
+| Tools fail with "no system configuration" | `slsa` working directory not initialized  | Run `/working-directory` from the assets plugin                      |
+| Tool fails with Zaber connection error    | Not an environment issue                  | Check `/zaber-interface` for hardware troubleshooting                |
 
 ---
 
 ## Related skills
 
-| Skill                                       | Relationship                                                       |
-|---------------------------------------------|--------------------------------------------------------------------|
-| `/zaber-interface`                          | Requires the `sollertia-experiment` MCP for device discovery and settings |
-| `/data-management`                          | Requires the `sollertia-experiment` MCP for preprocess/delete/migrate |
-| `/session-snapshots`                        | Requires the `sollertia-experiment` MCP for position snapshot read/write |
-| `/mesoscope-vr`                             | Requires the `sollertia-experiment` MCP for system configuration authoring |
-| `/system-health-check`                      | Uses the server as part of the pre-session validation sweep        |
-| `/pipeline`                                 | Orchestrates all phases that depend on MCP server connectivity     |
-| assets plugin `/assets-mcp-environment-setup` | Equivalent diagnostic for the `slsa mcp` server                  |
+| Skill                                         | Relationship                                                               |
+|-----------------------------------------------|----------------------------------------------------------------------------|
+| `/zaber-interface`                            | Requires the `sollertia-experiment` MCP for device discovery and settings  |
+| `/data-management`                            | Requires the `sollertia-experiment` MCP for preprocess/delete/migrate      |
+| `/session-snapshots`                          | Requires the `sollertia-experiment` MCP for position snapshot read/write   |
+| `/mesoscope-vr`                               | Requires the `sollertia-experiment` MCP for system configuration authoring |
+| `/system-health-check`                        | Uses the server as part of the pre-session validation sweep                |
+| `/pipeline`                                   | Orchestrates all phases that depend on MCP server connectivity             |
+| assets plugin `/assets-mcp-environment-setup` | Equivalent diagnostic for the `slsa mcp` server                            |
 
 ---
 
