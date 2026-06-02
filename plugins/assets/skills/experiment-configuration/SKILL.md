@@ -333,7 +333,7 @@ read_experiment_configuration_tool(
 ```
 
 This is a read-only operation. Do not attempt to write to the frozen file — modifying historical
-session metadata is the responsibility of `/session-snapshots` (which deals with hardware
+session metadata is the responsibility of `/mesoscope-vr-snapshots` (which deals with position
 snapshots, not the experiment config). If a frozen experiment config needs to be amended for some
 reason, that is currently not supported by the sollertia-shared-assets MCP layer.
 

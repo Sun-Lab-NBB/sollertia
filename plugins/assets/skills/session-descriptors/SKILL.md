@@ -50,7 +50,7 @@ validate the file.
 - Reading or writing the per-session `MesoscopeHardwareState` snapshot (see
   `/session-hardware-state`)
 - Reading the frozen `ZaberPositions` and `MesoscopePositions` snapshots (see the experiment
-  plugin's `/session-snapshots`)
+  plugin's `/mesoscope-vr-snapshots`)
 - Reading subject metadata (see `/subject-metadata`)
 - Discovering sessions (see `/project-hierarchy` for `get_data_root_overview_tool`)
 - Dataset assembly and dataset-level descriptor path resolution (see the forging plugin's
@@ -363,15 +363,15 @@ target(s) that match the durability the user actually wants:
 
 ## Related skills
 
-| Skill                                  | Relationship                                                                                                             |
-|----------------------------------------|--------------------------------------------------------------------------------------------------------------------------|
-| `/assets-mcp-environment-setup`        | Run first if the MCP server is not connected                                                                             |
-| `/working-directory`                   | Required prerequisite — bootstraps the local working directory the agent uses to resolve project roots                   |
-| `/session-data`                        | Sibling — owns `SessionData`, `list_supported_session_types_tool`, and `inspect_sessions_tool` for per-session inventory |
-| `/session-discovery`                   | Resolves raw session roots                                                                                               |
-| `/session-hardware-state`              | Sibling — owns the per-session hardware-state snapshot                                                                   |
-| `/subject-metadata`                    | Sibling — owns subject records                                                                                           |
-| `/project-hierarchy`                   | Provides `get_data_root_overview_tool` and per-animal persistent-cache paths                                             |
-| experiment plugin `/session-snapshots` | Owns the frozen Zaber and mesoscope-objective position snapshots                                                         |
-| `/library-extension`                   | Cross-cutting recipe to add a new `SessionTypes` member; lists the descriptor mapping table here that needs updating     |
-| forging plugin `/datasets`             | Resolves forged dataset per-session `session_descriptor.yaml` paths                                                      |
+| Skill                                       | Relationship                                                                                                             |
+|---------------------------------------------|--------------------------------------------------------------------------------------------------------------------------|
+| `/assets-mcp-environment-setup`             | Run first if the MCP server is not connected                                                                             |
+| `/working-directory`                        | Required prerequisite — bootstraps the local working directory the agent uses to resolve project roots                   |
+| `/session-data`                             | Sibling — owns `SessionData`, `list_supported_session_types_tool`, and `inspect_sessions_tool` for per-session inventory |
+| `/session-discovery`                        | Resolves raw session roots                                                                                               |
+| `/session-hardware-state`                   | Sibling — owns the per-session hardware-state snapshot                                                                   |
+| `/subject-metadata`                         | Sibling — owns subject records                                                                                           |
+| `/project-hierarchy`                        | Provides `get_data_root_overview_tool` and per-animal persistent-cache paths                                             |
+| experiment plugin `/mesoscope-vr-snapshots` | Owns the frozen Zaber and mesoscope-objective position snapshots                                                         |
+| `/library-extension`                        | Cross-cutting recipe to add a new `SessionTypes` member; lists the descriptor mapping table here that needs updating     |
+| forging plugin `/datasets`                  | Resolves forged dataset per-session `session_descriptor.yaml` paths                                                      |

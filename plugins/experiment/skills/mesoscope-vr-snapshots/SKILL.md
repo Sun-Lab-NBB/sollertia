@@ -1,19 +1,26 @@
 ---
-name: session-snapshots
+name: mesoscope-vr-snapshots
 description: >-
-  Reads and writes per-session frozen position snapshots (ZaberPositions, MesoscopePositions)
-  via the `sle mcp` server. Owns the position snapshot write tools. Use when inspecting
-  motor positions captured at session start, patching positions after a manual adjustment, or
-  recovering a corrupted snapshot.
+  Reads and writes the Mesoscope-VR per-session frozen position snapshots (ZaberPositions,
+  MesoscopePositions) via the `sle mcp` server. Owns the position snapshot write tools. Use when
+  inspecting motor positions captured at session start, patching positions after a manual
+  adjustment, or recovering a corrupted snapshot.
 user-invocable: false
 ---
 
-# Sollertia session position snapshots
+# Sollertia Mesoscope-VR position snapshots
 
 Reads and writes the per-session frozen position snapshot YAML files (`zaber_positions.yaml` and
 `mesoscope_positions.yaml`) captured at session start by `sle mesoscope run`. Uses the `sle mcp` server.
 This skill is the **exclusive** owner of `write_session_zaber_positions_tool` and
 `write_session_mesoscope_positions_tool` — no other skill in the marketplace may call these.
+
+These position snapshots are specific to the Mesoscope-VR acquisition system: both the snapshot
+schemas and the MCP tools that read and write them are bound to Mesoscope-VR hardware (the Zaber
+motor groups and the mesoscope objective), with no `acquisition_system` schema selector. The
+*live* Zaber motor interface is platform-general and reusable across acquisition systems (see
+`/zaber-interface`); this skill manages the *frozen per-session records*, not the reusable
+interface.
 
 The third per-session snapshot, `MesoscopeHardwareState`, is **not** covered by this skill. It lives
 on the slsa MCP server (because the dataclass is shared between the acquisition runtime and the

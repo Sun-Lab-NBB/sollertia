@@ -173,7 +173,7 @@ plugin will automatically reconnect the server on the next session.
 |-----------------------------------------------|--------------------------------------------------------------------------------------------|
 | `/zaber-interface`                            | Requires the `sollertia-experiment` MCP for device discovery and settings                  |
 | `/data-management`                            | Requires the `sollertia-experiment` MCP for session preprocess/delete and animal migration |
-| `/session-snapshots`                          | Requires the `sollertia-experiment` MCP for position snapshot read/write                   |
+| `/mesoscope-vr-snapshots`                     | Requires the `sollertia-experiment` MCP for position snapshot read/write                   |
 | `/mesoscope-vr`                               | Requires the `sollertia-experiment` MCP for system configuration authoring                 |
 | `/system-health-check`                        | Uses the server as part of the pre-session validation sweep                                |
 | `/pipeline`                                   | Orchestrates all phases that depend on MCP server connectivity                             |

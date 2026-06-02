@@ -50,7 +50,7 @@ whether that path points at a session snapshot, a dataset-level copy, or an ad-h
   absolute `file_path`; this skill only reads and writes.
 - Discovering animals (see `/project-hierarchy` for `get_data_root_overview_tool`)
 - Reading session-level data (see `/session-data`, `/session-descriptors`,
-  `/session-hardware-state`, and the experiment plugin's `/session-snapshots`)
+  `/session-hardware-state`, and the experiment plugin's `/mesoscope-vr-snapshots`)
 - Dataset assembly and dataset-level surgery path resolution (see the forging plugin's
   `/datasets` skill, which owns `DatasetData.surgery_paths`)
 

@@ -37,7 +37,7 @@ and must be invoked by hand-off.
 - Authoring per-project experiment configurations → assets plugin `/experiment-configuration`
 - Reading the `SessionData` marker file → assets plugin `/session-data`
 - Reading session descriptors → assets plugin `/session-descriptors`
-- Reading frozen runtime snapshots → this plugin `/session-snapshots`
+- Reading frozen runtime snapshots → this plugin `/mesoscope-vr-snapshots`
 - Reading subject metadata → assets plugin `/subject-metadata`
 - Reading or curating datasets → forging plugin `/datasets`
 

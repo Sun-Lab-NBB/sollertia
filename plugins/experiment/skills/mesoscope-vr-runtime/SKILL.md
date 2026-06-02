@@ -111,13 +111,13 @@ lickport availability, and which sensors are active.
 
 Current states:
 
-| State           | Value | Meaning                                                                          |
-|-----------------|-------|----------------------------------------------------------------------------------|
+| State           | Value | Meaning                                                                                                                  |
+|-----------------|-------|--------------------------------------------------------------------------------------------------------------------------|
 | `IDLE`          | 0     | Not conducting a session (and the paused state — brake engaged, screens off, only the mesoscope-frame TTL sensor active) |
-| `REST`          | 1     | Rest period of an experiment session                                             |
-| `RUN`           | 2     | Run period of an experiment session                                              |
-| `LICK_TRAINING` | 3     | Lick training session (lickport-only behavior)                                   |
-| `RUN_TRAINING`  | 4     | Run training session (wheel-only behavior)                                       |
+| `REST`          | 1     | Rest period of an experiment session                                                                                     |
+| `RUN`           | 2     | Run period of an experiment session                                                                                      |
+| `LICK_TRAINING` | 3     | Lick training session (lickport-only behavior)                                                                           |
+| `RUN_TRAINING`  | 4     | Run training session (wheel-only behavior)                                                                               |
 
 The enum exposes `to_dict()` (lowercased, underscores→spaces) for the visualizer title bar.
 
@@ -254,13 +254,13 @@ that:
 
 Current functions:
 
-| Function                  | Purpose                                                                              |
-|---------------------------|--------------------------------------------------------------------------------------|
-| `window_checking_logic`   | Cranial window maintenance session (no behavior)                                     |
-| `lick_training_logic`     | Lickport-only training (animal learns to operate the lickport for water rewards)     |
-| `run_training_logic`      | Wheel-only training (animal learns to run for water rewards)                          |
-| `experiment_logic`        | Full Mesoscope-VR experiment session with VR trial structure                         |
-| `maintenance_logic`       | Hardware maintenance (valve calibration, motor positioning, brake testing)           |
+| Function                | Purpose                                                                          |
+|-------------------------|----------------------------------------------------------------------------------|
+| `window_checking_logic` | Cranial window maintenance session (no behavior)                                 |
+| `lick_training_logic`   | Lickport-only training (animal learns to operate the lickport for water rewards) |
+| `run_training_logic`    | Wheel-only training (animal learns to run for water rewards)                     |
+| `experiment_logic`      | Full Mesoscope-VR experiment session with VR trial structure                     |
+| `maintenance_logic`     | Hardware maintenance (valve calibration, motor positioning, brake testing)       |
 
 Each session-running function takes a `SessionData` (file-paths metadata) and a session-specific
 descriptor (the mode's runtime parameters loaded from YAML). `maintenance_logic()` takes no session.
@@ -326,17 +326,17 @@ The user-facing entry points live in `sollertia_experiment/interfaces/mesoscope_
 under the `sle mesoscope` command group (itself registered on the top-level `sle` group in
 `interfaces/entry_points.py`):
 
-| Command                              | Calls                       | Notes                                                  |
-|--------------------------------------|-----------------------------|--------------------------------------------------------|
-| `sle mesoscope configure`            | `create_system_configuration_file` | Writes a template system configuration YAML     |
-| `sle mesoscope maintain`             | `maintenance_logic`         | Hardware maintenance GUI (no session)                  |
-| `sle mesoscope run window-checking`  | `window_checking_logic`     | Cranial-window maintenance mode                        |
-| `sle mesoscope run lick-training`    | `lick_training_logic`       | Defaults match the lick-training descriptor            |
-| `sle mesoscope run run-training`     | `run_training_logic`        | Absolute speed/duration threshold targets via flags    |
-| `sle mesoscope run experiment`       | `experiment_logic`          | Takes `--experiment` for the experiment configuration  |
-| `sle mesoscope preprocess`           | (session data lifecycle)    | See `experiment:data-management`                       |
-| `sle mesoscope delete`               | (session data lifecycle)    | See `experiment:data-management`                       |
-| `sle mesoscope migrate`              | (session data lifecycle)    | See `experiment:data-management`                       |
+| Command                             | Calls                              | Notes                                                 |
+|-------------------------------------|------------------------------------|-------------------------------------------------------|
+| `sle mesoscope configure`           | `create_system_configuration_file` | Writes a template system configuration YAML           |
+| `sle mesoscope maintain`            | `maintenance_logic`                | Hardware maintenance GUI (no session)                 |
+| `sle mesoscope run window-checking` | `window_checking_logic`            | Cranial-window maintenance mode                       |
+| `sle mesoscope run lick-training`   | `lick_training_logic`              | Defaults match the lick-training descriptor           |
+| `sle mesoscope run run-training`    | `run_training_logic`               | Absolute speed/duration threshold targets via flags   |
+| `sle mesoscope run experiment`      | `experiment_logic`                 | Takes `--experiment` for the experiment configuration |
+| `sle mesoscope preprocess`          | (session data lifecycle)           | See `experiment:data-management`                      |
+| `sle mesoscope delete`              | (session data lifecycle)           | See `experiment:data-management`                      |
+| `sle mesoscope migrate`             | (session data lifecycle)           | See `experiment:data-management`                      |
 
 `sle mesoscope run` is a command group; the `--user`, `--project`, `--animal`, and `--animal-weight`
 options are supplied on `run` and shared by every session subcommand. Each session subcommand builds
@@ -426,21 +426,21 @@ reconcile this skill against ground truth.
 
 ## Related skills
 
-| Skill                                              | Relationship                                                                       |
-|----------------------------------------------------|------------------------------------------------------------------------------------|
-| `experiment:acquisition-system-runtime`            | Platform-general runtime pattern this system instantiates.                          |
-| `experiment:mesoscope-vr`                          | Hardware composition for the binding classes the runtime composes.                  |
-| `experiment:acquisition-system-design`             | Platform-general static composition pattern.                                        |
-| `experiment:vr-driver-interface`                   | The `VRTaskDriver` the orchestrator uses for Unity coupling; MQTT + trial decomposition. |
-| `experiment:microcontroller-interface`             | Per-module wrapper API the orchestrator and visualizer consume.                     |
-| assets plugin `/session-descriptors`               | Authors descriptors and the `SessionTypes` enum the runtime consumes.               |
-| assets plugin `/task-templates`                    | Authors task templates the experiment runtime loads.                                |
-| assets plugin `/experiment-configuration`          | Authors experiment configurations the runtime loads.                                |
-| `experiment:data-management`                       | Downstream session-data lifecycle (preprocess, transfer, delete).                   |
-| `experiment:session-snapshots`                     | Zaber/mesoscope position snapshots captured at session start.                       |
-| `unity:gimbl-framework`                            | Unity-side framework for the VR game engine.                                        |
-| `unity:mqtt-contract`                              | Unity-side MQTT topic registration.                                                 |
-| `unity:task-prefabs`                               | Unity-side task prefab generation from task templates.                              |
+| Skill                                     | Relationship                                                                             |
+|-------------------------------------------|------------------------------------------------------------------------------------------|
+| `experiment:acquisition-system-runtime`   | Platform-general runtime pattern this system instantiates.                               |
+| `experiment:mesoscope-vr`                 | Hardware composition for the binding classes the runtime composes.                       |
+| `experiment:acquisition-system-design`    | Platform-general static composition pattern.                                             |
+| `experiment:vr-driver-interface`          | The `VRTaskDriver` the orchestrator uses for Unity coupling; MQTT + trial decomposition. |
+| `experiment:microcontroller-interface`    | Per-module wrapper API the orchestrator and visualizer consume.                          |
+| assets plugin `/session-descriptors`      | Authors descriptors and the `SessionTypes` enum the runtime consumes.                    |
+| assets plugin `/task-templates`           | Authors task templates the experiment runtime loads.                                     |
+| assets plugin `/experiment-configuration` | Authors experiment configurations the runtime loads.                                     |
+| `experiment:data-management`              | Downstream session-data lifecycle (preprocess, transfer, delete).                        |
+| `experiment:mesoscope-vr-snapshots`       | Zaber/mesoscope position snapshots captured at session start.                            |
+| `unity:gimbl-framework`                   | Unity-side framework for the VR game engine.                                             |
+| `unity:mqtt-contract`                     | Unity-side MQTT topic registration.                                                      |
+| `unity:task-prefabs`                      | Unity-side task prefab generation from task templates.                                   |
 
 ---
 

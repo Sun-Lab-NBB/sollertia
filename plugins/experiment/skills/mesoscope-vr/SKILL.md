@@ -49,13 +49,13 @@ For Mesoscope-VR's runtime behavior (state machine, training modes, CLI), see
 Mesoscope-VR is a head-fixed 2-Photon Random Access Mesoscope (2P-RAM) imaging system with a
 Virtual Reality environment. It is composed of the following hardware subsystems:
 
-| Subsystem                | Devices                                                                   | Binding class                |
-|--------------------------|---------------------------------------------------------------------------|------------------------------|
-| Microcontrollers         | 3 × Teensy 4.1 boards (ACTOR, SENSOR, ENCODER)                            | `MicroControllerInterfaces`  |
-| Cameras                  | 2 × GenICam scientific cameras (face camera, body camera)                 | `VideoSystems`               |
-| Zaber motors             | 3 × motor groups (HeadBar Z/Pitch/Roll, Wheel X, LickPort Z/Y/X)          | `ZaberMotors`                |
-| Unity VR (MQTT)          | 1 × MQTT broker bridging the runtime to the Unity game engine             | (consumed directly by orchestrator) |
-| Mesoscope acquisition    | 1 × external software acquisition system (mesoscope DAQ machine)          | (paths only in configuration)|
+| Subsystem             | Devices                                                          | Binding class                       |
+|-----------------------|------------------------------------------------------------------|-------------------------------------|
+| Microcontrollers      | 3 × Teensy 4.1 boards (ACTOR, SENSOR, ENCODER)                   | `MicroControllerInterfaces`         |
+| Cameras               | 2 × GenICam scientific cameras (face camera, body camera)        | `VideoSystems`                      |
+| Zaber motors          | 3 × motor groups (HeadBar Z/Pitch/Roll, Wheel X, LickPort Z/Y/X) | `ZaberMotors`                       |
+| Unity VR (MQTT)       | 1 × MQTT broker bridging the runtime to the Unity game engine    | (consumed directly by orchestrator) |
+| Mesoscope acquisition | 1 × external software acquisition system (mesoscope DAQ machine) | (paths only in configuration)       |
 
 The lifecycle orchestrator (`_MesoscopeVRSystem` in
 `sollertia_experiment/mesoscope_vr/system_controller.py`) composes the three binding classes and
@@ -89,14 +89,14 @@ dataclass defined in `sollertia_experiment/mesoscope_vr/system.py`.
 
 `MesoscopeSystemConfiguration` composes five nested dataclasses plus a top-level `name` field:
 
-| Section            | Dataclass                  | What it parameterizes                                            |
-|--------------------|----------------------------|------------------------------------------------------------------|
-| `name`             | (str, top-level)           | Human-readable system label (default: `"mesoscope"`)             |
-| `filesystem`       | `MesoscopeFileSystem`      | Local raw / processed / NAS / server / mesoscope-DAQ directories |
-| `sheets`           | `MesoscopeGoogleSheets`    | Google Sheet IDs for surgery log and water log                   |
-| `cameras`          | `MesoscopeCameras`         | Face / body camera indices and H.265 encoding parameters         |
-| `microcontrollers` | `MesoscopeMicroControllers`| Per-board ports + per-module calibration data                    |
-| `assets`           | `MesoscopeVRAssets`        | Zaber motor ports + nested `vr_task` Unity MQTT configuration     |
+| Section            | Dataclass                   | What it parameterizes                                            |
+|--------------------|-----------------------------|------------------------------------------------------------------|
+| `name`             | (str, top-level)            | Human-readable system label (default: `"mesoscope"`)             |
+| `filesystem`       | `MesoscopeFileSystem`       | Local raw / processed / NAS / server / mesoscope-DAQ directories |
+| `sheets`           | `MesoscopeGoogleSheets`     | Google Sheet IDs for surgery log and water log                   |
+| `cameras`          | `MesoscopeCameras`          | Face / body camera indices and H.265 encoding parameters         |
+| `microcontrollers` | `MesoscopeMicroControllers` | Per-board ports + per-module calibration data                    |
+| `assets`           | `MesoscopeVRAssets`         | Zaber motor ports + nested `vr_task` Unity MQTT configuration    |
 
 For the full field-by-field registry (every field name, type, default, units, and meaning), see
 [`references/configuration-fields.md`](references/configuration-fields.md). That file is a state
@@ -155,11 +155,11 @@ field, read first, mutate the dictionary, then write the whole thing back.
 
 The Mesoscope-VR system uses **three Teensy 4.1 microcontrollers** in dedicated roles:
 
-| Board | Controller ID | Role                                                                | Modules                                       |
-|-------|---------------|---------------------------------------------------------------------|-----------------------------------------------|
-| ACTOR | 101           | Output control (irregular, command-driven)                          | brake, reward valve, gas-puff valve, screens  |
-| SENSOR| 152           | Input sensing (regular polling, no interrupts)                      | lick sensor, torque sensor, mesoscope-frame TTL |
-| ENCODER| 203          | Quadrature encoder (hardware-interrupt-isolated)                    | wheel encoder                                 |
+| Board   | Controller ID | Role                                             | Modules                                         |
+|---------|---------------|--------------------------------------------------|-------------------------------------------------|
+| ACTOR   | 101           | Output control (irregular, command-driven)       | brake, reward valve, gas-puff valve, screens    |
+| SENSOR  | 152           | Input sensing (regular polling, no interrupts)   | lick sensor, torque sensor, mesoscope-frame TTL |
+| ENCODER | 203           | Quadrature encoder (hardware-interrupt-isolated) | wheel encoder                                   |
 
 Board allocation reasoning is documented in `experiment:microcontroller-interface`'s "Controller
 board allocation principles" section. The Mesoscope-VR three-board split is one valid application
@@ -279,11 +279,11 @@ For VideoSystem mechanics, encoding configuration, and frame acquisition pattern
 The Mesoscope-VR system uses **three Zaber motor groups** for positioning the headbar, wheel, and
 lickport:
 
-| Group     | Daisy-chain | Axes                              | Purpose                                  |
-|-----------|-------------|-----------------------------------|------------------------------------------|
-| HeadBar   | Z → Pitch → Roll  | 3-axis (Z linear + Pitch + Roll rotational) | Animal head positioning                  |
-| Wheel     | X only      | 1-axis (X linear)                 | Running wheel longitudinal position      |
-| LickPort  | Z → Y → X   | 3-axis (Z, Y, X linear)           | Lickport spatial positioning             |
+| Group    | Daisy-chain      | Axes                                        | Purpose                             |
+|----------|------------------|---------------------------------------------|-------------------------------------|
+| HeadBar  | Z → Pitch → Roll | 3-axis (Z linear + Pitch + Roll rotational) | Animal head positioning             |
+| Wheel    | X only           | 1-axis (X linear)                           | Running wheel longitudinal position |
+| LickPort | Z → Y → X        | 3-axis (Z, Y, X linear)                     | Lickport spatial positioning        |
 
 Each group connects to its own USB serial port. The daisy-chain order is hardware-cabled and MUST
 match the order the binding class assumes (Z first, then Pitch then Roll for HeadBar, etc.).
@@ -319,7 +319,7 @@ ZaberMotors(
 ```
 
 Note: this binding class does NOT take a `DataLogger` — Zaber motor state is per-session position
-data captured by the `experiment:session-snapshots` skill, not real-time logged events.
+data captured by the `experiment:mesoscope-vr-snapshots` skill, not real-time logged events.
 
 The constructor connects to all three ports synchronously and retrieves the per-axis handles
 assuming the documented daisy-chain order. If the previous session's `ZaberPositions` snapshot is
@@ -449,28 +449,28 @@ If the user is also setting up remote storage transfer, hand off to the forging 
 
 ### Reindex / re-port hardware
 
-| Change                          | Section to mutate                                          |
-|---------------------------------|------------------------------------------------------------|
-| Camera reindexed                | `cameras.face_camera_index` / `body_camera_index`          |
-| Teensy replaced / re-flashed    | `microcontrollers.actor_port` / `sensor_port` / `encoder_port` |
-| Zaber motor group reconnected   | `assets.headbar_port` / `wheel_port` / `lickport_port`     |
-| Unity broker relocated          | `assets.vr_task.ip` / `assets.vr_task.port`                |
-| Storage volume remounted        | `filesystem.storage_directories` / `filesystem.mesoscope_directory` |
-| Google Sheet rotated            | `sheets.<sheet>_id`                                        |
+| Change                        | Section to mutate                                                   |
+|-------------------------------|---------------------------------------------------------------------|
+| Camera reindexed              | `cameras.face_camera_index` / `body_camera_index`                   |
+| Teensy replaced / re-flashed  | `microcontrollers.actor_port` / `sensor_port` / `encoder_port`      |
+| Zaber motor group reconnected | `assets.headbar_port` / `wheel_port` / `lickport_port`              |
+| Unity broker relocated        | `assets.vr_task.ip` / `assets.vr_task.port`                         |
+| Storage volume remounted      | `filesystem.storage_directories` / `filesystem.mesoscope_directory` |
+| Google Sheet rotated          | `sheets.<sheet>_id`                                                 |
 
 For each: read the configuration, mutate the relevant field, write back via
 `write_system_configuration_tool`. No code changes needed.
 
 ### Recalibrate a module
 
-| Change                          | Section to mutate                                          |
-|---------------------------------|------------------------------------------------------------|
-| Valve recalibrated              | `microcontrollers.valve_calibration_data`                  |
-| Wheel diameter changed          | `microcontrollers.wheel_diameter_cm`                       |
-| Encoder PPR changed             | `microcontrollers.wheel_encoder_ppr`                       |
-| Lick threshold adjusted         | `microcontrollers.lick_threshold_adc` (and signal/delta if needed) |
-| Torque calibration updated      | `microcontrollers.torque_*` fields                         |
-| Brake strength bounds changed   | `microcontrollers.minimum_brake_strength_g_cm` / `maximum_brake_strength_g_cm` |
+| Change                        | Section to mutate                                                              |
+|-------------------------------|--------------------------------------------------------------------------------|
+| Valve recalibrated            | `microcontrollers.valve_calibration_data`                                      |
+| Wheel diameter changed        | `microcontrollers.wheel_diameter_cm`                                           |
+| Encoder PPR changed           | `microcontrollers.wheel_encoder_ppr`                                           |
+| Lick threshold adjusted       | `microcontrollers.lick_threshold_adc` (and signal/delta if needed)             |
+| Torque calibration updated    | `microcontrollers.torque_*` fields                                             |
+| Brake strength bounds changed | `microcontrollers.minimum_brake_strength_g_cm` / `maximum_brake_strength_g_cm` |
 
 For each: read, mutate, write. The calibration is consumed at session start when the binding class
 instantiates the wrappers; existing sessions are unaffected.
@@ -576,19 +576,19 @@ ground truth.
 
 ## Related skills
 
-| Skill                                              | Relationship                                                                       |
-|----------------------------------------------------|------------------------------------------------------------------------------------|
-| `experiment:acquisition-system-design`             | The platform-general pattern this system implements. Required reading.             |
-| `experiment:microcontroller-interface`             | The slmc + sle wrapper layer the microcontroller binding class composes.           |
-| `experiment:mesoscope-vr-runtime`                  | Mesoscope-VR runtime behavior (state machine, training modes, CLI).                |
-| `experiment:zaber-interface`                       | Zaber motor mechanics consumed by `ZaberMotors`.                                   |
-| `experiment:vr-driver-interface`                   | The Unity VR task driver (`VRTaskDriver`) configured by `assets.vr_task`.           |
-| `ataraxis@video:camera-interface`                  | VideoSystem mechanics consumed by `VideoSystems`.                                  |
-| `ataraxis@communication:microcontroller-interface` | MicroControllerInterface mechanics consumed by `MicroControllerInterfaces`.        |
+| Skill                                              | Relationship                                                                         |
+|----------------------------------------------------|--------------------------------------------------------------------------------------|
+| `experiment:acquisition-system-design`             | The platform-general pattern this system implements. Required reading.               |
+| `experiment:microcontroller-interface`             | The slmc + sle wrapper layer the microcontroller binding class composes.             |
+| `experiment:mesoscope-vr-runtime`                  | Mesoscope-VR runtime behavior (state machine, training modes, CLI).                  |
+| `experiment:zaber-interface`                       | Zaber motor mechanics consumed by `ZaberMotors`.                                     |
+| `experiment:vr-driver-interface`                   | The Unity VR task driver (`VRTaskDriver`) configured by `assets.vr_task`.            |
+| `ataraxis@video:camera-interface`                  | VideoSystem mechanics consumed by `VideoSystems`.                                    |
+| `ataraxis@communication:microcontroller-interface` | MicroControllerInterface mechanics consumed by `MicroControllerInterfaces`.          |
 | `experiment:acquisition-system-setup`              | Source of camera indices, microcontroller ports, Zaber ports via hardware discovery. |
-| `experiment:session-snapshots`                     | Per-session Zaber position snapshots consumed by `ZaberMotors.restore_position()`. |
-| assets plugin `/working-directory`                 | Required prerequisite for configuration authoring.                                 |
-| forging plugin `/server-configuration`             | Sibling configuration file for remote storage transfer.                            |
+| `experiment:mesoscope-vr-snapshots`                | Per-session Zaber position snapshots consumed by `ZaberMotors.restore_position()`.   |
+| assets plugin `/working-directory`                 | Required prerequisite for configuration authoring.                                   |
+| forging plugin `/server-configuration`             | Sibling configuration file for remote storage transfer.                              |
 
 ---
 

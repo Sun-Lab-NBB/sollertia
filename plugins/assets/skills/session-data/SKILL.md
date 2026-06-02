@@ -39,7 +39,7 @@ flow. The inventory side of "which descriptors and assets exist for a session" i
 - Reading or writing the per-session `MesoscopeHardwareState` snapshot (see
   `/session-hardware-state`)
 - Reading or writing the per-session Zaber and mesoscope-objective position snapshots (see the
-  experiment plugin's `/session-snapshots`)
+  experiment plugin's `/mesoscope-vr-snapshots`)
 - Reading the frozen system configuration captured at session start (see the experiment plugin's
   `/system-configuration`)
 - Reading the frozen experiment configuration captured at session start (see
@@ -137,9 +137,9 @@ session root):
 │   ├── experiment_configuration.yaml          # /experiment-configuration (frozen, experiment sessions only)
 │   ├── vr_configuration.yaml                  # /task-templates frozen snapshot (when the session runs a Unity VR task)
 │   ├── hardware_state.yaml                    # /session-hardware-state
-│   ├── zaber_positions.yaml                   # experiment plugin /session-snapshots
-│   ├── mesoscope_positions.yaml               # experiment plugin /session-snapshots
-│   ├── window_screenshot.png                  # experiment plugin /session-snapshots (Mesoscope-VR)
+│   ├── zaber_positions.yaml                   # experiment plugin /mesoscope-vr-snapshots
+│   ├── mesoscope_positions.yaml               # experiment plugin /mesoscope-vr-snapshots
+│   ├── window_screenshot.png                  # experiment plugin /mesoscope-vr-snapshots (Mesoscope-VR)
 │   ├── ax_checksum.txt                        # raw_data integrity checksum (/data-management)
 │   ├── checksum_processing_tracker.yaml       # checksum resolution tracker (/data-management)
 │   ├── nk.bin                                 # uninitialized-session marker (see note below)
@@ -302,7 +302,7 @@ In addition to `status`, each per-session report returns the independent boolean
    ```
 5. **Hand off to `/session-descriptors`** to read the descriptor contents.
 6. **Hand off to `/session-hardware-state`** to read the frozen `MesoscopeHardwareState`.
-7. **Hand off to the experiment plugin's `/session-snapshots`** to read the Zaber and
+7. **Hand off to the experiment plugin's `/mesoscope-vr-snapshots`** to read the Zaber and
    mesoscope-objective position snapshots.
 8. **Hand off to `/experiment-configuration`** for the frozen experiment configuration via
    `read_experiment_configuration_tool` (pass the session snapshot path).
@@ -335,7 +335,7 @@ handing off to the experiment plugin's `/data-management` for preprocessing.
    `/data-management` — these have no data of value.
 4. For sessions reported as `incomplete` or `error`, read the per-session `issues` list and
    hand off to `/session-descriptors`, `/session-hardware-state`, the experiment plugin's
-   `/session-snapshots`, or `/data-management` to remediate.
+   `/mesoscope-vr-snapshots`, or `/data-management` to remediate.
 
 ### Querying supported session types
 
@@ -361,7 +361,7 @@ Use this when you need to validate a session-type string before using it in anot
 - [ ] write_session_data_tool was only invoked for explicit repair workflows — not during
       normal acquisition, which is the acquisition runtime's responsibility
 - [ ] Handed off to /session-descriptors, /session-hardware-state, /subject-metadata,
-      /experiment-configuration, or the experiment plugin's /session-snapshots for any read that
+      /experiment-configuration, or the experiment plugin's /mesoscope-vr-snapshots for any read that
       goes deeper than the marker
 ```
 
@@ -369,18 +369,18 @@ Use this when you need to validate a session-type string before using it in anot
 
 ## Related skills
 
-| Skill                                      | Relationship                                                                                                                                 |
-|--------------------------------------------|----------------------------------------------------------------------------------------------------------------------------------------------|
-| `/assets-mcp-environment-setup`            | Run first if the MCP server is not connected                                                                                                 |
-| `/working-directory`                       | Required prerequisite — bootstraps the local working directory the agent uses to resolve project roots                                       |
-| `/project-hierarchy`                       | Owns `get_data_root_overview_tool` for root-wide discovery                                                                                   |
-| `/session-discovery`                       | Filters the flat `sessions` list from `get_data_root_overview_tool`                                                                          |
-| `/session-descriptors`                     | Sibling — owns the per-session descriptor read/write/schema                                                                                  |
-| `/session-hardware-state`                  | Sibling — owns the per-session `MesoscopeHardwareState` snapshot                                                                             |
-| experiment plugin `/session-snapshots`     | Owns the frozen Zaber and mesoscope-objective position snapshots                                                                             |
-| `/subject-metadata`                        | Sibling — owns animal-scoped subject records                                                                                                 |
-| experiment plugin `/system-configuration`  | Authors the system configuration consumed at session start                                                                                   |
-| `/experiment-configuration`                | Owns `read_experiment_configuration_tool` (reads both project source and frozen session snapshot)                                            |
-| `/library-extension`                       | Cross-cutting recipe to add new `SessionTypes` or `AcquisitionSystems` members; lists the skill content here that needs updating in lockstep |
-| forging plugin `/datasets`                 | Datasets aggregate sessions                                                                                                                  |
-| experiment plugin `/data-management` | Preprocesses, migrates, and deletes sessions. Project directories must already exist (created via `slsa configure project`) before sessions can be created |
+| Skill                                       | Relationship                                                                                                                                               |
+|---------------------------------------------|------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| `/assets-mcp-environment-setup`             | Run first if the MCP server is not connected                                                                                                               |
+| `/working-directory`                        | Required prerequisite — bootstraps the local working directory the agent uses to resolve project roots                                                     |
+| `/project-hierarchy`                        | Owns `get_data_root_overview_tool` for root-wide discovery                                                                                                 |
+| `/session-discovery`                        | Filters the flat `sessions` list from `get_data_root_overview_tool`                                                                                        |
+| `/session-descriptors`                      | Sibling — owns the per-session descriptor read/write/schema                                                                                                |
+| `/session-hardware-state`                   | Sibling — owns the per-session `MesoscopeHardwareState` snapshot                                                                                           |
+| experiment plugin `/mesoscope-vr-snapshots` | Owns the frozen Zaber and mesoscope-objective position snapshots                                                                                           |
+| `/subject-metadata`                         | Sibling — owns animal-scoped subject records                                                                                                               |
+| experiment plugin `/system-configuration`   | Authors the system configuration consumed at session start                                                                                                 |
+| `/experiment-configuration`                 | Owns `read_experiment_configuration_tool` (reads both project source and frozen session snapshot)                                                          |
+| `/library-extension`                        | Cross-cutting recipe to add new `SessionTypes` or `AcquisitionSystems` members; lists the skill content here that needs updating in lockstep               |
+| forging plugin `/datasets`                  | Datasets aggregate sessions                                                                                                                                |
+| experiment plugin `/data-management`        | Preprocesses, migrates, and deletes sessions. Project directories must already exist (created via `slsa configure project`) before sessions can be created |

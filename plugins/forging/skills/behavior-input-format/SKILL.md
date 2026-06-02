@@ -31,7 +31,7 @@ experiment configuration are owned by the assets plugin and are referenced, not 
 - Session directory layout, `raw_data/` / `processed_data/` hierarchy (see `/configuration:session-data` and
   `/configuration:project-hierarchy`)
 - Session marker (`session_data.yaml`), `SessionData`, and `SessionTypes` (see `/configuration:session-data`)
-- Hardware state YAML (`MesoscopeHardwareState`) authoring and validation (see `/configuration:session-snapshots`)
+- Hardware state YAML (`MesoscopeHardwareState`) authoring and validation (see the assets plugin's `/session-hardware-state`)
 - Experiment configuration YAML (`MesoscopeExperimentConfiguration`) authoring and validation
   (see `/configuration:experiment-configuration`)
 - Session descriptor YAMLs (see `/configuration:session-descriptors`)
@@ -82,7 +82,7 @@ the subset the behavior pipeline touches:
 {session_root}/
 ├── raw_data/
 │   ├── session_data.yaml                          ← see /session-data (not consumed here)
-│   ├── *hardware_state*.yaml                      ← see /session-snapshots (gates module jobs)
+│   ├── *hardware_state*.yaml                      ← see /session-hardware-state (gates module jobs)
 │   ├── *experiment_configuration*.yaml            ← see /experiment-configuration (experiments only)
 │   └── <nested>/
 │       └── 1_log.npz                              ← runtime NPZ archive (this skill)
@@ -415,7 +415,7 @@ Eligibility rule: a module feather produces a job only if its `(type, id)` pair 
 `True`). Ineligible modules are silently skipped — they do not produce an error, because a session
 may have feather files for hardware that was not configured for that run.
 
-The `MesoscopeHardwareState` YAML itself is authored and validated via `/configuration:session-snapshots` in the
+The `MesoscopeHardwareState` YAML itself is authored and validated via `/session-hardware-state` in the
 assets plugin. This skill only documents how the behavior pipeline consults specific fields
 for module eligibility.
 
@@ -462,7 +462,7 @@ Before handing a session off to `/behavior-processing`:
 Behavior Input Prerequisites:
 - [ ] Session is eligible per PROCESSABLE_SESSION_TYPES (see Session eligibility above)
 - [ ] 1_log.npz runtime archive present in raw_data/ (if a runtime job is expected)
-- [ ] Hardware state YAML valid per /session-snapshots
+- [ ] Hardware state YAML valid per /session-hardware-state
 - [ ] Hardware state fields populated for every module you expect to process
 - [ ] Experiment configuration YAML valid per /experiment-configuration (MESOSCOPE_EXPERIMENT only)
 - [ ] /video:log-processing completed — camera_*_timestamps.feather files present
@@ -479,7 +479,7 @@ Behavior Input Prerequisites:
 | assets plugin `/session-discovery`          | Upstream: session discovery and filtering                      |
 | `/configuration:session-data`               | Reference: session marker and layout                           |
 | `/configuration:project-hierarchy`          | Reference: project / animal / session hierarchy                |
-| `/configuration:session-snapshots`          | Reference: MesoscopeHardwareState YAML                         |
+| `/session-hardware-state`                   | Reference: MesoscopeHardwareState YAML                         |
 | `/configuration:session-descriptors`        | Reference: per-session descriptor YAML                         |
 | `/configuration:experiment-configuration`   | Reference: MesoscopeExperimentConfiguration YAML               |
 | `/behavior-processing`                      | Downstream: consumes the inputs documented here                |

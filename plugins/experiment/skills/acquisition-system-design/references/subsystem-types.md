@@ -89,7 +89,7 @@ Wrap N × third-party SDK connection (e.g., `ZaberConnection`).
 
 These subsystems expose `connect` / `disconnect` plus position/state methods for their lifecycle,
 because a third-party SDK manages its own session. Their state is typically captured as per-session
-position snapshots (read/written by `experiment:session-snapshots`), so the binding class may take no
+position snapshots (read/written by `experiment:mesoscope-vr-snapshots`), so the binding class may take no
 `data_logger`.
 
 **Current instance:** Mesoscope-VR's `ZaberMotors` (HeadBar / Wheel / LickPort groups), which connects

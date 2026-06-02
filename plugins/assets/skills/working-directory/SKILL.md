@@ -33,7 +33,7 @@ will run Sollertia configuration or runtime tooling.
 - Authoring experiment configurations (see `/experiment-configuration`)
 - Creating projects (see `/project-hierarchy`)
 - Reading session-level data (see `/session-data`, `/session-descriptors`, `/session-hardware-state`,
-  `/subject-metadata`, and experiment plugin's `/session-snapshots`)
+  `/subject-metadata`, and experiment plugin's `/mesoscope-vr-snapshots`)
 - Reading datasets (see forging plugin's `/datasets`)
 - Diagnosing MCP server connectivity (see `/assets-mcp-environment-setup`)
 
@@ -315,17 +315,17 @@ content from this skill; that is owned by `/task-templates`.
 This skill is a prerequisite for **every** other skill in the 'assets' plugin. The relationships
 below summarize where each downstream skill picks up after the working directory is set.
 
-| Downstream skill                           | What it needs from this skill                              |
-|--------------------------------------------|------------------------------------------------------------|
-| `/assets-mcp-environment-setup`            | (sibling — run first if the MCP server is not connected)   |
-| experiment plugin `/system-configuration`  | Working directory                                          |
-| forging plugin `/server-configuration`     | Working directory                                          |
-| `/task-templates`                          | Working directory + task templates directory               |
-| `/experiment-configuration`                | Working directory                                          |
-| `/project-hierarchy`                       | Working directory; optionally the persisted data root      |
-| `/session-data`                            | Working directory                                          |
-| `/session-descriptors`                     | Working directory                                          |
-| `/session-hardware-state`                  | Working directory                                          |
-| experiment plugin `/session-snapshots`     | Working directory                                          |
-| `/subject-metadata`                        | Working directory + Google credentials                     |
-| forging plugin `/datasets`                 | Working directory                                          |
+| Downstream skill                            | What it needs from this skill                            |
+|---------------------------------------------|----------------------------------------------------------|
+| `/assets-mcp-environment-setup`             | (sibling — run first if the MCP server is not connected) |
+| experiment plugin `/system-configuration`   | Working directory                                        |
+| forging plugin `/server-configuration`      | Working directory                                        |
+| `/task-templates`                           | Working directory + task templates directory             |
+| `/experiment-configuration`                 | Working directory                                        |
+| `/project-hierarchy`                        | Working directory; optionally the persisted data root    |
+| `/session-data`                             | Working directory                                        |
+| `/session-descriptors`                      | Working directory                                        |
+| `/session-hardware-state`                   | Working directory                                        |
+| experiment plugin `/mesoscope-vr-snapshots` | Working directory                                        |
+| `/subject-metadata`                         | Working directory + Google credentials                   |
+| forging plugin `/datasets`                  | Working directory                                        |

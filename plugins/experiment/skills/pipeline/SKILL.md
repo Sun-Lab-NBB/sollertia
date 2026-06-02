@@ -192,7 +192,7 @@ Is the system already configured?
 | Author a per-project experiment configuration     | assets plugin `/experiment-configuration`                                          |
 | Read a session marker / inspect session metadata  | assets plugin `/session-data`                                                      |
 | Read or repair a session descriptor               | assets plugin `/session-descriptors`                                               |
-| Read or patch a frozen runtime snapshot           | experiment plugin `/session-snapshots`                                             |
+| Read or patch a frozen runtime snapshot           | experiment plugin `/mesoscope-vr-snapshots`                                        |
 | Look up animal surgery / implants / drugs         | assets plugin `/subject-metadata`                                                  |
 | Curate or read a dataset                          | forging plugin `/datasets`                                                         |
 | Discover GenICam cameras                          | `ataraxis@video:camera-setup`                                                      |
