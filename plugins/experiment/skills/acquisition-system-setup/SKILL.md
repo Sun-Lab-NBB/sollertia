@@ -25,12 +25,13 @@ and must be invoked by hand-off.
 - Discovering connected Zaber motors (USB serial)
 - Verifying MQTT broker reachability
 - Verifying video runtime requirements (FFMPEG, GPU, CTI file)
-- Verifying network storage mounts at the OS level
+- Verifying any declared network storage mounts at the OS level
 - Reporting discrepancies between discovered hardware and the active system configuration
 
 **Does not cover** (hand off to the owning plugin — named per item, since these span three plugins):
 - Setting the working directory, Google credentials, or task templates directory → assets plugin `/working-directory`
-- Reading, writing, or validating system configuration YAML → this plugin `/mesoscope-vr`
+- Reading, writing, or validating system configuration YAML → the active acquisition system's skill
+  (`/mesoscope-vr` for the `mesoscope` system)
 - Creating projects → assets plugin `/project-hierarchy`
 - Authoring task templates → assets plugin `/task-templates`
 - Authoring per-project experiment configurations → assets plugin `/experiment-configuration`
@@ -55,7 +56,7 @@ required only because hand-off targets in the assets plugin depend on it.
 |-------------------------|-------------|-----------------------------|--------------------------------------------------|
 | ataraxis-video-system   | `axvs mcp`  | yes                         | Camera discovery, runtime requirements, CTI      |
 | ataraxis-comm-interface | `axci mcp`  | yes                         | Microcontroller discovery, MQTT broker check     |
-| sollertia-experiment    | `sle mcp`   | yes                         | Zaber motor discovery                            |
+| sollertia-experiment    | `sle mcp`   | yes                         | Zaber motor discovery, storage mount checks      |
 | sollertia-shared-assets | `slsa mcp`  | no (hand-off targets only)  | Read-only verification of recorded configuration |
 
 If a required MCP server is unavailable, hand off to the appropriate plugin's MCP environment setup
@@ -78,48 +79,77 @@ to read the canonical field schema. This skill does not duplicate that schema re
 
 ## Network storage prerequisites
 
-All acquisition systems require network storage locations to be mounted via SMB before any configuration work
-begins. These mounts are managed at the operating system level and are not the responsibility of any skill or
-MCP tool.
+Network storage locations are optional. An acquisition system is not required to define any — it can operate
+entirely on local storage. When a system does define network storage locations, every one of them must be
+reachable through a direct-filesystem mount (SMB or an equivalent protocol that exposes the share as a local
+path) before any configuration work begins. Establishing these mounts is an operating-system-level task — no
+skill or MCP tool creates them. Verifying that the declared mounts are reachable, by contrast, is available
+through the `sollertia-experiment` (`sle mcp`) server's `check_system_mounts_tool()` and
+`check_mount_accessibility_tool(path=...)`.
 
-### Required SMB mounts (all systems)
+### Long-term storage mounts
 
-Both long-term storage locations are configured as entries in the system configuration's
-`storage_directories` mapping, keyed by destination name (the mapping also accepts additional
-destinations under arbitrary names):
+Long-term storage locations are configured as entries in the system configuration's `storage_directories`
+mapping, keyed by destination name (the mapping also accepts additional destinations under arbitrary names).
+An entry left as an empty path is treated as not configured and is skipped — only the destinations a system
+actually declares need to be mounted:
 
 | Mount Purpose  | `storage_directories` key | Description                              |
 |----------------|---------------------------|------------------------------------------|
 | Compute server | `Server`                  | Long-term hot storage for processed data |
 | NAS backup     | `NAS`                     | Archival/cold storage backup             |
 
-### System-specific mounts
+These locations are essentially one-way egress targets: the acquisition PC pushes acquired data to them and
+clears it from local disk. Data returns only during a deliberate cross-infrastructure migration — for example,
+moving an animal between projects — which is why the `storage_directories` mapping order defines pull-back
+preference.
 
-For mesoscope systems:
+### Within-system shares
+
+Within-system shares connect the separate PCs that together make up one acquisition system. Unlike long-term
+storage locations, which are one-way egress targets, a within-system share has no fixed direction — flow may be
+unidirectional or bidirectional. Typically, every PC aggregates its data onto the main acquisition PC before the data 
+is pushed to the long-term storage destination(s), but the main PC can also write back to a peer.
+
+The Mesoscope-VR system is a concrete example. Its `mesoscope_directory` field declares a within-system share
+with the ScanImagePC (a MATLAB workstation):
 
 | Mount Purpose      | Configuration Field    | Description                                    |
 |--------------------|------------------------|------------------------------------------------|
-| ScanImagePC share  | `mesoscope_directory`  | Shared directory where ScanImagePC saves TIFFs |
+| ScanImagePC share  | `mesoscope_directory`  | Bidirectional share with the ScanImagePC       |
 
-The ScanImagePC (MATLAB workstation) must expose a shared directory that the acquisition PC can access.
+The flow here is bidirectional: the ScanImagePC writes acquired TIFFs into the share for the acquisition PC to
+aggregate, while the acquisition PC writes static binary marker files into the same share that the ScanImagePC
+polls as communication signals. The ScanImagePC must expose this directory so the acquisition PC can reach it
+through a direct-filesystem mount.
 
 ### Mount configuration
 
-Before invoking this skill, ensure:
+For every network storage location the system declares, ensure before invoking this skill:
 
-1. All network shares are mounted and accessible from the acquisition PC.
-2. The mount points have appropriate read/write permissions.
-3. Mounts persist across reboots (configured via the OS-appropriate mechanism — e.g. `/etc/fstab` or
+1. The share is mounted and accessible from the acquisition PC.
+2. The mount point has appropriate read/write permissions.
+3. The mount persists across reboots (configured via the OS-appropriate mechanism — e.g. `/etc/fstab` or
    systemd mount units on Linux).
 
+To verify that the declared mounts are reachable, use the `sle` MCP server (these tools check the paths; they
+do not create the mounts):
+
+```text
+check_system_mounts_tool()               # validates mesoscope_directory and every configured storage_directories path
+check_mount_accessibility_tool(path=...) # drills into a single path that failed the sweep
+```
+
+The OS-level equivalent is a direct listing (Linux example; use the OS-appropriate command on Windows/macOS):
+
 ```bash
-# Verify mounts are accessible (Linux example; use the OS-appropriate listing on Windows/macOS)
 ls /mnt/server/data
 ls /mnt/nas/backup
 ls /mnt/mesoscope/data  # mesoscope systems only
 ```
 
-If mounts are not configured, coordinate with system administrators to set up the SMB shares before proceeding.
+If a declared mount is not reachable, coordinate with system administrators to set up the SMB share (or an
+equivalent direct-filesystem-access protocol) — no skill or MCP tool can create the mount for you.
 
 ---
 
@@ -152,62 +182,55 @@ Use when the user wants to confirm that the discovered hardware matches the reco
 **Verification steps:**
 
 1. Run hardware discovery (Phases 1–2 below).
-2. Hand off to this plugin's `/mesoscope-vr` for a read-only `read_system_configuration_tool`
-   call to fetch the recorded values.
+2. Hand off to the active acquisition system's skill (currently `/mesoscope-vr`, for the `mesoscope`
+   system) for a read-only `read_system_configuration_tool` call to fetch the recorded values.
 3. Compare discovered values against recorded values and report any drift to the user.
-4. If drift exists, hand off to `/mesoscope-vr` to update the recorded values. Do not edit YAML or call
-   `write_system_configuration_tool` from this skill.
+4. If drift exists, hand off to that same system skill to update the recorded values. Do not edit YAML or
+   call `write_system_configuration_tool` from this skill.
 
 ---
 
 ## Hardware discovery workflow
 
+Each tool below is owned by one of the three discovery MCP servers. This skill invokes them but hands the
+canonical usage detail to the owner skill named after each table. Tool names follow each server's own
+convention: `axvs` and `axci` tools carry no suffix, while `sle` tools carry a `_tool` suffix.
+
 ### Phase 1: Runtime prerequisites
 
-**Check video system runtime requirements:**
+| Tool                         | Server | Purpose                               |
+|------------------------------|--------|---------------------------------------|
+| `check_runtime_requirements` | axvs   | FFMPEG, GPU, and CTI file status      |
+| `get_cti_status`             | axvs   | CTI (.cti) file path, or "not set"    |
+| `set_cti_file`               | axvs   | Sets the .cti path (Harvesters)       |
+| `check_mqtt_broker`          | axci   | MQTT broker reachability (host, port) |
 
-```text
-check_runtime_requirements()
-```
+`check_runtime_requirements`, `get_cti_status`, and `set_cti_file` are owned by `ataraxis@video:camera-setup`;
+`check_mqtt_broker` is owned by `ataraxis@communication:microcontroller-setup`.
 
-Expected output reports FFMPEG, GPU, and CTI file status. If CTI is not configured and the system uses
-Harvesters cameras:
-
-```text
-set_cti_file("/path/to/gentl_producer.cti")
-```
-
-`set_cti_file` is owned by `ataraxis@video:camera-setup`. This skill is allowed to invoke it because the CTI
-path is part of the ataraxis video MCP server's state, not the slsa state. Refer to `ataraxis@video:camera-setup`
-for the canonical CTI configuration workflow.
-
-**Check MQTT broker:**
-
-```text
-check_mqtt_broker(host="127.0.0.1", port=1883)
-```
-
-If the broker is not running, instruct the user to start Mosquitto (or their broker service) before continuing.
+Invoke `check_runtime_requirements` first. If it reports the CTI file as unconfigured and the system uses
+Harvesters cameras, set the path with `set_cti_file` — the CTI path lives in the video MCP server's state, not
+slsa state, so this skill may call it; see `ataraxis@video:camera-setup` for the canonical CTI workflow. Then
+invoke `check_mqtt_broker`; if the broker is unreachable, instruct the user to start their broker service
+(e.g. Mosquitto) before continuing.
 
 ### Phase 2: Hardware discovery
 
-**Cameras:**
+| Tool                     | Server | Discovers                          |
+|--------------------------|--------|------------------------------------|
+| `list_cameras`           | axvs   | Camera index, model, resolution    |
+| `list_microcontrollers`  | axci   | Port path + microcontroller ID     |
+| `get_zaber_devices_tool` | sle    | Port path, device name, axis count |
 
-```text
-list_cameras()
-```
+`list_cameras` is owned by `ataraxis@video:camera-setup`, `list_microcontrollers` by
+`ataraxis@communication:microcontroller-setup`, and `get_zaber_devices_tool` by this plugin's
+`/zaber-interface`.
 
-Note the camera indices and any model / resolution information returned. For mesoscope systems, identify which
-index corresponds to the face camera and which to the body camera.
+Invoke each tool and record what it returns. Mapping the discovered IDs and motor layout to fixed hardware
+roles is system-specific — hand off to the active acquisition system's skill for the canonical mapping.
 
-**Microcontrollers:**
-
-```text
-list_microcontrollers()
-```
-
-Note the port assignments. `list_microcontrollers()` reports a numeric microcontroller ID per port;
-in the Mesoscope-VR system each ID maps to a fixed role:
+For the `mesoscope` system, that mapping is the following concrete example. Each `list_microcontrollers` ID
+maps to a fixed role:
 
 | Reported ID | Role    | Function                                            |
 |-------------|---------|-----------------------------------------------------|
@@ -215,19 +238,16 @@ in the Mesoscope-VR system each ID maps to a fixed role:
 | `152`       | Sensor  | Monitors inputs (lick, torque, mesoscope frame TTL) |
 | `203`       | Encoder | High-precision wheel quadrature encoder             |
 
-**Zaber motors:**
+The Zaber motors form three groups:
 
-```text
-get_zaber_devices_tool()
-```
+| Group           | Axes           |
+|-----------------|----------------|
+| Headbar motors  | Z, Pitch, Roll |
+| Lickport motors | Z, Y, X        |
+| Wheel motor     | X (horizontal) |
 
-Note the port assignments. For the mesoscope system, the expected motor groups are:
-
-| Group           | Axes              |
-|-----------------|-------------------|
-| Headbar motors  | Z, Pitch, Roll    |
-| Lickport motors | Z, Y, X           |
-| Wheel motor     | X (horizontal)    |
+The system also exposes two cameras — a face camera and a body camera; match each `list_cameras` index to its
+role against the system's recorded configuration.
 
 **Device path convention:**
 
@@ -243,19 +263,22 @@ After discovery completes, report the discovered hardware to the user as a struc
 
 **If the user is performing initial bringup**, hand off in this order (owning plugin named per step):
 
-1. assets plugin `/working-directory` — set the working directory, Google credentials, and task
-   templates directory.
-2. this plugin `/mesoscope-vr` — author the host machine's system configuration YAML against the
-   discovered hardware values.
-3. forging plugin `/server-configuration` — author the remote storage transfer configuration if the
-   host pushes to a compute server.
-4. assets plugin `/project-hierarchy` — create the project (or projects) the host will record under.
-5. assets plugin `/task-templates` — author or import the task templates the project will use.
-6. assets plugin `/experiment-configuration` — author the per-project experiment configuration that
+1. assets plugin `/working-directory` — set the working directory (the only universally required item).
+   Also set the Google credentials path, but only if the system reads animal metadata from Google Sheets,
+   and the task templates directory, but only if the system runs Unity VR tasks; both are otherwise optional.
+2. the active acquisition system's skill (this plugin's `/mesoscope-vr` for the `mesoscope` system) —
+   author the host machine's system configuration YAML against the discovered hardware values.
+3. assets plugin `/project-hierarchy` — create the project (or projects) the host will record under.
+4. assets plugin `/task-templates` — author or import the task templates the project will use.
+5. assets plugin `/experiment-configuration` — author the per-project experiment configuration that
    wires a template to a project.
 
-**If the user is performing verification**, hand off to this plugin's `/mesoscope-vr` for a read-only
-fetch of the recorded values, then report the diff between discovered and recorded.
+Steps 4–5 (and the task templates directory in step 1) apply only to systems that run Unity VR tasks, such
+as `mesoscope`; a non-VR acquisition system skips them.
+
+**If the user is performing verification**, hand off to the active acquisition system's skill
+(`/mesoscope-vr` for the `mesoscope` system) for a read-only fetch of the recorded values, then report
+the diff between discovered and recorded.
 
 **If the user is troubleshooting**, use the troubleshooting table below.
 
@@ -265,26 +288,11 @@ You MUST NOT call `set_working_directory_tool`, `set_google_credentials_tool`,
 
 ---
 
-## Quick reference
-
-### Hardware discovery commands
-
-| Hardware           | MCP Tool                               | What to look for                   |
-|--------------------|----------------------------------------|------------------------------------|
-| Cameras            | `list_cameras()`                       | Index, resolution, model name      |
-| Microcontrollers   | `list_microcontrollers()`              | Port path, microcontroller ID      |
-| Zaber motors       | `get_zaber_devices_tool()`             | Port path, device name, axis count |
-| MQTT broker        | `check_mqtt_broker("127.0.0.1", 1883)` | Connection success/failure         |
-| Video requirements | `check_runtime_requirements()`         | FFMPEG, GPU, CTI status            |
-| CTI file status    | `get_cti_status()`                     | CTI file path or "not set"         |
-
----
-
 ## Troubleshooting
 
 | Error                              | Cause                         | Solution                                                           |
 |------------------------------------|-------------------------------|--------------------------------------------------------------------|
-| Camera not found at expected index | Wrong camera index            | Re-run `list_cameras()`, hand off to `/mesoscope-vr` to update     |
+| Camera not found at expected index | Wrong camera index            | Re-run `list_cameras()`, hand off to the active system's skill     |
 | Microcontroller connection failed  | Wrong port or disconnected    | Re-run `list_microcontrollers()`, check USB cables                 |
 | Zaber motor not responding         | Wrong port or powered off     | Re-run `get_zaber_devices_tool()`, verify power supply             |
 | MQTT broker unreachable            | Broker not running            | Start Mosquitto or the configured MQTT broker                      |
@@ -300,7 +308,7 @@ hand off to the assets plugin skill that owns the affected asset.
 ## Verification checklist
 
 ```text
-- [ ] Network storage mounts verified at the OS level
+- [ ] Any declared network storage mounts verified via check_system_mounts_tool() (skip if the system declares none)
 - [ ] Required MCP servers (ataraxis video, ataraxis comm, sollertia-experiment) confirmed reachable
 - [ ] check_runtime_requirements() reported FFMPEG and GPU OK
 - [ ] CTI file status confirmed (if using Harvesters cameras)
