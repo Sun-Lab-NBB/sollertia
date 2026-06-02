@@ -232,11 +232,18 @@ processing in the forging plugin's behavior pipeline.
 For experiment sessions the orchestrator couples to the Unity game engine through a `VRTaskDriver`
 (`self._vr_task`). The orchestrator pushes motion and lick events to the driver and consumes typed
 `VRTaskEvent`s from it each `_unity_cycle()`; the driver owns the MQTT broker connection, the topic
-vocabulary (`_VRTaskMQTTTopics`), scene/cue verification, and cue-sequence trial decomposition.
+vocabulary (`_VRTaskMQTTTopics`), scene/cue verification, cue-sequence trial decomposition, and the editor
+MCP Bridge it uses to open the scene and control Play Mode. The driver's `setup()` opens the scene and arms
+Unity through the bridge (no manual play-button prompt), so `start()` only brackets it with the VR-screen
+enable/disable.
 
-The driver, its event model, the MQTT topic contract, and the trial-decomposition layer are
-documented in `experiment:vr-driver-interface`. The Unity side of the contract is documented in
-`unity:gimbl-framework` and `unity:mqtt-contract`.
+On a `UNITY_TERMINATED` event the orchestrator enters an emergency pause; on resume, `_resume_runtime()`
+calls `resume_after_unity_restart()`, which re-arms Unity through the bridge and re-fetches the cue sequence
+— the operator does not press the play button.
+
+The driver, its event model, the MQTT topic contract, the editor bridge, and the trial-decomposition layer
+are documented in `experiment:vr-driver-interface`. The Unity side of the contract is documented in
+`unity:gimbl-framework`, `unity:mqtt-contract`, `unity:play-mode`, and `unity:scene-setup`.
 
 ---
 

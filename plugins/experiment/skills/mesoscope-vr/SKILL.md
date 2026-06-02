@@ -138,6 +138,7 @@ in the marketplace may call `write_system_configuration_tool`.
 | `read_system_configuration_tool`            | Reads the active system configuration YAML from the working directory    |
 | `write_system_configuration_tool`           | Writes a new system configuration YAML (**exclusive to this skill**)     |
 | `validate_system_configuration_tool`        | Validates the loaded system configuration and reports mount status       |
+| `verify_camera_configuration_tool`          | Diffs each camera's live GenICam configuration against its stored config |
 | `check_system_mounts_tool`                  | Checks every filesystem path declared in the configuration               |
 | `read_session_system_configuration_tool`    | Reads the frozen system configuration captured at session start          |
 
@@ -237,9 +238,34 @@ System IDs are allocated from the DataLogger source-ID convention. The non-conti
   FPS, independent of save rate)
 - **Encoding**: `face_camera_quantization`, `body_camera_quantization`, `face_camera_preset`,
   `body_camera_preset` (H.265 quantization parameter and `EncoderSpeedPresets` enum)
+- **Configuration paths** (optional): `face_camera_configuration_path`, `body_camera_configuration_path`
+  — absolute paths to per-camera GenICam configuration YAMLs (an `ataraxis-video-system`
+  `GenicamConfiguration` file) recording each camera's expected node configuration. An empty path
+  (`Path()`) means none. By convention they live in the working-directory `configuration/` folder
+  next to `*_system_configuration.yaml` (e.g. `face_camera_configuration.yaml`).
 
 For the full per-field documentation, see [`references/configuration-fields.md`](references/configuration-fields.md)
 under the "MesoscopeCameras" section.
+
+### Camera GenICam configuration: verify, dump, restore
+
+Declaring a camera's `*_configuration_path` records *where* its expected GenICam node configuration
+lives, so agents do not have to be handed the path on every operation. The path is declarative only
+— the acquisition runtime does not auto-apply it. The workflow is:
+
+- **Verify** the live camera against its stored config: call `verify_camera_configuration_tool` (this
+  skill's MCP server). It reads the configured paths, dumps each camera's live GenICam configuration,
+  and returns a per-camera diff (`match`, identity match, `value_mismatches`, nodes present in only
+  one side). Cameras with no path set are reported as `{"configured": false}`.
+- **Dump** the current configuration to the stored path (e.g. after tuning nodes): use
+  `ataraxis@video:camera-setup`'s `dump_genicam_config` (axvs MCP) with `output_file` set to the
+  path declared in the system configuration.
+- **Restore** a known-good configuration onto a camera: use `ataraxis@video:camera-setup`'s
+  `load_genicam_config` with `config_file` set to the declared path.
+
+Source the path from `read_system_configuration_tool` (`cameras.<role>_camera_configuration_path`)
+so the dump/restore targets the declared file. For the GenICam node mechanics themselves, hand off
+to `ataraxis@video:camera-setup`.
 
 ### VideoSystems binding class
 
@@ -375,7 +401,9 @@ broker discovery fields used to reach the Unity game engine:
 `VRTaskConfiguration` holds only the MQTT discovery fields. The geometric VR parameters (cue
 catalog, corridor geometry, cm-per-Unity-unit conversion) are NOT stored here — they are resolved
 at experiment start from the matching `TaskTemplate` YAML in the shared VR task templates directory.
-For the VR task driver that consumes this configuration, see `experiment:vr-driver-interface`.
+Scene activation and Play Mode are driven over the editor MCP Bridge on a fixed loopback endpoint
+(`127.0.0.1:8090`) and are deliberately NOT configured here. For the VR task driver that consumes this
+configuration and drives the bridge, see `experiment:vr-driver-interface`.
 
 For the full per-field documentation of the auxiliary sections, see
 [`references/configuration-fields.md`](references/configuration-fields.md).
@@ -510,7 +538,8 @@ section to add the new target macro in slmc's `main.cpp`. Then in this skill:
 ### Add a new camera
 
 1. **Add per-camera fields** to `MesoscopeCameras` following the existing `<role>_camera_<setting>`
-   pattern. Update [`references/configuration-fields.md`](references/configuration-fields.md).
+   pattern, including an optional `<role>_camera_configuration_path: Path = Path()` for the camera's
+   GenICam configuration YAML. Update [`references/configuration-fields.md`](references/configuration-fields.md).
 2. **Extend `VideoSystems`** to instantiate a new `VideoSystem` with the new camera's parameters
    and a fresh `system_id` (51 and 62 are taken; pick a value that doesn't collide with the
    DataLogger source range used by other subsystems).

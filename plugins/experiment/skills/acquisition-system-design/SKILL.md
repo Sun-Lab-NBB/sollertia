@@ -148,6 +148,17 @@ four properties:
 - a name following the `<device-or-module>_<parameter>_<unit>` convention (the unit suffix is
   included whenever the unit is non-obvious).
 
+**GenTL/GenICam camera subsystems** follow an additional standard practice: each camera declares an
+optional configuration-file path field (`<role>_camera_configuration_path: Path = Path()`, empty =
+unset) pointing to a GenICam configuration YAML — an `ataraxis-video-system` `GenicamConfiguration`
+file — that records the camera's expected node configuration. The field is declarative: it records
+*where* the expected configuration lives so agents can verify the live camera against it, and dump or
+restore it on request; the acquisition runtime does not auto-apply it. By convention the YAMLs live
+in the working-directory `configuration/` folder next to the system configuration. The GenICam
+dump/restore mechanics are owned by `ataraxis@video:camera-setup`; a system's own MCP server may add
+a verify tool that diffs the live configuration against the stored file (Mesoscope-VR's
+`verify_camera_configuration_tool` is the worked example).
+
 For the field-naming table, the type conventions, and the defaults rules, see
 [references/layer-patterns.md](references/layer-patterns.md#layer-2a-per-subsystem-configuration-dataclasses).
 

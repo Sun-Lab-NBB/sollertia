@@ -78,16 +78,23 @@ Captures per-camera configuration. The Mesoscope-VR system uses two cameras (fac
 | `face_camera_display_frame_rate` | `int`                 | `25`                          | Live preview FPS for the face camera (independent of save rate)         |
 | `face_camera_quantization`       | `int`                 | `20`                          | H.265 quantization parameter (lower = higher quality, larger file size) |
 | `face_camera_preset`             | `EncoderSpeedPresets` | `EncoderSpeedPresets.SLOWEST` | H.265 encoder speed preset (slower = better compression)                |
+| `face_camera_configuration_path` | `Path`                | `Path()` (unset)              | Optional GenICam config .yaml: face camera's expected node config       |
 | `body_camera_index`              | `int`                 | `1`                           | Index of the body camera in the list of Harvester-managed cameras       |
 | `body_camera_display_frame_rate` | `int`                 | `25`                          | Live preview FPS for the body camera                                    |
 | `body_camera_quantization`       | `int`                 | `20`                          | H.265 quantization parameter for the body camera                        |
 | `body_camera_preset`             | `EncoderSpeedPresets` | `EncoderSpeedPresets.SLOWEST` | H.265 encoder speed preset for the body camera                          |
+| `body_camera_configuration_path` | `Path`                | `Path()` (unset)              | Optional GenICam config .yaml: body camera's expected node config       |
 
 **Source of values:**
 - Camera indices come from `experiment:acquisition-system-setup` discovery
   (`ataraxis@video:camera-setup`'s `list_cameras` tool). Do NOT guess.
 - Display frame rates, quantization, and presets are deployment defaults that have produced good
   results on the reference rig. Override only with measured / preferred values.
+- Configuration paths are **optional**. Set them only for cameras whose GenICam node configuration
+  is captured to a YAML (the standard practice for GenTL/GenICam cameras). By convention these files
+  live in the working-directory `configuration/` folder, next to `*_system_configuration.yaml`
+  (e.g. `face_camera_configuration.yaml`). See the Cameras section in SKILL.md for the
+  verify / dump / restore workflow.
 
 ---
 

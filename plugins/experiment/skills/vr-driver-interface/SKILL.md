@@ -2,9 +2,10 @@
 name: vr-driver-interface
 description: >-
   Documents the Virtual Reality task driver subsystem: the VRTaskDriver class and its
-  configuration, the MQTT topic contract with the Unity game engine, the per-cycle VRTaskEvent
-  model, and the cue-sequence trial decomposition. Use when modifying Unity coupling, adding an
-  MQTT topic or VR task event, or wiring a new acquisition system to Unity.
+  configuration, the MQTT topic contract with the Unity game engine, the editor MCP Bridge it drives
+  for scene activation and Play Mode control, the per-cycle VRTaskEvent model, and the cue-sequence
+  trial decomposition. Use when modifying Unity coupling, the editor bridge, adding an MQTT topic or
+  VR task event, or wiring a new acquisition system to Unity.
 user-invocable: false
 ---
 
@@ -26,7 +27,8 @@ generation — lives in the unity plugin. This skill owns the **host (Python) si
 
 **Covers:**
 - `VRTaskConfiguration` — the MQTT broker discovery fields the driver reads
-- `VRTaskDriver` — connection lifecycle, interactive setup handshake, per-cycle pump, guidance toggles
+- `VRTaskDriver` — connection lifecycle, bridge-driven setup handshake, per-cycle pump, guidance toggles
+- `UnityBridgeClient` — the editor MCP Bridge HTTP client the driver uses to open scenes and control Play Mode
 - The `_VRTaskMQTTTopics` contract — every topic, its payload shape, and its direction
 - `VRTaskEventKind` / `VRTaskEvent` — the typed events `cycle()` surfaces to the runtime
 - `VRTaskState` — the single source of truth shared between setup and per-cycle events
@@ -36,6 +38,8 @@ generation — lives in the unity plugin. This skill owns the **host (Python) si
 
 **Does not cover** (delegated):
 - The Unity-side framework and game objects — see `unity:gimbl-framework`
+- The Unity-side editor MCP Bridge endpoint (`McpBridge.cs`) and scene / Play-Mode authoring — see
+  `unity:play-mode`, `unity:scene-setup`
 - The Unity-side MQTT topic registration / `MQTTTopics` constant set — see `unity:mqtt-contract`
 - Unity task prefab / scene generation from templates — see `unity:task-prefabs`, `unity:task-scenes`
 - `TaskTemplate` authoring (cue catalog, corridor geometry, per-trial cue motifs, trigger types) —
@@ -50,6 +54,7 @@ generation — lives in the unity plugin. This skill owns the **host (Python) si
 | Concern                                                              | Authority                                          |
 |----------------------------------------------------------------------|----------------------------------------------------|
 | `MQTTCommunication` mechanics (connect, monitored topics, get_data)  | `ataraxis@communication:microcontroller-interface` |
+| Unity-side editor MCP Bridge (scene / Play-Mode tools)               | `unity:play-mode`, `unity:scene-setup`             |
 | Unity-side MQTT topic contract (`MQTTTopics`)                        | `unity:mqtt-contract`                              |
 | Unity-side VR framework and game objects                             | `unity:gimbl-framework`                            |
 | `TaskTemplate` schema (cue catalog, geometry, motifs, trigger types) | assets plugin `/task-templates`                    |
@@ -74,6 +79,11 @@ under `MesoscopeSystemConfiguration.assets.vr_task` (see `experiment:mesoscope-v
 parameters (cue catalog, corridor geometry, cm-per-Unity-unit, per-trial cue motifs, trigger types)
 are NOT stored here — they live in the `TaskTemplate` resolved at experiment start by
 `load_vr_task_template(unity_scene_name)`, which reads from the shared VR task templates directory.
+
+Scene activation and Play Mode are driven over the editor MCP Bridge (see the next section), whose
+endpoint is a fixed loopback constant (`127.0.0.1:8090`) in `bridge.py` — deliberately NOT a
+`VRTaskConfiguration` field. The bridge binds the loopback interface only, so the acquisition host
+must run on the same machine as the Unity Editor.
 
 ---
 
@@ -101,6 +111,39 @@ strings exactly.
 The driver subscribes to the inbound subset it surfaces or resolves internally
 (`CUE_SEQUENCE`, `SESSION_STOP`, `SESSION_START`, `SCENE_NAME`, `STIMULUS`, `DELAY`) when constructing
 its `MQTTCommunication`.
+
+---
+
+## Unity Editor MCP Bridge
+
+Alongside the MQTT data channel, the driver drives the Unity Editor over the **editor MCP Bridge** — the
+HTTP listener `McpBridge.cs` starts automatically inside the Unity Editor (Unity side: `unity:play-mode`,
+`unity:scene-setup`). `UnityBridgeClient` (`sollertia_experiment/vr_task/bridge.py`) is the host-side
+client. It is **mandatory and always on**: there is no enable/disable configuration field, and the driver
+does NOT fall back to manual scene / Play-Mode prompts. The bridge binds the loopback interface only, so
+the acquisition host MUST be the same machine as the Unity Editor; the endpoint is a fixed module constant
+(`127.0.0.1:8090`), not configuration.
+
+Wire protocol: POST JSON `{"tool": ..., "args": {...}}`; the reply always carries `success: bool`, and a
+failure carries an `error` string. `UnityBridgeClient` maps a transport failure or a `success: false`
+reply to `UnityBridgeError`, which the driver layer catches to retry, surface, or probe reachability.
+
+| Method                     | Bridge tool            | Purpose                                                        |
+|----------------------------|------------------------|----------------------------------------------------------------|
+| `list_scenes()`            | `list_scenes`          | All project scene paths and the active scene path              |
+| `open_scene(path, policy)` | `open_scene`           | Open a scene (driver passes the `save` unsaved-changes policy) |
+| `enter_play_mode()`        | `enter_play_mode`      | Enter Play Mode (arm); async, returns the post-request state   |
+| `exit_play_mode()`         | `exit_play_mode`       | Exit Play Mode (disarm)                                        |
+| `get_play_state()`         | `get_play_state`       | The editor play state and active scene name                    |
+| `resolve_scene_path(name)` | (via `list_scenes`)    | Resolve `expected_scene_name` to a project scene path by stem  |
+| `is_reachable()`           | (via `get_play_state`) | True when the bridge responds; never raises                    |
+| `describe_status()`        | (via `get_play_state`) | One-line reachability / scene / state summary                  |
+
+`enter_play_mode()` only presses the editor's play button; the MQTT `SessionStart` message remains the
+authoritative "Unity is armed and connected" signal, so `setup()` still waits for it after arming. A
+dedicated reachability check is surfaced to pre-flight via the `sle get unity` CLI command and the
+`check_unity_bridge_tool` MCP tool (see `experiment:system-health-check`,
+`experiment:acquisition-system-setup`).
 
 ---
 
@@ -149,21 +192,24 @@ VRTaskDriver(
 
 | Method / property                      | Purpose                                                                           |
 |----------------------------------------|-----------------------------------------------------------------------------------|
-| `connect()` / `disconnect()`           | Open / close the MQTT connection to Unity                                         |
-| `setup()`                              | Interactive start-of-session handshake; see the Setup handshake note below.       |
+| `connect()` / `disconnect()`           | Open / close the MQTT connection (`disconnect()` also closes the bridge client)   |
+| `setup()`                              | Bridge-driven start-of-session handshake; see the Setup handshake note below.     |
 | `push_position(absolute_position)`     | Forward the animal's position to Unity as a movement delta (only emits on change) |
 | `push_lick_event()`                    | Notify Unity that the animal licked                                               |
 | `set_reinforcing_guidance(*, enabled)` | Toggle reinforcing guidance (publishes `RequireLick` = `not enabled`)             |
 | `set_aversive_guidance(*, enabled)`    | Toggle aversive guidance (publishes `RequireWait` = `not enabled`)                |
 | `cycle() -> VRTaskEvent`               | Consume the next pending Unity message and return it as a typed event             |
-| `resume_after_unity_restart()`         | Re-fetch the cue sequence and clear `terminated` after Unity is restarted         |
+| `resume_after_unity_restart()`         | Re-arm Unity via the bridge, re-fetch the cue sequence, and clear `terminated`    |
 | `state` (property)                     | The current `VRTaskState`                                                         |
 | `cue_sequence_distances` (property)    | Cumulative distance (cm) to complete each decomposed trial                        |
 | `trial_names` (property)               | The name of each decomposed trial, in sequence order                              |
 
-> **Setup handshake.** `setup()` is interactive (console prompts) and runs scene-name check → VR display
-> verification → Unity re-arm → cue-sequence fetch. The caller MUST enable the VR screens before the call and
-> disable them after; the display-verification stage needs them rendering.
+> **Setup handshake.** `setup()` is bridge-driven: require bridge reachable → open the expected scene →
+> arm Unity (`enter_play_mode` + wait for MQTT `SessionStart`) → cross-check the active scene name over
+> MQTT → VR display verification → cue-sequence fetch. There are no "press play" prompts. The only operator
+> interaction is the display check: Unity animates continuously until the operator presses Enter, the driver
+> stops Play Mode, and the operator confirms the render (yes advances and re-arms; no lets them adjust, then
+> re-arms and repeats). The caller MUST enable the VR screens before the call and disable them after.
 
 > **Guidance inversion.** Unity's `RequireLick` / `RequireWait` flags are the inverse of guidance: a
 > `True` value forces the animal to perform the behavior unaided (the unguided case), so enabling
@@ -208,7 +254,8 @@ The runtime orchestrator owns the driver lifecycle (see `experiment:mesoscope-vr
    calls `cycle()` and dispatches the returned `VRTaskEvent` (reward on `STIMULUS_TRIGGERED`, brake
    pulse on `TRIGGER_DELAY_REQUESTED`, emergency pause on `UNITY_TERMINATED`).
 4. Guidance is set via `set_reinforcing_guidance()` / `set_aversive_guidance()` as trial state evolves.
-5. On a Unity restart during a pause, `resume_after_unity_restart()` re-fetches the cue sequence.
+5. On resume from an emergency pause, `resume_after_unity_restart()` re-arms Unity through the bridge and
+   re-fetches the cue sequence — the operator does not press the play button.
 6. `stop()` calls `disconnect()`.
 
 ---
@@ -243,6 +290,7 @@ Update this skill when:
 - `_VRTaskMQTTTopics` gains/loses a topic or a payload shape changes.
 - `VRTaskEventKind` / `VRTaskEvent` / `VRTaskState` change.
 - The `VRTaskDriver` public method surface changes.
+- The `UnityBridgeClient` surface or the editor-bridge HTTP tool set changes.
 - The trial-decomposition data model (`DecomposedTrials`) changes.
 
 The VR task is a single contract spread across three libraries — the host driver (this skill), the Unity
@@ -254,6 +302,7 @@ side alone — Unity and the host silently desynchronize at runtime.
 | Contract dimension           | experiment (host)                             | unity (game engine)                                              | assets (data model)                                    |
 |------------------------------|-----------------------------------------------|------------------------------------------------------------------|--------------------------------------------------------|
 | MQTT wire strings / payloads | `_VRTaskMQTTTopics` (this skill)              | `unity:mqtt-contract`, `unity:gimbl-framework` (`MQTTTopics.cs`) | —                                                      |
+| Editor bridge HTTP tools     | `UnityBridgeClient` (this skill)              | `unity:play-mode`, `unity:scene-setup` (`McpBridge.cs`)          | —                                                      |
 | Active scene name            | `expected_scene_name` + `SceneName` handshake | `unity:task-scenes`, `unity:task-prefabs`                        | `assets:experiment-configuration` (`unity_scene_name`) |
 | Cue catalog / trial motifs   | `decompose_cue_sequence` (this skill)         | `unity:task-generator`, `unity:task-prefabs`                     | `assets:task-templates` (`TaskTemplate`)               |
 | TriggerType / trigger zones  | `DecomposedTrials.trigger_types` (this skill) | `unity:zone-prefabs`, `unity:task-generator`                     | `assets:library-extension`, `assets:task-templates`    |
@@ -275,6 +324,9 @@ When in doubt, re-read `sollertia_experiment/vr_task/driver.py`,
 | `experiment:mesoscope-vr`                          | Defines `assets.vr_task` (`VRTaskConfiguration`) in the system config        |
 | `experiment:acquisition-system-runtime`            | Platform-general runtime pattern this subsystem plugs into                   |
 | `ataraxis@communication:microcontroller-interface` | `MQTTCommunication` mechanics the driver builds on                           |
+| `experiment:system-health-check`                   | Pre-flight `check_unity_bridge_tool` that enforces the Unity Editor is open  |
+| `unity:play-mode`                                  | Unity-side editor bridge Play-Mode control the driver drives                 |
+| `unity:scene-setup`                                | Unity-side editor bridge scene activation the driver drives                  |
 | `unity:mqtt-contract`                              | Unity side of the MQTT topic contract (`MQTTTopics`)                         |
 | `unity:gimbl-framework`                            | Unity-side VR framework and game objects                                     |
 | `unity:task-prefabs`                               | Unity task prefab generation from templates                                  |
@@ -289,6 +341,8 @@ When in doubt, re-read `sollertia_experiment/vr_task/driver.py`,
 ```text
 When modifying the VR task driver:
 - [ ] _VRTaskMQTTTopics wire strings match the Unity MQTTTopics constant set exactly (unity:mqtt-contract)
+- [ ] UnityBridgeClient tool names and response keys match McpBridge.cs (unity:play-mode, unity:scene-setup)
+- [ ] Bridge stays mandatory and loopback-only (no enable/disable config, no manual-prompt fallback)
 - [ ] monitored_topics updated for any new inbound surfaced topic
 - [ ] cycle() branches and VRTaskEventKind/VRTaskEvent updated for any new dispatchable event
 - [ ] Guidance inversion preserved (RequireLick/RequireWait publish `not enabled`)

@@ -204,15 +204,19 @@ convention: `axvs` and `axci` tools carry no suffix, while `sle` tools carry a `
 | `get_cti_status`             | axvs   | CTI (.cti) file path, or "not set"    |
 | `set_cti_file`               | axvs   | Sets the .cti path (Harvesters)       |
 | `check_mqtt_broker`          | axci   | MQTT broker reachability (host, port) |
+| `check_unity_bridge_tool`    | sle    | Unity Editor MCP Bridge reachability  |
 
 `check_runtime_requirements`, `get_cti_status`, and `set_cti_file` are owned by `ataraxis@video:camera-setup`;
-`check_mqtt_broker` is owned by `ataraxis@communication:microcontroller-setup`.
+`check_mqtt_broker` is owned by `ataraxis@communication:microcontroller-setup`; `check_unity_bridge_tool` is
+owned by `/vr-driver-interface` and applies only to systems that drive a Unity VR task.
 
 Invoke `check_runtime_requirements` first. If it reports the CTI file as unconfigured and the system uses
 Harvesters cameras, set the path with `set_cti_file` — the CTI path lives in the video MCP server's state, not
 slsa state, so this skill may call it; see `ataraxis@video:camera-setup` for the canonical CTI workflow. Then
 invoke `check_mqtt_broker`; if the broker is unreachable, instruct the user to start their broker service
-(e.g. Mosquitto) before continuing.
+(e.g. Mosquitto) before continuing. For a system that drives a Unity VR task, also invoke
+`check_unity_bridge_tool` (CLI: `sle get unity`); if it reports the bridge unreachable, instruct the user to
+open the Unity project in the editor — its MCP bridge auto-starts — before running an experiment session.
 
 ### Phase 2: Hardware discovery
 
@@ -248,6 +252,16 @@ The Zaber motors form three groups:
 
 The system also exposes two cameras — a face camera and a body camera; match each `list_cameras` index to its
 role against the system's recorded configuration.
+
+**Camera GenICam configuration verification.** When the active system records per-camera GenICam configuration
+paths (a standard practice for GenTL/GenICam cameras), verify the live cameras against their stored
+configurations after discovery: call `verify_camera_configuration_tool` (sle), which dumps each camera's live
+GenICam node configuration and diffs it against the stored YAML (reporting `match`, identity match, and per-node
+`value_mismatches`). On a mismatch, either restore the known-good configuration onto the camera
+(`ataraxis@video:camera-setup`'s `load_genicam_config`), or — if the live configuration is the new desired
+baseline — dump it to the stored path (`dump_genicam_config`). The stored paths belong to the active system's
+configuration; read them via that system's skill (for `mesoscope`, `/mesoscope-vr` →
+`cameras.<role>_camera_configuration_path`). Cameras with no path declared are skipped.
 
 **Device path convention:**
 
@@ -290,15 +304,18 @@ You MUST NOT call `set_working_directory_tool`, `set_google_credentials_tool`,
 
 ## Troubleshooting
 
-| Error                              | Cause                         | Solution                                                           |
-|------------------------------------|-------------------------------|--------------------------------------------------------------------|
-| Camera not found at expected index | Wrong camera index            | Re-run `list_cameras()`, hand off to the active system's skill     |
-| Microcontroller connection failed  | Wrong port or disconnected    | Re-run `list_microcontrollers()`, check USB cables                 |
-| Zaber motor not responding         | Wrong port or powered off     | Re-run `get_zaber_devices_tool()`, verify power supply             |
-| MQTT broker unreachable            | Broker not running            | Start Mosquitto or the configured MQTT broker                      |
-| FFMPEG not found                   | FFMPEG not installed          | Install FFMPEG via the OS package manager                          |
-| GPU not detected                   | NVIDIA driver missing         | Install NVIDIA driver and restart                                  |
-| CTI file not configured            | GenTL producer not registered | Hand off to `ataraxis@video:camera-setup` to register the CTI file |
+| Error                                  | Cause                                  | Solution                                                                        |
+|----------------------------------------|----------------------------------------|---------------------------------------------------------------------------------|
+| Camera not found at expected index     | Wrong camera index                     | Re-run `list_cameras()`, hand off to the active system's skill                  |
+| Microcontroller connection failed      | Wrong port or disconnected             | Re-run `list_microcontrollers()`, check USB cables                              |
+| Zaber motor not responding             | Wrong port or powered off              | Re-run `get_zaber_devices_tool()`, verify power supply                          |
+| MQTT broker unreachable                | Broker not running                     | Start Mosquitto or the configured MQTT broker                                   |
+| Unity bridge unreachable               | Unity Editor not open                  | Open the Unity project in the editor; its MCP bridge auto-starts                |
+| FFMPEG not found                       | FFMPEG not installed                   | Install FFMPEG via the OS package manager                                       |
+| GPU not detected                       | NVIDIA driver missing                  | Install NVIDIA driver and restart                                               |
+| CTI file not configured                | GenTL producer not registered          | Hand off to `ataraxis@video:camera-setup` to register the CTI file              |
+| Live camera config differs from stored | Camera drifted or reconfigured         | Restore via `load_genicam_config`, or re-baseline via `dump_genicam_config`     |
+| Stored camera config file not found    | Declared path points at a missing file | Dump a baseline with `dump_genicam_config`, or fix the path via `/mesoscope-vr` |
 
 For configuration-file-level errors (working directory not set, schema validation failures, missing projects),
 hand off to the assets plugin skill that owns the affected asset.
@@ -313,7 +330,9 @@ hand off to the assets plugin skill that owns the affected asset.
 - [ ] check_runtime_requirements() reported FFMPEG and GPU OK
 - [ ] CTI file status confirmed (if using Harvesters cameras)
 - [ ] check_mqtt_broker() reported broker reachable
+- [ ] check_unity_bridge_tool() reported the Unity Editor bridge reachable (only for systems driving a Unity VR task)
 - [ ] list_cameras() returned the expected cameras
+- [ ] Camera GenICam configs verified against stored configs via verify_camera_configuration_tool() (if the system declares config paths)
 - [ ] list_microcontrollers() returned the expected microcontrollers and roles
 - [ ] get_zaber_devices_tool() returned the expected motor groups
 - [ ] Discovered hardware reported to user as a structured table
