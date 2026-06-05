@@ -16,7 +16,7 @@ acquisition runtime to the Unity game engine implemented in `sollertia-unity-tas
 platform-general VR subsystem, parallel to `experiment:microcontroller-interface` (microcontrollers) and
 `experiment:zaber-interface` (motors): the `VRTaskDriver` in
 `sollertia_experiment/vr_task/driver.py` is hardware-agnostic and composed by an acquisition
-system's runtime orchestrator (currently Mesoscope-VR's `_MesoscopeVRSystem`).
+system's runtime orchestrator (currently Mesoscope-VR's `MesoscopeVRSystem`).
 
 The Unity side of the contract — the GIMBL framework, the `MQTTTopics` constant set, and task prefab
 generation — lives in the unity plugin. This skill owns the **host (Python) side**.

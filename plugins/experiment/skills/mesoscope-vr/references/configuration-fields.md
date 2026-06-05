@@ -12,14 +12,15 @@ type/units/default changed.
 
 ## Top-level: MesoscopeSystemConfiguration
 
-| Field              | Type                        | Default                      | Purpose                                                              |
-|--------------------|-----------------------------|------------------------------|----------------------------------------------------------------------|
-| `name`             | `str`                       | `"mesoscope"`                | Human-readable system label                                          |
-| `filesystem`       | `MesoscopeFileSystem`       | `field(default_factory=...)` | Filesystem paths (see below)                                         |
-| `sheets`           | `MesoscopeGoogleSheets`     | `field(default_factory=...)` | Google Sheets identifiers (see below)                                |
-| `cameras`          | `MesoscopeCameras`          | `field(default_factory=...)` | Camera configuration (see below)                                     |
-| `microcontrollers` | `MesoscopeMicroControllers` | `field(default_factory=...)` | Microcontroller configuration (see below)                            |
-| `assets`           | `MesoscopeVRAssets`         | `field(default_factory=...)` | Zaber motor ports + nested Unity MQTT task configuration (see below) |
+| Field              | Type                        | Default                      | Purpose                                                                       |
+|--------------------|-----------------------------|------------------------------|-------------------------------------------------------------------------------|
+| `name`             | `str`                       | `"mesoscope"`                | Human-readable system label                                                   |
+| `filesystem`       | `MesoscopeFileSystem`       | `field(default_factory=...)` | Filesystem paths (see below)                                                  |
+| `sheets`           | `MesoscopeGoogleSheets`     | `field(default_factory=...)` | Google Sheets identifiers (see below)                                         |
+| `cameras`          | `MesoscopeCameras`          | `field(default_factory=...)` | Camera configuration (see below)                                              |
+| `microcontrollers` | `MesoscopeMicroControllers` | `field(default_factory=...)` | Microcontroller configuration (see below)                                     |
+| `acquisition`      | `MesoscopeAcquisition`      | `field(default_factory=...)` | Mesoscope motion-estimation and z-stack acquisition configuration (see below) |
+| `assets`           | `MesoscopeVRAssets`         | `field(default_factory=...)` | Zaber motor ports + nested Unity MQTT task configuration (see below)          |
 
 ### Non-default behaviors
 
@@ -215,6 +216,51 @@ normalizes from `dict` on YAML load. `WaterValveInterface` fits a power-law mode
 **Recalibration**: Use the `experiment:mesoscope-vr-runtime` skill (or `WaterValveInterface.calibrate_valve()`
 directly) to gather new calibration points. Replace the entire tuple; do NOT mix old and new
 measurements.
+
+---
+
+## MesoscopeAcquisition
+
+Captures the online motion-estimation and z-stack acquisition configuration delivered to the
+ScanImagePC. See [Mesoscope acquisition section in
+SKILL.md](../SKILL.md#hardware-subsystem-mesoscope-acquisition) for the `MesoscopeDriver` MQTT
+contract that carries these parameters to the `runAcquisition` MATLAB function. Eight fields.
+
+| Field                        | Type                        | Default        | Purpose                                                                                                                                                                                                   |
+|------------------------------|-----------------------------|----------------|-----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| `z_step_um`                  | `int`                       | `20`           | Spacing, in micrometers, between consecutive target imaging planes in the acquired z-stack                                                                                                                |
+| `z_range_um`                 | `tuple[int, int]`           | `(1050, 1050)` | The `[minimum, maximum]` z-plane range to image, in micrometers. Equal boundaries image a single plane at that depth; distinct boundaries image the inclusive slice between them                          |
+| `z_exclusion_um`             | `tuple[int, int]`           | `(0, 0)`       | The `[minimum, maximum]` boundaries, in micrometers, of the non-imaged exclusion zone for two-plane imaging. Equal boundaries disable two-plane imaging; when distinct they must fall within `z_range_um` |
+| `acquisition_order`          | `MesoscopeAcquisitionOrder` | `INTERLEAVED`  | Order in which the target planes are acquired when building the reference and high-definition z-stacks                                                                                                    |
+| `registration_channel`       | `int`                       | `1`            | Acquisition channel used for online motion registration and the high-definition reference z-stack                                                                                                         |
+| `field_curvature_correction` | `bool`                      | `False`        | Whether ScanImage field curvature correction is enabled during acquisition (microscope-dependent)                                                                                                         |
+| `frames_per_reference_plane` | `int`                       | `20`           | Number of frames acquired and averaged at each reference plane. Larger values improve motion characterization at the cost of longer processing and higher acquisition-machine load                        |
+| `zstack_scale_factor`        | `float`                     | `2.0`          | Factor by which each ROI's X and Y resolution is scaled when acquiring the high-definition reference z-stack. The scaling preserves the original ROI aspect ratios                                        |
+
+### MesoscopeAcquisitionOrder enum
+
+`acquisition_order` is a `MesoscopeAcquisitionOrder` (`StrEnum`) with two members:
+
+| Member        | Value           | Meaning                                                                                           |
+|---------------|-----------------|---------------------------------------------------------------------------------------------------|
+| `INTERLEAVED` | `"interleaved"` | Iterate over the target planes once per acquired volume, one frame at each plane (Z1, Z2, Z1, Z2) |
+| `SMOOTH`      | `"smooth"`      | Acquire all averaged frames at one target plane before advancing to the next (Z1, Z1, Z2, Z2)     |
+
+### `__post_init__` validation
+
+`MesoscopeAcquisition.__post_init__` raises `ValueError` (via `console.error`) when:
+
+- `z_step_um`, `registration_channel`, `frames_per_reference_plane`, or `zstack_scale_factor` is not
+  positive (`<= 0`).
+- `z_range_um[0]` is not positive, or the boundaries are not ordered as `(minimum, maximum)`
+  (`z_range_um[0] > z_range_um[1]`).
+- `z_exclusion_um` boundaries are not ordered as `(minimum, maximum)`.
+- a configured (unequal) `z_exclusion_um` zone does not fall within the `z_range_um` boundaries.
+
+**Source of values:** These are deployment defaults tuned for the reference rig and microscope.
+Override them with the imaging geometry and estimator settings appropriate for the specific
+Mesoscope. The configuration is the single source of truth for the acquisition geometry — the
+parameters are delivered to the ScanImagePC in each command payload that consumes them.
 
 ---
 

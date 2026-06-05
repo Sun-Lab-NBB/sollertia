@@ -116,12 +116,13 @@ with the ScanImagePC (a MATLAB workstation):
 
 | Mount Purpose      | Configuration Field    | Description                                    |
 |--------------------|------------------------|------------------------------------------------|
-| ScanImagePC share  | `mesoscope_directory`  | Bidirectional share with the ScanImagePC       |
+| ScanImagePC share  | `mesoscope_directory`  | Data share with the ScanImagePC                |
 
-The flow here is bidirectional: the ScanImagePC writes acquired TIFFs into the share for the acquisition PC to
-aggregate, while the acquisition PC writes static binary marker files into the same share that the ScanImagePC
-polls as communication signals. The ScanImagePC must expose this directory so the acquisition PC can reach it
-through a direct-filesystem mount.
+The share moves data only. The ScanImagePC writes the acquired imaging data — TIFFs,
+`MotionEstimator.me`, `fov.roi`, `zstack.tiff`, and the desktop alignment screenshot — into the
+share, and the acquisition PC reads it back during preprocessing and session setup. Mesoscope
+acquisition control travels over the shared MQTT broker, not through the share, so the ScanImagePC
+must expose this directory for the acquisition PC to mount as a direct-filesystem path.
 
 ### Mount configuration
 

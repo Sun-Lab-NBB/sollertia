@@ -273,10 +273,10 @@ template; apply the ones that fit the system's hardware.
 ## Mesoscope-VR as a worked example
 
 `experiment:mesoscope-vr-runtime` is the current concrete instance of every pattern here:
-`MesoscopeVRStates` (the system-state enum), `_MesoscopeVRSystem` (the orchestrator with its
+`MesoscopeVRStates` (the system-state enum), `MesoscopeVRSystem` (the orchestrator with its
 `runtime_cycle()` fanning out to `_data_cycle` / `_unity_cycle` / `_ui_cycle` / `_mesoscope_cycle`),
 the per-mode logic functions in `data_acquisition.py`, the `BehaviorVisualizer` + `RuntimeControlUI`,
-the `_MesoscopeVRLogMessageCodes`, and the `sle mesoscope run` CLI. Read that skill for the concrete
+the `MesoscopeVRLogMessageCodes`, and the `sle mesoscope run` CLI. Read that skill for the concrete
 states, modes, and commands; read this skill for the pattern they instantiate.
 
 ---

@@ -52,8 +52,10 @@ off there for any read, write, or schema work on `hardware_state.yaml`.
 
 During a `sle mesoscope run <session-type>` acquisition session, the runtime records the positions of the
 motorized stages and writes them to YAML files inside the session directory. The Zaber positions are
-queried automatically from the motors; the mesoscope objective positions are entered by the user when the
-runtime prompts for them. These **frozen snapshots** are used post-hoc to:
+queried automatically from the motors; the mesoscope objective positions are queried from the ScanImage
+software over MQTT, except for the red-dot alignment Z position (`red_dot_alignment_z`), which the
+ScanImage software cannot report and which the operator enters through a terminal prompt that defaults to
+the previous runtime's value. These **frozen snapshots** are used post-hoc to:
 
 - Reproduce the exact stage configuration that was active during the session
 - Diagnose drift between the recorded positions and what the binding class expected
@@ -104,10 +106,14 @@ For the `MesoscopeHardwareState` read/write/describe trio (`read_session_hardwar
    `/mesoscope-vr` to identify drift, or hand off to the assets plugin's
    `/session-hardware-state` to also pull the hardware state snapshot.
 
-### Patching `ZaberPositions` after a manual stage adjustment
+### Rescuing a bad auto-generated `ZaberPositions` snapshot
 
-Use this workflow when a user has physically moved a Zaber stage and the recorded positions no longer
-match reality.
+A session-time failure — a motor fault, an early abort, or a similar interruption — can leave the
+runtime's auto-generated `zaber_positions.yaml` holding wrong or partial motor positions. Use this
+workflow to overwrite that snapshot with the positions the session would have recorded had it
+completed normally, restoring a faithful frozen record of the stage configuration for downstream use.
+The write tool targets the session's `raw_data` copy only; the per-animal `persistent_data` copy that
+seeds the next runtime is a separate file and is not modified here.
 
 1. **Verify the user actually wants to modify the frozen snapshot.** Patching a snapshot rewrites
    history — the original captured state is lost.
@@ -115,7 +121,10 @@ match reality.
    ```text
    read_session_zaber_positions_tool(session_path="<absolute>")
    ```
-3. **Build the corrected dictionary** with the new motor positions.
+3. **Build the corrected dictionary** with the positions the session should have recorded —
+   typically the same animal's last good snapshot (see [Recovering a corrupted
+   snapshot](#recovering-a-corrupted-snapshot) for sourcing it from an adjacent session or the
+   `persistent_data` copy).
 4. **Confirm with the user before writing.**
 5. **Write the corrected positions:**
    ```text
@@ -125,14 +134,26 @@ match reality.
 
 ### Recovering a corrupted snapshot
 
-If a position snapshot fails to parse, the read tool returns an error. To recover:
+If a position snapshot fails to parse, the read tool returns an error. The two position snapshots
+cover disjoint subsystems (Zaber stages vs. the Mesoscope objective) and share no fields, so the
+*other* snapshot in the same session cannot supply the corrupted one's values. Recover from the same
+snapshot **type** elsewhere: the runtime mirrors each snapshot to the animal's `persistent_data`
+directory (overwriting it on every completed session) and re-seeds the next runtime from it, so the
+same animal's positions drift little between sessions.
 
-1. Read the other position snapshot in the same session to reconstruct context.
-2. Hand off to the assets plugin's `/session-hardware-state` to read `MesoscopeHardwareState` for
-   additional rig context.
-3. Read the frozen system configuration via `/mesoscope-vr`
-   (`read_session_system_configuration_tool`) to recover hardware ID assignments.
-4. Hand the recovery proposal to the user before writing a replacement snapshot.
+1. **Recover the values from the same-type snapshot of the same animal.** Read an adjacent same-animal
+   session's snapshot of the same type with `read_session_zaber_positions_tool` /
+   `read_session_mesoscope_positions_tool` (pass that session's `session_path`), or read the animal's
+   persistent-directory copy directly — `<animal>/persistent_data/zaber_positions.yaml` or
+   `mesoscope_positions.yaml`, the same schema as the session snapshot. The persistent copy reflects
+   the most recent completed session: an exact match when the corrupted snapshot is the latest,
+   otherwise a close approximation.
+2. **Pull rig context to validate a candidate** (not to recover positions). Hand off to the assets
+   plugin's `/session-hardware-state` for `MesoscopeHardwareState`, and read the frozen system
+   configuration via `/mesoscope-vr` (`read_session_system_configuration_tool`) for hardware-ID
+   assignments and per-motor calibration — use these to confirm a candidate snapshot matches the rig
+   that ran the session.
+3. Hand the recovery proposal to the user before writing a replacement snapshot.
 
 ### Coordinated multi-snapshot patching
 

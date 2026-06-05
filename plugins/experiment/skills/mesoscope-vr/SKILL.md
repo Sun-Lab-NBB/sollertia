@@ -23,11 +23,11 @@ For Mesoscope-VR's runtime behavior (state machine, training modes, CLI), see
 ## Scope
 
 **Covers:**
-- Mesoscope-VR system overview (hardware composition, controllers, cameras, motors)
+- Mesoscope-VR system overview (hardware composition, controllers, cameras, motors, Mesoscope acquisition)
 - `MesoscopeSystemConfiguration` dataclass — top-level configuration class structure and file lifecycle
 - Per-subsystem configuration dataclass surface — pointer to the full registry in `references/configuration-fields.md`
-- Per-subsystem binding classes (`MicroControllerInterfaces`, `VideoSystems`, `ZaberMotors`) — composition
-  and lifecycle wiring
+- Per-subsystem binding classes (`MicroControllerInterfaces`, `VideoSystems`, `ZaberMotors`) and the
+  `MesoscopeDriver` MQTT interface — composition and lifecycle wiring
 - MCP tool surface for reading, writing, and validating the configuration YAML
 - Configuration authoring and modification workflows
 
@@ -49,15 +49,15 @@ For Mesoscope-VR's runtime behavior (state machine, training modes, CLI), see
 Mesoscope-VR is a head-fixed 2-Photon Random Access Mesoscope (2P-RAM) imaging system with a
 Virtual Reality environment. It is composed of the following hardware subsystems:
 
-| Subsystem             | Devices                                                          | Binding class                       |
-|-----------------------|------------------------------------------------------------------|-------------------------------------|
-| Microcontrollers      | 3 × Teensy 4.1 boards (ACTOR, SENSOR, ENCODER)                   | `MicroControllerInterfaces`         |
-| Cameras               | 2 × GenICam scientific cameras (face camera, body camera)        | `VideoSystems`                      |
-| Zaber motors          | 3 × motor groups (HeadBar Z/Pitch/Roll, Wheel X, LickPort Z/Y/X) | `ZaberMotors`                       |
-| Unity VR (MQTT)       | 1 × MQTT broker bridging the runtime to the Unity game engine    | (consumed directly by orchestrator) |
-| Mesoscope acquisition | 1 × external software acquisition system (mesoscope DAQ machine) | (paths only in configuration)       |
+| Subsystem             | Devices                                                            | Binding class                       |
+|-----------------------|--------------------------------------------------------------------|-------------------------------------|
+| Microcontrollers      | 3 × Teensy 4.1 boards (ACTOR, SENSOR, ENCODER)                     | `MicroControllerInterfaces`         |
+| Cameras               | 2 × GenICam scientific cameras (face camera, body camera)          | `VideoSystems`                      |
+| Zaber motors          | 3 × motor groups (HeadBar Z/Pitch/Roll, Wheel X, LickPort Z/Y/X)   | `ZaberMotors`                       |
+| Unity VR (MQTT)       | 1 × MQTT broker bridging the runtime to the Unity game engine      | (consumed directly by orchestrator) |
+| Mesoscope acquisition | ScanImage 2P-RAM Mesoscope driven over MQTT via runAcquisition.m   | `MesoscopeDriver`                   |
 
-The lifecycle orchestrator (`_MesoscopeVRSystem` in
+The lifecycle orchestrator (`MesoscopeVRSystem` in
 `sollertia_experiment/mesoscope_vr/system_controller.py`) composes the three binding classes and
 drives the system state machine. The orchestrator is documented in `experiment:mesoscope-vr-runtime`.
 
@@ -87,7 +87,7 @@ dataclass defined in `sollertia_experiment/mesoscope_vr/system.py`.
 
 ### Top-level structure
 
-`MesoscopeSystemConfiguration` composes five nested dataclasses plus a top-level `name` field:
+`MesoscopeSystemConfiguration` composes six nested dataclasses plus a top-level `name` field:
 
 | Section            | Dataclass                   | What it parameterizes                                            |
 |--------------------|-----------------------------|------------------------------------------------------------------|
@@ -96,6 +96,7 @@ dataclass defined in `sollertia_experiment/mesoscope_vr/system.py`.
 | `sheets`           | `MesoscopeGoogleSheets`     | Google Sheet IDs for surgery log and water log                   |
 | `cameras`          | `MesoscopeCameras`          | Face / body camera indices and H.265 encoding parameters         |
 | `microcontrollers` | `MesoscopeMicroControllers` | Per-board ports + per-module calibration data                    |
+| `acquisition`      | `MesoscopeAcquisition`      | Mesoscope motion-estimation and z-stack acquisition parameters   |
 | `assets`           | `MesoscopeVRAssets`         | Zaber motor ports + nested `vr_task` Unity MQTT configuration    |
 
 For the full field-by-field registry (every field name, type, default, units, and meaning), see
@@ -205,8 +206,8 @@ corresponding controller ID and port. Wrappers are exposed as public attributes:
 
 `start()` brings up all three controllers in order (actor → sensor → encoder), calls
 `initialize_local_assets()` on wrappers with SharedMemoryArray (`wheel_encoder`, `valve`,
-`mesoscope_frame`, `lick`), then pushes runtime parameters to each module via `set_parameters()`
-calls.
+`gas_puff_valve`, `mesoscope_frame`, `lick`), then pushes runtime parameters to each module via
+`set_parameters()` calls.
 
 `stop()` tears down all three controllers in the same forward order (no reverse ordering needed
 because controllers are independent; the Kernel handles its own module shutdown).
@@ -355,6 +356,104 @@ mounting/parking positions stored in each motor's non-volatile memory.
 For motor mechanics (park/unpark safety, position management, configuration tooling, the
 `ZaberConnection` / `ZaberDevice` / `ZaberAxis` hierarchy, MCP discovery), see
 `experiment:zaber-interface`.
+
+---
+
+## Hardware subsystem: Mesoscope acquisition
+
+The Mesoscope-VR system images through a ScanImage-controlled 2P-RAM Mesoscope hosted on a separate
+machine (the ScanImagePC). The acquisition runtime does not drive ScanImage directly: it publishes
+commands over MQTT to the `runAcquisition` MATLAB function, which configures the online
+motion-estimation reference, acquires the high-definition reference z-stack, and arms and runs frame
+acquisition. The Mesoscope frame stream is observed on the PC side as the SENSOR board's
+mesoscope-frame TTL, not over MQTT.
+
+### MesoscopeAcquisition dataclass
+
+`MesoscopeAcquisition` (in `sollertia_experiment/mesoscope_vr/system.py`) is the `acquisition` field
+of `MesoscopeSystemConfiguration`. It parameterizes the reference motion estimator and the
+high-definition reference z-stack that the ScanImagePC generates at the start of each runtime:
+
+- **Z-stack geometry**: `z_step_um`, `z_range_um`, `z_exclusion_um` (plane spacing, inclusive
+  imaging range, and optional two-plane exclusion zone, all in micrometers) and `acquisition_order`
+  (`MesoscopeAcquisitionOrder`, with members `INTERLEAVED` — one frame per plane per volume — and
+  `SMOOTH` — all averaged frames at one plane before advancing).
+- **Estimator / z-stack settings**: `registration_channel` (channel used for online registration
+  and the z-stack), `field_curvature_correction` (bool), `frames_per_reference_plane` (frames
+  averaged per reference plane), and `zstack_scale_factor` (X/Y resolution scaling for the
+  high-definition z-stack).
+
+`__post_init__` validates that `z_step_um`, `registration_channel`, `frames_per_reference_plane`,
+and `zstack_scale_factor` are positive; that `z_range_um` is positive and ordered as
+`(minimum, maximum)`; and that a configured (unequal) `z_exclusion_um` zone is ordered and falls
+within `z_range_um`. For the full per-field documentation (types, defaults, units, validation), see
+[`references/configuration-fields.md`](references/configuration-fields.md) under the
+"MesoscopeAcquisition" section.
+
+### MesoscopeDriver interface class
+
+`MesoscopeDriver` (in `sollertia_experiment/mesoscope_vr/mesoscope_driver.py`) encapsulates all MQTT
+communication with the `runAcquisition` MATLAB function on the ScanImagePC.
+
+Construction signature:
+
+```python
+MesoscopeDriver(
+    configuration: VRTaskConfiguration,
+    acquisition: MesoscopeAcquisition,
+)
+```
+
+Mesoscope control is tightly coupled to the Virtual Reality task, so the driver reuses the shared
+Virtual Reality MQTT broker discovery fields (`ip` / `port`) from `assets.vr_task` rather than
+defining its own. The orchestrator constructs the driver from `assets.vr_task` and
+`acquisition`, and `connect()`s it only for mesoscope experiment sessions.
+
+Method surface:
+
+| Method                       | Role                                                                          |
+|------------------------------|-------------------------------------------------------------------------------|
+| `connect()` / `disconnect()` | Open / close the MQTT connection to the ScanImagePC                           |
+| `await_alive()`              | Probe ScanImagePC liveness with a request-reply handshake on the Status topic |
+| `preload(project, animal)`   | Preload the persisted per-animal reference estimator as an alignment aid      |
+| `generate_reference()`       | Generate the fresh session estimator + high-definition z-stack and arm        |
+| `begin_acquisition()`        | Begin acquiring session frames                                                |
+| `abort()`                    | Abort or end the ongoing frame acquisition                                    |
+| `recover()`                  | Reload the session estimator and re-arm after a transient interruption        |
+| `query_state()`              | Return a `MesoscopePositions` snapshot of the stage / fast-Z / laser state    |
+
+Each command is published, resent on each acknowledgement timeout, and confirmed by a reception
+acknowledgement on the Status topic; setup commands additionally block for a terminal status state.
+The driver probes liveness by publishing an empty `MesoscopeAlive` request and waiting for the
+Status-topic acknowledgement — the absence of a reply within the timeout means the `runAcquisition`
+command loop is not running. Actual frame acquisition start/stop is confirmed by the caller through
+the hardware TTL frame stream, not over MQTT.
+
+The driver and the MATLAB function exchange messages on a flat `Mesoscope`-prefixed PascalCase topic
+namespace that does not overlap with the Unity task topics, so both surfaces share one broker. Ten
+topics are defined: the VRPC publishes the command topics `MesoscopeAlive`, `MesoscopePreload`,
+`MesoscopeGenerateReference`, `MesoscopeBeginAcquisition`, `MesoscopeAbort`, `MesoscopeRecover`, and
+`MesoscopeQueryState`; the ScanImagePC publishes the reply topics `MesoscopeStatus` (reception
+acknowledgement and progress), `MesoscopeError` (failure detail), and `MesoscopeState` (the
+stage / fast-Z / laser snapshot answering a state query).
+
+The `acquisition` parameters are carried in the command payloads, not configured on the ScanImagePC:
+`generate_reference()` ships the full acquisition parameter set, `recover()` ships only the
+plane-geometry parameters (`z_step_um`, `z_range_um`, `z_exclusion_um`, `acquisition_order`) needed
+to re-derive the imaging planes, and `preload()` ships the `project` and `animal` identifiers the
+ScanImagePC uses to resolve the persisted estimator path under its local data root. The remaining
+commands carry empty payloads. This makes the `MesoscopeAcquisition` section the single source of
+truth for the acquisition geometry.
+
+The ScanImagePC counterpart is the `runAcquisition` MATLAB function
+(`assets/mesoscope_vr/runAcquisition.m`), a top-level script deployed to the ScanImagePC. It connects
+to the shared broker, then enters an MQTT command loop that acts as a state machine dispatching these
+commands to the ScanImage software (preload, generate reference, begin / abort / recover, and answer
+the liveness probe and state queries). Only the ScanImagePC-local output root and the broker address
+remain function arguments; every acquisition parameter arrives in the command payloads.
+
+For when the orchestrator invokes these methods within the runtime state machine, see
+`experiment:mesoscope-vr-runtime`.
 
 ---
 
@@ -567,8 +666,10 @@ For motor-side mechanics (checksum validation, parking, position storage), see
 
 ## Lifecycle orchestrator handoff
 
-The Mesoscope-VR runtime composes the three binding classes inside `_MesoscopeVRSystem` (in
-`sollertia_experiment/mesoscope_vr/system_controller.py`). The orchestrator's responsibilities,
+The Mesoscope-VR runtime composes the three binding classes (`MicroControllerInterfaces`,
+`VideoSystems`, `ZaberMotors`) inside `MesoscopeVRSystem` (in
+`sollertia_experiment/mesoscope_vr/system_controller.py`), and also constructs the `VRTaskDriver`
+(experiment sessions only) and the `MesoscopeDriver`. The orchestrator's responsibilities,
 state machine, training modes, and CLI surface are documented in
 `experiment:mesoscope-vr-runtime`.
 
@@ -646,7 +747,7 @@ Modifying:
 - [ ] Configuration field naming follows <device>_<parameter>_<unit>
 - [ ] references/configuration-fields.md updated to reflect new/changed fields
 - [ ] sollertia-experiment version bumped on any dataclass schema change
-- [ ] Binding class extended for new wrappers / cameras / motor groups
+- [ ] Binding class or MesoscopeDriver extended for new wrappers / cameras / motor groups / acquisition parameters
 - [ ] All affected deployments had their YAML regenerated
-- [ ] This skill's hardware-subsystem tables updated if board/camera/motor inventory changed
+- [ ] This skill's hardware-subsystem tables updated if board/camera/motor/acquisition inventory changed
 ```

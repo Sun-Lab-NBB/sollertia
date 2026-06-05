@@ -272,19 +272,19 @@ mount-check entry point.
 The Mesoscope-VR acquisition system is the current consumer of every pattern in this skill:
 
 - **System Configuration**: `MesoscopeSystemConfiguration` in
-  `sollertia_experiment/mesoscope_vr/system.py`. Composes 5 sections (filesystem, sheets,
-  cameras, microcontrollers, assets) plus a top-level `name` field. Implements
+  `sollertia_experiment/mesoscope_vr/system.py`. Composes 6 sections (filesystem, sheets,
+  cameras, microcontrollers, acquisition, assets) plus a top-level `name` field. Implements
   `__post_init__` for valve calibration tuple normalization and `save()` for tuple→dict YAML
   roundtrip.
 - **Configuration dataclasses**: `MesoscopeFileSystem`, `MesoscopeGoogleSheets`, `MesoscopeCameras`,
-  `MesoscopeMicroControllers`, `MesoscopeVRAssets`. All use `slots=True` and follow the
-  field-naming convention.
+  `MesoscopeMicroControllers`, `MesoscopeAcquisition`, `MesoscopeVRAssets`. All use `slots=True` and
+  follow the field-naming convention.
 - **Binding classes**: `MicroControllerInterfaces`, `VideoSystems`, `ZaberMotors` in
   `sollertia_experiment/mesoscope_vr/binding_classes.py`. `MicroControllerInterfaces` exposes the
   full `start` / `stop` / `__del__` lifecycle; `VideoSystems` starts per-camera via
   `start_face_camera` / `start_body_camera` with a unified `stop` / `__del__`; `ZaberMotors` connects
   in `__init__` and tears down via `disconnect`.
-- **Lifecycle orchestrator**: `_MesoscopeVRSystem` in
+- **Lifecycle orchestrator**: `MesoscopeVRSystem` in
   `sollertia_experiment/mesoscope_vr/system_controller.py`.
 
 For the Mesoscope-VR-specific surface — actual field names and values, binding-class

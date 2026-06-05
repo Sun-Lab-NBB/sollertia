@@ -430,7 +430,8 @@ dataclass patterns, see [references/zaber-api-reference.md](references/zaber-api
 
 1. Motor was not shut down properly in previous session
 2. Verify motor is positioned safely for homing
-3. Enter 'yes' when prompted to proceed
+3. Confirm the "Proceed with initializing this motor?" prompt with `y` (it defaults to declining; declining
+   aborts initialization)
 4. Or manually set USER_DATA_1 to 1 in Zaber Launcher
 
 ### Movement not executing
