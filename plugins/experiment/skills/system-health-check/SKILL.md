@@ -116,10 +116,11 @@ system, `/mesoscope-vr`).
 
 For a path that fails, drill in with `check_mount_accessibility_tool(path=...)`:
 
-- `Exists: False` — the path does not exist; check `/etc/fstab` or systemd mount units.
+- `Exists: False` — the path does not exist; the OS-level mount is not configured. Configure it through the
+  host OS's persistent-mount mechanism (see the Mount failures troubleshooting table).
 - `Mount: False` — the path exists but is not a mount point (a local directory may be used instead of network storage).
-- `Writable: False` — the path exists but the write test failed; check permissions or mount options
-  (uid, gid, file_mode, dir_mode).
+- `Writable: False` — the path exists but the write test failed; check share permissions and the mount's
+  ownership and permission options.
 
 ### Phase 3: Hardware connectivity
 
@@ -130,23 +131,26 @@ For a path that fails, drill in with `check_mount_accessibility_tool(path=...)`:
 | CTI file (Harvesters)     | `get_cti_status`             | `axvs` | CTI configured (if using GenICam)    |
 | Microcontrollers detected | `list_microcontrollers`      | `axci` | Expected microcontroller IDs / roles |
 | MQTT broker reachable     | `check_mqtt_broker`          | `axci` | Connection successful                |
+| Zaber devices detected    | `get_zaber_devices_tool`     | `sle`  | Expected Zaber devices (if any)      |
 
-The tools above are the platform-universal discovery stack — the same for any Sollertia acquisition
-system. What each should return (which camera indices, which microcontroller IDs and their roles) is
-system-specific and is NOT enumerated here: hand off to `/acquisition-system-setup`, which owns the
-concrete per-system hardware mapping and the full discovery and troubleshooting semantics, to learn and
-confirm the expected values. This skill calls these tools read-only as a pre-flight sweep.
+The tools above are domain-general discovery utilities, system-agnostic across Sollertia acquisition systems
+(cameras and microcontrollers come from the `axvs` / `axci` dependency servers; Zaber discovery is a general
+`sle` tool). Which of these a given system composes — and the values each should return (camera indices,
+microcontroller IDs and roles, Zaber devices) — is system-specific and is NOT enumerated here: hand off to
+`/acquisition-system-setup` for the per-system hardware mapping and the discovery and troubleshooting
+semantics, and to `/zaber-interface` for the per-device Zaber semantics. This skill calls these tools
+read-only as a pre-flight sweep.
 
-For every third-party-SDK subsystem the active system composes, additionally run that subsystem's
-discovery tool and confirm the devices against the recorded configuration. The subsystem set, its tools,
-and expected values are system-specific — hand off to the active system's skill. (For the `mesoscope`
-system: Zaber motors via `get_zaber_devices_tool`; see `/zaber-interface` and `/acquisition-system-setup`.)
+If the active system drives a Virtual Reality task through the Unity game engine, additionally confirm the
+shared Unity Editor MCP Bridge is reachable with `check_unity_bridge_tool` (`sle`; CLI `sle get unity`). Unity
+is a shared asset with its own driver, not specific to any one acquisition system. The bridge starts
+automatically inside the Unity Editor, so an unreachable bridge means the editor is not open — the runtime
+cannot open the scene or arm the VR task. Hand off to `/vr-driver-interface` for the bridge contract.
 
-If the active system drives a Virtual Reality task through the Unity game engine (for the `mesoscope`
-system, when running an `experiment` session), additionally confirm the Unity Editor MCP Bridge is
-reachable with `check_unity_bridge_tool` (`sle`). The bridge starts automatically inside the Unity Editor,
-so an unreachable bridge means the editor is not open — the runtime cannot open the scene or arm the VR
-task without it. Hand off to `/vr-driver-interface` for the bridge contract.
+If the active system drives a system-specific instrument control interface beyond the domain-general stack and
+the shared Unity bridge, additionally confirm that interface is reachable. Its check tool, expected state, and
+remediation are owned by the active system's skill — do NOT assume a tool here; hand off. (For the `mesoscope`
+system: the ScanImage control bridge that arms and commands the Mesoscope over MQTT; see `/mesoscope-vr`.)
 
 ### Phase 4: Configuration validity
 
@@ -183,8 +187,10 @@ For a rapid pre-session check:
 3. Hand off to `/acquisition-system-setup` — the hardware the active system declares (cameras,
    microcontrollers, any third-party-SDK subsystems such as Zaber motors, MQTT broker) is present.
 4. `validate_system_configuration_tool()` — configuration valid.
-5. For a VR/Unity experiment session, `check_unity_bridge_tool()` — the Unity Editor is open and its MCP
-   bridge is reachable.
+5. For a VR/Unity session, `check_unity_bridge_tool()` — the Unity Editor is open and its MCP bridge is
+   reachable.
+6. For a session that drives a system-specific instrument control interface, confirm it through the active
+   system's skill (for the `mesoscope` system, the ScanImage control bridge — see `/mesoscope-vr`).
 
 If all pass, the system is ready for acquisition.
 
@@ -194,15 +200,17 @@ If all pass, the system is ready for acquisition.
 
 ### Mount failures
 
-| Symptom                | Likely cause         | Resolution                                                  |
-|------------------------|----------------------|-------------------------------------------------------------|
-| Path does not exist    | Mount not configured | Add an entry to `/etc/fstab` or create a systemd mount unit |
-| Exists but not a mount | Local directory used | Check mount status: `mount \| grep <path>`                  |
-| Not writable           | Permission issue     | Check mount options (uid, gid, file_mode, dir_mode)         |
-| Stale mount            | Network disruption   | Remount: `sudo umount -l <path> && sudo mount <path>`       |
+| Symptom                | Likely cause         | Resolution                                                     |
+|------------------------|----------------------|----------------------------------------------------------------|
+| Path does not exist    | Mount not configured | Configure a persistent mount via the host OS's mount mechanism |
+| Exists but not a mount | Local directory used | Query the host OS's mount table to confirm the path is a mount |
+| Not writable           | Permission issue     | Check share permissions and ownership/permission mount options |
+| Stale mount            | Network disruption   | Unmount and remount the share with the host OS's mount tooling |
 
-The remediation commands above are Linux examples; on Windows or macOS use the OS-appropriate mount tooling
-(the symptom and likely cause are OS-independent).
+The symptoms and likely causes are OS-independent; the resolution mechanics are OS-specific. Resolve the
+concrete commands for the host OS before suggesting fixes — for example, `/etc/fstab` entries or systemd
+mount units and `mount`/`umount` on Linux, mapped network drives (`net use`) on Windows, and
+`mount`/automount or Finder's "Connect to Server" on macOS.
 
 ### Hardware not detected / MQTT failures
 
@@ -219,8 +227,10 @@ the camera/microcontroller/Zaber/MQTT failure modes.
 4. **Hardware missing** — hand off to `/acquisition-system-setup`.
 5. **Configuration invalid** — hand off to the active acquisition system's skill (currently
    `/mesoscope-vr`, for the `mesoscope` system) to correct the system configuration.
-6. **Unity bridge unreachable** (VR/Unity experiment sessions) — open the Unity project in the editor so
-   its MCP bridge auto-starts (confirm with `sle get unity`); hand off to `/vr-driver-interface`.
+6. **Unity bridge unreachable** (VR/Unity sessions) — open the Unity project in the editor so its MCP bridge
+   auto-starts (confirm with `sle get unity`); hand off to `/vr-driver-interface`.
+7. **System-specific control interface unreachable** — hand off to the active system's skill to bring it up
+   (for the `mesoscope` system, the ScanImage control bridge; see `/mesoscope-vr`).
 
 ---
 
@@ -229,7 +239,7 @@ the camera/microcontroller/Zaber/MQTT failure modes.
 | Skill                                          | Relationship                                                                                        |
 |------------------------------------------------|-----------------------------------------------------------------------------------------------------|
 | `/acquisition-system-setup`                    | Owns the full hardware-discovery sweep this skill hands off to                                      |
-| `/mesoscope-vr`                                | Active acquisition system's skill (currently `mesoscope`); owns its config authoring and validation |
+| `/mesoscope-vr`                                | Active acquisition system's skill (`mesoscope`); owns config/validation and the ScanImage bridge    |
 | `/vr-driver-interface`                         | Owns the Unity editor bridge check (`check_unity_bridge_tool`) for VR/Unity systems                 |
 | `/experiment-mcp-environment-setup`            | Run first if the `sle mcp` server is not connected                                                  |
 | `/pipeline`                                    | Phase 5 (pre-session health check) is owned by this skill                                           |
@@ -252,7 +262,9 @@ the camera/microcontroller/Zaber/MQTT failure modes.
 - [ ] validate_system_configuration_tool passed
 - [ ] Per-subsystem discovery/validation done for each subsystem the active system composes (see that
       system's skill; for mesoscope, Zaber via /zaber-interface) — skip if it composes none
-- [ ] For a VR/Unity experiment session, check_unity_bridge_tool reported the editor bridge reachable
-      (skip for non-Unity systems and non-experiment sessions)
+- [ ] For a VR/Unity session, check_unity_bridge_tool reported the shared Unity editor bridge reachable
+      (skip for sessions that do not drive a Unity task)
+- [ ] For a session that drives a system-specific instrument control interface, confirmed reachable via the
+      active system's skill (for mesoscope, the ScanImage bridge via /mesoscope-vr) — skip if none
 - [ ] Did NOT write any configuration from this skill (read-only verification only)
 ```

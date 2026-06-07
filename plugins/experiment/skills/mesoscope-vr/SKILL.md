@@ -415,6 +415,7 @@ Method surface:
 |------------------------------|-------------------------------------------------------------------------------|
 | `connect()` / `disconnect()` | Open / close the MQTT connection to the ScanImagePC                           |
 | `await_alive()`              | Probe ScanImagePC liveness with a request-reply handshake on the Status topic |
+| `is_alive(timeout_ms)`       | One-shot bounded liveness probe (non-blocking) for the pre-flight check       |
 | `preload(project, animal)`   | Preload the persisted per-animal reference estimator as an alignment aid      |
 | `generate_reference()`       | Generate the fresh session estimator + high-definition z-stack and arm        |
 | `begin_acquisition()`        | Begin acquiring session frames                                                |
@@ -454,6 +455,28 @@ remain function arguments; every acquisition parameter arrives in the command pa
 
 For when the orchestrator invokes these methods within the runtime state machine, see
 `experiment:mesoscope-vr-runtime`.
+
+### Pre-flight bridge check
+
+Before a Mesoscope imaging session (`window-checking` or `experiment`), confirm the ScanImagePC's
+`runAcquisition` control loop is reachable. `runAcquisition` is a **lock-in** command loop: the operator launches
+it once in the MATLAB command line on the ScanImagePC, and it runs continuously — holding the command line for the
+whole runtime — until interrupted with Ctrl-C or the broker drops. An unreachable bridge means it is not running,
+so the runtime cannot arm or command the Mesoscope.
+
+This skill owns the mesoscope-specific bridge check; the platform-general `experiment:system-health-check` hands
+off here for it (the ScanImage bridge is exclusive to Mesoscope-VR, unlike the shared Unity bridge). The check is
+backed by `MesoscopeDriver.is_alive()` — a single bounded `MesoscopeAlive` probe that, unlike the runtime's
+interactive `await_alive()`, does not block or re-prompt. It is exposed on two surfaces, both mesoscope-specific
+(NOT on the hardware-agnostic `sle get` surface):
+
+- **MCP**: `check_mesoscope_bridge_tool` (`sle mcp`) — returns `{"reachable": ..., "status": ...}`, or
+  `{"error": ...}` on failure.
+- **CLI**: `sle mesoscope check-bridge` — prints a status line at SUCCESS (reachable) or WARNING (unreachable).
+
+Both load the active configuration, resolve the shared broker (`assets.vr_task.ip` / `port`), probe once, and
+disconnect. On an unreachable result, the remediation is to launch `runAcquisition(hSI, hSICtl, ...)` in MATLAB on
+the ScanImagePC, then re-check.
 
 ---
 
