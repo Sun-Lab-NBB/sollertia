@@ -143,9 +143,10 @@ that can be authored without a task template to support systems that do not use 
 
 - **Plugin / Skill:** `/system-health-check` (this plugin)
 - **Actions:** Verify network mounts, hardware connectivity, animal metadata in Google Sheets, project
-  readiness. For an experiment session, also confirm the Unity Editor MCP Bridge is reachable
-  (`check_unity_bridge_tool` / `sle get unity`) so the run CLI can open the scene and arm the VR task.
-  Light-touch sanity check before launching a runtime session.
+  readiness. For a VR experiment session (e.g. Mesoscope-VR's `experiment` mode), also confirm the
+  Unity Editor MCP Bridge is reachable (`check_unity_bridge_tool` / `sle get unity`) so the run CLI can
+  open the scene and arm the VR task; VR-free sessions (training, window-checking, or any non-VR
+  system) skip this check. Light-touch sanity check before launching a runtime session.
 - **Handoff condition:** All checklist items pass.
 
 ### Phase 6: Runtime acquisition (no AI)
@@ -155,8 +156,10 @@ that can be authored without a task template to support systems that do not use 
   `lick-training`, `run-training`, or `experiment`).
 - **Actions:** The run CLI reads the validated system + experiment configuration files, dispatches a
   hardware-deterministic acquisition session, writes raw data + descriptors into the session directory.
-  For an experiment session, the Unity Editor must be open before launch — the run CLI drives scene
+  For a VR experiment session, the Unity Editor must be open before launch — the run CLI drives scene
   activation and Play Mode through the editor MCP Bridge and blocks until the bridge is reachable.
+  VR-free sessions (the training and window-checking modes, or any non-VR system) drive no Unity and
+  need no editor bridge.
 - **Handoff condition:** Session terminates cleanly; `session_data.yaml` and the appropriate session
   descriptor for the runtime mode exist on disk (for the `mesoscope` system: lick training /
   run training / window checking / mesoscope experiment).
@@ -225,7 +228,7 @@ systems** registry).
 | Read a session marker / inspect session metadata  | assets plugin `/session-data`                                                      |
 | Read or repair a session descriptor               | assets plugin `/session-descriptors`                                               |
 | Read or patch a frozen runtime snapshot           | experiment plugin `/mesoscope-vr-snapshots`                                        |
-| Look up animal surgery / implants / drugs         | assets plugin `/subject-metadata`                                                  |
+| Look up animal surgery / implants / drugs         | assets plugin `/data-assets`                                                  |
 | Curate or read a dataset                          | forging plugin `/datasets`                                                         |
 | Discover GenICam cameras                          | `ataraxis@video:camera-setup`                                                      |
 | Test camera acquisition interactively             | `ataraxis@video:camera-setup`                                                      |

@@ -59,7 +59,7 @@ primary on-disk copy is written by the acquisition runtime at session start.
   experiment plugin's `/mesoscope-vr-snapshots`
 - Reading the frozen experiment configuration captured at session start (see
   `/experiment-configuration` for `read_experiment_configuration_tool`)
-- Reading subject metadata (see `/subject-metadata`)
+- Reading subject metadata (see `/data-assets`)
 - Discovering sessions (see `/project-hierarchy` for `get_data_root_overview_tool`)
 - Initial working directory setup (see `/working-directory`)
 
@@ -135,7 +135,7 @@ not flow back to any sibling copy that may exist.
 |-----------------------------------------------|----------------------------------------------------------------------------------------------------------------------|
 | `read_session_hardware_state_tool`            | Loads a hardware-state file at an explicit `file_path`, parsing it with the class for the given `acquisition_system` |
 | `write_session_hardware_state_tool`           | Writes a validated full hardware-state payload to a `file_path` (exclusive). Defaults to `overwrite=True`            |
-| `describe_session_hardware_state_schema_tool` | Returns the hardware-state schema for a given acquisition system (exclusive). `acquisition_system` defaults to `"mesoscope"` |
+| `describe_session_hardware_state_schema_tool` | Returns the hardware-state schema for a given acquisition system (exclusive). `acquisition_system` is required       |
 
 All three tools take an explicit `acquisition_system` — class selection is the caller's
 responsibility. `read_session_hardware_state_tool` and `write_session_hardware_state_tool`
@@ -160,7 +160,7 @@ hardware-state dataclass before anything is written, so a bad payload fails with
 the file. There is no partial-update tool.
 
 `describe_session_hardware_state_schema_tool` returns `acquisition_system` (the validated enum
-value) and `schema` (the dataclass field schema). `acquisition_system` defaults to `"mesoscope"`.
+value) and `schema` (the dataclass field schema). `acquisition_system` is required — there is no default.
 
 ---
 

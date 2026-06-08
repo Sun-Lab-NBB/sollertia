@@ -107,3 +107,32 @@ Layer-2b `start`/`stop` binding-class surface): they open an MQTT (or similar) c
 the runtime loop dispatches. They follow the runtime skill's event pattern. See
 `experiment:vr-driver-interface` for the driver surface and `experiment:acquisition-system-runtime`
 for how the orchestrator pumps and dispatches their events.
+
+---
+
+## External data-service processors
+
+Some subsystems are not hardware at all — they read records from, and write results back to, an
+**external request/response data service** (a Google Sheet, a LIMS, a REST registry). The canonical
+examples are the `SurgeryLog` and `WaterLog` classes that interface with the platform's surgery and
+water-restriction Google Sheets. These sit **outside both** the Layer-2b binding-class surface and the
+orchestrator's runtime-event pump: they are not composed at construction, not started/stopped, and not
+registry-backed (no `_assert_registry_coverage()` entry). Instead, **per-session setup or
+preprocessing code constructs them on demand**, calls them, and lets them be garbage-collected.
+
+The lifecycle surface is request/response, not start/stop:
+
+- the constructor takes the **record identity** (project / animal / session), a `credentials_path`,
+  and a `sheet_id` (or equivalent endpoint), authenticates, validates the source's schema, and caches
+  the connection;
+- `extract_*` methods parse records into a typed platform dataclass (the **read** direction) — that
+  dataclass is a **registered read asset** in slsa (`READ_ASSET_REGISTRY`), cached on disk to
+  standardize the downstream interface; `update_*` methods write runtime-discovered values back to the
+  external source (the **write** direction), producing no dataclass; a processor may do one or both;
+- `__del__` closes the connection — there is no shared `data_logger` and no orchestrator coordination.
+
+Unlike hardware subsystems, these are **gated on configuration**: when their identifier is unset the
+system skips them entirely (a system that uses no external service needs no credentials). For the
+processor API, the schema contract, the auth model, and the procedure for authoring a custom one, see
+`experiment:google-sheets-processing` and the "Authoring a custom data-service processor" workflow in
+[workflows.md](workflows.md).

@@ -33,7 +33,7 @@ will run Sollertia configuration or runtime tooling.
 - Authoring experiment configurations (see `/experiment-configuration`)
 - Creating projects (see `/project-hierarchy`)
 - Reading session-level data (see `/session-data`, `/session-descriptors`, `/session-hardware-state`,
-  `/subject-metadata`, and experiment plugin's `/mesoscope-vr-snapshots`)
+  `/data-assets`, and experiment plugin's `/mesoscope-vr-snapshots`)
 - Reading datasets (see forging plugin's `/datasets`)
 - Diagnosing MCP server connectivity (see `/assets-mcp-environment-setup`)
 
@@ -327,5 +327,5 @@ below summarize where each downstream skill picks up after the working directory
 | `/session-descriptors`                      | Working directory                                        |
 | `/session-hardware-state`                   | Working directory                                        |
 | experiment plugin `/mesoscope-vr-snapshots` | Working directory                                        |
-| `/subject-metadata`                         | Working directory + Google credentials                   |
+| `/data-assets`                              | Working directory + Google credentials                   |
 | forging plugin `/datasets`                  | Working directory                                        |

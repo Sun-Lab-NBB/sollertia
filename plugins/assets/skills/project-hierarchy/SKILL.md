@@ -32,7 +32,7 @@ additionally surfaces empty project and animal directories that hold no sessions
 - Reading or writing `SessionData` (see `/session-data`)
 - Per-session inventory and health reports (see `/session-data`, which owns `inspect_sessions_tool`)
 - Reading or writing session descriptors (see `/session-descriptors`)
-- Reading subject metadata (see `/subject-metadata`)
+- Reading subject metadata (see `/data-assets`)
 - Reading or writing datasets (see forging plugin's `/datasets`)
 - Initial working directory setup (see `/working-directory`)
 
@@ -129,7 +129,7 @@ list by `SessionData.project_name`, and the `animals` list under each project re
 animal with at least one session naming that project. An animal whose sessions name different
 projects will appear under every project it has contributed to — a healthy data root has each
 animal under exactly one project. Subject-level metadata (surgery, implants, drugs, injections)
-is owned by `/subject-metadata` and is outside the scope of this skill.
+is owned by `/data-assets` and is outside the scope of this skill.
 
 Datasets are a higher-level grouping that aggregates sessions across animals **within a single
 project**. The `DatasetData` schema carries a single `project` field — there is no
@@ -271,7 +271,7 @@ shaped for downstream chaining with `filter_sessions_tool` (see `/session-discov
 2. **Scan `projects[*].animals[*].id` across projects**; any animal that appears under more than
    one project is an error state. Flag those IDs to the user and hand off to the experiment
    plugin's `/data-management` to migrate the subject if needed.
-3. **Hand off to `/subject-metadata`** to read individual subject records (surgery, implants,
+3. **Hand off to `/data-assets`** to read individual subject records (surgery, implants,
    injections, drugs).
 
 ### Bootstrap a new project
@@ -295,7 +295,7 @@ it holds a session.
 - [ ] Project creation used create_project_tool (or the slsa configure project CLI), resolving the data root or an explicit root
 - [ ] Did not call write_* / set_* tools beyond create_project_tool — hierarchy discovery remains read-only
 - [ ] Handed off to /experiment-configuration for any experiment authoring
-- [ ] Handed off to /session-data, /session-descriptors, /subject-metadata, or forging plugin's
+- [ ] Handed off to /session-data, /session-descriptors, /data-assets, or forging plugin's
       /datasets for any read that goes deeper than the hierarchy itself
 ```
 
@@ -312,5 +312,5 @@ it holds a session.
 | `/session-discovery`                 | Chains `get_data_root_overview_tool` through `filter_sessions_tool`                                    |
 | `/session-data`                      | Owns `inspect_sessions_tool` for per-session inventory and health reports                              |
 | `/session-descriptors`               | Reads per-session descriptors                                                                          |
-| `/subject-metadata`                  | Reads subject records                                                                                  |
+| `/data-assets`                       | Reads read assets (e.g., surgery/subject records)                                                      |
 | forging plugin `/datasets`           | Aggregates sessions                                                                                    |

@@ -110,3 +110,54 @@ microcontroller-driven sensor to `MesoscopeMicroControllers`.
 For microcontroller-module additions, also follow `experiment:microcontroller-interface`'s
 "Adding a paired Module + Interface" workflow first — the firmware-and-wrapper pair must exist
 before the binding class can compose it.
+
+---
+
+## Authoring a custom data-service processor
+
+When a system reads from or writes to an external request/response data service (a Google Sheet, a
+LIMS, a REST registry), the integration is a **data-service processor**, not a binding class — see
+the "External data-service processors" category in [subsystem-types.md](subsystem-types.md). The
+shipped processors (`SurgeryLog`, `WaterLog` in `cross_system/google_sheet_tools.py`) are hard-coded
+to the Sollertia sheet schema, so reuse-vs-author is the first decision.
+
+1. **Decide reuse vs. author.** If the external source already matches the Sollertia schema (same
+   required headers, tab layout, and identity model — see
+   `experiment:google-sheets-processing` → references/sheet-schema-contract.md), reuse `SurgeryLog` /
+   `WaterLog` as-is: set the sheet identifiers in the system configuration's external-services section
+   and share the document with the service account. No code. Author a new processor **only** when the
+   schema or the service itself differs.
+
+2. **Choose the direction.** A **read processor** (like `SurgeryLog`) parses records into a typed
+   platform dataclass that gets snapshotted to disk. A **write processor** (like `WaterLog`) consumes
+   runtime-discovered values and writes them into a pre-existing record. A processor may do both.
+
+3. **Define the schema contract.** Declare the required-header (or required-field) set, the structural
+   assumptions (which row holds headers, whether record identity is a column value or a tab/record
+   name, where data begins), and the field mapping. Validate all of it **in the constructor** so a
+   malformed source fails loudly before any extract/update — mirror the `_REQUIRED_*_HEADERS` check.
+
+4. **Implement the lifecycle contract.** Constructor takes `(identity…, credentials_path,
+   sheet_id-or-endpoint)`, authenticates (service account where applicable), builds the
+   `header → location` map, validates, and caches the connection. Expose `extract_*` / `update_*`
+   methods. Retry every API call. Close the connection in `__del__`. (See the processing-asset
+   contract in `experiment:google-sheets-processing`.)
+
+5. **Place it by reuse scope.** A processor that any acquisition system could consume goes in
+   `cross_system/` (like `google_sheet_tools.py`) and is exported from `cross_system/__init__.py`; a
+   system-specific one goes in the system's own package.
+
+6. **Register a new read asset.** If a read processor emits a record type that is not an existing
+   `sollertia-shared-assets` dataclass, register it as a read asset. Add the dataclass, its
+   `ReadAssets` member, and its `READ_ASSET_REGISTRY` entry through the assets plugin's
+   `/library-extension` ("Adding a new read asset"), and its read/amend surface through
+   `/data-assets` before wiring the processor. A *write* processor produces no on-disk dataclass
+   and needs no registry entry — it writes runtime values directly to the external source.
+
+7. **Wire it into preprocessing / per-session setup.** Construct the processor from the configured
+   identifier, gating exactly as `_preprocess_google_sheet_data` does: skip all processing (and
+   require no credentials) when every identifier is unset; require credentials when any is set; skip an
+   individually-unset identifier with a warning.
+
+8. **Document it.** Update `experiment:google-sheets-processing` (or author a sibling skill for a
+   non-Sheets service) and the consuming system's instance skill with the new processor's surface.

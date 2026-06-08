@@ -18,6 +18,12 @@ platform-general VR subsystem, parallel to `experiment:microcontroller-interface
 `sollertia_experiment/vr_task/driver.py` is hardware-agnostic and composed by an acquisition
 system's runtime orchestrator (currently Mesoscope-VR's `MesoscopeVRSystem`).
 
+The driver is composed **optionally**: only by acquisition systems that run a VR task, and even then
+only for their VR session types (currently just Mesoscope-VR's `MesoscopeVRSystem`, and there only for
+`MESOSCOPE_EXPERIMENT` sessions — `self._vr_task` is `None` for every other mode). A non-VR acquisition
+system composes no VR driver at all and handles trials in its runtime loop itself (see
+`experiment:acquisition-system-runtime`). VR is a cross-system capability, never a requirement.
+
 The Unity side of the contract — the GIMBL framework, the `MQTTTopics` constant set, and task prefab
 generation — lives in the unity plugin. This skill owns the **host (Python) side**.
 

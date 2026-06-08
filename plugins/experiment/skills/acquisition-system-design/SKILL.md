@@ -68,6 +68,12 @@ Detailed authoring patterns live in three reference files, loaded on demand:
   `AcquisitionSystems` member, the dispatch registries, the per-system descriptor / hardware-state /
   experiment-config / raw-data dataclasses, and the experiment-config factory) — owned by the assets
   plugin's `/library-extension`.
+- The implementation of external data-service processors (the Google Sheets `SurgeryLog` / `WaterLog`
+  classes, their schema contract, and authoring a custom one) — owned by
+  `experiment:google-sheets-processing`. This skill documents only where such processors sit in the
+  architecture (see [Auxiliary sections](#auxiliary-sections-beyond-hardware-subsystems) and the
+  "External data-service processors" category in
+  [references/subsystem-types.md](references/subsystem-types.md)).
 
 ---
 
@@ -198,6 +204,10 @@ instantiates the DataLogger first (so each `MicroControllerInterface.__init__` c
 manifest entry), constructs the binding classes in a fixed order, starts the DataLogger before any
 binding class, and tears everything down in reverse so the DataLogger outlives every consumer. It also
 owns all cross-subsystem synchronization — individual binding classes stay oblivious to one another.
+The VR task driver is one such composed subsystem, but an **optional** one: only systems that run a VR
+task construct it, and even then only for their VR session types. A system with no VR composes none and
+drives any trials in the runtime loop itself (see `experiment:acquisition-system-runtime` and
+`experiment:vr-driver-interface`).
 (For microcontroller keepalive, the orchestrator passes each `MicroControllerInterface` a
 `keepalive_interval` at construction; AXCI sends the keepalive messages and raises on timeout.)
 
@@ -236,6 +246,9 @@ Three common changes each have a step-by-step procedure in
   orchestrator, and CLI group.
 - **Extending an existing subsystem** — add fields to an existing configuration dataclass and its binding
   class (the most common change).
+- **Authoring a custom data-service processor** — reuse or author a `SurgeryLog` / `WaterLog`-style
+  processor for an external request/response service (a Google Sheet, a LIMS). See also
+  `experiment:google-sheets-processing`.
 
 ---
 
@@ -259,6 +272,14 @@ consumed directly by orchestrator code or by per-session setup steps. The **File
 running its own acquisition stack (e.g., Mesoscope-VR's microscope-control PC, whose output lands in
 `mesoscope_directory`) is reached through the mounted paths and network endpoints declared here, never
 through a binding class.
+
+The **External services** row holds only the *identifiers*; the code that actually reads records from,
+and writes results back to, those services is a **data-service processor** — a separate category that
+also has no binding class and is constructed by per-session setup or preprocessing code. For its
+lifecycle surface see the "External data-service processors" category in
+[references/subsystem-types.md](references/subsystem-types.md), and for the Google Sheets processors
+(`SurgeryLog` / `WaterLog`), their schema contract, and authoring a custom one, see
+`experiment:google-sheets-processing`.
 
 **Filesystem fields rule:** Every filesystem field SHOULD be checked at configuration load time via
 a `check_system_mounts_tool` (or equivalent) that verifies the path exists and is writable. The
@@ -318,19 +339,20 @@ per-system skills answer "only this one."
 
 ## Related skills
 
-| Skill                                              | Relationship                                                                                                                        |
-|----------------------------------------------------|-------------------------------------------------------------------------------------------------------------------------------------|
-| `experiment:microcontroller-interface`             | The per-module wrapper layer that binding classes compose. Authoritative for slmc/sle conventions.                                  |
-| `experiment:zaber-interface`                       | Shared Zaber motor interface mechanics. Binding classes that include motors compose this.                                           |
-| `experiment:mesoscope-vr`                          | The current Mesoscope-VR worked instance of this pattern.                                                                           |
-| `experiment:acquisition-system-runtime`            | The runtime-behavior counterpart to this static-composition pattern.                                                                |
-| `experiment:mesoscope-vr-runtime`                  | Mesoscope-VR-specific runtime behavior (state machine, training modes, CLI). Built on this pattern.                                 |
-| `experiment:vr-driver-interface`                   | The Unity VR task driver subsystem an acquisition system composes for VR coupling.                                                  |
-| `ataraxis@video:camera-interface`                  | Low-level VideoSystem mechanics. Camera binding classes compose VideoSystem instances.                                              |
-| `ataraxis@communication:microcontroller-interface` | Low-level MicroControllerInterface mechanics. Microcontroller binding classes compose these.                                        |
-| `experiment:acquisition-system-setup`              | Post-flash hardware discovery used to populate system configuration fields.                                                         |
-| `experiment:pipeline`                              | End-to-end acquisition-system lifecycle orchestration context.                                                                      |
-| `assets:library-extension`                         | Owns the `sollertia-shared-assets` enum/registry recipe for a new system; step 2 of the build-a-new-system workflow hands off here. |
+| Skill                                              | Relationship                                                                                                                            |
+|----------------------------------------------------|-----------------------------------------------------------------------------------------------------------------------------------------|
+| `experiment:microcontroller-interface`             | The per-module wrapper layer that binding classes compose. Authoritative for slmc/sle conventions.                                      |
+| `experiment:zaber-interface`                       | Shared Zaber motor interface mechanics. Binding classes that include motors compose this.                                               |
+| `experiment:mesoscope-vr`                          | The current Mesoscope-VR worked instance of this pattern.                                                                               |
+| `experiment:acquisition-system-runtime`            | The runtime-behavior counterpart to this static-composition pattern.                                                                    |
+| `experiment:mesoscope-vr-runtime`                  | Mesoscope-VR-specific runtime behavior (state machine, training modes, CLI). Built on this pattern.                                     |
+| `experiment:vr-driver-interface`                   | The Unity VR task driver subsystem an acquisition system composes for VR coupling.                                                      |
+| `ataraxis@video:camera-interface`                  | Low-level VideoSystem mechanics. Camera binding classes compose VideoSystem instances.                                                  |
+| `ataraxis@communication:microcontroller-interface` | Low-level MicroControllerInterface mechanics. Microcontroller binding classes compose these.                                            |
+| `experiment:acquisition-system-setup`              | Post-flash hardware discovery used to populate system configuration fields.                                                             |
+| `experiment:pipeline`                              | End-to-end acquisition-system lifecycle orchestration context.                                                                          |
+| `assets:library-extension`                         | Owns the `sollertia-shared-assets` enum/registry recipe for a new system; step 2 of the build-a-new-system workflow hands off here.     |
+| `experiment:google-sheets-processing`              | Owns the external data-service processor category — the `SurgeryLog` / `WaterLog` API, schema contract, and custom-processor authoring. |
 
 ---
 

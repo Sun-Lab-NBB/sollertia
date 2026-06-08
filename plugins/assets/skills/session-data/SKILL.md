@@ -44,7 +44,7 @@ flow. The inventory side of "which descriptors and assets exist for a session" i
   `/system-configuration`)
 - Reading the frozen experiment configuration captured at session start (see
   `/experiment-configuration` for `read_experiment_configuration_tool`)
-- Reading subject metadata (see `/subject-metadata`)
+- Reading subject metadata (see `/data-assets`)
 - Discovering projects, animals, or sessions (see `/project-hierarchy`, which owns
   `get_data_root_overview_tool`)
 - Datasets that aggregate sessions (see forging plugin's `/datasets`)
@@ -132,7 +132,7 @@ session root):
 ├── raw_data/                                  # acquired data and frozen metadata (written by the acquisition runtime)
 │   ├── session_data.yaml                      # SessionData marker (THIS SKILL)
 │   ├── session_descriptor.yaml                # /session-descriptors (per-session-type dataclass, flat filename)
-│   ├── surgery_metadata.yaml                  # /subject-metadata
+│   ├── surgery_metadata.yaml                  # /data-assets
 │   ├── system_configuration.yaml              # frozen system config (owned by sollertia-experiment)
 │   ├── experiment_configuration.yaml          # /experiment-configuration (frozen, experiment sessions only)
 │   ├── vr_configuration.yaml                  # /task-templates frozen snapshot (when the session runs a Unity VR task)
@@ -208,6 +208,14 @@ and `mesoscope experiment`. Use `list_supported_session_types_tool` for the auth
 (it also returns each type's descriptor filename and dataclass). Per-type descriptor file
 mapping and schemas are owned by `/session-descriptors`.
 
+Session types are paired with acquisition systems by `SYSTEM_SESSION_TYPES`: each acquisition system
+declares the session types it can run, and `SessionData.create()` rejects a session-type /
+acquisition-system pairing that is not declared. When you already know the acquisition system you
+are operating within (e.g. on a configured host, or after reading a session's `acquisition_system`),
+pass it as `list_supported_session_types_tool(acquisition_system=...)` so the result reflects what
+that system can actually run; omit it only when you genuinely need the platform-wide list.
+`list_session_type_support_tool` returns the full system-to-session-type map in one call.
+
 ---
 
 ## MCP tool surface
@@ -218,7 +226,8 @@ mapping and schemas are owned by `/session-descriptors`.
 | `read_session_data_tool`             | Reads a `session_data.yaml` file via the `SessionData` schema (file-path based, exclusive)                       |
 | `write_session_data_tool`            | Creates or replaces a `session_data.yaml` file, validated against `SessionData` (file-path based, exclusive)     |
 | `describe_session_data_schema_tool`  | Returns the `SessionData` dataclass schema (exclusive)                                                           |
-| `list_supported_session_types_tool`  | Returns the canonical `SessionTypes` enum strings                                                                |
+| `list_supported_session_types_tool`  | Returns the supported `SessionTypes`, optionally scoped to one acquisition system                                |
+| `list_session_type_support_tool`     | Returns the full map of each acquisition system to the session types it can run                                  |
 | `list_processing_trackers_tool`      | Enumerates every `ProcessingTracker` filename used across the platform (`name`, `filename`, `description`)       |
 
 `inspect_sessions_tool` accepts `session_paths: list[str]` — pass a single-element list for one
@@ -340,11 +349,18 @@ handing off to the experiment plugin's `/data-management` for preprocessing.
 ### Querying supported session types
 
 ```text
+# Scope to the system you are operating within (preferred on a configured host):
+list_supported_session_types_tool(acquisition_system="mesoscope")
+# Platform-wide list:
 list_supported_session_types_tool()
+# Full system-to-session-type map:
+list_session_type_support_tool()
 ```
 
-Use this when you need to validate a session-type string before using it in another tool call
-(e.g., when handing off to `/session-descriptors` to read a descriptor).
+Use the system-scoped form to validate a session-type string against the acquisition system you are
+working with before handing off to another tool (e.g., to `/session-descriptors` to read a
+descriptor). Default to the scoped form whenever you know the acquisition system; the unscoped form
+returns every platform session type regardless of which system can run it.
 
 ---
 
@@ -360,7 +376,7 @@ Use this when you need to validate a session-type string before using it in anot
       /data-management for preprocessing (issues list is empty for required_assets)
 - [ ] write_session_data_tool was only invoked for explicit repair workflows — not during
       normal acquisition, which is the acquisition runtime's responsibility
-- [ ] Handed off to /session-descriptors, /session-hardware-state, /subject-metadata,
+- [ ] Handed off to /session-descriptors, /session-hardware-state, /data-assets,
       /experiment-configuration, or the experiment plugin's /mesoscope-vr-snapshots for any read that
       goes deeper than the marker
 ```
@@ -369,18 +385,18 @@ Use this when you need to validate a session-type string before using it in anot
 
 ## Related skills
 
-| Skill                                       | Relationship                                                                                                                                               |
-|---------------------------------------------|------------------------------------------------------------------------------------------------------------------------------------------------------------|
-| `/assets-mcp-environment-setup`             | Run first if the MCP server is not connected                                                                                                               |
-| `/working-directory`                        | Required prerequisite — bootstraps the local working directory the agent uses to resolve project roots                                                     |
-| `/project-hierarchy`                        | Owns `get_data_root_overview_tool` for root-wide discovery                                                                                                 |
-| `/session-discovery`                        | Filters the flat `sessions` list from `get_data_root_overview_tool`                                                                                        |
-| `/session-descriptors`                      | Sibling — owns the per-session descriptor read/write/schema                                                                                                |
-| `/session-hardware-state`                   | Sibling — owns the per-session `MesoscopeHardwareState` snapshot                                                                                           |
-| experiment plugin `/mesoscope-vr-snapshots` | Owns the frozen Zaber and mesoscope-objective position snapshots                                                                                           |
-| `/subject-metadata`                         | Sibling — owns animal-scoped subject records                                                                                                               |
-| experiment plugin `/system-configuration`   | Authors the system configuration consumed at session start                                                                                                 |
-| `/experiment-configuration`                 | Owns `read_experiment_configuration_tool` (reads both project source and frozen session snapshot)                                                          |
-| `/library-extension`                        | Cross-cutting recipe to add new `SessionTypes` or `AcquisitionSystems` members; lists the skill content here that needs updating in lockstep               |
-| forging plugin `/datasets`                  | Datasets aggregate sessions                                                                                                                                |
-| experiment plugin `/data-management`        | Preprocesses, migrates, and deletes sessions. Project directories must already exist (created via `create_project_tool`) before sessions can be created    |
+| Skill                                       | Relationship                                                                                                                                            |
+|---------------------------------------------|---------------------------------------------------------------------------------------------------------------------------------------------------------|
+| `/assets-mcp-environment-setup`             | Run first if the MCP server is not connected                                                                                                            |
+| `/working-directory`                        | Required prerequisite — bootstraps the local working directory the agent uses to resolve project roots                                                  |
+| `/project-hierarchy`                        | Owns `get_data_root_overview_tool` for root-wide discovery                                                                                              |
+| `/session-discovery`                        | Filters the flat `sessions` list from `get_data_root_overview_tool`                                                                                     |
+| `/session-descriptors`                      | Sibling — owns the per-session descriptor read/write/schema                                                                                             |
+| `/session-hardware-state`                   | Sibling — owns the per-session `MesoscopeHardwareState` snapshot                                                                                        |
+| experiment plugin `/mesoscope-vr-snapshots` | Owns the frozen Zaber and mesoscope-objective position snapshots                                                                                        |
+| `/data-assets`                              | Sibling — owns read assets (e.g., animal-scoped surgery records)                                                                                        |
+| experiment plugin `/system-configuration`   | Authors the system configuration consumed at session start                                                                                              |
+| `/experiment-configuration`                 | Owns `read_experiment_configuration_tool` (reads both project source and frozen session snapshot)                                                       |
+| `/library-extension`                        | Cross-cutting recipe to add new `SessionTypes` or `AcquisitionSystems` members; lists the skill content here that needs updating in lockstep            |
+| forging plugin `/datasets`                  | Datasets aggregate sessions                                                                                                                             |
+| experiment plugin `/data-management`        | Preprocesses, migrates, and deletes sessions. Project directories must already exist (created via `create_project_tool`) before sessions can be created |

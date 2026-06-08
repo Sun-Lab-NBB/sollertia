@@ -33,6 +33,8 @@ verification checklist before reporting an extension complete.
 - Adding a new `TriggerType` member (and the trigger → trial-class pairing in
   `create_experiment_configuration`)
 - Extending the template vocabulary beyond the **infinite corridor** VR paradigm
+- Adding a new `ReadAssets` member (with its on-disk dataclass and `READ_ASSET_REGISTRY` entry) — the
+  slsa contract for an external asset the platform reads and caches on disk
 - The cross-skill touch list — which other plugin skills carry hardcoded enumerations that drift
   the moment a new enum member is added
 - Coordination with downstream libraries (sollertia-experiment, sollertia-forgery)
@@ -54,10 +56,13 @@ verification checklist before reporting an extension complete.
 
 ## Library extension model
 
-`sollertia-shared-assets` is structured around four **dispatch registries** plus one **factory
-registry**. Each one is keyed by a member of either the `SessionTypes` or `AcquisitionSystems`
-enum, and each one resolves a string identifier to a Python class (or callable) that the MCP
-tools use to parse, validate, or build the corresponding asset.
+`sollertia-shared-assets` is structured around five **dispatch registries** plus one **factory
+registry**. Each one is keyed by a member of the `SessionTypes`, `AcquisitionSystems`, or
+`ReadAssets` enum, and each one resolves a string identifier to a Python class (or callable) that
+the MCP tools use to parse, validate, or build the corresponding asset. A separate **association**,
+`SYSTEM_SESSION_TYPES`, records which session types each acquisition system can run; it is keyed by
+`AcquisitionSystems` but maps to a `frozenset` of `SessionTypes` rather than a dispatch class, and
+`SessionData.create()` rejects any session-type / acquisition-system pairing it does not contain.
 
 | Registry                              | File                                       | Keyed by             | Maps to                                              |
 |---------------------------------------|--------------------------------------------|----------------------|------------------------------------------------------|
@@ -65,22 +70,28 @@ tools use to parse, validate, or build the corresponding asset.
 | `HARDWARE_STATE_REGISTRY`             | `interfaces/mcp_instance.py`               | `AcquisitionSystems` | Per-system hardware-state dataclass                  |
 | `EXPERIMENT_CONFIGURATION_REGISTRY`   | `configuration/configuration_utilities.py` | `AcquisitionSystems` | Per-system experiment-configuration dataclass        |
 | `SYSTEM_RAW_DATA_REGISTRY`            | `data_classes/session_data.py`             | `AcquisitionSystems` | Per-system raw-data sub-dataclass with `build`       |
+| `SYSTEM_SESSION_TYPES`                | `data_classes/session_data.py`             | `AcquisitionSystems` | `frozenset[SessionTypes]` the system can run         |
+| `READ_ASSET_REGISTRY`                 | `data_classes/read_assets.py`              | `ReadAssets`         | Per-read-asset on-disk dataclass                     |
 | `_experiment_config_factory_registry` | `configuration/configuration_utilities.py` | `AcquisitionSystems` | `TaskTemplate` → experiment-configuration factory fn |
 
-A sixth structure, `_TRIAL_CLASSES` in `interfaces/configuration_tools.py`, maps trial class
-names (e.g. `"WaterRewardTrial"`) to their concrete runtime trial dataclasses. It is not a
-dispatch registry. `list_supported_trial_types_tool` reads it to enumerate the experiment
-configuration's trial vocabulary; `create_experiment_configuration` in
-`configuration/configuration_utilities.py` instantiates the matching subclass for each
-`TriggerType` value.
+An eighth structure, `_TRIAL_CLASSES` in `interfaces/configuration_tools.py`, maps each
+`AcquisitionSystems` member to its trial class names (e.g. `"WaterRewardTrial"`) and their concrete
+runtime trial dataclasses. It is not a dispatch registry.
+`list_supported_trial_types_tool(acquisition_system)` reads it to enumerate that system's trial
+vocabulary; `create_experiment_configuration` in `configuration/configuration_utilities.py`
+instantiates the matching subclass for each `TriggerType` value. The trial classes themselves are
+system-agnostic and live in `configuration/experiment_configuration.py`; `_TRIAL_CLASSES` records
+which of them each system's experiment configuration uses.
 
 ### The parity check
 
 `interfaces/mcp_instance.py` runs `_assert_registry_coverage()` at import time. The function
 walks `(DESCRIPTOR_REGISTRY, HARDWARE_STATE_REGISTRY, EXPERIMENT_CONFIGURATION_REGISTRY,
-SYSTEM_RAW_DATA_REGISTRY)` and raises `RuntimeError` if any enum member is missing its dispatch
-class. Importing the package (or starting `slsa mcp`) fails fast and names the offending
-registry, so an incomplete extension cannot silently slip through.
+SYSTEM_RAW_DATA_REGISTRY, READ_ASSET_REGISTRY)` and raises `RuntimeError` if any enum member is
+missing its dispatch class. It additionally checks `SYSTEM_SESSION_TYPES`: every acquisition system
+must declare at least one session type, and every session type must be claimed by at least one
+system. Importing the package (or starting `slsa mcp`) fails fast and names the offending registry,
+so an incomplete extension cannot silently slip through.
 
 `_experiment_config_factory_registry` and `_TRIAL_CLASSES` are **not** covered by the parity
 check. Failing to register a factory or trial class will not break import, only the runtime
@@ -98,6 +109,7 @@ them here** — read them, then come back for the cross-skill update map below.
 |---------------------------------|--------------------------------------|
 | New `SessionTypes` member       | "Adding New Session Types"           |
 | New `AcquisitionSystems` member | "Adding New Acquisition Systems"     |
+| New read asset                  | "Adding a New Read Asset"            |
 
 For new trial classes, new trigger types, and new VR paradigms, the README does not currently
 carry a step-by-step recipe. Use the **per-scenario touch lists** below as the working spec, then
@@ -113,7 +125,10 @@ touches** (which is what this skill uniquely owns), and the downstream-library c
 ### Adding a new `SessionTypes` member
 
 **Code touches** — follow the README's "Adding New Session Types" recipe:
-1. Append the member to `SessionTypes` (`data_classes/session_data.py`).
+1. Append the member to `SessionTypes` (`data_classes/session_data.py`), and add it to the
+   `SYSTEM_SESSION_TYPES` frozenset of every acquisition system that can run it (same file). The
+   parity check fails if the new type is claimed by no system, and `SessionData.create()` rejects
+   it for any system whose set omits it.
 2. Add the `<Type>Descriptor` dataclass (`data_classes/runtime_data.py`); export it from
    `data_classes/__init__.py`.
 3. Register the descriptor in `DESCRIPTOR_REGISTRY` (`interfaces/mcp_instance.py`).
@@ -121,9 +136,9 @@ touches** (which is what this skill uniquely owns), and the downstream-library c
    `system_configuration.yaml`, extend `_required_asset_inventory` in `interfaces/data_tools.py`.
    The existing `MESOSCOPE_EXPERIMENT` branch requires BOTH `experiment_configuration.yaml`
    AND `vr_configuration.yaml`; any new Unity-VR session type should mirror both appends.
-5. Run the test suite — `_assert_registry_coverage()` will catch a forgotten descriptor entry,
-   but a forgotten required-asset branch will not surface until `inspect_sessions_tool` reports
-   the wrong `issues` list.
+5. Run the test suite — `_assert_registry_coverage()` catches a forgotten descriptor entry or an
+   unclaimed session type, but a forgotten required-asset branch will not surface until
+   `inspect_sessions_tool` reports the wrong `issues` list.
 
 **Skill touches** — update each of the following so its hardcoded enumeration matches the new
 member:
@@ -152,11 +167,13 @@ member:
 3. Add `<System>ExperimentConfiguration` (a new module under `configuration/`); export it from
    `configuration/__init__.py`.
 4. Register the dataclasses in `HARDWARE_STATE_REGISTRY`, `EXPERIMENT_CONFIGURATION_REGISTRY`,
-   and `SYSTEM_RAW_DATA_REGISTRY`.
+   and `SYSTEM_RAW_DATA_REGISTRY`, and add a `SYSTEM_SESSION_TYPES` entry mapping the new system to
+   the `frozenset` of `SessionTypes` it can run (declare at least one, or the parity check fails).
 5. Extend the `ExperimentConfigFactory` type alias and add `_create_<system>_experiment_config`,
    then register it in `_experiment_config_factory_registry`.
-6. Run the test suite — `_assert_registry_coverage()` catches three of the four registries; a
-   forgotten factory does not break import but breaks `create_experiment_configuration_tool`.
+6. Run the test suite — `_assert_registry_coverage()` catches the dispatch registries and the
+   `SYSTEM_SESSION_TYPES` pairing; a forgotten factory does not break import but breaks
+   `create_experiment_configuration_tool`.
 
 **Skill touches** — update each of the following so its hardcoded "currently only Mesoscope-VR"
 framing reflects the new member:
@@ -165,7 +182,7 @@ framing reflects the new member:
 |-----------------------------|---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
 | `/session-data`             | The `instance.system_raw_data` bullet under "Path-resolution sub-dataclasses on `SessionData`" — add the new `<System>RawData` field list; the `Mesoscope-VR` mention in "Does not cover" if the experiment plugin's `/mesoscope-vr-snapshots` is no longer the sole owner of system-specific snapshots |
 | `/session-hardware-state`   | The frontmatter description, the "currently the only concrete subclass is `MesoscopeHardwareState`" prose, and the "Per-session-type field population (Mesoscope-VR example)" framing — clone the table format for the new system                                                                       |
-| `/experiment-configuration` | The frontmatter description, the "currently only `MesoscopeExperimentConfiguration`" prose, the "system fixed to `MESOSCOPE_VR`" line in the create-tool description, and any per-trial-class assumptions specific to the Mesoscope-VR rig                                                              |
+| `/experiment-configuration` | The frontmatter description, the "currently only `MesoscopeExperimentConfiguration`" prose, and any per-trial-class assumptions specific to the Mesoscope-VR rig. The tools already dispatch by `acquisition_system`, so no create-tool "system-fixing" edit is needed                                  |
 | `/task-templates`           | The "currently only `MesoscopeExperimentConfiguration`" mention                                                                                                                                                                                                                                         |
 
 **Downstream coordination:**
@@ -191,7 +208,8 @@ framing reflects the new member:
    carries **only** runtime parameters (rewards, durations, thresholds) — no spatial fields. Those
    live on the matching `TrialStructure` inside the paired task template.
 2. Export it from `configuration/__init__.py`.
-3. Register it in `_TRIAL_CLASSES` in `interfaces/configuration_tools.py`.
+3. Register it in `_TRIAL_CLASSES` in `interfaces/configuration_tools.py`, under each
+   `AcquisitionSystems` member whose experiment configuration uses it.
 4. Update the `nested_classes` mapping in `describe_experiment_configuration_schema_tool` so the
    new class appears in the schema introspection response.
 5. Update the `dict[str, WaterRewardTrial | GasPuffTrial | <NewTrial>]` Union type in the
@@ -249,6 +267,38 @@ mechanics. There is no parity check here.
 
 Defer the runtime and Unity work to the experiment plugin and the unity plugin respectively;
 this skill only surfaces the slsa-side schema and skill touches.
+
+### Adding a new read asset
+
+A **read asset** is metadata the platform reads from an external, human-maintained source (e.g., the
+surgery log Google Sheet) and caches on disk as a typed dataclass. The architecture decision is that
+every read asset is translated by the acquisition library into a standardized on-disk dataclass, so
+downstream consumers (sollertia-forgery) read that dataclass and never touch the external source — the
+dataclass is storage-agnostic, and the acquisition library translates any source into it. `SurgeryData`
+(the `surgery_data` read asset) is the current example. This applies only to assets the platform
+**reads**; assets it only **writes** to an external source (e.g., the water-restriction log) need no
+dataclass and no registry entry.
+
+**Code touches** — follow the README's "Adding a New Read Asset" recipe:
+1. Add the `<Asset>Data` dataclass inheriting `YamlConfig` (mirror `data_classes/surgery_data.py`);
+   export it from `data_classes/__init__.py`.
+2. Append the member to `ReadAssets` (`data_classes/read_assets.py`).
+3. Register the dataclass in `READ_ASSET_REGISTRY` (same file) under the new key.
+4. Run the test suite — `_assert_registry_coverage()` catches a forgotten registry entry at import,
+   naming the missing member.
+
+**Skill touches:**
+
+| Skill                                         | What to update                                                                                                                                          |
+|-----------------------------------------------|---------------------------------------------------------------------------------------------------------------------------------------------------------|
+| `/data-assets`                                | No new skill needed — the generic data-asset tools serve the new asset automatically once registered; add it to that skill's worked examples if notable |
+| experiment plugin `/google-sheets-processing` | Add the new asset's reader/translation and the registered dataclass it produces                                                                         |
+
+**Downstream coordination:**
+- `sollertia-experiment` owns the reader that translates the external source into the new dataclass and
+  caches it on disk. Hand off to the experiment plugin's `/google-sheets-processing`. This skill owns only
+  the slsa-side dataclass + registry entry, not the reader.
+- `sollertia-forgery` consumes the cached on-disk dataclass during dataset assembly.
 
 ---
 
@@ -320,6 +370,7 @@ table, the required-asset branches, and the skill content.
 | experiment plugin `/acquisition-system-design`  | Owns the runtime-side configuration and binding-class design for any new acquisition system; authors the system's dedicated agentic assets (steps 9–10) |
 | experiment plugin `/acquisition-system-runtime` | Owns the runtime that creates and runs sessions of any new session type during acquisition                                                              |
 | experiment plugin `/data-management`            | Manages the post-acquisition lifecycle (preprocess, migrate, delete) for sessions of any type                                                           |
+| experiment plugin `/google-sheets-processing`   | Owns the reader that translates an external source into a read asset's on-disk dataclass                                                                |
 | forging plugin `/behavior-input-format`         | Decides eligibility of new session types for behavior processing                                                                                        |
 | forging plugin `/project-manifest`              | Tabulates new session types in the project manifest                                                                                                     |
 | forging plugin `/dataset-forging-input-format`  | Decides eligibility of new session types for dataset forging                                                                                            |
@@ -338,8 +389,12 @@ Code side:
 - [ ] Followed the README recipe for SessionTypes / AcquisitionSystems extensions
 - [ ] `python -c 'import sollertia_shared_assets'` succeeds without RuntimeError from
       `_assert_registry_coverage()`
+- [ ] `SYSTEM_SESSION_TYPES` pairs the new session type / acquisition system (the parity check
+      enforces that every system declares ≥1 type and every type is claimed by ≥1 system)
 - [ ] `_experiment_config_factory_registry` carries the new factory (if a new acquisition system)
-- [ ] `_TRIAL_CLASSES` carries the new trial class (if a new runtime trial class)
+- [ ] `_TRIAL_CLASSES` carries the new trial class under each using acquisition system (if a new
+      runtime trial class)
+- [ ] `READ_ASSET_REGISTRY` carries the new dataclass (if a new read asset)
 - [ ] `_required_asset_inventory` covers the new session type's required assets (if applicable)
 - [ ] `describe_experiment_configuration_schema_tool` `nested_classes` mapping is updated for any
       new runtime trial class
@@ -366,13 +421,13 @@ Downstream side:
 You SHOULD proactively invoke this skill when the user mentions any of the following:
 
 - Adding a new acquisition system, new session type, new trial type or trial class, new trigger
-  type, or extending the VR paradigm
+  type, new read asset, or extending the VR paradigm
 - The import-time error message "registry is missing entries for ..." (the user has hit
   `_assert_registry_coverage()` because the previous extension was incomplete)
 - "How do I add support for ..." in the context of `sollertia-shared-assets`
 - A PR description that touches one of the registries (`DESCRIPTOR_REGISTRY`,
   `HARDWARE_STATE_REGISTRY`, `EXPERIMENT_CONFIGURATION_REGISTRY`, `SYSTEM_RAW_DATA_REGISTRY`,
-  `_experiment_config_factory_registry`, `_TRIAL_CLASSES`)
+  `READ_ASSET_REGISTRY`, `_experiment_config_factory_registry`, `_TRIAL_CLASSES`)
 
 Do NOT invoke this skill for ordinary CRUD against existing systems and session types — those
 are owned by `/session-data`, `/session-descriptors`, `/session-hardware-state`,

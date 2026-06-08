@@ -1,11 +1,11 @@
 ---
 name: task-templates
 description: >-
-  Authors, modifies, and validates reusable TaskTemplate YAMLs (VR environment, cue catalog,
-  trial structures with per-trial cue sequences and zones) via the sollertia-shared-assets MCP
-  server. Owns write_template_tool, validate_template_tool, and the schema / trial / trigger-type
-  introspection helpers. Use when designing or modifying a task template or preparing it for
-  per-project experiment configurations.
+  Authors, modifies, and validates reusable TaskTemplate YAMLs — the Virtual-Reality-only, optional
+  asset (VR environment, cue catalog, trial structures with per-trial cue sequences and zones) — via
+  the sollertia-shared-assets MCP server. Owns write_template_tool, validate_template_tool, and the
+  schema / trial / trigger-type introspection helpers. Use when designing or modifying a task template
+  for a VR experiment; non-VR experiments use no template.
 user-invocable: false
 ---
 
@@ -39,13 +39,15 @@ helpers — no other skill in the marketplace may call these.
 
 ## What is a task template
 
-A `TaskTemplate` is a **reusable** description of a behavioral paradigm: the VR environment, the cue
-catalog, and the trial structures. Each trial owns its own cue sequence, zone geometry, and trigger
-type, and is materialized into a single segment prefab named `<template_name>_<trial_name>.prefab`
-at generation time. Templates are project-agnostic and acquisition-system-agnostic — the same
-template can back many system-specific experiment configurations (currently only
-`MesoscopeExperimentConfiguration`, but the `AcquisitionSystems` enum and factory registry are
-designed for additional systems) across many projects.
+A `TaskTemplate` is a **Virtual-Reality-only, optional** asset: a reusable description of a VR
+behavioral paradigm — the VR environment, the cue catalog, and the trial structures. Each trial owns
+its own cue sequence, zone geometry, and trigger type, and is materialized into a single segment prefab
+named `<template_name>_<trial_name>.prefab` at generation time. Templates exist **only** for
+acquisition systems that run a VR task; a non-VR system authors no template and drives trials in its
+acquisition runtime (`sollertia-experiment`) instead. Among VR-capable systems a template is project- and
+system-agnostic — the same template can back many experiment configurations (currently only
+`MesoscopeExperimentConfiguration`, but the `AcquisitionSystems` enum and factory registry are designed
+for additional VR systems) across many projects.
 
 ### Live templates vs per-session snapshots
 
@@ -65,9 +67,10 @@ The same MCP tools serve both — pass the live path to author or modify a templ
 snapshot path to read or validate the frozen copy. `write_template_tool` targets the live surface
 only; snapshots are produced exclusively by `SessionData.create()` and are not callers' to overwrite.
 
-A template defines **what is possible**. An experiment configuration picks a template and parameterizes
-it (state durations, trial weights, reward volumes, project-specific overrides). The two are authored by
-two different skills with two different ownership scopes.
+A template defines **what is possible** for a VR experiment. The paired experiment configuration picks
+a template (by `unity_scene_name`) and parameterizes it — state durations, per-trial reward volumes and
+puff/occupancy durations, project-specific overrides. The two are authored by two different skills with two
+different ownership scopes.
 
 ### Where the template name flows
 

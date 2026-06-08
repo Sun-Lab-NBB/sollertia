@@ -38,7 +38,7 @@ and must be invoked by hand-off.
 - Reading the `SessionData` marker file → assets plugin `/session-data`
 - Reading session descriptors → assets plugin `/session-descriptors`
 - Reading frozen runtime snapshots → this plugin `/mesoscope-vr-snapshots`
-- Reading subject metadata → assets plugin `/subject-metadata`
+- Reading subject metadata → assets plugin `/data-assets`
 - Reading or curating datasets → forging plugin `/datasets`
 
 You MUST NOT call any `slsa` MCP tool that mutates state. Read-only `read_*` and `discover_*`

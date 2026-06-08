@@ -740,6 +740,7 @@ ground truth.
 | `ataraxis@communication:microcontroller-interface` | MicroControllerInterface mechanics consumed by `MicroControllerInterfaces`.          |
 | `experiment:acquisition-system-setup`              | Source of camera indices, microcontroller ports, Zaber ports via hardware discovery. |
 | `experiment:mesoscope-vr-snapshots`                | Per-session Zaber position snapshots consumed by `ZaberMotors.restore_position()`.   |
+| `experiment:google-sheets-processing`              | Reads/writes the sheets identified by `MesoscopeGoogleSheets` (`surgery_sheet_id`, `water_log_sheet_id`). |
 | assets plugin `/working-directory`                 | Required prerequisite for configuration authoring.                                   |
 | forging plugin `/server-configuration`             | Sibling configuration file for remote storage transfer.                              |
 

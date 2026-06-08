@@ -51,7 +51,7 @@ validate the file.
   `/session-hardware-state`)
 - Reading the frozen `ZaberPositions` and `MesoscopePositions` snapshots (see the experiment
   plugin's `/mesoscope-vr-snapshots`)
-- Reading subject metadata (see `/subject-metadata`)
+- Reading subject metadata (see `/data-assets`)
 - Discovering sessions (see `/project-hierarchy` for `get_data_root_overview_tool`)
 - Dataset assembly and dataset-level descriptor path resolution (see the forging plugin's
   `/datasets` skill)
@@ -370,7 +370,7 @@ target(s) that match the durability the user actually wants:
 | `/session-data`                             | Sibling — owns `SessionData`, `list_supported_session_types_tool`, and `inspect_sessions_tool` for per-session inventory |
 | `/session-discovery`                        | Resolves raw session roots                                                                                               |
 | `/session-hardware-state`                   | Sibling — owns the per-session hardware-state snapshot                                                                   |
-| `/subject-metadata`                         | Sibling — owns subject records                                                                                           |
+| `/data-assets`                              | Sibling — owns read assets (e.g., subject/surgery records)                                                               |
 | `/project-hierarchy`                        | Provides `get_data_root_overview_tool` and per-animal persistent-cache paths                                             |
 | experiment plugin `/mesoscope-vr-snapshots` | Owns the frozen Zaber and mesoscope-objective position snapshots                                                         |
 | `/library-extension`                        | Cross-cutting recipe to add a new `SessionTypes` member; lists the descriptor mapping table here that needs updating     |

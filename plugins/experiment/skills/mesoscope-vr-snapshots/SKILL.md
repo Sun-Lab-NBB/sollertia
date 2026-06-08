@@ -43,7 +43,7 @@ off there for any read, write, or schema work on `hardware_state.yaml`.
 - Reading the frozen system or experiment configuration files at session start (those are read via
   `/mesoscope-vr`'s `read_session_system_configuration_tool` and the assets plugin's
   `/experiment-configuration` `read_experiment_configuration_tool`)
-- Reading subject metadata (see assets plugin `/subject-metadata`)
+- Reading subject metadata (see assets plugin `/data-assets`)
 - Live Zaber motor configuration during runtime (see `/zaber-interface`)
 
 ---

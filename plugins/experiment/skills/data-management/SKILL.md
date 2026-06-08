@@ -97,6 +97,12 @@ which owns project and session discovery against the data root:
 Use the session paths those skills return as the `session_path` arguments here. The data root layout
 is `{data_root}/{project}/{animal_id}/{session_name}/`.
 
+When you need the session types the local host can run (e.g. to validate a type before filtering),
+query the assets plugin's `list_supported_session_types_tool` **scoped to this host's acquisition
+system** — `data-management` always operates within a single configured system, so pass that system
+rather than requesting the platform-wide list. `list_session_type_support_tool` returns the full
+system-to-session-type map when you need to compare systems.
+
 ---
 
 ## Preprocessing workflow
