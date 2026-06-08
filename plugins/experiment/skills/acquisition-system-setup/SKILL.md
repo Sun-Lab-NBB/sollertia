@@ -351,7 +351,7 @@ hand off to the assets plugin skill that owns the affected asset.
 | assets plugin `/working-directory`             | Owns bootstrap state (working dir, credentials, templates dir)          |
 | this plugin `/mesoscope-vr`                    | Owns `MesoscopeSystemConfiguration` authoring and validation            |
 | forging plugin `/server-configuration`         | Owns `ServerConfiguration` authoring and validation                     |
-| assets plugin `/project-hierarchy`             | Owns project creation                                                   |
+| assets plugin `/project-hierarchy`             | Owns project creation (`create_project_tool`)                           |
 | assets plugin `/task-templates`                | Owns task template authoring                                            |
 | assets plugin `/experiment-configuration`      | Owns per-project experiment configuration authoring                     |
 | this plugin `/system-health-check`             | Lighter-weight pre-session verification sweep                           |

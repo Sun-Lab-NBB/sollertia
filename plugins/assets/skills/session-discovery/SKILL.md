@@ -54,15 +54,16 @@ You MUST confirm the root directory path with the user before calling
 
 ### Session discovery
 
-| Tool                          | Purpose                                                                                                                                         |
-|-------------------------------|-------------------------------------------------------------------------------------------------------------------------------------------------|
-| `get_data_root_overview_tool` | Recursively discovers sessions by `session_data.yaml` markers and builds the project / animal / session tree from `SessionData` identity fields |
+| Tool                          | Purpose                                                                                                                                                                                                                      |
+|-------------------------------|------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| `get_data_root_overview_tool` | Recursively discovers sessions by `session_data.yaml` markers and builds the project / animal / session tree from `SessionData` identity fields; the `directories` strategy also surfaces empty project / animal hierarchies |
 
 **Parameters:**
 
-| Parameter        | Type    | Default    | Description                                                |
-|------------------|---------|------------|------------------------------------------------------------|
-| `root_directory` | `str`   | (required) | Absolute path to root directory; searched recursively      |
+| Parameter        | Type  | Default    | Description                                                                                                  |
+|------------------|-------|------------|--------------------------------------------------------------------------------------------------------------|
+| `root_directory` | `str` | (required) | Absolute path to root directory; searched recursively                                                        |
+| `strategy`       | `str` | `markers`  | `markers` (default, session-backed only) or `directories` (also surfaces empty project / animal directories) |
 
 There is no server-side `project`, `animal_id`, or `session_types` narrowing. The tool scans the
 entire root and returns the full hierarchy; callers filter client-side (for project / animal /

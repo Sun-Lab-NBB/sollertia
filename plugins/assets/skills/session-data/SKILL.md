@@ -383,4 +383,4 @@ Use this when you need to validate a session-type string before using it in anot
 | `/experiment-configuration`                 | Owns `read_experiment_configuration_tool` (reads both project source and frozen session snapshot)                                                          |
 | `/library-extension`                        | Cross-cutting recipe to add new `SessionTypes` or `AcquisitionSystems` members; lists the skill content here that needs updating in lockstep               |
 | forging plugin `/datasets`                  | Datasets aggregate sessions                                                                                                                                |
-| experiment plugin `/data-management`        | Preprocesses, migrates, and deletes sessions. Project directories must already exist (created via `slsa configure project`) before sessions can be created |
+| experiment plugin `/data-management`        | Preprocesses, migrates, and deletes sessions. Project directories must already exist (created via `create_project_tool`) before sessions can be created    |

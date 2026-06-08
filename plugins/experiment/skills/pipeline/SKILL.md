@@ -29,7 +29,7 @@ ordering, handoff conditions to phase-specific skills, and the boundary between 
 - MCP server connectivity (see each plugin's `*-mcp-environment-setup` skill, e.g.
   `/experiment-mcp-environment-setup`, `/assets-mcp-environment-setup`)
 - Authoring system / experiment / session YAML files (see assets plugin skills)
-- Post-acquisition data analysis (see forging plugin)
+- Post-acquisition data processing (see forging plugin)
 
 **Handoff rules:** This skill dispatches to phase-specific skills at each stage. Always invoke the
 relevant skill for detailed tool usage, parameter reference, and troubleshooting.
@@ -51,7 +51,7 @@ runtime acquisition is fully deterministic and AI-independent.
 | **Runtime data acquisition**          | **no**       | sollertia-experiment Python entry points only |
 | Post-acquisition preprocessing        | yes          | experiment plugin (`sle mcp`)                 |
 | Data management (migrate / delete)    | yes          | experiment plugin (`sle mcp`)                 |
-| Post-acquisition data analysis        | yes          | forging plugin                                |
+| Post-acquisition data processing      | yes          | forging plugin (optional; separate infra)     |
 
 The MCP tool surface intentionally has no "start a recording session" tool. Runtime is launched only
 through the active system's run CLI (for the `mesoscope` system, `sle mesoscope run <mode>`), which
@@ -65,20 +65,21 @@ reads validated configuration files written during the AI-assisted phases.
 1. Working directory      assets plugin /working-directory
 2. System configuration   active system's skill (mesoscope → /mesoscope-vr)
 3. Hardware bringup        /acquisition-system-setup
-4. Experiment design       assets plugin /project-hierarchy → /task-templates → /experiment-configuration
+4. Experiment design       assets plugin /project-hierarchy → /experiment-configuration  (+ /task-templates, VR only)
 5. Pre-session check       /system-health-check
 6. Runtime acquisition     active system run CLI, e.g. sle mesoscope run <mode>  (no MCP, no AI)
 7. Post-process & manage   /data-management
-8. Handoff to forging      forging plugin
+8. Handoff to forging      forging plugin  (optional; often separate infrastructure)
 ```
 
 ### Phase 1: Working directory and credentials
 
 - **Plugin / Skill:** assets plugin → `/working-directory`
-- **Actions:** Set the local Sollertia working directory; configure Google Sheets credentials and task
-  templates directory.
-- **Handoff condition:** `get_platform_environment_status_tool` reports the data root (and
-  credentials/templates) healthy.
+- **Actions:** Set the local Sollertia working directory (always required). Optionally configure Google
+  Sheets credentials and the task templates directory — needed only for systems that use Google Sheets
+  (animal metadata) and VR task templates (e.g. the `mesoscope` system); skip them otherwise.
+- **Handoff condition:** `get_platform_environment_status_tool` reports the data root healthy (and, for
+  systems that use them, credentials/templates).
 - **Skip condition:** The platform data root is already initialized for this host.
 
 ### Phase 2: System configuration
@@ -87,45 +88,54 @@ reads validated configuration files written during the AI-assisted phases.
   experiment plugin → `/mesoscope-vr`). Resolve the system type to its owning skill via
   `/acquisition-system-setup`'s **Supported acquisition systems** registry.
 - **Actions:** Generate or edit the active system's configuration YAML via the `sle mcp` write
-  tool (for the `mesoscope` system, `MesoscopeSystemConfiguration`: cameras, microcontrollers,
-  filesystem paths, Google Sheets, and VR task assets — Zaber motor ports and the nested
-  `vr_task` Unity MQTT configuration).
+  tool (e.g. for the `mesoscope` system, `MesoscopeSystemConfiguration`).
 - **Handoff condition:** `read_system_configuration_tool` returns a valid configuration; the config
   passes schema validation.
 
 ### Phase 3: Hardware bringup
 
 - **Plugin / Skill:** `/acquisition-system-setup` (this plugin)
-- **Actions:** Discover the active system's hardware — cameras and microcontrollers (the platform-universal
-  stack), plus any system-specific devices it composes (for the `mesoscope` system, Zaber motors and the
-  mesoscope). Validate the system configuration against discovered hardware. Update fields (camera indices,
-  port assignments) using the configuration plugin's MCP write tools as needed.
+- **Actions:** Discover the active system's hardware — cameras, microcontrollers, and Zaber motors (the
+  platform-universal / domain-general stack), plus any system-specific instrument it composes (for the
+  `mesoscope` system, the mesoscope itself, controlled via the ScanImage bridge). Validate the system
+  configuration against discovered hardware. Update fields (camera indices, port assignments) using the
+  configuration plugin's MCP write tools as needed. Where a device has cached configuration in the system
+  configuration directory, apply it as part of bringup — e.g. restore each camera's GenICam configuration
+  from its cached file (`ataraxis@video:camera-setup`, path sourced from the system configuration).
 - **Handoff condition:** All required hardware enumerated; system configuration matches reality.
 - **Cross-plugin handoffs:**
   - `ataraxis@video:camera-setup` for camera discovery
   - `ataraxis@communication:microcontroller-setup` for microcontroller enumeration
-  - for any third-party-SDK subsystems the active system composes, that subsystem's skill (for the
-    `mesoscope` system: Zaber motors via `/zaber-interface`)
+  - `/zaber-interface` for Zaber motor discovery and validation (domain-general, not system-specific)
+  - for any system-specific instrument the active system composes, that system's skill (for the
+    `mesoscope` system: the mesoscope via the ScanImage bridge; see `/mesoscope-vr`)
 
 ### Phase 4: Experiment authoring
 
-This phase is split across three assets plugin skills, invoked in dependency order. Each skill
-owns exactly one slsa asset and the others must hand off to it.
+This phase spans up to three assets plugin skills, each owning exactly one slsa asset. Steps 4a
+(project) and 4c (experiment configuration) are always required; Step 4b (task template) is optional
+and applies only to experiments that use VR. An experiment configuration is a standalone asset
+that can be authored without a task template to support systems that do not use Virtual Reality.
 
 - **Step 4a — `/project-hierarchy` (assets plugin):** Confirm the project under which the
-  experiment will live exists on disk (read-only via `get_data_root_overview_tool`). Projects must
-  exist before a session can be recorded — they are created by the `slsa configure project` CLI
-  command (`SessionData.create` raises `FileNotFoundError` if the project is missing). There is no
-  dedicated project-creation MCP tool.
-- **Step 4b — `/task-templates` (assets plugin):** Author or load the task template that
-  defines the VR environment, cue catalog, and trial structures (each trial owns its own segment
-  geometry — there is no separate segment catalog at the template level). Owns `write_template_tool`.
-  Hand off to the unity plugin's `/task-prefabs` if the template targets a Unity scene (prefab
-  generation and zone validation).
-- **Step 4c — `/experiment-configuration` (assets plugin):** Instantiate the template into a
-  per-project experiment configuration, populate the state machine, and customize state durations,
-  trial weights, and reward volumes. Owns `write_experiment_configuration_tool` and
-  `create_experiment_configuration_tool`.
+  experiment will live exists on disk (`get_data_root_overview_tool`), or create it with
+  `create_project_tool` (equivalently the `slsa configure project` CLI). Projects must exist before a
+  session can be recorded — `SessionData.create` raises `FileNotFoundError` if the project is missing.
+  Both the discovery tool and `create_project_tool` are owned by `/project-hierarchy`.
+- **Step 4b — `/task-templates` (assets plugin), optional — VR experiments only:** A task template
+  (`TaskTemplate`) is a pure VR construct: cue catalog, VR environment, and per-trial corridor
+  geometry (each trial owns its own geometry — there is no separate segment catalog at the template
+  level). Skip this step entirely for non-VR experiments. For VR experiments, author or load the
+  template (owns `write_template_tool`), then hand off to the unity plugin's `/task-prefabs` if it
+  targets a Unity scene (prefab generation and zone validation).
+- **Step 4c — `/experiment-configuration` (assets plugin):** Author the per-project experiment
+  configuration — trial structures, the experiment state machine, and runtime parameters (state
+  durations, reward volumes). The experiment configuration is independent of the task template: it
+  embeds only a `unity_scene_name` string, not VR geometry. Owns two tools —
+  `write_experiment_configuration_tool` authors the full payload directly and needs no template (use it
+  for non-VR experiments or when full control is required), while `create_experiment_configuration_tool`
+  is a VR convenience that seeds default trial structures from a task template, reading it only at
+  creation time (the template is not stored in the result).
 - **Handoff condition:** `read_experiment_configuration_tool` returns a validated experiment for the
   target project.
 
@@ -161,9 +171,12 @@ owns exactly one slsa asset and the others must hand off to it.
 - **Handoff condition:** Preprocessed session lives at the canonical storage tier; `processed_data` is
   populated.
 
-### Phase 8: Handoff to forging
+### Phase 8: Handoff to forging (optional)
 
 - **Plugin / Skill:** forging plugin
+- **Optional phase:** Forging sits outside the acquisition pipeline proper — acquisition is complete
+  after Phase 7. It frequently runs on entirely separate machine infrastructure (a dedicated
+  processing server or cluster) operated independently of the acquisition host.
 - **Actions:** Once a session is preprocessed and transferred to long-term storage, hand off to the
   forging plugin's behavior processing subsystem — session discovery / transfer
   (`/session-transfer`), batch behavior processing (`/behavior-processing`), output verification
@@ -183,14 +196,14 @@ Is the system already configured?
         ├─ no  → /system-health-check
         └─ yes
             └─ Does an experiment configuration exist for this project?
-                ├─ no  → /project-hierarchy → /task-templates → /experiment-configuration
+                ├─ no  → /project-hierarchy → /experiment-configuration  (+ /task-templates for VR)
                 └─ yes
                     └─ Is a session already recorded?
                         ├─ no  → user runs the active system's run CLI, e.g. `sle mesoscope run <mode>` (no AI involvement)
                         └─ yes
                             └─ Is preprocessing complete?
                                 ├─ no  → /data-management
-                                └─ yes → handoff to forging plugin
+                                └─ yes → handoff to forging plugin (optional)
 ```
 
 ---
@@ -206,7 +219,7 @@ systems** registry).
 | Set the working directory or credentials          | assets plugin `/working-directory`                                                 |
 | Author the active system's configuration YAML     | that system's skill (for `mesoscope`, `/mesoscope-vr`)                             |
 | Author the server (remote transfer) configuration | forging plugin `/server-configuration`                                             |
-| Create a project                                  | `slsa configure project` CLI (see assets plugin `/project-hierarchy`)              |
+| Create a project                                  | `create_project_tool` or `slsa configure project` CLI (`/project-hierarchy`)       |
 | Author a task template                            | assets plugin `/task-templates`                                                    |
 | Author a per-project experiment configuration     | assets plugin `/experiment-configuration`                                          |
 | Read a session marker / inspect session metadata  | assets plugin `/session-data`                                                      |

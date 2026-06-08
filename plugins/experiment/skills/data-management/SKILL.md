@@ -33,7 +33,7 @@ mesoscope-frame compression.
 
 **Does not cover:**
 - Project and session discovery, and project creation (assets plugin `/project-hierarchy` and
-  `/session-discovery`; the `slsa configure project` CLI command)
+  `/session-discovery`; project creation via `create_project_tool` or the `slsa configure project` CLI)
 - Session creation and data acquisition (acquisition-runtime skills)
 - System and hardware configuration (`/mesoscope-vr`)
 
@@ -147,9 +147,10 @@ strategy depends on whether the host has any long-term storage destinations conf
   on-premises.
 
 In both modes the **target project must already exist**, or `migrate_animal_tool` aborts. Project
-directories are created by the `slsa configure project` CLI command (`slsa configure project -p <name>
--r <root>`), not by an MCP tool — `SessionData.create` raises `FileNotFoundError` when the project is
-missing. Use the assets plugin `/project-hierarchy` to verify whether the destination project exists.
+directories are created with the `create_project_tool` MCP tool or the `slsa configure project` CLI
+command (`slsa configure project -p <name> -r <root>`) — `SessionData.create` raises `FileNotFoundError`
+when the project is missing. Use the assets plugin `/project-hierarchy` to verify whether the
+destination project exists or to create it.
 
 Migration **fails with an error if any session cannot be preprocessed or migrated** (for example, when
 the animal is absent from the surgery sheet that preprocessing reads). Each session is handled as an
@@ -159,7 +160,7 @@ reprocessed.
 
 ```text
 Animal migration progress:
-- [ ] Destination project exists (verify via /project-hierarchy); created with `slsa configure project` if missing
+- [ ] Destination project exists (verify via /project-hierarchy); create via create_project_tool or `slsa configure project` if missing
 - [ ] Confirmed migration with the user (source, destination, animal_id)
 - [ ] Executed migrate_animal_tool
 - [ ] On failure, resolved the reported error and re-ran migrate_animal_tool to resume
@@ -215,7 +216,7 @@ warning, confirm via AskUserQuestion, delete only if confirmed, and report befor
 | Error                                            | Cause                                       | Solution                                                   |
 |--------------------------------------------------|---------------------------------------------|------------------------------------------------------------|
 | "Session directory must be inside the data root" | Path is on a storage destination, not local | Only process sessions under `get_data_root()`              |
-| "target project does not exist"                  | Destination project not created             | Create it with `slsa configure project`                    |
+| "target project does not exist"                  | Destination project not created             | Create it with `create_project_tool`                       |
 | Preprocessing failure                            | Session cannot be preprocessed or migrated  | Resolve the error and re-run the migration to resume       |
 | "requires explicit confirmation"                 | `confirm_deletion` not set to `True`        | Get user confirmation via AskUserQuestion, then set `True` |
 
@@ -230,6 +231,7 @@ warning, confirm via AskUserQuestion, delete only if confirmed, and report befor
 | assets plugin `/session-discovery`     | Filters sessions and returns confirmed session paths to feed these tools |
 | assets plugin `/session-data`          | Owns the `SessionData` marker that defines each session                  |
 | `/mesoscope-vr`                        | Defines `filesystem.storage_directories`, the transfer destinations      |
+| `/google-sheets-processing`            | Owns the `SurgeryLog` / `WaterLog` processors that preprocessing invokes to snapshot surgery data and update the water log |
 | forging plugin `/server-configuration` | Remote storage transfer configuration consumed downstream                |
 | `/pipeline`                            | Phase 7 (post-process and manage) is owned by this skill                 |
 
