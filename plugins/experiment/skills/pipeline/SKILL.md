@@ -130,12 +130,10 @@ that can be authored without a task template to support systems that do not use 
   targets a Unity scene (prefab generation and zone validation).
 - **Step 4c — `/experiment-configuration` (assets plugin):** Author the per-project experiment
   configuration — trial structures, the experiment state machine, and runtime parameters (state
-  durations, reward volumes). The experiment configuration is independent of the task template: it
-  embeds only a `unity_scene_name` string, not VR geometry. Owns two tools —
-  `write_experiment_configuration_tool` authors the full payload directly and needs no template (use it
-  for non-VR experiments or when full control is required), while `create_experiment_configuration_tool`
-  is a VR convenience that seeds default trial structures from a task template, reading it only at
-  creation time (the template is not stored in the result).
+  durations, reward volumes). Owns two creation paths. `write_experiment_configuration_tool` authors a full payload 
+  for any acquisition system with no template. `create_experiment_from_vr_template_tool` seeds a configuration from a 
+  Unity VR task template for systems that run a Unity VR task (the template is read only at creation time and not
+  stored in the result).
 - **Handoff condition:** `read_experiment_configuration_tool` returns a validated experiment for the
   target project.
 
@@ -228,7 +226,7 @@ systems** registry).
 | Read a session marker / inspect session metadata  | assets plugin `/session-data`                                                      |
 | Read or repair a session descriptor               | assets plugin `/session-descriptors`                                               |
 | Read or patch a frozen runtime snapshot           | experiment plugin `/mesoscope-vr-snapshots`                                        |
-| Look up animal surgery / implants / drugs         | assets plugin `/data-assets`                                                  |
+| Look up animal surgery / implants / drugs         | assets plugin `/data-assets`                                                       |
 | Curate or read a dataset                          | forging plugin `/datasets`                                                         |
 | Discover GenICam cameras                          | `ataraxis@video:camera-setup`                                                      |
 | Test camera acquisition interactively             | `ataraxis@video:camera-setup`                                                      |

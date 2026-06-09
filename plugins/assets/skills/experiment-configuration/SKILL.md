@@ -13,13 +13,13 @@ user-invocable: false
 
 Authors and modifies per-project, system-specific experiment configuration YAML files for
 `sollertia-shared-assets` using the `slsa mcp` MCP server. The only concrete subclass that exists
-today is `MesoscopeExperimentConfiguration`, but the system factory registry
-(`_experiment_config_factory_registry`) and the `AcquisitionSystems` enum are deliberately
+today is `MesoscopeExperimentConfiguration`. The configuration class is resolved through
+`EXPERIMENT_CONFIGURATION_REGISTRY` keyed by `AcquisitionSystems`, and both are deliberately
 extensible — additional systems may be added in the future, at which point this skill will own
 their experiment configurations as well. This skill is the **exclusive** owner of:
 
 - `write_experiment_configuration_tool`
-- `create_experiment_configuration_tool`
+- `create_experiment_from_vr_template_tool`
 - `describe_experiment_configuration_schema_tool`
 - `validate_experiment_configuration_tool`
 
@@ -39,13 +39,15 @@ acquisition-runtime (`sollertia-experiment`) level instead.
 ## Scope
 
 **Covers:**
-- Authoring per-project experiment configurations (currently only `MesoscopeExperimentConfiguration`)
-- Authoring non-VR experiment configurations directly (no template) via `write_experiment_configuration_tool`
-- Experiment state machines (`ExperimentState`, `populate_default_experiment_states`)
+- Authoring a full experiment configuration payload for any acquisition system via
+  `write_experiment_configuration_tool` — the generic create / customize / repair path
+- Seeding an experiment configuration from a Unity VR task template via
+  `create_experiment_from_vr_template_tool` (shared across Unity-VR systems)
+- Experiment state machines (`ExperimentState`, seeded by
+  `MesoscopeExperimentConfiguration.from_task_template`)
 - Schema introspection for experiment configurations
 - Reading the frozen experiment configuration captured at session start (pass the per-session
   snapshot path to `read_experiment_configuration_tool`)
-- Instantiating an existing task template into a new experiment configuration
 
 **Does not cover:**
 - Authoring task templates themselves (see `/task-templates`)
@@ -191,8 +193,8 @@ configuration captures that whole arc by chaining states with different guidance
 | `discover_experiments_tool`                     | Lists experiment configurations under a project                                                                    |
 | `describe_experiment_configuration_schema_tool` | Returns the field schema for the experiment dataclass                                                              |
 | `read_experiment_configuration_tool`            | Reads an experiment configuration YAML from any canonical location (project source or per-session frozen snapshot) |
-| `write_experiment_configuration_tool`           | Writes a new experiment configuration (exclusive to this skill)                                                    |
-| `create_experiment_configuration_tool`          | Creates a config from a template + parameters (exclusive)                                                          |
+| `write_experiment_configuration_tool`           | Writes a validated experiment configuration payload for any system — create, customize, or repair (exclusive)      |
+| `create_experiment_from_vr_template_tool`       | Creates an experiment configuration from a Unity VR task template (shared across Unity-VR systems; exclusive)      |
 | `validate_experiment_configuration_tool`        | Validates an experiment configuration YAML (exclusive)                                                             |
 | `list_supported_acquisition_systems_tool`       | Enumerates the `AcquisitionSystems` enum values                                                                    |
 
@@ -261,39 +263,37 @@ describe_experiment_configuration_schema_tool(acquisition_system="<system>")
 
 Use the schema as the source of truth for field names and nesting.
 
-### Step 4: Create the configuration — full payload or seeded defaults
+### Step 4: Create the configuration
 
-Two tools author an experiment configuration, and **both serve every acquisition system**. Choose by
-how much you want pre-filled, *not* by whether the experiment uses VR:
+There are two ways to mint an experiment configuration:
 
-- **`write_experiment_configuration_tool` — full control.** Authors a complete payload directly, with
-  **no template**. Build the payload against `describe_experiment_configuration_schema_tool` and go
-  straight to Step 5's write call. It is the only path for a non-VR system today (no non-VR factory is
-  registered yet), but it authors VR configurations equally well.
-- **`create_experiment_configuration_tool` — optional convenience.** Dispatches to the target system's
-  factory to pre-seed `trial_structures` and default states in one call. It is **not VR-exclusive** —
-  it serves every system. Its current parameters (`template_path`, `unity_scene_name`) are the creation
-  inputs for systems that use the Unity VR task system, and Mesoscope-VR is the only such system today,
-  so those are the only inputs it exposes. When a non-VR system's factory is added, this tool is
-  **extended** with that system's creation inputs (see `/library-extension`) rather than replaced. For a
-  VR system, pass the destination path and the template path explicitly:
+- `write_experiment_configuration_tool` — the **generic** path. It authors a full payload, validated against the
+  registered `<System>ExperimentConfiguration`, for **any** acquisition system. No template and no factory are
+  involved, and it is always available. Use it to author a configuration for a system that has no Unity VR template.
+- `create_experiment_from_vr_template_tool` — seeds a configuration from a Unity VR task template, for systems whose
+  configuration is built from a VR template. This tool and `TaskTemplate` are shared by every acquisition system that
+  runs Unity VR tasks; a new Unity-VR system reuses them by adding a `from_task_template` classmethod to its own
+  `<System>ExperimentConfiguration` dataclass. A system that builds its configuration from different inputs adds its
+  own dedicated creation tool and a matching creation classmethod instead.
+
+For a system that runs a Unity VR task, pass the destination path and the template path explicitly:
 
 ```text
-create_experiment_configuration_tool(
+create_experiment_from_vr_template_tool(
     file_path="<root>/<project>/configuration/<experiment>.yaml",
-    acquisition_system="<system>",  # the system whose factory builds the config (resolve, don't assume)
+    acquisition_system="<system>",  # resolves the config class via EXPERIMENT_CONFIGURATION_REGISTRY (resolve it)
     template_path="<templates-directory>/<template-name>.yaml",
     state_count=1,
     overwrite=False,
-    # unity_scene_name defaults to Path(template_path).stem, i.e. the template's filename
-    # without the .yaml extension. Override if the project uses a different scene name.
+    # The embedded Unity scene name is inferred from the template filename stem
+    # (the filename without the .yaml extension).
 )
 ```
 
-This loads the template via `TaskTemplate.from_yaml`, builds the configuration with
-`create_experiment_configuration` (which dispatches to `acquisition_system`'s factory), then calls
-`populate_default_experiment_states` with `state_count` to seed the `experiment_states` dict
-with default-valued runtime states.
+This loads the template via `TaskTemplate.from_yaml`, then calls the resolved config class's
+`from_task_template` classmethod (today: `MesoscopeExperimentConfiguration.from_task_template`). That classmethod
+maps the template's trial structures to runtime trials and seeds `state_count` default-valued runtime states in the
+`experiment_states` dict.
 
 **Heads up:** the autopopulated states have `system_state_code=0`, which is not a valid
 Mesoscope-VR hardware mode (Mesoscope-VR accepts `1` = REST or `2` = RUN). Each state must
@@ -327,7 +327,7 @@ than assuming the mesoscope schema applies verbatim.
   session init; on a non-VR system there is no template and these entries are the runtime's trial
   parameter table on their own.
 - `experiment_states: dict[str, ExperimentState]` — a dict, **not a list**. Access by string key
-  (e.g. `experiment_states["state_1"].state_duration_s`), not by integer index. `populate_default_experiment_states`
+  (e.g. `experiment_states["state_1"].state_duration_s`), not by integer index. `from_task_template`
   generates 1-indexed names (`state_1`, `state_2`, …); the first autopopulated state is `state_1`,
   not `state_0`. `ExperimentState` fields include `experiment_state_code`, `system_state_code`,
   `state_duration_s`, `supports_trials`, and the reinforcing/aversive guidance counters.
@@ -399,14 +399,14 @@ reason, that is currently not supported by the sollertia-shared-assets MCP layer
 
 ## Common patterns
 
-| Goal                                  | Pattern                                                                                                                                                                                                                                                                                                          |
-|---------------------------------------|------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
-| Reuse a template across projects      | Call `create_experiment_configuration_tool` per project (one `file_path` per destination), then override per-project fields                                                                                                                                                                                      |
-| Change reward volume for a trial type | Edit `trial_structures["<trial>"].reward_size_ul` for `WaterRewardTrial` entries                                                                                                                                                                                                                                 |
-| Change gas-puff duration              | Edit `trial_structures["<trial>"].puff_duration_ms` for `GasPuffTrial` entries                                                                                                                                                                                                                                   |
-| Adjust a state's duration             | Edit `experiment_states["<state-key>"].state_duration_s` (state machine is a dict)                                                                                                                                                                                                                               |
-| Add a new state to the state machine  | Add a new key to the `experiment_states` dict, then re-validate                                                                                                                                                                                                                                                  |
-| Add a new spatial trial entry         | First hand off to `/task-templates` to add the `TrialStructure` to the template, then either re-run `create_experiment_configuration_tool` with `overwrite=True` or amend this skill's experiment config via `write_experiment_configuration_tool` to add the matching `WaterRewardTrial` / `GasPuffTrial` entry |
+| Goal                                  | Pattern                                                                                                                                                                                                                                                                                                             |
+|---------------------------------------|---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| Reuse a template across projects      | Call `create_experiment_from_vr_template_tool` per project (one `file_path` per destination), then override per-project fields                                                                                                                                                                                      |
+| Change reward volume for a trial type | Edit `trial_structures["<trial>"].reward_size_ul` for `WaterRewardTrial` entries                                                                                                                                                                                                                                    |
+| Change gas-puff duration              | Edit `trial_structures["<trial>"].puff_duration_ms` for `GasPuffTrial` entries                                                                                                                                                                                                                                      |
+| Adjust a state's duration             | Edit `experiment_states["<state-key>"].state_duration_s` (state machine is a dict)                                                                                                                                                                                                                                  |
+| Add a new state to the state machine  | Add a new key to the `experiment_states` dict, then re-validate                                                                                                                                                                                                                                                     |
+| Add a new spatial trial entry         | First hand off to `/task-templates` to add the `TrialStructure` to the template, then either re-run `create_experiment_from_vr_template_tool` with `overwrite=True` or amend this skill's experiment config via `write_experiment_configuration_tool` to add the matching `WaterRewardTrial` / `GasPuffTrial` entry |
 
 ### Migrating an experiment to a new template (VR experiments only)
 
@@ -415,7 +415,7 @@ For non-VR experiments there is no template; edit the experiment configuration d
 
 1. Read the old configuration with `read_experiment_configuration_tool(file_path=...)`.
 2. If the new template does not exist, hand off to `/task-templates` to author it.
-3. Call `create_experiment_configuration_tool(file_path=..., template_path=...)` pointing at the new
+3. Call `create_experiment_from_vr_template_tool(file_path=..., template_path=...)` pointing at the new
    template.
 4. Port the customizations (state durations, per-trial reward sizes, puff and occupancy durations,
    guidance counters) over manually.

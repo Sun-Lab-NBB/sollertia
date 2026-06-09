@@ -27,11 +27,11 @@ verification checklist before reporting an extension complete.
 
 **Covers:**
 - Adding a new `AcquisitionSystems` member (with its `<System>HardwareState`,
-  `<System>ExperimentConfiguration`, `<System>RawData`, and factory function)
+  `<System>ExperimentConfiguration`, and `<System>RawData`)
 - Adding a new `SessionTypes` member (with its descriptor dataclass)
 - Adding a new runtime trial class (and registering it in `_TRIAL_CLASSES`)
 - Adding a new `TriggerType` member (and the trigger → trial-class pairing in
-  `create_experiment_configuration`)
+  `MesoscopeExperimentConfiguration.from_task_template`)
 - Extending the template vocabulary beyond the **infinite corridor** VR paradigm
 - Adding a new `ReadAssets` member (with its on-disk dataclass and `READ_ASSET_REGISTRY` entry) — the
   slsa contract for an external asset the platform reads and caches on disk
@@ -56,32 +56,31 @@ verification checklist before reporting an extension complete.
 
 ## Library extension model
 
-`sollertia-shared-assets` is structured around five **dispatch registries** plus one **factory
-registry**. Each one is keyed by a member of the `SessionTypes`, `AcquisitionSystems`, or
-`ReadAssets` enum, and each one resolves a string identifier to a Python class (or callable) that
-the MCP tools use to parse, validate, or build the corresponding asset. A separate **association**,
+`sollertia-shared-assets` is structured around five **dispatch registries**. Each one is keyed by a
+member of the `SessionTypes`, `AcquisitionSystems`, or `ReadAssets` enum, and each one resolves a
+string identifier to a Python class that the MCP tools use to parse, validate, or build the
+corresponding asset. A separate **association**,
 `SYSTEM_SESSION_TYPES`, records which session types each acquisition system can run; it is keyed by
 `AcquisitionSystems` but maps to a `frozenset` of `SessionTypes` rather than a dispatch class, and
 `SessionData.create()` rejects any session-type / acquisition-system pairing it does not contain.
 
-| Registry                              | File                                       | Keyed by             | Maps to                                              |
-|---------------------------------------|--------------------------------------------|----------------------|------------------------------------------------------|
-| `DESCRIPTOR_REGISTRY`                 | `interfaces/mcp_instance.py`               | `SessionTypes`       | Per-session-type descriptor dataclass                |
-| `HARDWARE_STATE_REGISTRY`             | `interfaces/mcp_instance.py`               | `AcquisitionSystems` | Per-system hardware-state dataclass                  |
-| `EXPERIMENT_CONFIGURATION_REGISTRY`   | `configuration/configuration_utilities.py` | `AcquisitionSystems` | Per-system experiment-configuration dataclass        |
-| `SYSTEM_RAW_DATA_REGISTRY`            | `data_classes/session_data.py`             | `AcquisitionSystems` | Per-system raw-data sub-dataclass with `build`       |
-| `SYSTEM_SESSION_TYPES`                | `data_classes/session_data.py`             | `AcquisitionSystems` | `frozenset[SessionTypes]` the system can run         |
-| `READ_ASSET_REGISTRY`                 | `data_classes/read_assets.py`              | `ReadAssets`         | Per-read-asset on-disk dataclass                     |
-| `_experiment_config_factory_registry` | `configuration/configuration_utilities.py` | `AcquisitionSystems` | `TaskTemplate` → experiment-configuration factory fn |
+| Registry                            | File                                       | Keyed by             | Maps to                                        |
+|-------------------------------------|--------------------------------------------|----------------------|------------------------------------------------|
+| `DESCRIPTOR_REGISTRY`               | `interfaces/mcp_instance.py`               | `SessionTypes`       | Per-session-type descriptor dataclass          |
+| `HARDWARE_STATE_REGISTRY`           | `interfaces/mcp_instance.py`               | `AcquisitionSystems` | Per-system hardware-state dataclass            |
+| `EXPERIMENT_CONFIGURATION_REGISTRY` | `configuration/configuration_utilities.py` | `AcquisitionSystems` | Per-system experiment-configuration dataclass  |
+| `SYSTEM_RAW_DATA_REGISTRY`          | `data_classes/session_data.py`             | `AcquisitionSystems` | Per-system raw-data sub-dataclass with `build` |
+| `SYSTEM_SESSION_TYPES`              | `data_classes/session_data.py`             | `AcquisitionSystems` | `frozenset[SessionTypes]` the system can run   |
+| `READ_ASSET_REGISTRY`               | `data_classes/read_assets.py`              | `ReadAssets`         | Per-read-asset on-disk dataclass               |
 
-An eighth structure, `_TRIAL_CLASSES` in `interfaces/configuration_tools.py`, maps each
+A seventh structure, `_TRIAL_CLASSES` in `interfaces/configuration_tools.py`, maps each
 `AcquisitionSystems` member to its trial class names (e.g. `"WaterRewardTrial"`) and their concrete
 runtime trial dataclasses. It is not a dispatch registry.
 `list_supported_trial_types_tool(acquisition_system)` reads it to enumerate that system's trial
-vocabulary; `create_experiment_configuration` in `configuration/configuration_utilities.py`
-instantiates the matching subclass for each `TriggerType` value. The trial classes themselves are
-system-agnostic and live in `configuration/experiment_configuration.py`; `_TRIAL_CLASSES` records
-which of them each system's experiment configuration uses.
+vocabulary; `MesoscopeExperimentConfiguration.from_task_template` maps each `TriggerType` to its
+runtime trial class. The trial classes themselves are system-agnostic and live in
+`configuration/experiment_configuration.py`; `_TRIAL_CLASSES` records which of them each system's
+experiment configuration uses.
 
 ### The parity check
 
@@ -93,10 +92,11 @@ must declare at least one session type, and every session type must be claimed b
 system. Importing the package (or starting `slsa mcp`) fails fast and names the offending registry,
 so an incomplete extension cannot silently slip through.
 
-`_experiment_config_factory_registry` and `_TRIAL_CLASSES` are **not** covered by the parity
-check. Failing to register a factory or trial class will not break import, only the runtime
-behavior of `create_experiment_configuration_tool` and `list_supported_trial_types_tool`. Treat
-those as additional manual touch points.
+`_TRIAL_CLASSES` is **not** covered by the parity check. A missing trial-class entry does not break
+import, only the runtime behavior of `list_supported_trial_types_tool`. A Unity-VR system's
+experiment-configuration class that omits a `from_task_template` classmethod is also not parity-
+checked: it is simply not creatable through `create_experiment_from_vr_template_tool`. Treat both as
+additional manual touch points.
 
 ---
 
@@ -169,21 +169,26 @@ member:
 4. Register the dataclasses in `HARDWARE_STATE_REGISTRY`, `EXPERIMENT_CONFIGURATION_REGISTRY`,
    and `SYSTEM_RAW_DATA_REGISTRY`, and add a `SYSTEM_SESSION_TYPES` entry mapping the new system to
    the `frozenset` of `SessionTypes` it can run (declare at least one, or the parity check fails).
-5. Extend the `ExperimentConfigFactory` type alias and add `_create_<system>_experiment_config`,
-   then register it in `_experiment_config_factory_registry`.
+5. Give the new system a creation path for its experiment configuration. If it runs Unity VR tasks,
+   add a `from_task_template` classmethod to its `<System>ExperimentConfiguration` (mirror
+   `MesoscopeExperimentConfiguration.from_task_template`); the shared
+   `create_experiment_from_vr_template_tool` dispatches to it automatically, so no new tool is
+   needed. If it builds its configuration from different inputs, add a dedicated creation tool plus a
+   matching creation classmethod on its config dataclass. Either way,
+   `write_experiment_configuration_tool` already authors the system's full payload generically.
 6. Run the test suite — `_assert_registry_coverage()` catches the dispatch registries and the
-   `SYSTEM_SESSION_TYPES` pairing; a forgotten factory does not break import but breaks
-   `create_experiment_configuration_tool`.
+   `SYSTEM_SESSION_TYPES` pairing; a missing `from_task_template` classmethod does not break import,
+   but a Unity-VR system without it cannot be created through `create_experiment_from_vr_template_tool`.
 
 **Skill touches** — update each of the following so its hardcoded "currently only Mesoscope-VR"
 framing reflects the new member:
 
-| Skill                       | What to update                                                                                                                                                                                                                                                                                          |
-|-----------------------------|---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
-| `/session-data`             | The `instance.system_raw_data` bullet under "Path-resolution sub-dataclasses on `SessionData`" — add the new `<System>RawData` field list; the `Mesoscope-VR` mention in "Does not cover" if the experiment plugin's `/mesoscope-vr-snapshots` is no longer the sole owner of system-specific snapshots |
-| `/session-hardware-state`   | The frontmatter description, the "currently the only concrete subclass is `MesoscopeHardwareState`" prose, and the "Per-session-type field population (Mesoscope-VR example)" framing — clone the table format for the new system                                                                       |
-| `/experiment-configuration` | The frontmatter description, the "currently only `MesoscopeExperimentConfiguration`" prose, and any per-trial-class assumptions specific to the Mesoscope-VR rig. The tools already dispatch by `acquisition_system`, so no create-tool "system-fixing" edit is needed                                  |
-| `/task-templates`           | The "currently only `MesoscopeExperimentConfiguration`" mention                                                                                                                                                                                                                                         |
+| Skill                       | What to update                                                                                                                                                                                                                                                                                                                                                                   |
+|-----------------------------|----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| `/session-data`             | The `instance.system_raw_data` bullet under "Path-resolution sub-dataclasses on `SessionData`" — add the new `<System>RawData` field list; the `Mesoscope-VR` mention in "Does not cover" if the experiment plugin's `/mesoscope-vr-snapshots` is no longer the sole owner of system-specific snapshots                                                                          |
+| `/session-hardware-state`   | The frontmatter description, the "currently the only concrete subclass is `MesoscopeHardwareState`" prose, and the "Per-session-type field population (Mesoscope-VR example)" framing — clone the table format for the new system                                                                                                                                                |
+| `/experiment-configuration` | The frontmatter description, the "currently only `MesoscopeExperimentConfiguration`" prose, and any per-trial-class assumptions specific to the Mesoscope-VR rig. A Unity-VR system reuses `create_experiment_from_vr_template_tool` (note it gains a `from_task_template` classmethod); a system with different inputs gains its own creation tool — call out which one applies |
+| `/task-templates`           | The "currently only `MesoscopeExperimentConfiguration`" mention                                                                                                                                                                                                                                                                                                                  |
 
 **Downstream coordination:**
 - `sollertia-experiment` owns the system-level hardware/software configuration classes and the
@@ -213,10 +218,9 @@ framing reflects the new member:
 4. Update the `nested_classes` mapping in `describe_experiment_configuration_schema_tool` so the
    new class appears in the schema introspection response.
 5. Update the `dict[str, WaterRewardTrial | GasPuffTrial | <NewTrial>]` Union type in the
-   `MesoscopeExperimentConfiguration.trial_structures` annotation, the `ExperimentConfigFactory`
-   alias, and every per-system factory function.
-6. Update the per-system factory bodies in `configuration/configuration_utilities.py` so the
-   matching `TriggerType` branch instantiates the new runtime trial class.
+   `MesoscopeExperimentConfiguration.trial_structures` annotation.
+6. Update `MesoscopeExperimentConfiguration.from_task_template` so the matching `TriggerType` branch
+   instantiates the new runtime trial class.
 
 **Skill touches:**
 
@@ -231,16 +235,16 @@ framing reflects the new member:
 This skill owns the **Python registry slice** of the cross-cutting recipe. The full extension is
 split three ways and each skill owns its slice — apply all three:
 
-| Slice                                                            | Owning skill                            |
-|------------------------------------------------------------------|-----------------------------------------|
-| Python `TriggerType` enum + factory branch (this skill, below)   | `/library-extension` (this skill)       |
-| Hand-authored zone prefab manufacturing                          | unity plugin `/zone-prefabs` (Step 7)   |
-| `CreateTask` pipeline edits + `DeleteProtectedPaths`             | unity plugin `/task-generator`          |
+| Slice                                                                       | Owning skill                          |
+|-----------------------------------------------------------------------------|---------------------------------------|
+| Python `TriggerType` enum + `from_task_template` branch (this skill, below) | `/library-extension` (this skill)     |
+| Hand-authored zone prefab manufacturing                                     | unity plugin `/zone-prefabs` (Step 7) |
+| `CreateTask` pipeline edits + `DeleteProtectedPaths`                        | unity plugin `/task-generator`        |
 
 **Code touches** owned here:
 1. Append the member to `TriggerType` in `configuration/vr_configuration.py`.
-2. Update `create_experiment_configuration` in
-   `configuration/configuration_utilities.py` to add the matching `elif trial_structure.trigger_type
+2. Update `MesoscopeExperimentConfiguration.from_task_template` in
+   `configuration/mesoscope_configuration.py` to add the matching `elif trial_structure.trigger_type
    == TriggerType.<NEW>:` branch, instantiating the corresponding runtime trial class (which may
    itself be new — see "Adding a new runtime trial class").
 
@@ -316,8 +320,7 @@ the next import attempt and the resulting error message points at one registry a
 Defer to the README sections cited above for `SessionTypes` and `AcquisitionSystems` extensions.
 For the other three scenarios, follow the touch lists in this skill. Run the test suite after
 each scenario's code touches land — `_assert_registry_coverage()` catches the dispatch-registry
-side, but the factory registry, `_TRIAL_CLASSES`, and required-asset branches need explicit test
-coverage.
+side, but `_TRIAL_CLASSES` and required-asset branches need explicit test coverage.
 
 ### Step 3: Apply the skill touches
 
@@ -338,8 +341,8 @@ reviewer can confirm the cross-repo coordination happened.
 ### Step 5: Verify
 
 Run the verification checklist below. The library's import-time parity assertion is the safety
-net for the dispatch registries; the manual checks cover the factory registry, the trial class
-table, the required-asset branches, and the skill content.
+net for the dispatch registries; the manual checks cover the trial class table, the required-asset
+branches, and the skill content.
 
 ---
 
@@ -348,7 +351,7 @@ table, the required-asset branches, and the skill content.
 | Pitfall                                                              | Why it bites                                                                                                                                                                             |
 |----------------------------------------------------------------------|------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
 | Adding an enum member without registering its dispatch class         | `_assert_registry_coverage()` raises at import time, so `slsa mcp` fails to start until every registry is wired. Run `python -c 'import sollertia_shared_assets'` after the code change. |
-| Forgetting the factory registry                                      | The parity check does **not** cover `_experiment_config_factory_registry`. `create_experiment_configuration_tool` will fail at call time with "acquisition system not supported".        |
+| Forgetting `from_task_template`                                      | A new Unity-VR system's config class is not creatable through `create_experiment_from_vr_template_tool` until it implements `from_task_template`. Not covered by the parity check.       |
 | Forgetting `_TRIAL_CLASSES`                                          | The parity check does **not** cover `_TRIAL_CLASSES`. `list_supported_trial_types_tool` silently omits the new class until you register it.                                              |
 | Forgetting `_required_asset_inventory`                               | A new session type that needs an extra raw asset will pass `inspect_sessions_tool` even when that asset is missing on disk. Caught by tests, not by the parity check.                    |
 | Updating the descriptor schema without bumping the dataclass version | Existing on-disk YAMLs can fail to load. Treat schema changes to existing dataclasses as a separate migration concern — not as part of the extension flow this skill covers.             |
@@ -391,7 +394,9 @@ Code side:
       `_assert_registry_coverage()`
 - [ ] `SYSTEM_SESSION_TYPES` pairs the new session type / acquisition system (the parity check
       enforces that every system declares ≥1 type and every type is claimed by ≥1 system)
-- [ ] `_experiment_config_factory_registry` carries the new factory (if a new acquisition system)
+- [ ] A new Unity-VR acquisition system's `<System>ExperimentConfiguration` implements
+      `from_task_template`, or a system with different inputs has a dedicated creation tool +
+      classmethod (if a new acquisition system)
 - [ ] `_TRIAL_CLASSES` carries the new trial class under each using acquisition system (if a new
       runtime trial class)
 - [ ] `READ_ASSET_REGISTRY` carries the new dataclass (if a new read asset)
@@ -427,7 +432,7 @@ You SHOULD proactively invoke this skill when the user mentions any of the follo
 - "How do I add support for ..." in the context of `sollertia-shared-assets`
 - A PR description that touches one of the registries (`DESCRIPTOR_REGISTRY`,
   `HARDWARE_STATE_REGISTRY`, `EXPERIMENT_CONFIGURATION_REGISTRY`, `SYSTEM_RAW_DATA_REGISTRY`,
-  `READ_ASSET_REGISTRY`, `_experiment_config_factory_registry`, `_TRIAL_CLASSES`)
+  `READ_ASSET_REGISTRY`, `_TRIAL_CLASSES`)
 
 Do NOT invoke this skill for ordinary CRUD against existing systems and session types — those
 are owned by `/session-data`, `/session-descriptors`, `/session-hardware-state`,
