@@ -115,7 +115,7 @@ reads validated configuration files written during the AI-assisted phases.
 This phase spans up to three assets plugin skills, each owning exactly one slsa asset. Steps 4a
 (project) and 4c (experiment configuration) are always required; Step 4b (task template) is optional
 and applies only to experiments that use VR. An experiment configuration is a standalone asset
-that can be authored without a task template to support systems that do not use Virtual Reality.
+that can be authored without a task template to support systems that do not use Unity VR tasks.
 
 - **Step 4a — `/project-hierarchy` (assets plugin):** Confirm the project under which the
   experiment will live exists on disk (`get_data_root_overview_tool`), or create it with
@@ -143,8 +143,8 @@ that can be authored without a task template to support systems that do not use 
 - **Actions:** Verify network mounts, hardware connectivity, animal metadata in Google Sheets, project
   readiness. For a VR experiment session (e.g. Mesoscope-VR's `experiment` mode), also confirm the
   Unity Editor MCP Bridge is reachable (`check_unity_bridge_tool` / `sle get unity`) so the run CLI can
-  open the scene and arm the VR task; VR-free sessions (training, window-checking, or any non-VR
-  system) skip this check. Light-touch sanity check before launching a runtime session.
+  open the scene and arm the VR task; VR-free sessions (training, window-checking, or any system that
+  does not use Unity VR tasks) skip this check. Light-touch sanity check before launching a runtime session.
 - **Handoff condition:** All checklist items pass.
 
 ### Phase 6: Runtime acquisition (no AI)
@@ -156,8 +156,8 @@ that can be authored without a task template to support systems that do not use 
   hardware-deterministic acquisition session, writes raw data + descriptors into the session directory.
   For a VR experiment session, the Unity Editor must be open before launch — the run CLI drives scene
   activation and Play Mode through the editor MCP Bridge and blocks until the bridge is reachable.
-  VR-free sessions (the training and window-checking modes, or any non-VR system) drive no Unity and
-  need no editor bridge.
+  VR-free sessions (the training and window-checking modes, or any system that does not use Unity VR
+  tasks) drive no Unity and need no editor bridge.
 - **Handoff condition:** Session terminates cleanly; `session_data.yaml` and the appropriate session
   descriptor for the runtime mode exist on disk (for the `mesoscope` system: lick training /
   run training / window checking / mesoscope experiment).

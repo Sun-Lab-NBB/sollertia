@@ -43,11 +43,11 @@ A `TaskTemplate` is a **Virtual-Reality-only, optional** asset: a reusable descr
 behavioral paradigm — the VR environment, the cue catalog, and the trial structures. Each trial owns
 its own cue sequence, zone geometry, and trigger type, and is materialized into a single segment prefab
 named `<template_name>_<trial_name>.prefab` at generation time. Templates exist **only** for
-acquisition systems that run a VR task; a non-VR system authors no template and drives trials in its
-acquisition runtime (`sollertia-experiment`) instead. Among VR-capable systems a template is project- and
-system-agnostic — the same template can back many experiment configurations (currently only
-`MesoscopeExperimentConfiguration`, but the `AcquisitionSystems` enum and factory registry are designed
-for additional VR systems) across many projects.
+acquisition systems that run a VR task; a system that does not use Unity VR tasks authors no template and
+drives trials in its acquisition runtime (`sollertia-experiment`) instead. Among systems that use Unity VR
+tasks a template is project- and system-agnostic — the same template can back many experiment configurations 
+across many projects. Currently only `MesoscopeExperimentConfiguration`, but the `AcquisitionSystems` enum and factory 
+registry are designed for additional systems that use Unity VR tasks) 
 
 ### Live templates vs per-session snapshots
 
