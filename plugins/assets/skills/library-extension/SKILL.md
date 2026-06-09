@@ -66,12 +66,18 @@ corresponding asset. A separate **association**,
 
 | Registry                            | File                                       | Keyed by             | Maps to                                        |
 |-------------------------------------|--------------------------------------------|----------------------|------------------------------------------------|
-| `DESCRIPTOR_REGISTRY`               | `interfaces/mcp_instance.py`               | `SessionTypes`       | Per-session-type descriptor dataclass          |
-| `HARDWARE_STATE_REGISTRY`           | `interfaces/mcp_instance.py`               | `AcquisitionSystems` | Per-system hardware-state dataclass            |
+| `DESCRIPTOR_REGISTRY`               | `data_classes/extensions.py`               | `SessionTypes`       | Per-session-type descriptor dataclass          |
+| `HARDWARE_STATE_REGISTRY`           | `data_classes/extensions.py`               | `AcquisitionSystems` | Per-system hardware-state dataclass            |
 | `EXPERIMENT_CONFIGURATION_REGISTRY` | `configuration/configuration_utilities.py` | `AcquisitionSystems` | Per-system experiment-configuration dataclass  |
 | `SYSTEM_RAW_DATA_REGISTRY`          | `data_classes/session_data.py`             | `AcquisitionSystems` | Per-system raw-data sub-dataclass with `build` |
 | `SYSTEM_SESSION_TYPES`              | `data_classes/session_data.py`             | `AcquisitionSystems` | `frozenset[SessionTypes]` the system can run   |
 | `READ_ASSET_REGISTRY`               | `data_classes/read_assets.py`              | `ReadAssets`         | Per-read-asset on-disk dataclass               |
+
+These five registries, the `SYSTEM_SESSION_TYPES` association, the `SESSION_TYPES_USING_VR_TASK` gate, and the
+import-time checks that guard them are collected in one hub module, `data_classes/extensions.py`. The hub defines
+`DESCRIPTOR_REGISTRY` and `HARDWARE_STATE_REGISTRY` and re-exports the rest from the modules that consume them (the
+**File** column above is each registry's definition site; several cannot move without circular imports). When you add
+a registry entry, edit it at the File-column location; the hub picks it up automatically.
 
 Every `<System>ExperimentConfiguration` shares one contract: an `experiment_states` field (a mapping
 of `ExperimentState` — the experiment state machine; every experiment is a state machine, so this is
@@ -92,17 +98,23 @@ class. The trial classes themselves are standalone dataclasses in
 (`configuration/configuration_utilities.py`) maps each acquisition system that builds its configuration
 from a Unity VR task template to that configuration class, and `create_experiment_from_vr_template_tool`
 dispatches through it. This registry is optional and partial: only a system that uses Unity VR tasks
-registers here, and it sits outside the import-time parity check.
+registers here, so the dispatch-registry coverage check does not require an entry for every system. A separate
+import-time check, `_assert_vr_template_registry_consistency()` (`data_classes/extensions.py`), does verify that any
+configuration class implementing `from_task_template` is registered here (and vice versa), so a forgotten entry fails
+fast rather than letting `create_experiment_from_vr_template_tool` silently refuse the system.
 
 ### The parity check
 
-`interfaces/mcp_instance.py` runs `_assert_registry_coverage()` at import time. The function
+`data_classes/extensions.py` (the extension-point hub) runs `_assert_registry_coverage()` at import time. The function
 walks `(DESCRIPTOR_REGISTRY, HARDWARE_STATE_REGISTRY, EXPERIMENT_CONFIGURATION_REGISTRY,
 SYSTEM_RAW_DATA_REGISTRY, READ_ASSET_REGISTRY)` and raises `RuntimeError` if any enum member is
 missing its dispatch class. It additionally checks `SYSTEM_SESSION_TYPES`: every acquisition system
 must declare at least one session type, and every session type must be claimed by at least one
-system. Importing the package (or starting `slsa mcp`) fails fast and names the offending registry,
-so an incomplete extension cannot silently slip through.
+system. The hub also runs two contract checks at import: `_assert_descriptor_contract()` (every registered descriptor
+must declare the `incomplete` field the inspection tooling reads) and `_assert_vr_template_registry_consistency()`
+(above). Because the hub lives in the data layer, all of these run on a bare `import sollertia_shared_assets` (not
+only when `slsa mcp` starts), so an incomplete extension fails fast and names the offending registry; it cannot
+silently slip through.
 
 ---
 
@@ -111,11 +123,11 @@ so an incomplete extension cannot silently slip through.
 The `sollertia-shared-assets` README owns the canonical, line-numbered recipes. **Do not retype
 them here** — read them, then come back for the cross-skill update map below.
 
-| Scenario                        | README section                       |
-|---------------------------------|--------------------------------------|
-| New `SessionTypes` member       | "Adding New Session Types"           |
-| New `AcquisitionSystems` member | "Adding New Acquisition Systems"     |
-| New read asset                  | "Adding a New Read Asset"            |
+| Scenario                        | README section                   |
+|---------------------------------|----------------------------------|
+| New `SessionTypes` member       | "Adding New Session Types"       |
+| New `AcquisitionSystems` member | "Adding New Acquisition Systems" |
+| New read asset                  | "Adding a New Read Asset"        |
 
 For new trial classes, new trigger types, and new VR paradigms, the README does not currently
 carry a step-by-step recipe. Use the **per-scenario touch lists** below as the working spec, then
@@ -137,16 +149,18 @@ touches** (which is what this skill uniquely owns), and the downstream-library c
    it for any system whose set omits it.
 2. Add the `<Type>Descriptor` dataclass in the runtime-data module of the system that runs the new type (the
    Mesoscope-VR descriptors live in `data_classes/mesoscope_runtime_data.py`); export it from
-   `data_classes/__init__.py`.
-3. Register the descriptor in `DESCRIPTOR_REGISTRY` (`interfaces/mcp_instance.py`).
-4. If the new type has required raw assets beyond `session_descriptor.yaml` and
-   `system_configuration.yaml`, extend `_required_asset_inventory` in `interfaces/data_tools.py`.
-   The existing `MESOSCOPE_EXPERIMENT` branch requires BOTH `experiment_configuration.yaml`
-   AND `vr_configuration.yaml`; any new session type that uses Unity VR tasks should mirror both
-   appends.
-5. Run the test suite — `_assert_registry_coverage()` catches a forgotten descriptor entry or an
-   unclaimed session type, but a forgotten required-asset branch will not surface until
-   `inspect_sessions_tool` reports the wrong `issues` list.
+   `data_classes/__init__.py`. The descriptor MUST declare an `incomplete: bool = True` field — the
+   session-inspection tooling reads it, and `_assert_descriptor_contract()` fails the import if it is missing.
+3. Register the descriptor in `DESCRIPTOR_REGISTRY` (`data_classes/extensions.py`, the extension-point hub).
+4. The required-asset policy lives in `SessionData.required_raw_assets` (`data_classes/session_data.py`), not in a
+   per-session-type branch. It is data-driven: `experiment_configuration.yaml` is required whenever the session has
+   an `experiment_name`, and `vr_configuration.yaml` is required for any session type listed in the
+   `SESSION_TYPES_USING_VR_TASK` frozenset (same file). If the new type runs a Unity VR task, add it to that
+   frozenset; if it needs some other extra raw asset, extend `required_raw_assets`.
+5. Run the test suite — `_assert_registry_coverage()` catches a forgotten descriptor entry or an unclaimed session
+   type, and `_assert_descriptor_contract()` fails the import if the descriptor omits `incomplete`. A missing
+   `SESSION_TYPES_USING_VR_TASK` entry is not import-checked, so cover the new type in
+   `tests/data_classes/session_data_test.py`, where `required_raw_assets` is unit-tested.
 
 **Skill touches** — update each of the following so its hardcoded enumeration matches the new
 member:
@@ -260,10 +274,10 @@ split three ways and each skill owns its slice — apply all three:
 
 **Skill touches** owned here:
 
-| Skill                       | What to update                                                          |
-|-----------------------------|-------------------------------------------------------------------------|
-| `/task-templates`           | The `TriggerType` enumeration sentence and the "primitives" table       |
-| `/experiment-configuration` | The trigger → trial-class pairing convention                            |
+| Skill                       | What to update                                                    |
+|-----------------------------|-------------------------------------------------------------------|
+| `/task-templates`           | The `TriggerType` enumeration sentence and the "primitives" table |
+| `/experiment-configuration` | The trigger → trial-class pairing convention                      |
 
 ### Extending the VR paradigm beyond the infinite corridor
 
@@ -358,13 +372,14 @@ required-asset branches, and the skill content.
 
 ## Pitfalls
 
-| Pitfall                                                              | Why it bites                                                                                                                                                                                                                                                                                       |
-|----------------------------------------------------------------------|----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
-| Adding an enum member without registering its dispatch class         | `_assert_registry_coverage()` raises at import time, so `slsa mcp` fails to start until every registry is wired. Run `python -c 'import sollertia_shared_assets'` after the code change.                                                                                                           |
-| Forgetting `from_task_template`                                      | A system that uses Unity VR tasks creates its config through `create_experiment_from_vr_template_tool` once it implements `from_task_template` and registers its configuration class in `VR_TEMPLATE_CONFIG_REGISTRY`. That registry is optional and partial, so the parity check leaves it alone. |
-| Forgetting `_required_asset_inventory`                               | A new session type that needs an extra raw asset will pass `inspect_sessions_tool` even when that asset is missing on disk. Caught by tests, not by the parity check.                                                                                                                              |
-| Updating the descriptor schema without bumping the dataclass version | Existing on-disk YAMLs can fail to load. Treat schema changes to existing dataclasses as a separate migration concern — not as part of the extension flow this skill covers.                                                                                                                       |
-| Treating a new VR paradigm as a registry-backed extension            | VR topologies are extended through new template classes and Unity scaffolding, so the skill touches and downstream coordination are larger than for the registry-backed scenarios; budget accordingly.                                                                                             |
+| Pitfall                                                              | Why it bites                                                                                                                                                                                                                                                                                                                                                                                                                                                                         |
+|----------------------------------------------------------------------|--------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| Adding an enum member without registering its dispatch class         | `_assert_registry_coverage()` raises at import time, so `slsa mcp` fails to start until every registry is wired. Run `python -c 'import sollertia_shared_assets'` after the code change.                                                                                                                                                                                                                                                                                             |
+| Forgetting `from_task_template` wiring                               | A system that uses Unity VR tasks creates its config through `create_experiment_from_vr_template_tool` once it implements `from_task_template` and registers its configuration class in `VR_TEMPLATE_CONFIG_REGISTRY`. A missing registration now fails fast: `_assert_vr_template_registry_consistency()` raises at import. Within `from_task_template`, every `TriggerType` the template can carry needs a branch — an unmapped trigger raises rather than being silently dropped. |
+| Forgetting the descriptor `incomplete` field                         | A new `<Type>Descriptor` that omits `incomplete: bool = True` fails the import via `_assert_descriptor_contract()` (the inspection tooling reads this field). Declare it on every new descriptor.                                                                                                                                                                                                                                                                                    |
+| Forgetting the required-asset entry                                  | The required-asset policy is `SessionData.required_raw_assets`; a Unity-VR session type missing from `SESSION_TYPES_USING_VR_TASK` is NOT import-checked and will pass `inspect_sessions_tool` even when its VR snapshot is missing. Cover the new type in `tests/data_classes/session_data_test.py`.                                                                                                                                                                                |
+| Updating the descriptor schema without bumping the dataclass version | Existing on-disk YAMLs can fail to load. Treat schema changes to existing dataclasses as a separate migration concern — not as part of the extension flow this skill covers.                                                                                                                                                                                                                                                                                                         |
+| Treating a new VR paradigm as a registry-backed extension            | VR topologies are extended through new template classes and Unity scaffolding, so the skill touches and downstream coordination are larger than for the registry-backed scenarios; budget accordingly.                                                                                                                                                                                                                                                                               |
 
 ---
 
@@ -399,8 +414,10 @@ required-asset branches, and the skill content.
 Code side:
 - [ ] Identified exactly one extension scenario (or applied multiple sequentially)
 - [ ] Followed the README recipe for SessionTypes / AcquisitionSystems extensions
-- [ ] `python -c 'import sollertia_shared_assets'` succeeds without RuntimeError from
-      `_assert_registry_coverage()`
+- [ ] `python -c 'import sollertia_shared_assets'` succeeds without RuntimeError from the import-time checks in
+      `data_classes/extensions.py` (`_assert_registry_coverage`, `_assert_descriptor_contract`,
+      `_assert_vr_template_registry_consistency`) — all run on a bare import
+- [ ] A new `<Type>Descriptor` declares `incomplete: bool = True` (enforced by `_assert_descriptor_contract`)
 - [ ] `SYSTEM_SESSION_TYPES` pairs the new session type / acquisition system (the parity check
       enforces that every system declares ≥1 type and every type is claimed by ≥1 system)
 - [ ] A new acquisition system that uses Unity VR tasks implements `from_task_template` on its
@@ -408,7 +425,8 @@ Code side:
       system with different inputs has a dedicated creation tool + classmethod (if a new acquisition
       system)
 - [ ] `READ_ASSET_REGISTRY` carries the new dataclass (if a new read asset)
-- [ ] `_required_asset_inventory` covers the new session type's required assets (if applicable)
+- [ ] `SessionData.required_raw_assets` covers the new session type's required assets — a Unity-VR type is added to
+      `SESSION_TYPES_USING_VR_TASK` and covered in `tests/data_classes/session_data_test.py` (if applicable)
 - [ ] The new trial class is in the `trial_structures` union annotation and the `from_task_template`
       trigger → trial mapping of each using `<System>ExperimentConfiguration` (if a new runtime trial
       class)

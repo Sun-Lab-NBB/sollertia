@@ -51,7 +51,7 @@ acquisition-runtime (`sollertia-experiment`) level instead.
 
 **Does not cover:**
 - Authoring task templates themselves (see `/task-templates`)
-- Authoring system-level configuration (see experiment plugin's `/system-configuration`)
+- Authoring system-level configuration (see the experiment plugin's `/acquisition-system-design`)
 - Authoring server configuration (see forging plugin's `/server-configuration`)
 - Creating projects (see `/project-hierarchy`)
 - Verifying that template values match the Unity prefab state (see unity plugin's `/task-prefabs`)
@@ -66,11 +66,11 @@ systems that use Unity VR tasks; a system that does not use Unity VR tasks autho
 Among systems that use Unity VR tasks it is project- and system-agnostic — the same template can back many
 experiment configurations across many projects.
 
-| Concept                            | What it is                                                                        | Owning skill      |
-|------------------------------------|-----------------------------------------------------------------------------------|-------------------|
-| `TaskTemplate`                     | Reusable VR environment, trial structure, cue catalog (systems using Unity VR)    | `/task-templates` |
-| System-specific experiment config  | Per-project state machine + per-trial parameters                                  | this skill        |
-| `MesoscopeExperimentConfiguration` | The only concrete experiment-config subclass today (uses Unity VR)                | this skill        |
+| Concept                            | What it is                                                                     | Owning skill      |
+|------------------------------------|--------------------------------------------------------------------------------|-------------------|
+| `TaskTemplate`                     | Reusable VR environment, trial structure, cue catalog (systems using Unity VR) | `/task-templates` |
+| System-specific experiment config  | Per-project state machine + per-trial parameters                               | this skill        |
+| `MesoscopeExperimentConfiguration` | The only concrete experiment-config subclass today (uses Unity VR)             | this skill        |
 
 For a VR experiment the template defines **what is possible**, and the experiment configuration picks a
 template (by `unity_scene_name`) and parameterizes it (state durations, reward volumes, project-specific
@@ -210,11 +210,11 @@ All read / write / validate / create tools in this skill take **explicit file pa
 The caller resolves both; the tools never consult `root_directory`, a project name, an experiment name,
 or a template name. The canonical paths are:
 
-| Asset                                         | Canonical path                                                 |
-|-----------------------------------------------|----------------------------------------------------------------|
-| Per-project experiment configuration          | `<root>/<project>/configuration/<experiment>.yaml`             |
-| Task template                                 | `<templates-directory>/<template-name>.yaml`                   |
-| Per-session frozen experiment-config snapshot | `<session>/raw_data/experiment_configuration.yaml`             |
+| Asset                                         | Canonical path                                     |
+|-----------------------------------------------|----------------------------------------------------|
+| Per-project experiment configuration          | `<root>/<project>/configuration/<experiment>.yaml` |
+| Task template                                 | `<templates-directory>/<template-name>.yaml`       |
+| Per-session frozen experiment-config snapshot | `<session>/raw_data/experiment_configuration.yaml` |
 
 Use `discover_experiments_tool(root_directory=..., project=...)` to enumerate existing configs and
 their absolute paths; use `discover_templates_tool()` to enumerate template paths.
@@ -450,15 +450,15 @@ For non-VR experiments there is no template; edit the experiment configuration d
 
 ## Related skills
 
-| Skill                                     | Relationship                                                                                                                                               |
-|-------------------------------------------|------------------------------------------------------------------------------------------------------------------------------------------------------------|
-| `/working-directory`                      | Provides the templates directory so `/task-templates` knows where to enumerate; this skill needs only absolute paths                                       |
-| `/assets-mcp-environment-setup`           | Run first if the MCP server is not connected                                                                                                               |
-| `/task-templates`                         | Optional, VR experiments only — owns template authoring and exposes `discover_templates_tool` for absolute template paths (non-VR experiments use none)    |
-| `/project-hierarchy`                      | Discovers the project tree; owns project creation (`create_project_tool` / `slsa configure project`)                                                       |
-| experiment plugin `/system-configuration` | Owns MesoscopeSystemConfiguration (moved out of this plugin)                                                                                               |
-| experiment plugin `/data-management`      | Downstream consumer — `SessionData.create` copies the authored `experiment_configuration.yaml` into every new experiment session at acquisition time       |
-| unity plugin `/task-prefabs`              | Validates template values against the Unity prefab state                                                                                                   |
-| experiment plugin `/experiment-pipeline`  | Phase 4 of the experiment lifecycle is owned by this skill                                                                                                 |
-| `/library-extension`                      | Cross-cutting recipe to add a new `AcquisitionSystems`, runtime trial class, or `TriggerType` member; lists the prose here that needs updating in lockstep |
-| experiment plugin `/vr-driver-interface`  | Verifies `unity_scene_name` against the live scene; consumes the per-trial parameters at runtime                                                           |
+| Skill                                          | Relationship                                                                                                                                               |
+|------------------------------------------------|------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| `/working-directory`                           | Provides the templates directory so `/task-templates` knows where to enumerate; this skill needs only absolute paths                                       |
+| `/assets-mcp-environment-setup`                | Run first if the MCP server is not connected                                                                                                               |
+| `/task-templates`                              | Optional, VR experiments only — owns template authoring and exposes `discover_templates_tool` for absolute template paths (non-VR experiments use none)    |
+| `/project-hierarchy`                           | Discovers the project tree; owns project creation (`create_project_tool` / `slsa configure project`)                                                       |
+| experiment plugin `/acquisition-system-design` | Documents the per-system system-configuration pattern (Mesoscope-VR instance: `MesoscopeSystemConfiguration`)                                              |
+| experiment plugin `/data-management`           | Downstream consumer — `SessionData.create` copies the authored `experiment_configuration.yaml` into every new experiment session at acquisition time       |
+| unity plugin `/task-prefabs`                   | Validates template values against the Unity prefab state                                                                                                   |
+| experiment plugin `/pipeline`                  | Phase 4 of the experiment lifecycle (experiment authoring) hands off to this skill                                                                         |
+| `/library-extension`                           | Cross-cutting recipe to add a new `AcquisitionSystems`, runtime trial class, or `TriggerType` member; lists the prose here that needs updating in lockstep |
+| experiment plugin `/vr-driver-interface`       | Verifies `unity_scene_name` against the live scene; consumes the per-trial parameters at runtime                                                           |

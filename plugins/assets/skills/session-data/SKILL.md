@@ -41,7 +41,7 @@ flow. The inventory side of "which descriptors and assets exist for a session" i
 - Reading or writing the per-session Zaber and mesoscope-objective position snapshots (see the
   experiment plugin's `/mesoscope-vr-snapshots`)
 - Reading the frozen system configuration captured at session start (see the experiment plugin's
-  `/system-configuration`)
+  `/acquisition-system-design`)
 - Reading the frozen experiment configuration captured at session start (see
   `/experiment-configuration` for `read_experiment_configuration_tool`)
 - Reading subject metadata (see `/data-assets`)
@@ -220,15 +220,15 @@ that system can actually run; omit it only when you genuinely need the platform-
 
 ## MCP tool surface
 
-| Tool                                 | Purpose                                                                                                          |
-|--------------------------------------|------------------------------------------------------------------------------------------------------------------|
-| `inspect_sessions_tool`              | Produces a detailed health and inventory report for one or more sessions (exclusive)                             |
-| `read_session_data_tool`             | Reads a `session_data.yaml` file via the `SessionData` schema (file-path based, exclusive)                       |
-| `write_session_data_tool`            | Creates or replaces a `session_data.yaml` file, validated against `SessionData` (file-path based, exclusive)     |
-| `describe_session_data_schema_tool`  | Returns the `SessionData` dataclass schema (exclusive)                                                           |
-| `list_supported_session_types_tool`  | Returns the supported `SessionTypes`, optionally scoped to one acquisition system                                |
-| `list_session_type_support_tool`     | Returns the full map of each acquisition system to the session types it can run                                  |
-| `list_processing_trackers_tool`      | Enumerates every `ProcessingTracker` filename used across the platform (`name`, `filename`, `description`)       |
+| Tool                                | Purpose                                                                                                      |
+|-------------------------------------|--------------------------------------------------------------------------------------------------------------|
+| `inspect_sessions_tool`             | Produces a detailed health and inventory report for one or more sessions (exclusive)                         |
+| `read_session_data_tool`            | Reads a `session_data.yaml` file via the `SessionData` schema (file-path based, exclusive)                   |
+| `write_session_data_tool`           | Creates or replaces a `session_data.yaml` file, validated against `SessionData` (file-path based, exclusive) |
+| `describe_session_data_schema_tool` | Returns the `SessionData` dataclass schema (exclusive)                                                       |
+| `list_supported_session_types_tool` | Returns the supported `SessionTypes`, optionally scoped to one acquisition system                            |
+| `list_session_type_support_tool`    | Returns the full map of each acquisition system to the session types it can run                              |
+| `list_processing_trackers_tool`     | Enumerates every `ProcessingTracker` filename used across the platform (`name`, `filename`, `description`)   |
 
 `inspect_sessions_tool` accepts `session_paths: list[str]` — pass a single-element list for one
 session, or many paths to inspect a batch. There is no separate single / batch signature. The
@@ -315,8 +315,8 @@ In addition to `status`, each per-session report returns the independent boolean
    mesoscope-objective position snapshots.
 8. **Hand off to `/experiment-configuration`** for the frozen experiment configuration via
    `read_experiment_configuration_tool` (pass the session snapshot path).
-9. **Hand off to the experiment plugin's `/system-configuration`** for the frozen
-   `system_configuration.yaml` snapshot.
+9. **Hand off to the experiment plugin's `/acquisition-system-design`** for the frozen
+   `system_configuration.yaml` snapshot (it documents the per-system configuration pattern).
 
 ### Validating a session's file inventory
 
@@ -385,18 +385,18 @@ returns every platform session type regardless of which system can run it.
 
 ## Related skills
 
-| Skill                                       | Relationship                                                                                                                                            |
-|---------------------------------------------|---------------------------------------------------------------------------------------------------------------------------------------------------------|
-| `/assets-mcp-environment-setup`             | Run first if the MCP server is not connected                                                                                                            |
-| `/working-directory`                        | Required prerequisite — bootstraps the local working directory the agent uses to resolve project roots                                                  |
-| `/project-hierarchy`                        | Owns `get_data_root_overview_tool` for root-wide discovery                                                                                              |
-| `/session-discovery`                        | Filters the flat `sessions` list from `get_data_root_overview_tool`                                                                                     |
-| `/session-descriptors`                      | Sibling — owns the per-session descriptor read/write/schema                                                                                             |
-| `/session-hardware-state`                   | Sibling — owns the per-session `MesoscopeHardwareState` snapshot                                                                                        |
-| experiment plugin `/mesoscope-vr-snapshots` | Owns the frozen Zaber and mesoscope-objective position snapshots                                                                                        |
-| `/data-assets`                              | Sibling — owns read assets (e.g., animal-scoped surgery records)                                                                                        |
-| experiment plugin `/system-configuration`   | Authors the system configuration consumed at session start                                                                                              |
-| `/experiment-configuration`                 | Owns `read_experiment_configuration_tool` (reads both project source and frozen session snapshot)                                                       |
-| `/library-extension`                        | Cross-cutting recipe to add new `SessionTypes` or `AcquisitionSystems` members; lists the skill content here that needs updating in lockstep            |
-| forging plugin `/datasets`                  | Datasets aggregate sessions                                                                                                                             |
-| experiment plugin `/data-management`        | Preprocesses, migrates, and deletes sessions. Project directories must already exist (created via `create_project_tool`) before sessions can be created |
+| Skill                                          | Relationship                                                                                                                                            |
+|------------------------------------------------|---------------------------------------------------------------------------------------------------------------------------------------------------------|
+| `/assets-mcp-environment-setup`                | Run first if the MCP server is not connected                                                                                                            |
+| `/working-directory`                           | Required prerequisite — bootstraps the local working directory the agent uses to resolve project roots                                                  |
+| `/project-hierarchy`                           | Owns `get_data_root_overview_tool` for root-wide discovery                                                                                              |
+| `/session-discovery`                           | Filters the flat `sessions` list from `get_data_root_overview_tool`                                                                                     |
+| `/session-descriptors`                         | Sibling — owns the per-session descriptor read/write/schema                                                                                             |
+| `/session-hardware-state`                      | Sibling — owns the per-session `MesoscopeHardwareState` snapshot                                                                                        |
+| experiment plugin `/mesoscope-vr-snapshots`    | Owns the frozen Zaber and mesoscope-objective position snapshots                                                                                        |
+| `/data-assets`                                 | Sibling — owns read assets (e.g., animal-scoped surgery records)                                                                                        |
+| experiment plugin `/acquisition-system-design` | Documents the per-system configuration pattern authored and consumed at session start                                                                   |
+| `/experiment-configuration`                    | Owns `read_experiment_configuration_tool` (reads both project source and frozen session snapshot)                                                       |
+| `/library-extension`                           | Cross-cutting recipe to add new `SessionTypes` or `AcquisitionSystems` members; lists the skill content here that needs updating in lockstep            |
+| forging plugin `/datasets`                     | Datasets aggregate sessions                                                                                                                             |
+| experiment plugin `/data-management`           | Preprocesses, migrates, and deletes sessions. Project directories must already exist (created via `create_project_tool`) before sessions can be created |
