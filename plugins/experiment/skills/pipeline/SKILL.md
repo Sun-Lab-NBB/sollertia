@@ -65,7 +65,7 @@ reads validated configuration files written during the AI-assisted phases.
 1. Working directory      assets plugin /working-directory
 2. System configuration   active system's skill (mesoscope → /mesoscope-vr)
 3. Hardware bringup        /acquisition-system-setup
-4. Experiment design       assets plugin /project-hierarchy → /experiment-configuration  (+ /task-templates, VR only)
+4. Experiment design       assets plugin /project-hierarchy → /task-templates → /experiment-configuration
 5. Pre-session check       /system-health-check
 6. Runtime acquisition     active system run CLI, e.g. sle mesoscope run <mode>  (no MCP, no AI)
 7. Post-process & manage   /data-management
@@ -75,11 +75,12 @@ reads validated configuration files written during the AI-assisted phases.
 ### Phase 1: Working directory and credentials
 
 - **Plugin / Skill:** assets plugin → `/working-directory`
-- **Actions:** Set the local Sollertia working directory (always required). Optionally configure Google
-  Sheets credentials and the task templates directory — needed only for systems that use Google Sheets
-  (animal metadata) and VR task templates (e.g. the `mesoscope` system); skip them otherwise.
-- **Handoff condition:** `get_platform_environment_status_tool` reports the data root healthy (and, for
-  systems that use them, credentials/templates).
+- **Actions:** Set the local Sollertia working directory (always required) and the task templates directory
+  (required for every system, since every experiment seeds its configuration from a corridor task template).
+  Optionally configure Google Sheets credentials — needed only for systems that use Google Sheets for animal
+  metadata (e.g. the `mesoscope` system).
+- **Handoff condition:** `get_platform_environment_status_tool` reports the data root and templates directory
+  healthy (and, for systems that use them, credentials).
 - **Skip condition:** The platform data root is already initialized for this host.
 
 ### Phase 2: System configuration
@@ -112,28 +113,25 @@ reads validated configuration files written during the AI-assisted phases.
 
 ### Phase 4: Experiment authoring
 
-This phase spans up to three assets plugin skills, each owning exactly one slsa asset. Steps 4a
-(project) and 4c (experiment configuration) are always required; Step 4b (task template) is optional
-and applies only to experiments that use VR. An experiment configuration is a standalone asset
-that can be authored without a task template to support systems that do not use Unity VR tasks.
+This phase spans three assets plugin skills, each owning exactly one slsa asset. Step 4a (project),
+Step 4b (task template), and Step 4c (experiment configuration) are all required: every experiment
+seeds its configuration from a corridor task template.
 
 - **Step 4a — `/project-hierarchy` (assets plugin):** Confirm the project under which the
   experiment will live exists on disk (`get_data_root_overview_tool`), or create it with
   `create_project_tool` (equivalently the `slsa configure project` CLI). Projects must exist before a
   session can be recorded — `SessionData.create` raises `FileNotFoundError` if the project is missing.
   Both the discovery tool and `create_project_tool` are owned by `/project-hierarchy`.
-- **Step 4b — `/task-templates` (assets plugin), optional — VR experiments only:** A task template
-  (`TaskTemplate`) is a pure VR construct: cue catalog, VR environment, and per-trial corridor
-  geometry (each trial owns its own geometry — there is no separate segment catalog at the template
-  level). Skip this step entirely for non-VR experiments. For VR experiments, author or load the
-  template (owns `write_template_tool`), then hand off to the unity plugin's `/task-prefabs` if it
-  targets a Unity scene (prefab generation and zone validation).
+- **Step 4b — `/task-templates` (assets plugin):** A task template (`TaskTemplate`) is the corridor
+  task asset: cue catalog, VR environment, and per-trial corridor geometry (each trial owns its own
+  geometry — there is no separate segment catalog at the template level). Author or load the template
+  (owns `write_template_tool`), then hand off to the unity plugin's `/task-prefabs` if it targets a
+  Unity scene (prefab generation and zone validation).
 - **Step 4c — `/experiment-configuration` (assets plugin):** Author the per-project experiment
   configuration — trial structures, the experiment state machine, and runtime parameters (state
-  durations, reward volumes). Owns two creation paths. `write_experiment_configuration_tool` authors a full payload 
-  for any acquisition system with no template. `create_experiment_from_vr_template_tool` seeds a configuration from a 
-  Unity VR task template for systems that run a Unity VR task (the template is read only at creation time and not
-  stored in the result).
+  durations, reward volumes). `create_experiment_from_vr_template_tool` seeds the configuration from a
+  Unity VR task template (the template is read only at creation time and not stored in the result);
+  `write_experiment_configuration_tool` authors or repairs the full payload directly.
 - **Handoff condition:** `read_experiment_configuration_tool` returns a validated experiment for the
   target project.
 
@@ -141,10 +139,10 @@ that can be authored without a task template to support systems that do not use 
 
 - **Plugin / Skill:** `/system-health-check` (this plugin)
 - **Actions:** Verify network mounts, hardware connectivity, animal metadata in Google Sheets (**optional**, only 
-  for systems that use them), project readiness. For a VR experiment session (e.g. Mesoscope-VR's `experiment` mode), 
-  also confirm the Unity Editor MCP Bridge is reachable (`check_unity_bridge_tool` / `sle get unity`) so the run 
-  CLI can open the scene and arm the VR task; VR-free sessions (training, window-checking, or any system that
-  does not use Unity VR tasks) skip this check. Light-touch sanity check before launching a runtime session.
+  for systems that use them), project readiness. For an experiment session that runs the corridor task (e.g.
+  Mesoscope-VR's `experiment` mode), also confirm the Unity Editor MCP Bridge is reachable
+  (`check_unity_bridge_tool` / `sle get unity`) so the run CLI can open the scene and arm the VR task; training
+  and window-checking sessions skip this check. Light-touch sanity check before launching a runtime session.
 - **Handoff condition:** All checklist items pass.
 
 ### Phase 6: Runtime acquisition (no AI)
@@ -154,10 +152,10 @@ that can be authored without a task template to support systems that do not use 
   `lick-training`, `run-training`, or `experiment`).
 - **Actions:** The run CLI reads the validated system + experiment configuration files, dispatches a
   hardware-deterministic acquisition session, writes raw data + descriptors into the session directory.
-  For a VR experiment session, the Unity Editor must be open before launch — the run CLI drives scene
-  activation and Play Mode through the editor MCP Bridge and blocks until the bridge is reachable.
-  VR-free sessions (the training and window-checking modes, or any system that does not use Unity VR
-  tasks) drive no Unity and need no editor bridge.
+  For an experiment session that runs the corridor task, the Unity Editor must be open before launch —
+  the run CLI drives scene activation and Play Mode through the editor MCP Bridge and blocks until the
+  bridge is reachable. Training and window-checking sessions run no task, drive no Unity, and need no
+  editor bridge.
 - **Handoff condition:** Session terminates cleanly; `session_data.yaml` and the appropriate session
   descriptor for the runtime mode exist on disk (for the `mesoscope` system: lick training /
   run training / window checking / mesoscope experiment).
@@ -205,7 +203,7 @@ Is the system already configured?
         ├─ no  → /system-health-check
         └─ yes
             └─ Does an experiment configuration exist for this project?
-                ├─ no  → /project-hierarchy → /experiment-configuration  (+ /task-templates for VR)
+                ├─ no  → /project-hierarchy → /task-templates → /experiment-configuration
                 └─ yes
                     └─ Is a session already recorded?
                         ├─ no  → user runs the active system's run CLI, e.g. `sle mesoscope run <mode>` (no AI involvement)

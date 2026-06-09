@@ -141,11 +141,12 @@ microcontroller IDs and roles, Zaber devices) — is system-specific and is NOT 
 semantics, and to `/zaber-interface` for the per-device Zaber semantics. This skill calls these tools
 read-only as a pre-flight sweep.
 
-If the active system drives a Virtual Reality task through the Unity game engine, additionally confirm the
-shared Unity Editor MCP Bridge is reachable with `check_unity_bridge_tool` (`sle`; CLI `sle get unity`). Unity
-is a shared asset with its own driver, not specific to any one acquisition system. The bridge starts
-automatically inside the Unity Editor, so an unreachable bridge means the editor is not open — the runtime
-cannot open the scene or arm the VR task. Hand off to `/vr-driver-interface` for the bridge contract.
+For a session that runs the corridor task, additionally confirm the shared Unity Editor MCP Bridge is
+reachable with `check_unity_bridge_tool` (`sle`; CLI `sle get unity`). Unity is a shared asset with its own
+driver, not specific to any one acquisition system. The bridge starts automatically inside the Unity Editor,
+so an unreachable bridge means the editor is not open — the runtime cannot open the scene or arm the VR task.
+Training and window-checking sessions run no task and skip this check. Hand off to `/vr-driver-interface` for
+the bridge contract.
 
 If the active system drives a system-specific instrument control interface beyond the domain-general stack and
 the shared Unity bridge, additionally confirm that interface is reachable. Its check tool, expected state, and
@@ -187,8 +188,8 @@ For a rapid pre-session check:
 3. Hand off to `/acquisition-system-setup` — the hardware the active system declares (cameras,
    microcontrollers, any third-party-SDK subsystems such as Zaber motors, MQTT broker) is present.
 4. `validate_system_configuration_tool()` — configuration valid.
-5. For a VR/Unity session, `check_unity_bridge_tool()` — the Unity Editor is open and its MCP bridge is
-   reachable.
+5. For a session that runs the corridor task, `check_unity_bridge_tool()` — the Unity Editor is open and its
+   MCP bridge is reachable (training and window-checking sessions run no task and skip it).
 6. For a session that drives a system-specific instrument control interface, confirm it through the active
    system's skill (for the `mesoscope` system, the ScanImage control bridge — see `/mesoscope-vr`).
 
@@ -227,8 +228,8 @@ the camera/microcontroller/Zaber/MQTT failure modes.
 4. **Hardware missing** — hand off to `/acquisition-system-setup`.
 5. **Configuration invalid** — hand off to the active acquisition system's skill (currently
    `/mesoscope-vr`, for the `mesoscope` system) to correct the system configuration.
-6. **Unity bridge unreachable** (VR/Unity sessions) — open the Unity project in the editor so its MCP bridge
-   auto-starts (confirm with `sle get unity`); hand off to `/vr-driver-interface`.
+6. **Unity bridge unreachable** (sessions that run the corridor task) — open the Unity project in the editor so
+   its MCP bridge auto-starts (confirm with `sle get unity`); hand off to `/vr-driver-interface`.
 7. **System-specific control interface unreachable** — hand off to the active system's skill to bring it up
    (for the `mesoscope` system, the ScanImage control bridge; see `/mesoscope-vr`).
 
@@ -240,7 +241,7 @@ the camera/microcontroller/Zaber/MQTT failure modes.
 |------------------------------------------------|-----------------------------------------------------------------------------------------------------|
 | `/acquisition-system-setup`                    | Owns the full hardware-discovery sweep this skill hands off to                                      |
 | `/mesoscope-vr`                                | Active acquisition system's skill (`mesoscope`); owns config/validation and the ScanImage bridge    |
-| `/vr-driver-interface`                         | Owns the Unity editor bridge check (`check_unity_bridge_tool`) for VR/Unity systems                 |
+| `/vr-driver-interface`                         | Owns the shared Unity editor bridge check (`check_unity_bridge_tool`) for corridor-task sessions    |
 | `/experiment-mcp-environment-setup`            | Run first if the `sle mcp` server is not connected                                                  |
 | `/pipeline`                                    | Phase 5 (pre-session health check) is owned by this skill                                           |
 | assets plugin `/working-directory`             | Fixes data-root / credentials / templates prerequisites                                             |
@@ -262,8 +263,8 @@ the camera/microcontroller/Zaber/MQTT failure modes.
 - [ ] validate_system_configuration_tool passed
 - [ ] Per-subsystem discovery/validation done for each subsystem the active system composes (see that
       system's skill; for mesoscope, Zaber via /zaber-interface) — skip if it composes none
-- [ ] For a VR/Unity session, check_unity_bridge_tool reported the shared Unity editor bridge reachable
-      (skip for sessions that do not drive a Unity task)
+- [ ] For a session that runs the corridor task, check_unity_bridge_tool reported the shared Unity editor
+      bridge reachable (training and window-checking sessions run no task and skip it)
 - [ ] For a session that drives a system-specific instrument control interface, confirmed reachable via the
       active system's skill (for mesoscope, the ScanImage bridge via /mesoscope-vr) — skip if none
 - [ ] Did NOT write any configuration from this skill (read-only verification only)

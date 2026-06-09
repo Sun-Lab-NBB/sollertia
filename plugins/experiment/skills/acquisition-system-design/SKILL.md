@@ -66,8 +66,8 @@ Detailed authoring patterns live in three reference files, loaded on demand:
   (e.g. `assets:session-descriptors`, `assets:task-templates`, `assets:experiment-configuration`).
 - The `sollertia-shared-assets` enum/registry side of registering a new acquisition system (the
   `AcquisitionSystems` member, the dispatch registries, the per-system descriptor / hardware-state /
-  experiment-config / raw-data dataclasses, and the experiment-config factory) — owned by the assets
-  plugin's `/library-extension`.
+  experiment-config / raw-data dataclasses, and the `from_task_template` experiment-configuration
+  builder) — owned by the assets plugin's `/library-extension`.
 - The implementation of external data-service processors (the Google Sheets `SurgeryLog` / `WaterLog`
   classes, their schema contract, and authoring a custom one) — owned by
   `experiment:google-sheets-processing`. This skill documents only where such processors sit in the
@@ -109,7 +109,7 @@ A Sollertia acquisition system is composed of three layers, top-down:
 │  Layer 3: Lifecycle orchestrator (one per acquisition system)                   │
 │  ─────────────────────────────────────────────────────────                      │
 │  <System>System / <System>Runtime / system_controller module                    │
-│      ├── owns DataLogger and the VR task driver (where applicable)              │
+│      ├── owns DataLogger and the VR task driver                                 │
 │      ├── constructs each Layer-2 binding class in the correct order             │
 │      ├── coordinates start / stop / state transitions                           │
 │      └── exposes the public runtime surface to CLI / GUI consumers              │
@@ -204,9 +204,9 @@ instantiates the DataLogger first (so each `MicroControllerInterface.__init__` c
 manifest entry), constructs the binding classes in a fixed order, starts the DataLogger before any
 binding class, and tears everything down in reverse so the DataLogger outlives every consumer. It also
 owns all cross-subsystem synchronization — individual binding classes stay oblivious to one another.
-The VR task driver is one such composed subsystem, but an **optional** one: only systems that run a VR
-task construct it, and even then only for their VR session types. A system with no VR composes none and
-drives any trials in the runtime loop itself (see `experiment:acquisition-system-runtime` and
+The VR task driver is a standard subsystem of every acquisition system: the orchestrator constructs it
+unconditionally, then gates its use per session type — it runs the corridor task for experiment sessions
+and stays idle for training and window-checking sessions (see `experiment:acquisition-system-runtime` and
 `experiment:vr-driver-interface`).
 (For microcontroller keepalive, the orchestrator passes each `MicroControllerInterface` a
 `keepalive_interval` at construction; AXCI sends the keepalive messages and raises on timeout.)
@@ -346,7 +346,7 @@ per-system skills answer "only this one."
 | `experiment:mesoscope-vr`                          | The current Mesoscope-VR worked instance of this pattern.                                                                               |
 | `experiment:acquisition-system-runtime`            | The runtime-behavior counterpart to this static-composition pattern.                                                                    |
 | `experiment:mesoscope-vr-runtime`                  | Mesoscope-VR-specific runtime behavior (state machine, training modes, CLI). Built on this pattern.                                     |
-| `experiment:vr-driver-interface`                   | The Unity VR task driver subsystem an acquisition system composes for VR coupling.                                                      |
+| `experiment:vr-driver-interface`                   | The Unity VR task driver, a standard subsystem of every acquisition system.                                                             |
 | `ataraxis@video:camera-interface`                  | Low-level VideoSystem mechanics. Camera binding classes compose VideoSystem instances.                                                  |
 | `ataraxis@communication:microcontroller-interface` | Low-level MicroControllerInterface mechanics. Microcontroller binding classes compose these.                                            |
 | `experiment:acquisition-system-setup`              | Post-flash hardware discovery used to populate system configuration fields.                                                             |
@@ -400,7 +400,7 @@ Cross-layer contract:
 - [ ] Per-system instance skill updated with the new subsystem / field surface
 
 Lifecycle orchestrator:
-- [ ] Constructs DataLogger → binding classes → VR task driver (where applicable) in the documented order
+- [ ] Constructs DataLogger → binding classes → VR task driver in the documented order
 - [ ] Calls .start() on each in the same order
 - [ ] Calls .stop() in reverse order
 - [ ] DataLogger stops only after every binding class has stopped

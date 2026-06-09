@@ -209,15 +209,15 @@ convention: `axvs` and `axci` tools carry no suffix, while `sle` tools carry a `
 
 `check_runtime_requirements`, `get_cti_status`, and `set_cti_file` are owned by `ataraxis@video:camera-setup`;
 `check_mqtt_broker` is owned by `ataraxis@communication:microcontroller-setup`; `check_unity_bridge_tool` is
-owned by `/vr-driver-interface` and applies only to systems that drive a Unity VR task.
+owned by `/vr-driver-interface`.
 
 Invoke `check_runtime_requirements` first. If it reports the CTI file as unconfigured and the system uses
 Harvesters cameras, set the path with `set_cti_file` — the CTI path lives in the video MCP server's state, not
 slsa state, so this skill may call it; see `ataraxis@video:camera-setup` for the canonical CTI workflow. Then
 invoke `check_mqtt_broker`; if the broker is unreachable, instruct the user to start their broker service
-(e.g. Mosquitto) before continuing. For a system that drives a Unity VR task, also invoke
-`check_unity_bridge_tool` (CLI: `sle get unity`); if it reports the bridge unreachable, instruct the user to
-open the Unity project in the editor — its MCP bridge auto-starts — before running an experiment session.
+(e.g. Mosquitto) before continuing. Then invoke `check_unity_bridge_tool` (CLI: `sle get unity`); if it reports
+the bridge unreachable, instruct the user to open the Unity project in the editor — its MCP bridge auto-starts —
+before running an experiment session.
 
 ### Phase 2: Hardware discovery
 
@@ -278,18 +278,14 @@ After discovery completes, report the discovered hardware to the user as a struc
 
 **If the user is performing initial bringup**, hand off in this order (owning plugin named per step):
 
-1. assets plugin `/working-directory` — set the working directory (the only universally required item).
-   Also set the Google credentials path, but only if the system reads animal metadata from Google Sheets,
-   and the task templates directory, but only if the system runs Unity VR tasks; both are otherwise optional.
+1. assets plugin `/working-directory` — set the working directory and the task templates directory.
+   Also set the Google credentials path, but only if the system reads animal metadata from Google Sheets.
 2. the active acquisition system's skill (this plugin's `/mesoscope-vr` for the `mesoscope` system) —
    author the host machine's system configuration YAML against the discovered hardware values.
 3. assets plugin `/project-hierarchy` — create the project (or projects) the host will record under.
 4. assets plugin `/task-templates` — author or import the task templates the project will use.
 5. assets plugin `/experiment-configuration` — author the per-project experiment configuration that
    wires a template to a project.
-
-Steps 4–5 (and the task templates directory in step 1) apply only to systems that run Unity VR tasks, such
-as `mesoscope`; a non-VR acquisition system skips them.
 
 **If the user is performing verification**, hand off to the active acquisition system's skill
 (`/mesoscope-vr` for the `mesoscope` system) for a read-only fetch of the recorded values, then report
@@ -331,7 +327,7 @@ hand off to the assets plugin skill that owns the affected asset.
 - [ ] check_runtime_requirements() reported FFMPEG and GPU OK
 - [ ] CTI file status confirmed (if using Harvesters cameras)
 - [ ] check_mqtt_broker() reported broker reachable
-- [ ] check_unity_bridge_tool() reported the Unity Editor bridge reachable (only for systems driving a Unity VR task)
+- [ ] check_unity_bridge_tool() reported the Unity Editor bridge reachable
 - [ ] list_cameras() returned the expected cameras
 - [ ] Camera GenICam configs verified against stored configs via verify_camera_configuration_tool() (if the system declares config paths)
 - [ ] list_microcontrollers() returned the expected microcontrollers and roles

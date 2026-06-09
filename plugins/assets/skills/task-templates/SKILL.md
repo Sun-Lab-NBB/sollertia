@@ -1,11 +1,11 @@
 ---
 name: task-templates
 description: >-
-  Authors, modifies, and validates reusable TaskTemplate YAMLs — the Virtual-Reality-only, optional
+  Authors, modifies, and validates reusable TaskTemplate YAMLs — the mandatory Virtual-Reality task
   asset (VR environment, cue catalog, trial structures with per-trial cue sequences and zones) — via
   the sollertia-shared-assets MCP server. Owns write_template_tool, validate_template_tool, and the
   schema / trial / trigger-type introspection helpers. Use when designing or modifying a task template
-  for a VR experiment; non-VR experiments use no template.
+  for a VR experiment.
 user-invocable: false
 ---
 
@@ -39,15 +39,13 @@ helpers — no other skill in the marketplace may call these.
 
 ## What is a task template
 
-A `TaskTemplate` is a **Virtual-Reality-only, optional** asset: a reusable description of a VR
+A `TaskTemplate` is the **mandatory** Virtual-Reality task asset: a reusable description of a VR
 behavioral paradigm — the VR environment, the cue catalog, and the trial structures. Each trial owns
 its own cue sequence, zone geometry, and trigger type, and is materialized into a single segment prefab
-named `<template_name>_<trial_name>.prefab` at generation time. Templates exist **only** for
-acquisition systems that run a VR task; a system that does not use Unity VR tasks authors no template and
-drives trials in its acquisition runtime (`sollertia-experiment`) instead. Among systems that use Unity VR
-tasks a template is project- and system-agnostic — the same template can back many experiment configurations 
-across many projects. Currently only `MesoscopeExperimentConfiguration`, but the `AcquisitionSystems` enum and factory 
-registry are designed for additional systems that use Unity VR tasks) 
+named `<template_name>_<trial_name>.prefab` at generation time. Every experiment configuration is built
+from a corridor task template. A template is project- and system-agnostic — the same template can back
+many experiment configurations across many projects. Currently only `MesoscopeExperimentConfiguration`,
+but the `AcquisitionSystems` enum and factory registry are designed for additional acquisition systems.
 
 ### Live templates vs per-session snapshots
 
@@ -129,16 +127,14 @@ skills; trial decomposition and runtime trial state are owned by the experiment 
 documented at the conceptual level in `/experiment-configuration`. The overview below is the
 slsa-side conceptual model — defer to those skills for implementation specifics.
 
-### Supported VR paradigm: the infinite corridor
+### The VR paradigm: the infinite corridor
 
-The platform currently supports a single VR topology — the **infinite linear corridor**. The
-animal is head-fixed on a treadmill and runs forward through a one-dimensional corridor whose
-wall geometry is built from segment prefabs. The corridor has no end: the entire cue sequence
-the animal will see is **pre-resolved at session init** from the template, and the animal then
-traverses a deterministic chain of segments without branching, finish lines, or on-the-fly
-geometry generation. Future support for additional VR paradigms would require new template
-classes and corresponding Unity scaffolding; until then, treat "VR template" and "infinite
-corridor template" as synonymous.
+The VR task paradigm is the **infinite linear corridor**, and the `TaskTemplate` is the corridor
+task template. The animal is head-fixed on a treadmill and runs forward through a one-dimensional
+corridor whose wall geometry is built from segment prefabs. The corridor has no end: the entire cue
+sequence the animal will see is **pre-resolved at session init** from the template, and the animal
+then traverses a deterministic chain of segments without branching, finish lines, or on-the-fly
+geometry generation.
 
 Four levels describe the corridor's composition, finest to coarsest: cue, segment, corridor,
 task.
@@ -436,7 +432,7 @@ for instantiating templates into experiment configurations.
 | `/working-directory`                     | Required prerequisite — owns the templates directory path                                                |
 | `/assets-mcp-environment-setup`          | Run first if the MCP server is not connected                                                             |
 | `/experiment-configuration`              | Consumer — instantiates templates into per-project experiments                                           |
-| `/library-extension`                     | Cross-cutting recipe to add a new `TriggerType`, runtime trial class, or VR paradigm beyond the corridor |
+| `/library-extension`                     | Cross-cutting recipe to add a new `TriggerType` or runtime trial class                                   |
 | unity plugin `/task-prefabs`             | Downstream — generates and validates the Unity prefab                                                    |
 | unity plugin `/task-scenes`              | Downstream — places the generated prefab into a Unity scene                                              |
 | experiment plugin `/vr-driver-interface` | Consumer — decomposes the cue sequence into trials using these motifs and trigger types                  |

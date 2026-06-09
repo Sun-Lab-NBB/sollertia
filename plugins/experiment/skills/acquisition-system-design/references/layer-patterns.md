@@ -368,7 +368,7 @@ VideoSystems(...)
     ↓
 <other subsystem bindings>... (motors, custom devices)
     ↓
-VRTaskDriver(...)            ── last, and only when the system drives Unity (experiment sessions)
+VRTaskDriver(...)            ── last (constructed unconditionally; gated per session type at runtime)
 ```
 
 Each `MicroControllerInterface.__init__` registers a manifest entry in the DataLogger's output

@@ -50,11 +50,13 @@ only microcontrollers gains a camera), follow these steps:
    `sollertia_shared_assets.AcquisitionSystems` enum value is only the first of several coupled
    touches — the new system also needs its `<System>HardwareState`, `<System>ExperimentConfiguration`,
    and `<System>RawData` dataclasses, the matching `HARDWARE_STATE_REGISTRY`,
-   `EXPERIMENT_CONFIGURATION_REGISTRY`, and `SYSTEM_RAW_DATA_REGISTRY` entries, and an experiment-config
-   factory, all guarded by the import-time `_assert_registry_coverage()` parity check. Hand the entire
-   slsa-side recipe off to the assets plugin's `/library-extension` ("Adding a new `AcquisitionSystems`
-   member") and bump that package's version. Do not stop at the enum value — a half-wired registry
-   fails the parity check and the package will not import.
+   `EXPERIMENT_CONFIGURATION_REGISTRY`, and `SYSTEM_RAW_DATA_REGISTRY` entries, and the
+   `from_task_template` builder on the experiment-configuration dataclass (enforced by
+   `_assert_experiment_configuration_contract`), all guarded by the import-time
+   `_assert_registry_coverage()` parity check. Hand the entire slsa-side recipe off to the assets
+   plugin's `/library-extension` ("Adding a new `AcquisitionSystems` member") and bump that package's
+   version. Do not stop at the enum value — a half-wired registry fails the parity check and the package
+   will not import.
 
 3. **Author the per-subsystem configuration dataclasses.** One per subsystem, in the new system's package
    (typically `<system>/configuration.py`).

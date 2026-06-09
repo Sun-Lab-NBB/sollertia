@@ -18,11 +18,11 @@ platform-general VR subsystem, parallel to `experiment:microcontroller-interface
 `sollertia_experiment/vr_task/driver.py` is hardware-agnostic and composed by an acquisition
 system's runtime orchestrator (currently Mesoscope-VR's `MesoscopeVRSystem`).
 
-The driver is composed **optionally**: only by acquisition systems that run a VR task, and even then
-only for their VR session types (currently just Mesoscope-VR's `MesoscopeVRSystem`, and there only for
-`MESOSCOPE_EXPERIMENT` sessions — `self._vr_task` is `None` for every other mode). A non-VR acquisition
-system composes no VR driver at all and handles trials in its runtime loop itself (see
-`experiment:acquisition-system-runtime`). VR is a cross-system capability, never a requirement.
+The VR task driver is a standard subsystem of every acquisition system, but it is built only for the
+session types that run the linear infinite corridor task: experiment sessions. The runtime orchestrator
+constructs it only for those session types (for Mesoscope-VR's `MesoscopeVRSystem`, only
+`MESOSCOPE_EXPERIMENT` sessions); `self._vr_task` is `None` for training and window-checking sessions,
+which run no corridor task (see `experiment:acquisition-system-runtime`).
 
 The Unity side of the contract — the GIMBL framework, the `MQTTTopics` constant set, and task prefab
 generation — lives in the unity plugin. This skill owns the **host (Python) side**.
@@ -336,7 +336,7 @@ When in doubt, re-read `sollertia_experiment/vr_task/driver.py`,
 | `unity:mqtt-contract`                              | Unity side of the MQTT topic contract (`MQTTTopics`)                         |
 | `unity:gimbl-framework`                            | Unity-side VR framework and game objects                                     |
 | `unity:task-prefabs`                               | Unity task prefab generation from templates                                  |
-| assets plugin `/task-templates`                    | Authors the `TaskTemplate` (cue motifs, trigger types) decomposed here       |
+| assets plugin `/task-templates`                    | Authors the mandatory corridor task asset (`TaskTemplate`) decomposed here   |
 | assets plugin `/library-extension`                 | Owns the `TriggerType` enum used by `DecomposedTrials`                       |
 | assets plugin `/experiment-configuration`          | Owns `unity_scene_name` (verified by `setup()`) and the per-trial parameters |
 

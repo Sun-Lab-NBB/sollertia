@@ -172,8 +172,9 @@ Asynchronous hardware subsystems (e.g., the VR task driver) surface their per-cy
 events** rather than raw payloads. The subsystem's driver parses the transport message and returns a small
 typed value (an event kind plus any payload fields); the orchestrator switches on the kind and acts on
 its own hardware (deliver a reward, pulse a brake, enter an emergency pause). This keeps transport
-parsing inside the subsystem and hardware policy inside the orchestrator. The canonical example is the VR
-task driver's `VRTaskEvent` — see `experiment:vr-driver-interface`.
+parsing inside the subsystem and hardware policy inside the orchestrator. The Unity VR task driver is a standard
+subsystem of every acquisition system and its `VRTaskEvent` is the async event source every runtime dispatches —
+see `experiment:vr-driver-interface`.
 
 ### Lifecycle
 
@@ -265,7 +266,7 @@ descriptor). The CLI is the only public surface for starting a session.
 7. Author the per-system runtime skill documenting the concrete states, modes, and CLI.
 
 A new system will diverge from the current instance wherever its hardware subsystems differ — fewer or more
-steps, a different state set, no VR coupling, etc. The patterns above are conventions, not a fixed
+steps, a different state set, etc. The patterns above are conventions, not a fixed
 template; apply the ones that fit the system's hardware.
 
 ---

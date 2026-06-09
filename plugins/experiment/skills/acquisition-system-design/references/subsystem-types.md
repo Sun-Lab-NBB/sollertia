@@ -100,13 +100,13 @@ mechanics (park/unpark safety, position management, MCP discovery), see `experim
 
 ## Asynchronous asset-subsystem drivers
 
-Some subsystems are driven by an **asynchronous typed-event** source — the canonical example is the
-Unity VR task driver. The orchestrator composes and drives these directly (they sit outside the
-Layer-2b `start`/`stop` binding-class surface): they open an MQTT (or similar) connection via
-`connect` / `disconnect` and surface per-cycle messages as typed events through a `cycle()` pump, which
-the runtime loop dispatches. They follow the runtime skill's event pattern. See
-`experiment:vr-driver-interface` for the driver surface and `experiment:acquisition-system-runtime`
-for how the orchestrator pumps and dispatches their events.
+Some subsystems are driven by an **asynchronous typed-event** source. The Unity VR task driver is one
+such subsystem, and a standard subsystem of every acquisition system. The orchestrator composes and
+drives these directly (they sit outside the Layer-2b `start`/`stop` binding-class surface): they open an
+MQTT (or similar) connection via `connect` / `disconnect` and surface per-cycle messages as typed events
+through a `cycle()` pump, which the runtime loop dispatches. They follow the runtime skill's event
+pattern. See `experiment:vr-driver-interface` for the driver surface and
+`experiment:acquisition-system-runtime` for how the orchestrator pumps and dispatches their events.
 
 ---
 

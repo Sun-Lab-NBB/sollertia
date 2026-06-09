@@ -135,7 +135,7 @@ session root):
 │   ├── surgery_metadata.yaml                  # /data-assets
 │   ├── system_configuration.yaml              # frozen system config (owned by sollertia-experiment)
 │   ├── experiment_configuration.yaml          # /experiment-configuration (frozen, experiment sessions only)
-│   ├── vr_configuration.yaml                  # /task-templates frozen snapshot (when the session runs a Unity VR task)
+│   ├── vr_configuration.yaml                  # /task-templates frozen snapshot (corridor-task sessions only)
 │   ├── hardware_state.yaml                    # /session-hardware-state
 │   ├── zaber_positions.yaml                   # experiment plugin /mesoscope-vr-snapshots
 │   ├── mesoscope_positions.yaml               # experiment plugin /mesoscope-vr-snapshots
@@ -162,7 +162,7 @@ populated by `SessionData._build_sub_dataclasses()` (called from both `create` a
   `session_data_path`, `session_descriptor_path`, `surgery_metadata_path`, `hardware_state_path`,
   `system_configuration_path`, `experiment_configuration_path`, `vr_configuration_path`,
   `checksum_path`, `checksum_tracker_path`, `nk_path`, `behavior_data_path`, `camera_data_path`.
-  `vr_configuration_path` is populated only when the session runs a Unity VR task (check
+  `vr_configuration_path` is populated only when the session runs the corridor task (check
   `.exists()` before reading). Microcontroller raw data is bundled into the DataLogger archives
   under `behavior_data_path`, so there is no separate raw microcontroller field.
 - **`instance.processed_data` (`ProcessedData`)** — system-agnostic processed assets:
@@ -327,7 +327,7 @@ inspect_sessions_tool(session_paths=["<absolute>"])
 The per-session report's `required_assets` list enumerates every file the session requires, each with a
 `present` flag. The descriptor and the system configuration snapshot are always required; the experiment
 configuration snapshot is required when the session carries an `experiment_name`; and the VR configuration
-snapshot is required when the session type runs a Unity VR task.
+snapshot is required when the session type runs the corridor task.
 The `issues` list restates missing required files as human-readable strings. Use this before
 handing off to the experiment plugin's `/data-management` for preprocessing.
 

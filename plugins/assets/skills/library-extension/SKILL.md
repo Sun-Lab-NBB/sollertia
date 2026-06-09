@@ -2,10 +2,10 @@
 name: library-extension
 description: >-
   Orchestrates cross-cutting changes to extend the sollertia-shared-assets library with a new
-  acquisition system, session type, trial class, trigger type, or VR paradigm. Covers the
+  acquisition system, session type, trial class, or trigger type. Covers the
   registry touch list, import-time parity check, and sibling-skill enumeration updates. Use
-  when adding a new AcquisitionSystems / SessionTypes / TriggerType member, runtime trial
-  class, or extending the template vocabulary beyond the infinite corridor.
+  when adding a new AcquisitionSystems / SessionTypes / TriggerType member or runtime trial
+  class.
 user-invocable: false
 ---
 
@@ -32,7 +32,6 @@ verification checklist before reporting an extension complete.
 - Adding a new runtime trial class
 - Adding a new `TriggerType` member (and the trigger → trial-class pairing in
   `MesoscopeExperimentConfiguration.from_task_template`)
-- Extending the template vocabulary beyond the **infinite corridor** VR paradigm
 - Adding a new `ReadAssets` member (with its on-disk dataclass and `READ_ASSET_REGISTRY` entry) — the
   sollertia-shared-assets contract for an external asset the platform reads and caches on disk
 - The cross-skill touch list — which other plugin skills carry hardcoded enumerations that drift
@@ -81,12 +80,11 @@ a registry entry, edit it at the File-column location; the hub picks it up autom
 
 Every `<System>ExperimentConfiguration` shares one contract: an `experiment_states` field (a mapping
 of `ExperimentState` — the experiment state machine; every experiment is a state machine, so this is
-required) and a `trial_structures` field (the trials the experiment runs — required; the concrete
-trial classes vary per system). Fields beyond the contract are system-specific. For example
-`unity_scene_name` is added by systems that use Unity VR tasks.
+required), a `trial_structures` field (the trials the experiment runs — required; the concrete
+trial classes vary per system), a `unity_scene_name` field (the corridor scene the system presents),
+and a `from_task_template` builder. Fields beyond the contract are system-specific.
 Mesoscope-VR is one exemplar of the contract: its `WaterRewardTrial` / `GasPuffTrial` trial classes
-and its `unity_scene_name` are exemplar-specific, and another system has its own trial classes and may
-add different fields.
+are exemplar-specific, and another system has its own trial classes and may add different fields.
 
 A system's trial classes are introspected from its experiment configuration's `trial_structures`
 field via the `collect_field_dataclasses` helper in
@@ -94,14 +92,10 @@ field via the `collect_field_dataclasses` helper in
 system's experiment-configuration class and derives the trial vocabulary from that field;
 `MesoscopeExperimentConfiguration.from_task_template` maps each `TriggerType` to its runtime trial
 class. The trial classes themselves are standalone dataclasses in
-`configuration/experiment_configuration.py`. `VR_TEMPLATE_CONFIG_REGISTRY`
-(`configuration/configuration_utilities.py`) maps each acquisition system that builds its configuration
-from a Unity VR task template to that configuration class, and `create_experiment_from_vr_template_tool`
-dispatches through it. This registry is optional and partial: only a system that uses Unity VR tasks
-registers here, so the dispatch-registry coverage check does not require an entry for every system. A separate
-import-time check, `_assert_vr_template_registry_consistency()` (`data_classes/extensions.py`), does verify that any
-configuration class implementing `from_task_template` is registered here (and vice versa), so a forgotten entry fails
-fast rather than letting `create_experiment_from_vr_template_tool` silently refuse the system.
+`configuration/experiment_configuration.py`. `from_task_template` is a mandatory contract method on
+every `<System>ExperimentConfiguration`, enforced at import by `_assert_experiment_configuration_contract`
+(`data_classes/extensions.py`), and `create_experiment_from_vr_template_tool` dispatches through
+`EXPERIMENT_CONFIGURATION_REGISTRY` to the resolved system's builder.
 
 ### The parity check
 
@@ -111,8 +105,10 @@ SYSTEM_RAW_DATA_REGISTRY, READ_ASSET_REGISTRY)` and raises `RuntimeError` if any
 missing its dispatch class. It additionally checks `SYSTEM_SESSION_TYPES`: every acquisition system
 must declare at least one session type, and every session type must be claimed by at least one
 system. The hub also runs two contract checks at import: `_assert_descriptor_contract()` (every registered descriptor
-must declare the `incomplete` field the inspection tooling reads) and `_assert_vr_template_registry_consistency()`
-(above). Because the hub lives in the data layer, all of these run on a bare `import sollertia_shared_assets` (not
+must declare the `incomplete` field the inspection tooling reads) and `_assert_experiment_configuration_contract()`
+(every registered `<System>ExperimentConfiguration` must declare the contract fields `experiment_states`,
+`trial_structures`, and `unity_scene_name` plus the `from_task_template` builder). Because the hub lives in the data
+layer, all of these run on a bare `import sollertia_shared_assets` (not
 only when `slsa mcp` starts), so an incomplete extension fails fast and names the offending registry; it cannot
 silently slip through.
 
@@ -129,7 +125,7 @@ them here** — read them, then come back for the cross-skill update map below.
 | New `AcquisitionSystems` member | "Adding New Acquisition Systems" |
 | New read asset                  | "Adding a New Read Asset"        |
 
-For new trial classes, new trigger types, and new VR paradigms, the README does not currently
+For new trial classes and new trigger types, the README does not currently
 carry a step-by-step recipe. Use the **per-scenario touch lists** below as the working spec, then
 propose a README update in the same PR so the recipe lands next to the existing two.
 
@@ -155,7 +151,7 @@ touches** (which is what this skill uniquely owns), and the downstream-library c
 4. The required-asset policy lives in `SessionData.required_raw_assets` (`data_classes/session_data.py`), not in a
    per-session-type branch. It is data-driven: `experiment_configuration.yaml` is required whenever the session has
    an `experiment_name`, and `vr_configuration.yaml` is required for any session type listed in the
-   `SESSION_TYPES_USING_VR_TASK` frozenset (same file). If the new type runs a Unity VR task, add it to that
+   `SESSION_TYPES_USING_VR_TASK` frozenset (same file). If the new type runs the corridor task, add it to that
    frozenset; if it needs some other extra raw asset, extend `required_raw_assets`.
 5. Run the test suite — `_assert_registry_coverage()` catches a forgotten descriptor entry or an unclaimed session
    type, and `_assert_descriptor_contract()` fails the import if the descriptor omits `incomplete`. A missing
@@ -192,30 +188,24 @@ member:
 4. Register the dataclasses in `HARDWARE_STATE_REGISTRY`, `EXPERIMENT_CONFIGURATION_REGISTRY`,
    and `SYSTEM_RAW_DATA_REGISTRY`, and add a `SYSTEM_SESSION_TYPES` entry mapping the new system to
    the `frozenset` of `SessionTypes` it can run (declare at least one, or the parity check fails).
-5. Give the new system a creation path for its experiment configuration. If it runs Unity VR tasks,
-   add a `from_task_template` classmethod to its `<System>ExperimentConfiguration` (mirror
-   `MesoscopeExperimentConfiguration.from_task_template`) and register the configuration class under the
-   system's `AcquisitionSystems` key in `VR_TEMPLATE_CONFIG_REGISTRY`
-   (`configuration/configuration_utilities.py`). The shared `create_experiment_from_vr_template_tool`
-   dispatches through that registry to the registered class's `from_task_template`, so no new tool is
-   needed. If it builds its configuration from different inputs, add a dedicated creation tool plus a
-   matching creation classmethod on its config dataclass. Either way,
+5. Add the `from_task_template` classmethod to its `<System>ExperimentConfiguration` (mirror
+   `MesoscopeExperimentConfiguration.from_task_template`) alongside the contract fields `experiment_states`,
+   `trial_structures`, and `unity_scene_name`. The shared `create_experiment_from_vr_template_tool` dispatches
+   through `EXPERIMENT_CONFIGURATION_REGISTRY` to the system's `from_task_template`, so no new tool is needed;
    `write_experiment_configuration_tool` already authors the system's full payload generically.
 6. Run the test suite — `_assert_registry_coverage()` catches the dispatch registries and the
-   `SYSTEM_SESSION_TYPES` pairing. `VR_TEMPLATE_CONFIG_REGISTRY` is optional and partial, so the parity
-   check leaves it alone; a system that uses Unity VR tasks creates its configuration through
-   `create_experiment_from_vr_template_tool` once it implements `from_task_template` and registers its
-   configuration class in `VR_TEMPLATE_CONFIG_REGISTRY`.
+   `SYSTEM_SESSION_TYPES` pairing, and `_assert_experiment_configuration_contract()` fails the import if the new
+   `<System>ExperimentConfiguration` omits a contract field or the `from_task_template` builder.
 
 **Skill touches** — update each of the following so its hardcoded "currently only Mesoscope-VR"
 framing reflects the new member:
 
-| Skill                       | What to update                                                                                                                                                                                                                                                                                                                                                                                                                             |
-|-----------------------------|--------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
-| `/session-data`             | The `instance.system_raw_data` bullet under "Path-resolution sub-dataclasses on `SessionData`" — add the new `<System>RawData` field list; the `Mesoscope-VR` mention in "Does not cover" if the experiment plugin's `/mesoscope-vr-snapshots` becomes one of several owners of system-specific snapshots                                                                                                                                  |
-| `/session-hardware-state`   | The frontmatter description, the "currently the only concrete subclass is `MesoscopeHardwareState`" prose, and the "Per-session-type field population (Mesoscope-VR example)" framing — clone the table format for the new system                                                                                                                                                                                                          |
-| `/experiment-configuration` | The frontmatter description, the "currently only `MesoscopeExperimentConfiguration`" prose, and any per-trial-class assumptions specific to the Mesoscope-VR rig. A system that uses Unity VR tasks reuses `create_experiment_from_vr_template_tool` (note it gains a `from_task_template` classmethod and a `VR_TEMPLATE_CONFIG_REGISTRY` entry); a system with different inputs gains its own creation tool — call out which one applies |
-| `/task-templates`           | The "currently only `MesoscopeExperimentConfiguration`" mention                                                                                                                                                                                                                                                                                                                                                                            |
+| Skill                       | What to update                                                                                                                                                                                                                                                                                                           |
+|-----------------------------|--------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| `/session-data`             | The `instance.system_raw_data` bullet under "Path-resolution sub-dataclasses on `SessionData`" — add the new `<System>RawData` field list; the `Mesoscope-VR` mention in "Does not cover" if the experiment plugin's `/mesoscope-vr-snapshots` becomes one of several owners of system-specific snapshots                |
+| `/session-hardware-state`   | The frontmatter description, the "currently the only concrete subclass is `MesoscopeHardwareState`" prose, and the "Per-session-type field population (Mesoscope-VR example)" framing — clone the table format for the new system                                                                                        |
+| `/experiment-configuration` | The frontmatter description, the "currently only `MesoscopeExperimentConfiguration`" prose, and any per-trial-class assumptions specific to the Mesoscope-VR rig. The new system reuses `create_experiment_from_vr_template_tool` once its `<System>ExperimentConfiguration` implements the `from_task_template` builder |
+| `/task-templates`           | The "currently only `MesoscopeExperimentConfiguration`" mention                                                                                                                                                                                                                                                          |
 
 **Downstream coordination:**
 - `sollertia-experiment` owns the system-level hardware/software configuration classes and the
@@ -278,23 +268,6 @@ split three ways and each skill owns its slice — apply all three:
 |-----------------------------|-------------------------------------------------------------------|
 | `/task-templates`           | The `TriggerType` enumeration sentence and the "primitives" table |
 | `/experiment-configuration` | The trigger → trial-class pairing convention                      |
-
-### Extending the VR paradigm beyond the infinite corridor
-
-The platform currently supports a single VR topology — the **infinite corridor**. Extending
-beyond it is a code-driven change: it requires new template classes, new `VREnvironment` fields
-(or a sibling environment class), new Unity scaffolding, and new runtime mechanics. The skill
-touches and downstream coordination below are the working spec for it.
-
-**Skill touches:**
-
-| Skill                       | What to update                                                                                                                       |
-|-----------------------------|--------------------------------------------------------------------------------------------------------------------------------------|
-| `/task-templates`           | The "Supported VR paradigm: the infinite corridor" framing and the "How a template drives Unity and the acquisition runtime" section |
-| `/experiment-configuration` | The trial-decomposition description (motif matching against a deterministic cue sequence is corridor-specific)                       |
-
-Defer the runtime and Unity work to the experiment plugin and the unity plugin respectively;
-this skill only surfaces the sollertia-shared-assets schema and skill touches.
 
 ### Adding a new read asset
 
@@ -372,14 +345,13 @@ required-asset branches, and the skill content.
 
 ## Pitfalls
 
-| Pitfall                                                              | Why it bites                                                                                                                                                                                                                                                                                                                                                                                                                                                                         |
-|----------------------------------------------------------------------|--------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
-| Adding an enum member without registering its dispatch class         | `_assert_registry_coverage()` raises at import time, so `slsa mcp` fails to start until every registry is wired. Run `python -c 'import sollertia_shared_assets'` after the code change.                                                                                                                                                                                                                                                                                             |
-| Forgetting `from_task_template` wiring                               | A system that uses Unity VR tasks creates its config through `create_experiment_from_vr_template_tool` once it implements `from_task_template` and registers its configuration class in `VR_TEMPLATE_CONFIG_REGISTRY`. A missing registration now fails fast: `_assert_vr_template_registry_consistency()` raises at import. Within `from_task_template`, every `TriggerType` the template can carry needs a branch — an unmapped trigger raises rather than being silently dropped. |
-| Forgetting the descriptor `incomplete` field                         | A new `<Type>Descriptor` that omits `incomplete: bool = True` fails the import via `_assert_descriptor_contract()` (the inspection tooling reads this field). Declare it on every new descriptor.                                                                                                                                                                                                                                                                                    |
-| Forgetting the required-asset entry                                  | The required-asset policy is `SessionData.required_raw_assets`; a Unity-VR session type missing from `SESSION_TYPES_USING_VR_TASK` is NOT import-checked and will pass `inspect_sessions_tool` even when its VR snapshot is missing. Cover the new type in `tests/data_classes/session_data_test.py`.                                                                                                                                                                                |
-| Updating the descriptor schema without bumping the dataclass version | Existing on-disk YAMLs can fail to load. Treat schema changes to existing dataclasses as a separate migration concern — not as part of the extension flow this skill covers.                                                                                                                                                                                                                                                                                                         |
-| Treating a new VR paradigm as a registry-backed extension            | VR topologies are extended through new template classes and Unity scaffolding, so the skill touches and downstream coordination are larger than for the registry-backed scenarios; budget accordingly.                                                                                                                                                                                                                                                                               |
+| Pitfall                                                              | Why it bites                                                                                                                                                                                                                                                                                                                                                                            |
+|----------------------------------------------------------------------|-----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| Adding an enum member without registering its dispatch class         | `_assert_registry_coverage()` raises at import time, so `slsa mcp` fails to start until every registry is wired. Run `python -c 'import sollertia_shared_assets'` after the code change.                                                                                                                                                                                                |
+| Forgetting `from_task_template` wiring                               | `from_task_template` is a contract method on every `<System>ExperimentConfiguration`; `_assert_experiment_configuration_contract()` raises at import if it (or a contract field) is missing, so there is no registry to forget. Within `from_task_template`, every `TriggerType` the template can carry needs a branch — an unmapped trigger raises rather than being silently dropped. |
+| Forgetting the descriptor `incomplete` field                         | A new `<Type>Descriptor` that omits `incomplete: bool = True` fails the import via `_assert_descriptor_contract()` (the inspection tooling reads this field). Declare it on every new descriptor.                                                                                                                                                                                       |
+| Forgetting the required-asset entry                                  | The required-asset policy is `SessionData.required_raw_assets`; a session type that runs the corridor task but is missing from `SESSION_TYPES_USING_VR_TASK` is NOT import-checked and will pass `inspect_sessions_tool` even when its VR snapshot is missing. Cover the new type in `tests/data_classes/session_data_test.py`.                                                         |
+| Updating the descriptor schema without bumping the dataclass version | Existing on-disk YAMLs can fail to load. Treat schema changes to existing dataclasses as a separate migration concern — not as part of the extension flow this skill covers.                                                                                                                                                                                                            |
 
 ---
 
@@ -393,7 +365,7 @@ required-asset branches, and the skill content.
 | `/session-descriptors`                          | Receives skill touch-ups for new `SessionTypes`                                                                                                         |
 | `/session-hardware-state`                       | Receives skill touch-ups for new `SessionTypes` and new `AcquisitionSystems`                                                                            |
 | `/experiment-configuration`                     | Receives skill touch-ups for new `AcquisitionSystems`, runtime trial classes, and `TriggerType` members                                                 |
-| `/task-templates`                               | Receives skill touch-ups for new `TriggerType`, runtime trial classes, and VR paradigm extensions                                                       |
+| `/task-templates`                               | Receives skill touch-ups for new `TriggerType` and runtime trial classes                                                                                |
 | experiment plugin `/acquisition-system-design`  | Owns the runtime-side configuration and binding-class design for any new acquisition system; authors the system's dedicated agentic assets (steps 9–10) |
 | experiment plugin `/acquisition-system-runtime` | Owns the runtime that creates and runs sessions of any new session type during acquisition                                                              |
 | experiment plugin `/data-management`            | Manages the post-acquisition lifecycle (preprocess, migrate, delete) for sessions of any type                                                           |
@@ -401,8 +373,8 @@ required-asset branches, and the skill content.
 | forging plugin `/behavior-input-format`         | Decides eligibility of new session types for behavior processing                                                                                        |
 | forging plugin `/project-manifest`              | Tabulates new session types in the project manifest                                                                                                     |
 | forging plugin `/dataset-forging-input-format`  | Decides eligibility of new session types for dataset forging                                                                                            |
-| unity plugin `/task-prefabs`                    | Generates Unity prefabs for new `TriggerType` members or VR paradigms                                                                                   |
-| unity plugin `/task-scenes`                     | Authors Unity scenes for new acquisition systems or VR paradigms                                                                                        |
+| unity plugin `/task-prefabs`                    | Generates Unity prefabs for new `TriggerType` members                                                                                                   |
+| unity plugin `/task-scenes`                     | Authors Unity scenes for new acquisition systems                                                                                                        |
 | `/commit`                                       | Should be invoked after the cross-cutting changes land                                                                                                  |
 | experiment plugin `/vr-driver-interface`        | Consumes the `TriggerType` enum via `DecomposedTrials.trigger_types`                                                                                    |
 
@@ -416,17 +388,17 @@ Code side:
 - [ ] Followed the README recipe for SessionTypes / AcquisitionSystems extensions
 - [ ] `python -c 'import sollertia_shared_assets'` succeeds without RuntimeError from the import-time checks in
       `data_classes/extensions.py` (`_assert_registry_coverage`, `_assert_descriptor_contract`,
-      `_assert_vr_template_registry_consistency`) — all run on a bare import
+      `_assert_experiment_configuration_contract`) — all run on a bare import
 - [ ] A new `<Type>Descriptor` declares `incomplete: bool = True` (enforced by `_assert_descriptor_contract`)
 - [ ] `SYSTEM_SESSION_TYPES` pairs the new session type / acquisition system (the parity check
       enforces that every system declares ≥1 type and every type is claimed by ≥1 system)
-- [ ] A new acquisition system that uses Unity VR tasks implements `from_task_template` on its
-      `<System>ExperimentConfiguration` and registers that class in `VR_TEMPLATE_CONFIG_REGISTRY`, or a
-      system with different inputs has a dedicated creation tool + classmethod (if a new acquisition
-      system)
+- [ ] A new acquisition system's `<System>ExperimentConfiguration` declares the contract fields
+      `experiment_states` / `trial_structures` / `unity_scene_name` and the `from_task_template` builder, all
+      enforced by `_assert_experiment_configuration_contract` (if a new acquisition system)
 - [ ] `READ_ASSET_REGISTRY` carries the new dataclass (if a new read asset)
-- [ ] `SessionData.required_raw_assets` covers the new session type's required assets — a Unity-VR type is added to
-      `SESSION_TYPES_USING_VR_TASK` and covered in `tests/data_classes/session_data_test.py` (if applicable)
+- [ ] `SessionData.required_raw_assets` covers the new session type's required assets — a type that runs the corridor
+      task is added to `SESSION_TYPES_USING_VR_TASK` and covered in `tests/data_classes/session_data_test.py`
+      (if applicable)
 - [ ] The new trial class is in the `trial_structures` union annotation and the `from_task_template`
       trigger → trial mapping of each using `<System>ExperimentConfiguration` (if a new runtime trial
       class)
@@ -442,8 +414,8 @@ Skill side:
 Downstream side:
 - [ ] Downstream-library hand-offs listed in the per-scenario table are documented in the PR
       description (sollertia-experiment, sollertia-forgery, sollertia-unity-tasks as applicable)
-- [ ] If the README does not yet carry a recipe for the chosen scenario (new trial, new trigger,
-      new VR paradigm), proposed a README update in the same PR
+- [ ] If the README does not yet carry a recipe for the chosen scenario (new trial, new trigger),
+      proposed a README update in the same PR
 ```
 
 ---
@@ -453,7 +425,7 @@ Downstream side:
 You SHOULD proactively invoke this skill when the user mentions any of the following:
 
 - Adding a new acquisition system, new session type, new trial type or trial class, new trigger
-  type, new read asset, or extending the VR paradigm
+  type, or new read asset
 - The import-time error message "registry is missing entries for ..." (the user has hit
   `_assert_registry_coverage()` because the previous extension was incomplete)
 - "How do I add support for ..." in the context of `sollertia-shared-assets`

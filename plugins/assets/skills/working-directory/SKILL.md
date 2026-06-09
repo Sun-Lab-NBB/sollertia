@@ -124,9 +124,9 @@ configuration (`/experiment-configuration`) work. If the directory is empty afte
 must be authored before they can be referenced by experiment configurations. The directory only needs to
 be re-configured if its location on disk changes.
 
-A template defines **what is possible** (the full trial vocabulary), while an experiment configuration
-picks **which template to use** and parameterizes it (state durations, trial weights, reward volumes,
-project-specific overrides). Templates are authored by `/task-templates`; experiment configurations are
+A template defines **what is possible** (the full trial vocabulary within the linear infinite corridor), while an
+experiment configuration picks **which template to use** and parameterizes it (state durations, trial weights, reward
+volumes, project-specific overrides). Templates are authored by `/task-templates`; experiment configurations are
 authored by `/experiment-configuration`.
 
 ---
@@ -162,14 +162,15 @@ per-component report and computes `overall_ok` from the **required components on
 |----------------------------|------------|----------------------------------------------------------------------------------|
 | `working_directory`        | `True`     | Always — every other slsa workflow assumes the working directory is set          |
 | `data_root`                | `False`    | Only when defaulting discovery / inventory to a persisted project-hierarchy root |
-| `task_templates_directory` | `False`    | Only when authoring task templates or experiment configurations                  |
+| `task_templates_directory` | `False`    | The slsa server starts without it; needed to author task templates and configs   |
 | `google_credentials`       | `False`    | Only when fetching subject metadata or water-restriction logs from Google Sheets |
 
 Each per-component dict carries `required`, `configured`, `ok`, and either `path` (when configured) or
 `error` (when not). An optional unset component reports `configured=False` and `ok=False` but does **not**
 gate `overall_ok` — `overall_ok=True` whenever every component with `required=True` is configured and
-accessible. A host that does not use Google Sheets and has no template-authoring needs is therefore a
-fully healthy slsa install with `overall_ok=True` and only the working directory configured.
+accessible. A freshly bootstrapped host with only the working directory configured is therefore a fully healthy
+slsa install with `overall_ok=True`; the data root, credentials, and templates directory are configured as each
+workflow that depends on them comes online.
 
 ---
 
@@ -225,16 +226,15 @@ set_google_credentials_tool(credentials_path="<absolute path to credentials.json
 
 Verify with `read_google_credentials_tool`.
 
-### Step 5: Configure task templates directory (optional)
+### Step 5: Configure task templates directory
 
-The task templates directory is also **optional** at the platform-status level — it carries
-`required=False`, so leaving it unset does not break `overall_ok`. Skip this step on hosts that do
-not author task templates or experiment configurations. The `/task-templates` and
-`/experiment-configuration` skills will refuse to run until it is set, but no other slsa workflow
-depends on it.
+The task templates directory carries `required=False` at the platform-status level because the slsa MCP server
+starts without it, so leaving it unset does not break `overall_ok`. It is needed to author the task templates and
+experiment configurations that every acquisition system uses — the `/task-templates` and `/experiment-configuration`
+skills refuse to run until it is set. Configure it during bootstrap unless those workflows will only run on a
+different host.
 
-If the user does author templates, task templates live in their own directory so they can be shared
-across projects on the same host. Set the path:
+Task templates live in their own directory so they can be shared across projects on the same host. Set the path:
 
 ```text
 set_task_templates_directory_tool(directory="<absolute path>")
