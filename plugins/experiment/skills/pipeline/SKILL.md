@@ -41,17 +41,17 @@ relevant skill for detailed tool usage, parameter reference, and troubleshooting
 The Sollertia platform inherits the ataraxis principle: AI assistance operates at configuration time;
 runtime acquisition is fully deterministic and AI-independent.
 
-| Phase                                 | AI-assisted? | Where it lives                                |
-|---------------------------------------|--------------|-----------------------------------------------|
-| Working directory + credentials       | yes          | assets plugin (`slsa mcp`)                    |
-| System configuration authoring        | yes          | experiment plugin (`sle mcp`)                 |
-| Hardware bringup and verification     | yes          | experiment plugin (`sle mcp` + ataraxis)      |
-| Experiment design (templates, states) | yes          | assets plugin (`slsa mcp`)                    |
-| Pre-session health check              | yes          | experiment plugin (`sle mcp` + ataraxis)      |
-| **Runtime data acquisition**          | **no**       | sollertia-experiment Python entry points only |
-| Post-acquisition preprocessing        | yes          | experiment plugin (`sle mcp`)                 |
-| Data management (migrate / delete)    | yes          | experiment plugin (`sle mcp`)                 |
-| Post-acquisition data processing      | yes          | forging plugin (optional; separate infra)     |
+| Phase                                 | AI-assisted? | Where it lives                             |
+|---------------------------------------|--------------|--------------------------------------------|
+| Working directory + credentials       | yes          | assets plugin (`slsa mcp`)                 |
+| System configuration authoring        | yes          | experiment plugin (`sle mcp`)              |
+| Hardware bringup and verification     | yes          | experiment plugin (`sle mcp` + ataraxis)   |
+| Experiment design (templates, states) | yes          | assets plugin (`slsa mcp`)                 |
+| Pre-session health check              | yes          | experiment plugin (`sle mcp` + ataraxis)   |
+| **Runtime data acquisition**          | **no**       | sollertia-experiment CLI entry points only |
+| Post-acquisition preprocessing        | yes          | experiment plugin (`sle mcp`)              |
+| Data management (migrate / delete)    | yes          | experiment plugin (`sle mcp`)              |
+| Post-acquisition data processing      | yes          | forging plugin (optional; separate infra)  |
 
 The MCP tool surface intentionally has no "start a recording session" tool. Runtime is launched only
 through the active system's run CLI (for the `mesoscope` system, `sle mesoscope run <mode>`), which
@@ -140,10 +140,10 @@ that can be authored without a task template to support systems that do not use 
 ### Phase 5: Pre-session health check
 
 - **Plugin / Skill:** `/system-health-check` (this plugin)
-- **Actions:** Verify network mounts, hardware connectivity, animal metadata in Google Sheets, project
-  readiness. For a VR experiment session (e.g. Mesoscope-VR's `experiment` mode), also confirm the
-  Unity Editor MCP Bridge is reachable (`check_unity_bridge_tool` / `sle get unity`) so the run CLI can
-  open the scene and arm the VR task; VR-free sessions (training, window-checking, or any system that
+- **Actions:** Verify network mounts, hardware connectivity, animal metadata in Google Sheets (**optional**, only 
+  for systems that use them), project readiness. For a VR experiment session (e.g. Mesoscope-VR's `experiment` mode), 
+  also confirm the Unity Editor MCP Bridge is reachable (`check_unity_bridge_tool` / `sle get unity`) so the run 
+  CLI can open the scene and arm the VR task; VR-free sessions (training, window-checking, or any system that
   does not use Unity VR tasks) skip this check. Light-touch sanity check before launching a runtime session.
 - **Handoff condition:** All checklist items pass.
 
@@ -167,6 +167,12 @@ that can be authored without a task template to support systems that do not use 
 ### Phase 7: Post-process and manage
 
 - **Plugin / Skill:** `/data-management` (this plugin)
+- **Usually already done at runtime:** sessions normally preprocess at the end of Phase 6. The data
+  modes (lick-training, run-training, experiment) prompt the experimenter at shutdown to choose
+  `preprocess` / `skip preprocessing` / `purge session`, with `preprocess` as the default, recommended
+  action (driven by the Mesoscope-VR system class); window-checking preprocesses automatically in its
+  runtime function. Reach for this phase only when the experimenter chose `skip preprocessing` (or the
+  runtime ended before the prompt), or to migrate an animal between projects or delete a session.
 - **Actions:** Run `preprocess_session_tool` to aggregate raw data, validate session contents, optionally
   migrate the animal between projects or delete the session.
 - **Handoff condition:** Preprocessed session lives at the canonical storage tier; `processed_data` is
@@ -177,7 +183,9 @@ that can be authored without a task template to support systems that do not use 
 - **Plugin / Skill:** forging plugin
 - **Optional phase:** Forging sits outside the acquisition pipeline proper — acquisition is complete
   after Phase 7. It frequently runs on entirely separate machine infrastructure (a dedicated
-  processing server or cluster) operated independently of the acquisition host.
+  processing server or cluster) operated independently of the acquisition host. Sessions are usually
+  recorded many in a row, so advance to forging only once there are no more sessions to record —
+  otherwise loop back to Phase 6 for the next session.
 - **Actions:** Once a session is preprocessed and transferred to long-term storage, hand off to the
   forging plugin's behavior processing subsystem — session discovery / transfer
   (`/session-transfer`), batch behavior processing (`/behavior-processing`), output verification
@@ -202,9 +210,12 @@ Is the system already configured?
                     └─ Is a session already recorded?
                         ├─ no  → user runs the active system's run CLI, e.g. `sle mesoscope run <mode>` (no AI involvement)
                         └─ yes
-                            └─ Is preprocessing complete?
+                            └─ Is the session preprocessed?  (runtime prompts at session end, default preprocess)
                                 ├─ no  → /data-management
-                                └─ yes → handoff to forging plugin (optional)
+                                └─ yes
+                                    └─ More sessions to record?
+                                        ├─ yes → loop back: user runs the next session via the run CLI (preferred)
+                                        └─ no  → handoff to forging plugin (optional)
 ```
 
 ---
