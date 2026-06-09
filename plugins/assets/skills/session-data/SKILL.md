@@ -324,10 +324,10 @@ In addition to `status`, each per-session report returns the independent boolean
 inspect_sessions_tool(session_paths=["<absolute>"])
 ```
 
-The per-session report's `required_assets` list enumerates every file the session's
-`session_type` requires (the descriptor, the system configuration snapshot, and — for
-`mesoscope experiment` only — the experiment configuration snapshot and the VR configuration
-snapshot) with a `present` flag.
+The per-session report's `required_assets` list enumerates every file the session requires, each with a
+`present` flag. The descriptor and the system configuration snapshot are always required; the experiment
+configuration snapshot is required when the session carries an `experiment_name`; and the VR configuration
+snapshot is required when the session type runs a Unity VR task.
 The `issues` list restates missing required files as human-readable strings. Use this before
 handing off to the experiment plugin's `/data-management` for preprocessing.
 

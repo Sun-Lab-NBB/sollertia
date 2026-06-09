@@ -199,7 +199,7 @@ the resolved configuration class by introspection, so they reflect that system's
 | `write_experiment_configuration_tool`           | Writes a validated experiment configuration payload for any system — create, customize, or repair (exclusive)      |
 | `create_experiment_from_vr_template_tool`       | Creates an experiment configuration from a Unity VR task template (shared by systems using Unity VR; exclusive)    |
 | `validate_experiment_configuration_tool`        | Validates an experiment configuration YAML (exclusive)                                                             |
-| `list_supported_acquisition_systems_tool`       | Enumerates the `AcquisitionSystems` enum values                                                                    |
+| `list_supported_acquisition_systems_tool`       | Enumerates `AcquisitionSystems`, each with a `supports_template_creation` flag                                     |
 
 ---
 
@@ -279,15 +279,17 @@ There are two ways to mint an experiment configuration:
 - `create_experiment_from_vr_template_tool` — seeds a configuration from a Unity VR task template, for systems whose
   configuration is built from a VR template. This tool and `TaskTemplate` are shared by every system that uses Unity
   VR tasks; such a system reuses them by adding a `from_task_template` classmethod to its own
-  `<System>ExperimentConfiguration` dataclass. A system that builds its configuration from different inputs adds its
-  own dedicated creation tool and a matching creation classmethod instead.
+  `<System>ExperimentConfiguration` dataclass and registering that class in `VR_TEMPLATE_CONFIG_REGISTRY` (keyed by its
+  `AcquisitionSystems` member). The tool dispatches through that registry; a system absent from it falls back to
+  `write_experiment_configuration_tool`. A system that builds its configuration from different inputs adds its own
+  dedicated creation tool and a matching creation classmethod instead.
 
 For a system that runs a Unity VR task, pass the destination path and the template path explicitly:
 
 ```text
 create_experiment_from_vr_template_tool(
     file_path="<root>/<project>/configuration/<experiment>.yaml",
-    acquisition_system="<system>",  # resolves the config class via EXPERIMENT_CONFIGURATION_REGISTRY (resolve it)
+    acquisition_system="<system>",  # resolves the config class via VR_TEMPLATE_CONFIG_REGISTRY (resolve it)
     template_path="<templates-directory>/<template-name>.yaml",
     state_count=1,
     overwrite=False,
