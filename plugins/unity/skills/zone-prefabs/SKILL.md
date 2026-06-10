@@ -2,8 +2,9 @@
 name: zone-prefabs
 description: >-
   Manufactures new hand-authored trigger zone prefabs for sollertia-unity-tasks by copying one of
-  the two canonical templates (`StimulusTriggerZone.prefab` for interaction mode, `OccupancyTriggerZone.prefab`
-  for occupancy mode) and rewriting the MonoBehaviour script GUIDs, region names, and field defaults.
+  the two canonical templates (`StimulusTriggerZone.prefab` for the interaction and collision modes,
+  `OccupancyTriggerZone.prefab` for the occupancy_disarm, occupancy_arm, and occupancy_trigger modes)
+  and rewriting the MonoBehaviour script GUIDs, region names, and field defaults.
   Use when adding a new `TriggerType` member or designing a new stimulus-zone variant that mixes
   existing modifier zones in a new configuration.
 user-invocable: false
@@ -92,6 +93,26 @@ Both templates live under `Assets/InfiniteCorridorTask/Prefabs/` and are committ
 control. Read whichever one matches the target zone shape, then write the modified contents to a
 new path.
 
+The five `trigger_type` modes are backed by these two prefabs — no mode has its own prefab file.
+`CreateTask` reuses one template for each and selects the behavior at generation time:
+
+| `trigger_type`      | Backing prefab                | Fires when…                                                              |
+|---------------------|-------------------------------|--------------------------------------------------------------------------|
+| `interaction`       | `StimulusTriggerZone.prefab`  | the interaction sensor reports the animal inside the zone                |
+| `collision`         | `StimulusTriggerZone.prefab`  | the animal crosses an invisible boundary wall — no sensor, no occupancy  |
+| `occupancy_disarm`  | `OccupancyTriggerZone.prefab` | the animal collides with the boundary while occupancy is NOT met         |
+| `occupancy_arm`     | `OccupancyTriggerZone.prefab` | the animal collides with the now-armed boundary after occupancy IS met   |
+| `occupancy_trigger` | `OccupancyTriggerZone.prefab` | the required occupancy duration elapses — fires immediately, no boundary |
+
+`StimulusTriggerZone` dispatches on a `TriggerMode` enum field (`Interaction`, `Collision`,
+`OccupancyDisarm`, `OccupancyArm`, `OccupancyTrigger`) that `CreateTask` sets from `trigger_type`.
+For the `collision` mode,
+`CreateTask.PlaceCollisionZone` reuses `StimulusTriggerZone.prefab` with its `GuidanceRegion` child
+stripped and the root collider set as a thin boundary wall at `stimulus_location`. The `occupancy_arm`
+and `occupancy_trigger` modes reuse `OccupancyTriggerZone.prefab` unchanged — `CreateTask` only
+selects the occupancy sub-mode. All three occupancy modes keep the occupancy-guidance brake
+(`OccupancyGuidanceZone` publishing `Delay`).
+
 ### Interaction template (`StimulusTriggerZone.prefab`)
 
 Hierarchy:
@@ -103,7 +124,9 @@ StimulusTriggerZone               ← root, 6 components
 
 Use this template when the new zone needs exactly one modifier region that reports the animal's
 arrival to `StimulusTriggerZone`. Examples: a new "approach detector" that triggers stimulus on
-zone entry without occupancy timing.
+zone entry without occupancy timing. The shipped `interaction` and `collision` modes both back
+onto this prefab — `collision` reuses it with the `GuidanceRegion` child stripped and the root
+collider sized as a thin boundary wall.
 
 ### Occupancy template (`OccupancyTriggerZone.prefab`)
 
@@ -117,7 +140,9 @@ OccupancyTriggerZone              ← root, 6 components
 
 Use this template when the new zone needs a nested modifier (a child of a modifier). Examples: a
 new "must-wait-then-acknowledge" pattern where the inner zone reads state off the outer zone via
-`GetComponentInParent`.
+`GetComponentInParent`. The shipped `occupancy_disarm`, `occupancy_arm`, and `occupancy_trigger`
+modes all back onto this prefab — `CreateTask` reuses it unchanged and only selects the occupancy
+sub-mode on the parent `StimulusTriggerZone`.
 
 ---
 
@@ -386,10 +411,12 @@ prefab is usable by any YAML template that declares the new `trigger_type`.
 End-to-end walkthroughs of the two non-trivial zone-prefab authoring patterns live in
 [references/worked-examples.md](references/worked-examples.md):
 
-- **Example A:** Inverting an `OccupancyTriggerZone` from "disable trigger" (aversive) to "enable
-  trigger" (rewarding) by writing a new `RewardOccupancyZone` script that preserves the
-  `boundaryDisarmed` field name with flipped polarity, so `StimulusTriggerZone` and
-  `OccupancyGuidanceZone` keep working unchanged.
+- **Example A:** Building a `CumulativeOccupancyTriggerZone` whose occupancy timer accumulates
+  across multiple zone entries within a lap (instead of restarting each entry) by subclassing
+  `OccupancyZone` and overriding one `protected virtual` hook — so `StimulusTriggerZone`,
+  `OccupancyGuidanceZone`, and `ResetZone` pick the subclass up polymorphically with no edit.
+  (For the disarm-vs-arm polarity, prefer the built-in `occupancy_disarm` / `occupancy_arm` modes
+  over authoring a subclass — `StimulusTriggerZone`'s `TriggerMode` enum already covers it.)
 - **Example B:** Building a brand-new compound `SpeedInteractionTriggerZone` that gates interaction-triggered
   stimulus on the animal's traversal speed through an upstream speed-test region — covers a new
   parent script, a new sibling-region script, and a new `PlaceSpeedInteractionZone` placement helper.

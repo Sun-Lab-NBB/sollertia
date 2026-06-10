@@ -30,8 +30,8 @@ verification checklist before reporting an extension complete.
   `<System>ExperimentConfiguration`, and `<System>RawData`)
 - Adding a new `SessionTypes` member (with its descriptor dataclass)
 - Adding a new runtime trial class
-- Adding a new `TriggerType` member (and the trigger → trial-class pairing in
-  `MesoscopeExperimentConfiguration.from_task_template`)
+- Adding a new `TriggerType` member (and, for each system that supports it, the trigger →
+  trial-class pairing in that system's `from_task_template`; a system may leave a member unmapped)
 - Adding a new `ReadAssets` member (with its on-disk dataclass and `READ_ASSET_REGISTRY` entry) — the
   sollertia-shared-assets contract for an external asset the platform reads and caches on disk
 - The cross-skill touch list — which other plugin skills carry hardcoded enumerations that drift
@@ -97,8 +97,11 @@ A system's trial classes are introspected from its experiment configuration's `t
 field via the `collect_field_dataclasses` helper in
 `interfaces/mcp_instance.py`. `list_supported_trial_types_tool(acquisition_system)` resolves the
 system's experiment-configuration class and derives the trial vocabulary from that field;
-`MesoscopeExperimentConfiguration.from_task_template` maps each `TriggerType` to its runtime trial
-class. The trial classes themselves are standalone dataclasses in
+`MesoscopeExperimentConfiguration.from_task_template` maps the subset of `TriggerType` members it
+supports to runtime trial classes (it maps `INTERACTION` → `WaterRewardTrial` and `OCCUPANCY_DISARM`
+→ `GasPuffTrial`; `COLLISION`, `OCCUPANCY_ARM`, and `OCCUPANCY_TRIGGER` are intentionally unmapped
+and raise a clear "not mapped to a runtime trial class" error if a Mesoscope-VR config uses them).
+The trial classes themselves are standalone dataclasses in
 `configuration/experiment_configuration.py`. `from_task_template` is a mandatory contract method on
 every `<System>ExperimentConfiguration`, enforced at import by `_assert_experiment_configuration_contract`
 (`registries.py`), and `create_experiment_from_vr_template_tool` dispatches through
@@ -248,29 +251,40 @@ framing reflects the new member:
 
 **Skill touches:**
 
-| Skill                                    | What to update                                                                                                                                                                 |
-|------------------------------------------|--------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
-| `/experiment-configuration`              | The "Templates vs experiment configurations" framing, the trigger → trial-class pairing convention, the `trial_structures` schema description, and the "Common patterns" table |
-| `/task-templates`                        | The trial-class enumeration in the template vocabulary section                                                                                                                 |
-| experiment plugin `/vr-driver-interface` | The `DecomposedTrials.trigger_types` semantics table (e.g. `INTERACTION` = reward, `OCCUPANCY_DISARM` = aversive) and the orchestrator's per-trigger dispatch note             |
+| Skill                                    | What to update                                                                                                                                                                                                                                                                              |
+|------------------------------------------|---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| `/experiment-configuration`              | The "Templates vs experiment configurations" framing, the trigger → trial-class pairing convention, the `trial_structures` schema description, and the "Common patterns" table                                                                                                              |
+| `/task-templates`                        | The trial-class enumeration in the template vocabulary section                                                                                                                                                                                                                              |
+| experiment plugin `/vr-driver-interface` | The `DecomposedTrials.trigger_types` semantics table (e.g. `INTERACTION` = reward, `OCCUPANCY_DISARM` = aversive; the `COLLISION` / `OCCUPANCY_ARM` / `OCCUPANCY_TRIGGER` members exist in the enum but Mesoscope-VR leaves them unmapped) and the orchestrator's per-trigger dispatch note |
 
 ### Adding a new `TriggerType` member
 
 This skill owns the **Python registry slice** of the cross-cutting recipe. The full extension is
 split three ways and each skill owns its slice — apply all three:
 
-| Slice                                                                       | Owning skill                             |
-|-----------------------------------------------------------------------------|------------------------------------------|
-| Python `TriggerType` enum + `from_task_template` branch (this skill, below) | `/library-extension` (this skill)        |
-| Hand-authored zone prefab manufacturing                                     | unity plugin `/zone-prefabs` (Steps 1–6) |
-| `CreateTask` pipeline edits + `DeleteProtectedPaths`                        | unity plugin `/task-generator`           |
+| Slice                                                                                             | Owning skill                             |
+|---------------------------------------------------------------------------------------------------|------------------------------------------|
+| Python `TriggerType` enum + per-supporting-system `from_task_template` branch (this skill, below) | `/library-extension` (this skill)        |
+| Hand-authored zone prefab manufacturing                                                           | unity plugin `/zone-prefabs` (Steps 1–6) |
+| `CreateTask` pipeline edits + `DeleteProtectedPaths`                                              | unity plugin `/task-generator`           |
+
+The platform `TriggerType` enum carries the full taxonomy — currently five members: `INTERACTION`,
+`COLLISION`, `OCCUPANCY_DISARM`, `OCCUPANCY_ARM`, and `OCCUPANCY_TRIGGER` (the C# `ConfigLoader`
+accepts all five literals). **System support is a per-system subset**: each acquisition system's
+`from_task_template` maps only the members it supports, and may leave the rest unmapped. A new
+`TriggerType` member therefore does **not** require a `from_task_template` branch in every system. A 
+system that does not support it simply omits the branch, and a config that uses the unmapped member
+raises a clear "not mapped to a runtime trial class" error. The Mesoscope-VR system maps `INTERACTION`
+(→ `WaterRewardTrial`) and `OCCUPANCY_DISARM` (→ `GasPuffTrial`), and does not map `COLLISION`,
+`OCCUPANCY_ARM`, or `OCCUPANCY_TRIGGER`.
 
 **Code touches** owned here:
 1. Append the member to `TriggerType` in `configuration/vr_configuration.py`.
-2. Update `MesoscopeExperimentConfiguration.from_task_template` in
-   `mesoscope_vr/experiment_configuration.py` to add the matching `elif trial_structure.trigger_type
-   == TriggerType.<NEW>:` branch, instantiating the corresponding runtime trial class (which may
-   itself be new — see "Adding a new runtime trial class").
+2. For **each system that supports the new member**, update that system's `from_task_template` to add
+   the matching `elif trial_structure.trigger_type == TriggerType.<NEW>:` branch, instantiating the
+   corresponding runtime trial class (which may itself be new — see "Adding a new runtime trial
+   class"). A system that does not support the member adds no branch; its `from_task_template` then
+   raises on that member, which is the intended "unsupported on this system" behavior.
 
 **Skill touches** owned here:
 
@@ -358,13 +372,13 @@ required-asset branches, and the skill content.
 
 ## Pitfalls
 
-| Pitfall                                                      | Why it bites                                                                                                                                                                                                                                                                                                                                                                            |
-|--------------------------------------------------------------|-----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
-| Adding an enum member without registering its dispatch class | `_assert_registry_coverage()` raises at import time, so `slsa mcp` fails to start until every registry is wired. Run `python -c 'import sollertia_shared_assets'` after the code change.                                                                                                                                                                                                |
-| Forgetting `from_task_template` wiring                       | `from_task_template` is a contract method on every `<System>ExperimentConfiguration`; `_assert_experiment_configuration_contract()` raises at import if it (or a contract field) is missing, so there is no registry to forget. Within `from_task_template`, every `TriggerType` the template can carry needs a branch — an unmapped trigger raises rather than being silently dropped. |
-| Forgetting the descriptor `incomplete` field                 | A new `<Type>Descriptor` that omits `incomplete: bool = True` fails the import via `_assert_descriptor_contract()` (the inspection tooling reads this field). Declare it on every new descriptor.                                                                                                                                                                                       |
-| Forgetting the required-asset entry                          | The required-asset policy is `SessionData.required_raw_assets`; a session type that runs the corridor task but is missing from `SESSION_TYPES_USING_VR_TASK` is NOT import-checked and will pass `inspect_sessions_tool` even when its VR snapshot is missing. Cover the new type in `tests/data_hierarchy/session_data_test.py`.                                                       |
-| Updating an existing descriptor schema in place              | Existing on-disk YAMLs can fail to load. Treat schema changes to existing dataclasses as a separate migration concern, coordinated through the library's semantic versioning — not as part of the extension flow this skill covers.                                                                                                                                                     |
+| Pitfall                                                      | Why it bites                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                              |
+|--------------------------------------------------------------|---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| Adding an enum member without registering its dispatch class | `_assert_registry_coverage()` raises at import time, so `slsa mcp` fails to start until every registry is wired. Run `python -c 'import sollertia_shared_assets'` after the code change.                                                                                                                                                                                                                                                                                                                                                                                                                                  |
+| Forgetting `from_task_template` wiring                       | `from_task_template` is a contract method on every `<System>ExperimentConfiguration`; `_assert_experiment_configuration_contract()` raises at import if it (or a contract field) is missing, so there is no registry to forget. Within `from_task_template`, every `TriggerType` a template carries **on a system that supports it** needs a branch — an unmapped trigger raises rather than being silently dropped. Leaving a member unmapped is a legitimate per-system choice (a system supports only the subset it implements); the raise is then the intended "unsupported on this system" signal, not a wiring bug. |
+| Forgetting the descriptor `incomplete` field                 | A new `<Type>Descriptor` that omits `incomplete: bool = True` fails the import via `_assert_descriptor_contract()` (the inspection tooling reads this field). Declare it on every new descriptor.                                                                                                                                                                                                                                                                                                                                                                                                                         |
+| Forgetting the required-asset entry                          | The required-asset policy is `SessionData.required_raw_assets`; a session type that runs the corridor task but is missing from `SESSION_TYPES_USING_VR_TASK` is NOT import-checked and will pass `inspect_sessions_tool` even when its VR snapshot is missing. Cover the new type in `tests/data_hierarchy/session_data_test.py`.                                                                                                                                                                                                                                                                                         |
+| Updating an existing descriptor schema in place              | Existing on-disk YAMLs can fail to load. Treat schema changes to existing dataclasses as a separate migration concern, coordinated through the library's semantic versioning — not as part of the extension flow this skill covers.                                                                                                                                                                                                                                                                                                                                                                                       |
 
 ---
 

@@ -6,109 +6,93 @@ and just needs a worked illustration of the script-side and YAML-side choices.
 
 ---
 
-## Example A: Inverting an occupancy zone from "disable trigger" to "enable trigger"
+## Example A: A cumulative-occupancy variant by subclassing `OccupancyZone`
 
-Goal: convert the canonical `OccupancyTriggerZone` (aversive — the stimulus boundary starts
-**armed**, occupying for `occupancyDurationMs` **disarms** it, and a failure to occupy leaves the
-boundary armed so the animal triggers the aversive stimulus on cross) into a rewarding variant
-where the boundary starts **dormant** and meeting the occupancy requirement **arms** it, so
-crossing the boundary delivers a reward — and where the existing `OccupancyGuidanceRegion`
-brake mechanism still helps the animal complete the occupancy window (now to earn the reward
-rather than avoid punishment).
+Goal: ship a `CumulativeOccupancyTriggerZone` whose occupancy timer **accumulates across multiple
+entries within a lap** instead of restarting on every entry. The canonical `OccupancyZone` calls
+`_occupancyTimer.Restart()` on each `OnTriggerEnter`, so the animal must occupy the zone for one
+**continuous** `occupancyDurationMs` window. The variant lets the animal dip in and out and counts
+the **total** dwell time — useful for sampling/foraging paradigms — while reusing the
+`occupancy_trigger` firing rule (fire immediately once the requirement is met) and the existing
+`OccupancyGuidanceRegion` brake unchanged.
 
-Three runtime systems read `OccupancyZone` by **typed** lookup:
+This is a genuinely new behavior, not one of the five built-in `trigger_type` modes, so it is a
+good fit for the subclass-a-modifier-zone technique.
 
-- `StimulusTriggerZone.cs` calls `GetComponentInChildren<OccupancyZone>()` to enter occupancy
-  mode and gates its fire condition on `!_occupancyZone.boundaryDisarmed`.
-- `OccupancyGuidanceZone.cs` calls `GetComponentInParent<OccupancyZone>()` to read the parent's
-  `occupancyDurationMs` and `GetElapsedMilliseconds()` for the brake duration, and gates the
-  brake on `!_parentOccupancyZone.boundaryDisarmed`.
-- `ResetZone.cs:24-31` discovers resettables via `FindObjectsByType<OccupancyZone>` (plus the
-  other two known types).
+Three runtime systems read `OccupancyZone` by **typed** lookup, and every one of them picks up a
+`CumulativeOccupancyZone` subclass for free:
 
-All three rely on polymorphism: a `RewardOccupancyZone` that **subclasses `OccupancyZone`** is
-picked up by every one of them for free. A fully standalone class is invisible to all three and
-would force edits to `StimulusTriggerZone`, `OccupancyGuidanceZone`, and `ResetZone`. Subclassing
-is the cheaper path.
+- `StimulusTriggerZone.cs` calls `GetComponentInChildren<OccupancyZone>()` and reads the parent's
+  `occupancyMet` flag to decide when to fire — unchanged by the subclass.
+- `OccupancyGuidanceZone.cs` calls `GetComponentInParent<OccupancyZone>()` to read
+  `occupancyDurationMs`, `GetElapsedMilliseconds()`, and `occupancyMet` for the brake — its
+  remaining-duration math works against the accumulated elapsed time with no edit.
+- `ResetZone.cs` discovers resettables via `FindObjectsByType<OccupancyZone>` (plus the other two
+  known types), so it resets the subclass each lap with no edit.
 
-The `OccupancyGuidanceZone` brake-gate condition (`!boundaryDisarmed`) is also polarity-specific:
-in the aversive case it fires while the boundary is still armed (occupancy not yet met). With the
-inverted reward semantics, `boundaryDisarmed = true` while occupancy is in progress, so the gate
-becomes `!true = false` and the brake never fires when it would help. The reward variant
-therefore also needs a `RewardOccupancyGuidanceZone` subclass with the gate inverted, OR the
-`OccupancyGuidanceZone` gate must be made overridable via a `protected virtual` hook.
+A fully standalone class would be invisible to all three and would force edits to each. Subclassing
+is the cheaper path, and because only the timer-accrual policy changes, the variant needs **one**
+subclass and **one** small hook in `OccupancyZone` — the guidance zone is reused unchanged.
 
-### Step 1: Expose virtual hooks in the canonical scripts (one-time edits)
+### Step 1: Expose a virtual hook in `OccupancyZone` (one-time edit)
 
-`OccupancyZone.cs` keeps every behavioral method `private`. Add two `protected virtual` hooks so
-the subclass can flip polarity without re-implementing the timer logic:
+`OccupancyZone.OnTriggerEnter` hard-codes `_occupancyTimer.Restart()`. Add a `protected virtual`
+policy hook so a subclass can resume instead of restart, without touching the private timer field:
 
-- A `protected virtual bool InitialBoundaryDisarmed => false;` field-init equivalent. Use it in
-  `Start` and `ResetState` instead of the current literal `boundaryDisarmed = false`.
-- A `protected virtual void OnOccupancyMet()` (change the existing `private` declaration to
-  `protected virtual`).
+- Add `protected virtual bool RestartTimerOnEntry => true;`.
+- In `OnTriggerEnter`, replace `_occupancyTimer.Restart();` with
+  `if (RestartTimerOnEntry) { _occupancyTimer.Restart(); } else { _occupancyTimer.Start(); }`
+  (`Stopwatch.Start` resumes from the accumulated elapsed time; `Restart` zeroes it first).
 
-`OccupancyGuidanceZone.cs` likewise keeps the gate inline. Add:
+This is a behavior-preserving edit — every existing occupancy mode keeps the default
+`RestartTimerOnEntry => true`. Run `/csharp-style` and CSharpier before committing.
 
-- A `protected virtual bool ShouldFireBrake => !_parentOccupancyZone.boundaryDisarmed;` property.
-- Use it in the `OnTriggerEnter` check (`if (!_task.requireWait && !_hasTriggered && ShouldFireBrake)`).
+### Step 2: Write `CumulativeOccupancyZone : OccupancyZone`
 
-These are minimal, behavior-preserving edits — every existing call site keeps the default
-polarity. Run `/csharp-style` before committing.
+Under `Assets/InfiniteCorridorTask/Scripts/CumulativeOccupancyZone.cs` (invoke `/csharp-style`):
 
-### Step 2: Write `RewardOccupancyZone : OccupancyZone`
+- Override `RestartTimerOnEntry => false` so re-entries resume the stopwatch and the dwell time
+  accumulates across the lap.
 
-Under `Assets/InfiniteCorridorTask/Scripts/RewardOccupancyZone.cs`:
+Everything else — the `occupancyMet` signal, the `Stopwatch`, the per-lap `ResetState` reset, and
+every inherited Unity callback — is unchanged. Save and confirm `CumulativeOccupancyZone.cs.meta`
+exists with a fresh `guid:`.
 
-- Override `InitialBoundaryDisarmed => true` (trigger dormant on lap start).
-- Override `OnOccupancyMet` to set `boundaryDisarmed = false` instead of `true` (arm on success).
-  Stop the timer the same way the base class did.
+### Step 3: Copy and rename the prefab
 
-Because the subclass keeps the `boundaryDisarmed` field, the timer stopwatch, and every Unity
-callback inherited from `OccupancyZone`, no other code changes. Save and confirm
-`RewardOccupancyZone.cs.meta` exists with a fresh `guid:`.
+1. Copy `OccupancyTriggerZone.prefab` → `Prefabs/CumulativeOccupancyTriggerZone.prefab`.
+2. Rename the root: `m_Name: OccupancyTriggerZone` → `m_Name: CumulativeOccupancyTriggerZone`.
+3. Rename the occupancy region: `m_Name: OccupancyRegion` → `m_Name: CumulativeOccupancyRegion`.
 
-### Step 3: Write `RewardOccupancyGuidanceZone : OccupancyGuidanceZone`
+### Step 4: Swap the modifier script GUID
 
-Override `ShouldFireBrake => _parentOccupancyZone.boundaryDisarmed` — the brake now fires while
-occupancy is still being measured (in the reward case, that's when `boundaryDisarmed = true`).
-Everything else (the elapsed-time math, the MQTT `Delay` send, the `_hasTriggered` latch) is
-inherited unchanged. Save and confirm the new `.cs.meta`.
+For the `CumulativeOccupancyRegion` MonoBehaviour block: swap `OccupancyZone`'s GUID for
+`CumulativeOccupancyZone`'s GUID (from its `.cs.meta`), and update `m_EditorClassIdentifier:` from
+`Assembly-CSharp::OccupancyZone` to `Assembly-CSharp::CumulativeOccupancyZone`.
 
-### Step 4: Copy and rename the prefab
+The `OccupancyGuidanceRegion` grandchild and the root `StimulusTriggerZone` MonoBehaviour are
+**unchanged** — both reach the polymorphic `CumulativeOccupancyZone` through their inherited typed
+lookups.
 
-1. Copy `OccupancyTriggerZone.prefab` → `Prefabs/RewardOccupancyTriggerZone.prefab`.
-2. Rename the root: `m_Name: OccupancyTriggerZone` → `m_Name: RewardOccupancyTriggerZone`.
-3. Rename the occupancy region: `m_Name: OccupancyRegion` → `m_Name: RewardOccupancyRegion`.
+### Step 5: Validate via `inspect_prefab_tool`
 
-### Step 5: Swap modifier script GUIDs
+Expect a `CumulativeOccupancyTriggerZone` root with `StimulusTriggerZone` in its `components` list,
+a `CumulativeOccupancyRegion` child with `CumulativeOccupancyZone` in `components`, and an
+`OccupancyGuidanceRegion` grandchild with `OccupancyGuidanceZone` in `components`. The hierarchy
+depth and parent-child fileID pairings match the canonical occupancy prefab exactly.
 
-For the `OccupancyRegion` MonoBehaviour block: swap `OccupancyZone`'s GUID for
-`RewardOccupancyZone`'s GUID (from its `.cs.meta`). Update `m_EditorClassIdentifier:` from
-`Assembly-CSharp::OccupancyZone` to `Assembly-CSharp::RewardOccupancyZone`.
+### Step 6: Wire downstream per `SKILL.md` Step 7
 
-For the `OccupancyGuidanceRegion` MonoBehaviour block: swap `OccupancyGuidanceZone`'s GUID for
-`RewardOccupancyGuidanceZone`'s GUID. Update `m_EditorClassIdentifier:` from
-`Assembly-CSharp::OccupancyGuidanceZone` to `Assembly-CSharp::RewardOccupancyGuidanceZone`.
-
-The root `StimulusTriggerZone` MonoBehaviour is unchanged — it still gets the polymorphic
-`RewardOccupancyZone` via the inherited typed lookup.
-
-### Step 6: Validate via `inspect_prefab_tool`
-
-Expect a `RewardOccupancyTriggerZone` root with `StimulusTriggerZone` in its `components` list, a
-`RewardOccupancyRegion` child with `RewardOccupancyZone` in `components`, and an
-`OccupancyGuidanceRegion` grandchild with `RewardOccupancyGuidanceZone` in `components`. The
-hierarchy depth and parent-child fileID pairings match the canonical occupancy prefab exactly.
-
-### Step 7: Wire downstream per `SKILL.md` Step 7
-
-- New `TriggerType` member (via `/library-extension`).
-- New `BuildSegmentPrefabs` branch + `PlaceRewardOccupancyZone` helper (via `/task-generator`).
-- `DeleteProtectedPaths` entry for `RewardOccupancyTriggerZone.prefab`.
-- `ConfigLoader.ValidateTemplate` literal-check accepts the new `trigger_type` value.
-- **No** `ResetZone.cs` edit needed — `RewardOccupancyZone` and `RewardOccupancyGuidanceZone`
-  inherit from the canonical classes that `ResetZone.Start` already discovers polymorphically.
+- New `TriggerType` member `OCCUPANCY_TRIGGER_CUMULATIVE` (`occupancy_trigger_cumulative`) via
+  `/library-extension`, plus the matching literal in `ConfigLoader.ValidateTemplate`.
+- A `PlaceCumulativeOccupancyZone` helper in `CreateTask.cs` (clone `PlaceOccupancyZone`) that
+  instantiates `CumulativeOccupancyTriggerZone.prefab` and sets the root
+  `StimulusTriggerZone.triggerMode = TriggerMode.OccupancyTrigger` — the variant reuses the
+  occupancy-trigger **firing** rule and only customizes the timer accrual on the zone. Dispatch to
+  it from `BuildSegmentPrefabs` on the new literal (via `/task-generator`).
+- `DeleteProtectedPaths` entry for `CumulativeOccupancyTriggerZone.prefab`.
+- **No** `ResetZone.cs` edit needed — `CumulativeOccupancyZone` inherits from `OccupancyZone`, which
+  `ResetZone.Start` already discovers polymorphically.
 
 ---
 

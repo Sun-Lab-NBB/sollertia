@@ -305,7 +305,15 @@ optional `children`); the canonical shape contract — and the warning about sil
 missing scripts and key-presence checks — lives in `/task-scenes` "Inspect the active scene".
 This section covers only the **task-prefab-specific** interpretation: the top-level object is the
 task prefab, its children are `Corridor<indices>` objects, and each first segment's stimulus zone
-hierarchy varies by `trigger_type`.
+hierarchy varies by `trigger_type`. The five `trigger_type` modes are `interaction`, `collision`,
+`occupancy_disarm`, `occupancy_arm`, and `occupancy_trigger`. `CreateTask` sets the
+`StimulusTriggerZone` `TriggerMode` enum field (`Interaction`, `Collision`, `OccupancyDisarm`,
+`OccupancyArm`, `OccupancyTrigger`) from `trigger_type`, and the zone dispatches on that enum. The
+three occupancy modes share the `OccupancyTriggerZone.prefab` source and the occupancy-guidance brake
+(`OccupancyGuidanceZone` publishing `Delay`); `CreateTask` only varies the occupancy sub-mode.
+`collision` reuses `StimulusTriggerZone.prefab` with its `GuidanceRegion` child stripped and the
+root collider set as a thin boundary wall at `stimulus_location`. No mode has its own prefab file,
+and every mode publishes the same `Stimulus{trialName}` event.
 
 ### Interaction mode (trigger_type == "interaction")
 
@@ -324,7 +332,23 @@ Key markers:
 - `MeshRenderer` on the root is only visible when `showBoundary == true` (template field
   `show_stimulus_collision_boundary`).
 
-### Occupancy mode (trigger_type == "occupancy_disarm")
+### Collision mode (trigger_type == "collision")
+
+```text
+<SegmentName>
+└── StimulusTriggerZone              ← root collider is a thin boundary wall at stimulus_location
+                                       components: ["StimulusTriggerZone", "BoxCollider", "MeshRenderer"]
+```
+
+Key markers:
+- Root has `StimulusTriggerZone` in `components` with `TriggerMode == Collision`; crossing the thin
+  boundary wall fires the stimulus unconditionally — no sensor, no occupancy.
+- No child zone. `CreateTask` reuses `StimulusTriggerZone.prefab` but strips the `GuidanceRegion`
+  child and sets the root collider as a thin wall at `stimulus_location`.
+- `MeshRenderer` on the root is only visible when `showBoundary == true` (template field
+  `show_stimulus_collision_boundary`).
+
+### Occupancy disarm mode (trigger_type == "occupancy_disarm")
 
 ```text
 <SegmentName>
@@ -336,9 +360,50 @@ Key markers:
 ```
 
 Key markers:
-- Root has `StimulusTriggerZone` in `components`. Its position is the stimulus boundary — this is **past** the
-  occupancy waiting range by design.
+- Root has `StimulusTriggerZone` in `components` with `TriggerMode == OccupancyDisarm`. Its position is the
+  stimulus boundary — this is **past** the occupancy waiting range by design.
 - Two children: `OccupancyRegion` (wait zone) and `OccupancyGuidanceRegion` (guidance activation near the boundary).
+- The `OccupancyZone` exposes the generic `occupancyMet` field; in disarm mode the
+  parent `StimulusTriggerZone` fires on a boundary collision while occupancy is **not** met.
+- If only one child exists, the prefab is miswired. Regenerate from the template.
+
+### Occupancy arm mode (trigger_type == "occupancy_arm")
+
+```text
+<SegmentName>
+└── StimulusTriggerZone              ← collider is the boundary past the occupancy range
+    ├── OccupancyRegion              ← collider covers the wait range (offset by center.z)
+    │                                  components: ["OccupancyZone", "BoxCollider"]
+    └── OccupancyGuidanceRegion      ← placed at the downstream end of the occupancy range
+                                       components: ["OccupancyGuidanceZone", "BoxCollider"]
+```
+
+Key markers:
+- Hierarchy is identical to occupancy disarm — `CreateTask` reuses `OccupancyTriggerZone.prefab` and only sets the
+  occupancy sub-mode. The root `StimulusTriggerZone` carries `TriggerMode == OccupancyArm`.
+- The inverse of disarm: occupying the zone **arms** the boundary, and colliding with the now-armed boundary
+  (occupancy **met**) fires the stimulus. The `occupancyMet` signal on `OccupancyZone` is the same generic flag;
+  the parent applies the per-mode firing rule.
+- Two children: `OccupancyRegion` (wait zone) and `OccupancyGuidanceRegion` (guidance activation near the boundary).
+- If only one child exists, the prefab is miswired. Regenerate from the template.
+
+### Occupancy trigger mode (trigger_type == "occupancy_trigger")
+
+```text
+<SegmentName>
+└── StimulusTriggerZone              ← no boundary collision; firing is occupancy-only
+    ├── OccupancyRegion              ← collider covers the wait range (offset by center.z)
+    │                                  components: ["OccupancyZone", "BoxCollider"]
+    └── OccupancyGuidanceRegion      ← placed at the downstream end of the occupancy range
+                                       components: ["OccupancyGuidanceZone", "BoxCollider"]
+```
+
+Key markers:
+- Hierarchy reuses `OccupancyTriggerZone.prefab`; the root `StimulusTriggerZone` carries
+  `TriggerMode == OccupancyTrigger`.
+- Occupying the zone for the required duration fires the stimulus **immediately** — there is no boundary collision.
+- Two children: `OccupancyRegion` (wait zone) and `OccupancyGuidanceRegion` (guidance activation), so the
+  occupancy-guidance brake still applies; the `occupancyMet` signal fires once the required dwell elapses.
 - If only one child exists, the prefab is miswired. Regenerate from the template.
 
 ### Disarmed segments and ignorable components

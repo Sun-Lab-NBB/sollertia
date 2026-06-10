@@ -163,10 +163,14 @@ are Mesoscope-VR's own — never assume they apply verbatim to another system.
 - **`trial_structures`** — the trials the experiment runs, required on every subclass: a per-trial dict whose
   values are the **system's own** runtime trial classes. The task template provides each trial's spatial
   `TrialStructure` and the configuration pairs it with a runtime trial class by trial name.
-  `list_supported_trial_types_tool` derives the trial list from this field. Mesoscope-VR's annotation is
-  `dict[str, WaterRewardTrial | GasPuffTrial]`, pairing `trigger_type: "interaction"` → `WaterRewardTrial` and
-  `trigger_type: "occupancy_disarm"` → `GasPuffTrial` to match the zone prefab Unity instantiates; another system
-  defines and pairs its own trial classes.
+  `list_supported_trial_types_tool` derives the trial list from this field. The platform `trigger_type` taxonomy
+  has **five** modes (`interaction`, `collision`, `occupancy_disarm`, `occupancy_arm`, `occupancy_trigger`), but
+  each acquisition system maps only the **subset** it supports. The Mesoscope-VR system's annotation for example is
+  `dict[str, WaterRewardTrial | GasPuffTrial]`, and its `from_task_template` maps `trigger_type: "interaction"`
+  → `WaterRewardTrial` and `trigger_type: "occupancy_disarm"` → `GasPuffTrial` to match the zone prefab Unity
+  instantiates; `collision`, `occupancy_arm`, and `occupancy_trigger` are not mapped on Mesoscope-VR, so a config that
+  uses one raises a clear "not mapped to a runtime trial class" error. Another system defines and pairs its own trial
+  classes for whatever subset it supports.
 - **`unity_scene_name`** — a mandatory contract field. It identifies the paired `TaskTemplate` by filename stem
   and is verified against the scene loaded in Unity at session start, so two projects can point the same template
   at differently-named scene files.
@@ -417,15 +421,15 @@ reason, that is currently not supported by the sollertia-shared-assets MCP layer
 
 ## Related skills
 
-| Skill                                          | Relationship                                                                                                                                               |
-|------------------------------------------------|------------------------------------------------------------------------------------------------------------------------------------------------------------|
-| `/working-directory`                           | Provides the templates directory so `/task-templates` knows where to enumerate; this skill needs only absolute paths                                       |
-| `/assets-mcp-environment-setup`                | Run first if the MCP server is not connected                                                                                                               |
-| `/task-templates`                              | Required dependency — owns corridor template authoring and exposes `discover_templates_tool` for absolute template paths                                   |
-| `/project-hierarchy`                           | Discovers the project tree; owns project creation (`create_project_tool` / `slsa configure project`)                                                       |
-| experiment plugin `/acquisition-system-design` | Documents the per-system system-configuration pattern (Mesoscope-VR instance: `MesoscopeSystemConfiguration`)                                              |
-| experiment plugin `/data-management`           | Downstream consumer — `SessionData.create` copies the authored `experiment_configuration.yaml` into every new experiment session at acquisition time       |
-| unity plugin `/task-prefabs`                   | Validates template values against the Unity prefab state                                                                                                   |
-| experiment plugin `/pipeline`                  | Phase 4 of the experiment lifecycle (experiment authoring) hands off to this skill                                                                         |
-| `/library-extension`                           | Cross-cutting recipe to add a new `AcquisitionSystems`, runtime trial class, or `TriggerType` member; lists the prose here that needs updating in lockstep |
-| experiment plugin `/vr-driver-interface`       | Verifies `unity_scene_name` against the live scene; consumes the per-trial parameters at runtime                                                           |
+| Skill                                          | Relationship                                                                                                                                                                                                                                                                |
+|------------------------------------------------|-----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| `/working-directory`                           | Provides the templates directory so `/task-templates` knows where to enumerate; this skill needs only absolute paths                                                                                                                                                        |
+| `/assets-mcp-environment-setup`                | Run first if the MCP server is not connected                                                                                                                                                                                                                                |
+| `/task-templates`                              | Required dependency — owns corridor template authoring and exposes `discover_templates_tool` for absolute template paths                                                                                                                                                    |
+| `/project-hierarchy`                           | Discovers the project tree; owns project creation (`create_project_tool` / `slsa configure project`)                                                                                                                                                                        |
+| experiment plugin `/acquisition-system-design` | Documents the per-system system-configuration pattern (Mesoscope-VR instance: `MesoscopeSystemConfiguration`)                                                                                                                                                               |
+| experiment plugin `/data-management`           | Downstream consumer — `SessionData.create` copies the authored `experiment_configuration.yaml` into every new experiment session at acquisition time                                                                                                                        |
+| unity plugin `/task-prefabs`                   | Validates template values against the Unity prefab state                                                                                                                                                                                                                    |
+| experiment plugin `/pipeline`                  | Phase 4 of the experiment lifecycle (experiment authoring) hands off to this skill                                                                                                                                                                                          |
+| `/library-extension`                           | Cross-cutting recipe to add a new `AcquisitionSystems`, runtime trial class, or `TriggerType` member (a new `TriggerType` member does **not** require a `from_task_template` branch — a system may leave it unmapped); lists the prose here that needs updating in lockstep |
+| experiment plugin `/vr-driver-interface`       | Verifies `unity_scene_name` against the live scene; consumes the per-trial parameters at runtime                                                                                                                                                                            |

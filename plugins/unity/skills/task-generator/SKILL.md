@@ -25,7 +25,7 @@ pipeline `create_task_tool` invokes), `/zone-prefabs` (Step 7 wiring), and asset
 - The `CreateTask.CreateFromTemplate` pipeline (cue synthesis, segment synthesis, task assembly)
 - Cue prefab internal layout (`Right`/`Left` quads) generated from templates
 - Segment prefab internal layout (cue instances, `Floor`, `Walls`, `ResetZone`, trigger zone)
-- Zone placement math (`PlaceInteractionZone` and `PlaceOccupancyZone`)
+- Zone placement math (`PlaceInteractionZone`, `PlaceCollisionZone`, and `PlaceOccupancyZone`)
 - Constraints on adding new zone types, cue shapes, or segment layouts
 - The `CreateTask → New Task` Editor menu entry and its relationship to `create_task_tool`
 
@@ -63,8 +63,11 @@ CreateTask.CreateFromTemplate(absoluteTemplatePath, relativeConfigPath, savePath
 │   ├── Place cue instances sequentially along +Z
 │   ├── Build Floor (plane) and Walls (LeftWall + RightWall quads)
 │   ├── For each trial_structure[]:
-│   │   ├── trigger_type == "interaction"      → PlaceInteractionZone
-│   │   └── trigger_type == "occupancy_disarm" → PlaceOccupancyZone
+│   │   ├── trigger_type == "interaction"        → PlaceInteractionZone
+│   │   ├── trigger_type == "collision"          → PlaceCollisionZone
+│   │   ├── trigger_type == "occupancy_disarm"   → PlaceOccupancyZone (OccupancyDisarm sub-mode)
+│   │   ├── trigger_type == "occupancy_arm"      → PlaceOccupancyZone (OccupancyArm sub-mode)
+│   │   └── trigger_type == "occupancy_trigger"  → PlaceOccupancyZone (OccupancyTrigger sub-mode)
 │   └── Place ResetZone at local Z = cueOffsetUnity (segment root is shifted upstream by the same
 │                                                    amount, so the ResetZone lands at world Z = 0,
 │                                                    the actor's per-corridor spawn point)
@@ -207,8 +210,8 @@ is also in `McpBridge.DeleteProtectedPaths` and cannot be deleted via `delete_as
 
 | Asset                                 | Type       | Purpose                                                          |
 |---------------------------------------|------------|------------------------------------------------------------------|
-| `Prefabs/StimulusTriggerZone.prefab`  | GameObject | Base prefab for interaction-mode zones                           |
-| `Prefabs/OccupancyTriggerZone.prefab` | GameObject | Base prefab for occupancy-mode zones                             |
+| `Prefabs/StimulusTriggerZone.prefab`  | GameObject | Base prefab for interaction-mode and collision-mode zones        |
+| `Prefabs/OccupancyTriggerZone.prefab` | GameObject | Base prefab for all three occupancy-mode zones                   |
 | `Prefabs/ResetZone.prefab`            | GameObject | Placed at every segment's start                                  |
 | `Prefabs/Padding.prefab`              | GameObject | Appended past every corridor to cap the visible corridor depth   |
 | `Materials/_CueShaderReference.mat`   | Material   | Canonical shader source for every generated cue material         |
@@ -237,6 +240,15 @@ required-shared-assets table above and is protected by `McpBridge.DeleteProtecte
 `CreateTask` positions zones using the template's cm-valued fields, converted by `cm_per_unity_unit`. All math below
 runs per trial structure — a single segment may have at most one `StimulusTriggerZone` or `OccupancyTriggerZone`.
 
+`CreateTask` sets a `TriggerMode` enum field (`Interaction`, `Collision`, `OccupancyDisarm`, `OccupancyArm`,
+`OccupancyTrigger`) on the placed `StimulusTriggerZone` directly from `trigger_type`. At runtime the zone dispatches
+on this enum and applies the per-mode firing rule.
+`PlaceCollisionZone` reuses `StimulusTriggerZone.prefab` (stripping its `GuidanceRegion` child and setting the root
+collider as a thin boundary wall at `stimulus_location`). `occupancy_arm` and `occupancy_trigger` reuse
+`OccupancyTriggerZone.prefab` through `PlaceOccupancyZone`, which only sets the occupancy sub-mode — no mode has its
+own prefab file. The occupancy sub-modes share a single `OccupancyZone.occupancyMet` signal (the generic "occupancy
+requirement met" flag); the parent `StimulusTriggerZone` applies the per-mode firing rule.
+
 ### Interaction mode (`PlaceInteractionZone`)
 
 ```text
@@ -257,7 +269,40 @@ GuidanceRegion.BoxCollider.center = (0, 0, stimulusLocationUnity - zoneCenterUni
 - Y offset `0.505` is deliberate — raises the zone just above the floor to avoid collider overlap.
 - GuidanceRegion width is **not** template-driven (the hardcoded `0.4` unit collider width is a design choice).
 
-### Occupancy mode (`PlaceOccupancyZone`)
+### Collision mode (`PlaceCollisionZone`)
+
+```text
+stimulusLocationUnity = trial.stimulus_location_cm / cm_per_unity_unit
+
+StimulusTriggerZone.localPosition      = (0, 0.505, stimulusLocationUnity)
+StimulusTriggerZone.BoxCollider.size   = (1, 1, thinWallWidth)               ← thin boundary wall at stimulus_location
+StimulusTriggerZone.BoxCollider.center = (0, 0, 0)
+
+(GuidanceRegion child stripped — collision mode has no sensor / occupancy region)
+```
+
+- Collision mode fires the stimulus **unconditionally** when the actor crosses the invisible boundary wall at
+  `stimulus_location` — no sensor, no occupancy. `PlaceCollisionZone` reuses `StimulusTriggerZone.prefab` and strips
+  its `GuidanceRegion` child.
+- Collision mode keeps the `showStimulusCollisionBoundary` visibility toggle (the per-trial
+  `show_stimulus_collision_boundary` template field), surfaced on the first segment in corridor assembly.
+
+### Occupancy modes (`PlaceOccupancyZone`)
+
+`PlaceOccupancyZone` serves all three occupancy sub-modes (`occupancy_disarm`, `occupancy_arm`, `occupancy_trigger`)
+from the same `OccupancyTriggerZone.prefab`; `CreateTask` only sets the occupancy sub-mode on the placed zone. The
+geometry below is identical across the three sub-modes — they differ only in the runtime firing rule the parent
+`StimulusTriggerZone` applies to the shared `OccupancyZone.occupancyMet` signal:
+
+- **`occupancy_disarm`**: a collision with the boundary fires while occupancy is **not** met (occupancy "disarms" the
+  boundary).
+- **`occupancy_arm`**: occupying the zone **arms** the boundary; colliding with the now-armed boundary (occupancy
+  **met**) fires. It is the inverse of `occupancy_disarm`.
+- **`occupancy_trigger`**: occupying the zone for the required duration fires the stimulus **immediately**, with no
+  boundary collision.
+
+All three occupancy modes keep the occupancy-guidance brake (`OccupancyGuidanceZone` publishing `Delay`).
+
 
 ```text
 zoneStartUnity, zoneEndUnity, zoneCenterUnity, zoneSizeUnity, stimulusLocationUnity   (same derivations)
@@ -276,8 +321,9 @@ OccupancyGuidanceRegion.BoxCollider.size   = (1, 1, 0.4)
 OccupancyGuidanceRegion.BoxCollider.center = (0, 0, occupancyCenterOffset + zoneSizeUnity/2 - 0.2)
 ```
 
-- The root is positioned **past** the waiting range at the stimulus boundary. This is intentional: the collider is
-  the "tripwire" that fires when occupancy fails.
+- The root is positioned **past** the waiting range at the stimulus boundary. This boundary collider is the
+  "tripwire": for `occupancy_disarm` it fires when occupancy is **not** met, for `occupancy_arm` it fires when
+  occupancy **is** met. For `occupancy_trigger` the boundary collider is unused — occupancy met fires immediately.
 - `OccupancyGuidanceRegion` sits at the downstream end of the occupancy range, offset by `-0.2` to keep it inside the
   occupancy collider.
 
@@ -285,11 +331,13 @@ OccupancyGuidanceRegion.BoxCollider.center = (0, 0, occupancyCenterOffset + zone
 
 For interaction-mode trials the generator places the zone root at the segment's center such that
 `zone_z = zone.transform.localPosition.z` equals `(zone_end + zone_start) / (2 * cm_per_unity_unit)`,
-and the `BoxCollider.size.z` equals `(zone_end - zone_start) / cm_per_unity_unit`. For occupancy
-mode the generator places the root at `rootZ` (past the waiting range) instead — the root collider
-marks the boundary, and the wait region lives on the child `OccupancyRegion`. Anyone auditing a
-generated segment via `inspect_prefab_tool` should apply the appropriate formula per `trigger_type`
-when comparing the prefab against the template's zone-cm fields.
+and the `BoxCollider.size.z` equals `(zone_end - zone_start) / cm_per_unity_unit`. For the three
+occupancy modes (`occupancy_disarm`, `occupancy_arm`, `occupancy_trigger`) the generator places the
+root at `rootZ` (past the waiting range) instead — the root collider marks the boundary, and the wait
+region lives on the child `OccupancyRegion`. For collision mode the root is a thin boundary wall at
+`stimulus_location` with no occupancy region or guidance child. Anyone auditing a generated segment via
+`inspect_prefab_tool` should apply the appropriate formula per `trigger_type` when comparing the prefab
+against the template's zone-cm fields.
 
 ---
 
@@ -387,11 +435,16 @@ recipe is split three ways:
 Apply your three skills' bullets in order. The pipeline-side touches owned here:
 
 1. Extend the `trigger_type` literal check in `ConfigLoader.ValidateTemplate` (currently accepts
-   `"interaction"` and `"occupancy_disarm"` only); without this, every template that uses the new value fails at
-   load time.
+   `"interaction"`, `"collision"`, `"occupancy_disarm"`, `"occupancy_arm"`, and `"occupancy_trigger"`); without
+   this, every template that uses the new value fails at load time. Validation is mode-aware: `collision` validates
+   only `stimulus_location` (no trigger zone); `occupancy_trigger` validates only the trigger zone (no boundary);
+   `interaction`, `occupancy_disarm`, and `occupancy_arm` validate the zone, the boundary, and their ordering.
 2. Add a new `if (trial.triggerType == "<new>")` branch in `BuildSegmentPrefabs` and a
    corresponding `Place<New>Zone` helper following the pattern of `PlaceInteractionZone` /
-   `PlaceOccupancyZone`.
+   `PlaceCollisionZone` / `PlaceOccupancyZone`. Add a matching `TriggerMode` enum member on
+   `StimulusTriggerZone` and set it from `trigger_type` when a new mode needs a distinct runtime firing rule; reuse
+   an existing base prefab where possible (the five current modes add **no** new prefab files — `collision` reuses
+   `StimulusTriggerZone.prefab`, and `occupancy_arm` / `occupancy_trigger` reuse `OccupancyTriggerZone.prefab`).
 3. Add the new prefab path to `McpBridge.DeleteProtectedPaths` — `BuildSegmentPrefabs` loads zone
    prefabs by hardcoded path, and an accidental `delete_asset_tool` would break subsequent
    generation runs.
@@ -399,6 +452,16 @@ Apply your three skills' bullets in order. The pipeline-side touches owned here:
 Coordinate the prefab manufacturing through `/zone-prefabs` Step 7 and the Python registry parity
 through assets `/library-extension` "Adding a new `TriggerType` member" so each skill bullets only
 its own substeps.
+
+The platform `TriggerType` enum carries all five members (`INTERACTION`, `COLLISION`, `OCCUPANCY_DISARM`,
+`OCCUPANCY_ARM`, `OCCUPANCY_TRIGGER`); the C# `ConfigLoader` accepts all five literals. System support is a
+**per-system subset**: a new `TriggerType` member does **not** require a `from_task_template` branch — each
+acquisition system maps only the subset it supports and may leave a member unmapped. The Mesoscope-VR system's
+`from_task_template` maps `INTERACTION` (→ `WaterRewardTrial`) and `OCCUPANCY_DISARM` (→ `GasPuffTrial`), and does
+not map `collision`, `occupancy_arm`, or `occupancy_trigger`, so a Mesoscope-VR config that uses one of those raises
+a clear "not mapped to a runtime trial class" error. All five modes share one MQTT/wire contract:
+every mode publishes the same `Stimulus{trialName}` event, adds no topics, and does not change
+`require_interaction` / `require_wait`. `list_supported_trigger_types_tool` returns all five values.
 
 ### Adding a new cue or segment
 
@@ -462,9 +525,11 @@ base prefabs, the hand-authored shared materials, or the `McpBridge` dispatch su
 
 ```text
 Generator Pipeline Compliance:
-- [ ] Any change to zone placement is reflected in both PlaceInteractionZone and PlaceOccupancyZone if applicable
-- [ ] New zone types appear in BuildSegmentPrefabs trigger-type switch AND in the zone base prefab set AND in
-      McpBridge.DeleteProtectedPaths
+- [ ] Any change to zone placement is reflected in PlaceInteractionZone, PlaceCollisionZone, and PlaceOccupancyZone
+      if applicable
+- [ ] New zone types appear in the BuildSegmentPrefabs trigger-type switch (all five literals: interaction,
+      collision, occupancy_disarm, occupancy_arm, occupancy_trigger), set the StimulusTriggerZone.TriggerMode enum,
+      and (if a new base prefab is added) appear in the zone base prefab set AND in McpBridge.DeleteProtectedPaths
 - [ ] Cue prefab regeneration remains shared and skip-if-exists; segment prefab regeneration remains always-rebuilt
       via `CleanGeneratedSegments`
 - [ ] Hardcoded asset paths (Prefabs/, Cues/, Materials/, Textures/) are not changed without updating every call site

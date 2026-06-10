@@ -117,14 +117,16 @@ parses it into `VRTaskEvent.trial_name` and resolves the per-trial outcome from 
 
 ### Occupancy guidance brake (owned by `SL.Tasks.OccupancyGuidanceZone`)
 
-| Constant | Direction          | Channel type                                             | Payload                         | Publisher                                                                                                         | Subscriber           |
-|----------|--------------------|----------------------------------------------------------|---------------------------------|-------------------------------------------------------------------------------------------------------------------|----------------------|
-| `Delay`  | Unity → experiment | `MQTTChannel<OccupancyGuidanceZone.TriggerDelayMessage>` | `{ "delayMilliseconds": uint }` | `OccupancyGuidanceZone.TriggerBrakeActivation` (only in guidance mode, and only when the boundary is still armed) | sollertia-experiment |
+| Constant | Direction          | Channel type                                             | Payload                         | Publisher                                                                                                       | Subscriber           |
+|----------|--------------------|----------------------------------------------------------|---------------------------------|-----------------------------------------------------------------------------------------------------------------|----------------------|
+| `Delay`  | Unity → experiment | `MQTTChannel<OccupancyGuidanceZone.TriggerDelayMessage>` | `{ "delayMilliseconds": uint }` | `OccupancyGuidanceZone.TriggerBrakeActivation` (only in guidance mode, and only while occupancy is not yet met) | sollertia-experiment |
 
 Published exactly once per lap when the animal enters the occupancy-guidance zone while
-`Task.requireWait == false` and the parent `OccupancyZone.boundaryDisarmed == false`. The payload
+`Task.requireWait == false` and the parent `OccupancyZone.occupancyMet == false`. The payload
 field is `delayMilliseconds` (unsigned int); `sollertia-experiment` reads it to brake the treadmill
-for the remaining occupancy duration.
+for the remaining occupancy duration. The guidance brake is shared by all three occupancy trigger
+modes (`occupancy_disarm`, `occupancy_arm`, `occupancy_trigger`) — the per-mode firing rule lives in
+the parent `StimulusTriggerZone`, not in the brake.
 
 ### Task lifecycle (owned by `SL.Tasks.Task`)
 
@@ -202,7 +204,10 @@ Subscriber inside Unity:
 - `SL.UI.LickStimulusSpawner.OnStimulus` — spawns a UI indicator.
 
 Publisher:
-- `SL.Tasks.StimulusTriggerZone.TriggerStimulus` — fires once per armed zone entry.
+- `SL.Tasks.StimulusTriggerZone.TriggerStimulus` — fires once per zone activation. All five trigger
+  modes (`interaction`, `collision`, `occupancy_disarm`, `occupancy_arm`, `occupancy_trigger`) publish
+  this same `Stimulus` event; only the firing condition differs (an interaction event, a boundary-wall
+  collision, or occupancy met), and the wire payload is identical across modes.
 
 External:
 - sollertia-experiment subscribes to log the stimulus event against the session timeline.

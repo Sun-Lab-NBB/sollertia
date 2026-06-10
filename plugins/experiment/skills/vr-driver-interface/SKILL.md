@@ -236,17 +236,36 @@ trial sequence the acquisition system can act on, using the per-trial cue motifs
   decomposition runs so re-decomposition after a Unity restart is cheap.
 - `DecomposedTrials` (frozen dataclass) — aligned per-trial sequences (index `i` = the i-th trial):
 
-  | Field                  | Type                      | Purpose                                                                                                        |
-  |------------------------|---------------------------|----------------------------------------------------------------------------------------------------------------|
-  | `cumulative_distances` | `NDArray[float64]`        | Cumulative distance (cm) to reach the end of each trial                                                        |
-  | `trial_names`          | `tuple[str, ...]`         | Join key the runtime uses to look up per-trial parameters in its experiment configuration                      |
-  | `trigger_types`        | `tuple[TriggerType, ...]` | `TriggerType.INTERACTION` = positive (reward-zone) trial; `OCCUPANCY_DISARM` = aversive (occupancy-zone) trial |
+  | Field                  | Type                      | Purpose                                                                                    |
+  |------------------------|---------------------------|--------------------------------------------------------------------------------------------|
+  | `cumulative_distances` | `NDArray[float64]`        | Cumulative distance (cm) to reach the end of each trial                                    |
+  | `trial_names`          | `tuple[str, ...]`         | Join key the runtime uses to look up per-trial parameters in its experiment configuration  |
+  | `trigger_types`        | `tuple[TriggerType, ...]` | The per-trial `TriggerType` member; the platform enum carries all five members (see below) |
 
 `TriggerType` is owned by `sollertia-shared-assets` (and its enum is extended via the assets plugin's
-`/library-extension`). The orchestrator reads the driver's `trial_names` — joining them against its
-experiment configuration's trial structures to build the per-trial reward/puff arrays — along with
-`cue_sequence_distances` and `state.cue_sequence`. `trigger_types` is an internal `DecomposedTrials`
-field that the driver does not expose as a property.
+`/library-extension`). The platform enum carries **five** members — `INTERACTION`, `COLLISION`,
+`OCCUPANCY_DISARM`, `OCCUPANCY_ARM`, and `OCCUPANCY_TRIGGER` — but **each acquisition system maps only the
+subset it supports**. A new `TriggerType` member does NOT require a `from_task_template` branch in every
+system: a system may leave a member unsupported/unmapped, and a config that uses an unmapped member raises a
+clear "not mapped to a runtime trial class" error.
+
+Mesoscope-VR's `from_task_template` currently maps **two** members:
+
+| `TriggerType` member | Mesoscope-VR runtime trial | Notes                                               |
+|----------------------|----------------------------|-----------------------------------------------------|
+| `INTERACTION`        | `WaterRewardTrial`         | positive (reward-zone) trial                        |
+| `OCCUPANCY_DISARM`   | `GasPuffTrial`             | aversive (occupancy-zone) trial                     |
+| `COLLISION`          | (unmapped)                 | not mapped to a runtime trial class on Mesoscope-VR |
+| `OCCUPANCY_ARM`      | (unmapped)                 | not mapped to a runtime trial class on Mesoscope-VR |
+| `OCCUPANCY_TRIGGER`  | (unmapped)                 | not mapped to a runtime trial class on Mesoscope-VR |
+
+The orchestrator reads the driver's `trial_names` — joining them against its experiment configuration's trial
+structures to build the per-trial reward/puff arrays — along with `cue_sequence_distances` and
+`state.cue_sequence`. `trigger_types` is an internal `DecomposedTrials` field that the driver does not expose
+as a property. All five modes share one MQTT/wire contract: every mode publishes the same
+`Stimulus{trialName}` event and adds no topics (see the [MQTT topic contract](#mqtt-topic-contract)); the
+Unity-side dispatch, prefab reuse, and mode-aware template geometry are owned by `unity:zone-prefabs`,
+`unity:task-generator`, and the assets plugin's `/task-templates`.
 
 ---
 

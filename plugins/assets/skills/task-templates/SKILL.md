@@ -95,12 +95,12 @@ old `.prefab` and `.unity` files remain on disk until deleted via `delete_asset_
 
 A `TaskTemplate` is composed of these classes (all defined in `sollertia_shared_assets.configuration`):
 
-| Primitive        | Purpose                                                                                                              |
-|------------------|----------------------------------------------------------------------------------------------------------------------|
-| `Cue`            | A visual cue (name, uint8 code, length, optional texture) referenced by trial cue sequences                          |
-| `TrialStructure` | Per-trial spatial config: cue sequence, optional transitions, stimulus trigger zone, stimulus location, trigger type |
-| `VREnvironment`  | VR corridor configuration: spacing, segments per corridor, padding prefab, units, cue offset                         |
-| `TriggerType`    | Enum of stimulus trigger zone activators (`interaction`, `occupancy_disarm`)                                         |
+| Primitive        | Purpose                                                                                                                         |
+|------------------|---------------------------------------------------------------------------------------------------------------------------------|
+| `Cue`            | A visual cue (name, uint8 code, length, optional texture) referenced by trial cue sequences                                     |
+| `TrialStructure` | Per-trial spatial config: cue sequence, optional transitions, stimulus trigger zone, stimulus location, trigger type            |
+| `VREnvironment`  | VR corridor configuration: spacing, segments per corridor, padding prefab, units, cue offset                                    |
+| `TriggerType`    | Enum of stimulus trigger zone activators (`interaction`, `collision`, `occupancy_disarm`, `occupancy_arm`, `occupancy_trigger`) |
 
 `TaskTemplate.trial_structures` is a `dict[str, TrialStructure]` keyed by trial name. The template
 itself does **not** carry trial weights, experiment-specific reward parameters, or trial-class
@@ -212,6 +212,34 @@ joins against licks, rewards, and gas puffs. Adding a new trial type to a paradi
 means (a) adding a `TrialStructure` to the template here, and (b) binding it to a concrete
 trial subclass in the per-project experiment configuration via `/experiment-configuration`.
 
+### The five trigger modes
+
+`TriggerType` carries five modes. Each tells Unity which zone prefab to bake and which firing rule the
+`StimulusTriggerZone` applies; every mode publishes the same `Stimulus{trialName}` event, so the
+MQTT/wire contract is identical across modes (no new topics, no change to
+`require_interaction` / `require_wait`).
+
+| Mode                | Firing rule                                                                                                                                |
+|---------------------|--------------------------------------------------------------------------------------------------------------------------------------------|
+| `interaction`       | The animal must engage an interaction sensor inside the stimulus trigger zone to fire the stimulus.                                        |
+| `collision`         | Crossing an invisible boundary wall (a thin collider at `stimulus_location`) fires the stimulus unconditionally — no sensor, no occupancy. |
+| `occupancy_disarm`  | Occupying the zone disarms the boundary; colliding with the still-armed boundary (occupancy **not** met) fires.                            |
+| `occupancy_arm`     | Occupying the zone arms the boundary; colliding with the now-armed boundary (occupancy **met**) fires — the inverse of `occupancy_disarm`. |
+| `occupancy_trigger` | Occupying the zone for the required duration fires the stimulus immediately, with no boundary collision.                                   |
+
+All three occupancy modes keep the occupancy-guidance brake (the `OccupancyGuidanceZone` publishing
+`Delay`) and read the dwell time from `TrialStructure.occupancy_duration_ms`. On the Unity side
+`StimulusTriggerZone` dispatches on a `TriggerMode` enum field that `create_task_tool` sets from
+`trigger_type`.
+
+**System support is a per-system subset.** The platform `TriggerType` enum carries all five, but each
+acquisition system maps only the subset it can resolve to its own stimuli. The Mesoscope-VR system's
+`from_task_template` maps `interaction` (→ `WaterRewardTrial`) and `occupancy_disarm` (→ `GasPuffTrial`),
+and does not map `collision`, `occupancy_arm`, or `occupancy_trigger`, so a configuration that uses one of
+those on Mesoscope-VR raises a clear "not mapped to a runtime trial class" error. Adding a new `TriggerType`
+member therefore does **not** require a `from_task_template` branch in every system — a system may leave a
+mode unsupported. See `/library-extension` for the cross-cutting recipe.
+
 ### Why the template is shaped this way
 
 - **Cues are a flat catalog with unique uint8 codes** because the analysis pipeline indexes
@@ -237,8 +265,9 @@ trial subclass in the per-project experiment configuration via `/experiment-conf
   topology order-independent and self-documenting; omitted keys carry implicit zero probability,
   so the dict need only enumerate reachable trials.
 - **`TrialStructure` is spatial-only** (no rewards, no puff durations) — except for
-  `occupancy_duration_ms`, the single source of truth for the occupancy-disarm dwell time, which
-  Unity reads at generation time. Because rewards and puff durations are project-level behavioral
+  `occupancy_duration_ms`, the single source of truth for the dwell time used by every occupancy mode
+  (`occupancy_disarm`, `occupancy_arm`, `occupancy_trigger`), which Unity reads at generation time.
+  Because rewards and puff durations are project-level behavioral
   parameters that vary between teams using the same paradigm, they live on the experiment-config
   trial classes (`WaterRewardTrial`, `GasPuffTrial`) authored by `/experiment-configuration` and
   are joined to the spatial structure by trial name.
@@ -323,8 +352,9 @@ Build the template dictionary in this order:
 
 Trial weights, reward sizes, gas-puff durations, experiment states, and the
 choice of trial class (`WaterRewardTrial` vs `GasPuffTrial`) are **not** part of the template —
-they are added per-experiment by `/experiment-configuration`. (Occupancy-disarm dwell time is the
-exception: it lives on the template as the `TrialStructure.occupancy_duration_ms` field.)
+they are added per-experiment by `/experiment-configuration`. (Occupancy dwell time is the
+exception: it lives on the template as the `TrialStructure.occupancy_duration_ms` field, shared by all
+three occupancy modes.)
 
 ### Step 5: Write, validate, and re-read
 
@@ -360,7 +390,10 @@ Pass `overwrite=True` only when intentionally replacing an existing template.
 - each trial `transitions`, when provided, sums to 1.0 and references valid trial names
 - each `TrialStructure.trigger_type` is a valid `TriggerType` value
 - per-trial zone positions satisfy `start ≤ end`, `stimulus_location_cm ≥ start`, and all three are
-  within the trial's segment length
+  within the trial's segment length. This check is mode-aware: `collision` validates only the boundary
+  (`stimulus_location`) since it has no trigger zone; `occupancy_trigger` validates only the trigger
+  zone since it has no boundary; the other three modes validate the zone, the boundary, and their
+  ordering.
 
 On success the tool returns a `summary` (cue/trial counts plus `cue_offset_cm`); on failure it
 returns an `issues` list. Fix any reported issues and re-write before handing off.
