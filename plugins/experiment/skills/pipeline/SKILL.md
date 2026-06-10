@@ -77,8 +77,9 @@ reads validated configuration files written during the AI-assisted phases.
 - **Plugin / Skill:** assets plugin → `/working-directory`
 - **Actions:** Set the local Sollertia working directory (always required) and the task templates directory
   (required for every system, since every experiment seeds its configuration from a corridor task template).
-  Optionally configure Google Sheets credentials — needed only for systems that use Google Sheets for animal
-  metadata (e.g. the `mesoscope` system).
+  Optionally configure platform credentials by category — needed only for systems that integrate with the
+  corresponding external service (e.g. the `mesoscope` system uses `google` credentials for Google Sheets
+  animal metadata).
 - **Handoff condition:** `get_platform_environment_status_tool` reports the data root and templates directory
   healthy (and, for systems that use them, credentials).
 - **Skip condition:** The platform data root is already initialized for this host.

@@ -73,7 +73,7 @@ A processor needs three things before it can connect:
 
 | Prerequisite             | Where it comes from                                                                                              |
 |--------------------------|------------------------------------------------------------------------------------------------------------------|
-| Credentials file path    | A Google Cloud **service-account** JSON key. The host path is set via assets `/working-directory` and resolved at call time by `get_google_credentials_path()`. |
+| Credentials file path    | A Google Cloud **service-account** JSON key. The host path is set via assets `/working-directory` and resolved at call time by `get_credentials(credentials=CredentialsTypes.GOOGLE)`. |
 | Sheet identifier         | The long alphanumeric segment of the sheet URL, stored in the system configuration's external-services section (`surgery_sheet_id` / `water_log_sheet_id` for Mesoscope-VR). |
 | Sheet shared with the SA | The target Google Sheet MUST be shared with the service account's email (as a viewer for read-only, as an editor for any processor that writes). Google service accounts have no access until the document is shared with them. |
 
@@ -97,7 +97,7 @@ SurgeryLog(project_name: str, animal_id: int, credentials_path: Path, sheet_id: 
 
 | Member                          | Purpose                                                                                              |
 |---------------------------------|------------------------------------------------------------------------------------------------------|
-| `extract_animal_data()`         | Parses the animal's row into a `SurgeryData` instance (subject, procedure, drugs, implants[], injections[]). |
+| `extract_animal_data()`         | Parses the animal's row into a `SurgeryData` instance (subject, procedure, drugs[], implants[], injections[]). |
 | `update_surgery_quality(quality: int)` | Writes the surgery-quality score into the animal's row and applies center/middle cell alignment. The 0–3 scale is advisory; the value is not range-validated. |
 | `__del__`                       | Closes the HTTP service.                                                                              |
 

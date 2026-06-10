@@ -72,10 +72,16 @@ Stereotactic coordinates are a single string like `-1.8 AP, 2 ML, .25 DV`, parse
 
 ### Output: `SurgeryData`
 
-`extract_animal_data()` returns `SurgeryData(subject, procedure, drugs, implants[], injections[])`.
+`extract_animal_data()` returns `SurgeryData(subject, procedure, drugs[], implants[], injections[])`.
 Notable per-field parsing: `dob` is combined with a noon time; `date`+`start`/`end` become
 `surgery_start_us`/`surgery_end_us`; `weight (g)` → `float`; `cage #` → `int`. A malformed or empty
 weight, cage, date, or time cell raises `ValueError`.
+
+Each drug tracked by `_SURGERY_LOG_DRUGS` becomes a named `DrugData` record in `drugs[]`: `Lactated
+Ringer's Solution`/`lrs`, `Ketoprofen`/`ketoprofen`, `Buprenorphine`/`buprenorphine`, and
+`Dexamethasone`/`dexamethasone`. For each record, `drug` is the descriptive name, `drug_volume_ml` comes
+from the `<stem> (ml)` column, and `drug_code` from the `<stem> code` column. A drug whose volume cell is
+empty was not administered and is excluded from `drugs[]`.
 
 ---
 

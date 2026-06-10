@@ -94,9 +94,10 @@ get_platform_environment_status_tool()
 ```
 
 This read-only `slsa` tool reports the readiness of the working directory, data root, task-templates
-directory, and Google credentials. Only the working directory is required for `slsa mcp` to function; the
-others are optional and gate only the workflows that use them, so the tool's `overall_ok` reflects the
-required components only. System-configuration validity is NOT reported here — that is verified in Phase 4.
+directory, and one `<category>_credentials` component per supported credentials category (currently
+`google_credentials`). Only the working directory is required for `slsa mcp` to function; the others are
+optional and gate only the workflows that use them, so the tool's `overall_ok` reflects the required
+components only. System-configuration validity is NOT reported here — that is verified in Phase 4.
 If every required component reports healthy, advance to Phase 2. When a component reports unhealthy, hand
 off to the owning assets-plugin skill to fix it — working directory / data root / credentials / templates
 are all set by assets plugin `/working-directory`; this skill never writes configuration.

@@ -108,12 +108,12 @@ on-disk artifact. Callers project the sections they need from the returned `data
 |--------------|-------------------|-------------------------------------------------------------------------------------------------|
 | `subject`    | `SubjectData`     | id, ear-punch, sex, genotype, date of birth, pre-surgery weight, cage, housing location, status |
 | `procedure`  | `ProcedureData`   | Surgery start/end timestamps, surgeon, protocol, surgery + post-op notes, quality               |
-| `drugs`      | `DrugData`        | Peri-surgical drugs (LRS, ketoprofen, buprenorphine, dexamethasone), each with volume and code  |
+| `drugs`      | `DrugData[]`      | Per-drug: descriptive name, volume (mL), manufacturer or reference code                         |
 | `implants`   | `ImplantData[]`   | Per-implant: name, target region, manufacturer code, AP/ML/DV stereotactic coordinates          |
 | `injections` | `InjectionData[]` | Per-injection: name, target, volume (nL), manufacturer code, AP/ML/DV stereotactic coordinates  |
 
-`implants` and `injections` are **lists** (0..N entries); the other three are singletons. Section
-projection is **caller-side**: the returned `data` dict has top-level keys `subject`, `procedure`,
+`drugs`, `implants`, and `injections` are **lists** (0..N entries); `subject` and `procedure` are singletons.
+Section projection is **caller-side**: the returned `data` dict has top-level keys `subject`, `procedure`,
 `drugs`, `implants`, `injections` — pick the one you need. There are no per-section MCP tools.
 
 **Units and encodings** (call `describe_data_asset_schema_tool(data_asset="surgery_data")` for the

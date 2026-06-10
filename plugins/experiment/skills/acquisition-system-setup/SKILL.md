@@ -29,7 +29,7 @@ and must be invoked by hand-off.
 - Reporting discrepancies between discovered hardware and the active system configuration
 
 **Does not cover** (hand off to the owning plugin — named per item, since these span three plugins):
-- Setting the working directory, Google credentials, or task templates directory → assets plugin `/working-directory`
+- Setting the working directory, credentials, or task templates directory → assets plugin `/working-directory`
 - Reading, writing, or validating system configuration YAML → the active acquisition system's skill
   (`/mesoscope-vr` for the `mesoscope` system)
 - Creating projects → assets plugin `/project-hierarchy`
@@ -279,7 +279,8 @@ After discovery completes, report the discovered hardware to the user as a struc
 **If the user is performing initial bringup**, hand off in this order (owning plugin named per step):
 
 1. assets plugin `/working-directory` — set the working directory and the task templates directory.
-   Also set the Google credentials path, but only if the system reads animal metadata from Google Sheets.
+   Also configure the `google` category credentials, but only if the system reads animal metadata from
+   Google Sheets.
 2. the active acquisition system's skill (this plugin's `/mesoscope-vr` for the `mesoscope` system) —
    author the host machine's system configuration YAML against the discovered hardware values.
 3. assets plugin `/project-hierarchy` — create the project (or projects) the host will record under.
@@ -293,7 +294,7 @@ the diff between discovered and recorded.
 
 **If the user is troubleshooting**, use the troubleshooting table below.
 
-You MUST NOT call `set_working_directory_tool`, `set_google_credentials_tool`,
+You MUST NOT call `set_working_directory_tool`, `set_credentials_tool`,
 `set_task_templates_directory_tool`, `write_system_configuration_tool`, or
 `write_server_configuration_tool` directly under any circumstances.
 

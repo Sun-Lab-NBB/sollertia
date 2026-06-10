@@ -1,18 +1,18 @@
 ---
 name: working-directory
 description: >-
-  Initializes the local Sollertia working directory, data root, Google Sheets credentials path,
-  and task templates directory via the sollertia-shared-assets MCP server. Prerequisite for every
-  other assets-plugin skill. Use when setting up Sollertia on a new host, relocating the data root,
+  Initializes the local Sollertia working directory, data root, platform credentials, and task
+  templates directory via the sollertia-shared-assets MCP server. Prerequisite for every other
+  assets-plugin skill. Use when setting up Sollertia on a new host, relocating the data root,
   or when configuration tools fail because the working directory is not set.
 user-invocable: false
 ---
 
 # Sollertia working directory setup
 
-Initializes the local Sollertia working directory, the data root, and the supporting credentials /
-template paths used by `sollertia-shared-assets`. This is the first skill to invoke on any host that
-will run Sollertia configuration or runtime tooling.
+Initializes the local Sollertia working directory, the data root, and the supporting credentials
+files and task templates directory used by `sollertia-shared-assets`. This is the first skill to
+invoke on any host that will run Sollertia configuration or runtime tooling.
 
 ---
 
@@ -21,7 +21,7 @@ will run Sollertia configuration or runtime tooling.
 **Covers:**
 - Setting and reading the local working directory
 - Setting and reading the Sollertia data root
-- Setting and reading the Google Sheets credentials path
+- Setting and reading platform credentials files by category (currently the `google` category)
 - Setting and reading the task templates directory
 - The bootstrap order required by other configuration MCP tools
 - Explaining what each configurable asset is, why it exists, and when it is needed
@@ -43,13 +43,15 @@ will run Sollertia configuration or runtime tooling.
 
 The Sollertia working directory is the cache root for **host-machine-local** configuration state. It
 is distinct from the long-term storage tier where session data lives. Setting the working directory
-creates a `configuration/` subdirectory that downstream plugins populate:
+creates the `configuration/` and `credentials/` subdirectories:
 
 ```text
 <working-directory>/
-└── configuration/
-    ├── mesoscope_system_configuration.yaml  # Owned by sollertia-experiment
-    └── server_configuration.yaml            # Owned by sollertia-forgery
+├── configuration/
+│   ├── mesoscope_system_configuration.yaml  # Owned by sollertia-experiment
+│   └── server_configuration.yaml            # Owned by sollertia-forgery
+└── credentials/
+    └── google_credentials.json              # Configured via set_credentials_tool
 ```
 
 The working directory path is persisted via `platformdirs` so it survives across CLI invocations and
@@ -67,16 +69,18 @@ YAMLs inside are owned by downstream plugins:
 
 Defer to each owning skill for the schema, the authoring workflow, and the rotation cadence.
 
-### Google Sheets credentials
+### credentials/
 
-The Google Sheets service-account credentials JSON file is **not** stored inside the working
-directory. This skill persists the *path* to wherever the credentials file lives (via `platformdirs`)
-so downstream tools can locate it. The path can point anywhere on the filesystem; placing it inside
-the working directory is a common default but not a requirement.
+The `credentials/` subdirectory stores the credentials files the platform uses to interact with
+external services. Each supported credentials category maps to a canonical filename; the `google`
+category — the Google Sheets service-account credentials JSON — is stored as `google_credentials.json`.
+`set_credentials_tool` validates the source file and **copies** it into this subdirectory under the
+canonical name, replacing any previously configured file for the same category. Because the platform
+reads the copy, later edits to the original file do not propagate until the credentials are re-set.
 
-Credentials are required whenever a project reads animal metadata, surgery logs, or water restriction
-records from Google Sheets. If no project on the host uses Google Sheets, the credentials path can be
-left unset — but downstream tools that fetch sheet data will fail until it is set.
+Google credentials are required whenever a project reads animal metadata, surgery logs, or water
+restriction records from Google Sheets. If no project on the host uses Google Sheets, the credentials
+can be left unset — but downstream tools that fetch sheet data will fail until they are set.
 
 ---
 
@@ -133,22 +137,24 @@ authored by `/experiment-configuration`.
 
 ## MCP tool surface
 
-| Tool                                   | Purpose                                                                                        |
-|----------------------------------------|------------------------------------------------------------------------------------------------|
-| `set_working_directory_tool`           | Sets the local Sollertia working directory                                                     |
-| `read_working_directory_tool`          | Reads the currently configured working directory                                               |
-| `set_data_root_tool`                   | Sets the local Sollertia data root                                                             |
-| `read_data_root_tool`                  | Reads the currently configured data root                                                       |
-| `set_google_credentials_tool`          | Sets the path to the Google Sheets credentials JSON file                                       |
-| `read_google_credentials_tool`         | Reads the currently configured Google credentials path                                         |
-| `set_task_templates_directory_tool`    | Sets the directory holding YAML task templates                                                 |
-| `read_task_templates_directory_tool`   | Reads the currently configured task templates directory                                        |
-| `get_platform_environment_status_tool` | Reports `required`, `configured`, and `ok` status for all four paths in a single health report |
+| Tool                                   | Purpose                                                                                    |
+|----------------------------------------|--------------------------------------------------------------------------------------------|
+| `set_working_directory_tool`           | Sets the local Sollertia working directory                                                 |
+| `read_working_directory_tool`          | Reads the currently configured working directory                                           |
+| `set_data_root_tool`                   | Sets the local Sollertia data root                                                         |
+| `read_data_root_tool`                  | Reads the currently configured data root                                                   |
+| `set_credentials_tool`                 | Copies a credentials file into the platform credentials directory under its canonical name |
+| `read_credentials_tool`                | Reads the path to a category's configured credentials file                                 |
+| `list_supported_credentials_tool`      | Enumerates the supported credentials categories and their canonical filenames              |
+| `set_task_templates_directory_tool`    | Sets the directory holding YAML task templates                                             |
+| `read_task_templates_directory_tool`   | Reads the currently configured task templates directory                                    |
+| `get_platform_environment_status_tool` | Reports `required`, `configured`, and `ok` status for every component in one health report |
 
 All `set_*` tools accept absolute paths and create the directory if it does not exist (working directory
 and data root) or expect the file/directory to exist (credentials, templates).
-`set_google_credentials_tool` additionally requires the credentials path to end in `.json` (the helper
-rejects other extensions outright).
+`set_credentials_tool` takes a `credentials` category and a `file_path`; it requires the source file's
+extension to match the category's canonical filename (`.json` for `google`) and copies the file rather
+than recording its path, so edits to the original file do not propagate until the credentials are re-set.
 `set_task_templates_directory_tool` rejects paths that exist but are not directories with a `ValueError`
 (in addition to the existence check). Use `get_platform_environment_status_tool` as a one-call health
 check before handing off to any downstream configuration skill.
@@ -156,7 +162,8 @@ check before handing off to any downstream configuration skill.
 ### Required vs. optional components
 
 `get_platform_environment_status_tool` distinguishes required from optional components in its
-per-component report and computes `overall_ok` from the **required components only**:
+per-component report and computes `overall_ok` from the **required components only**. The report
+carries one `<category>_credentials` component per supported credentials category:
 
 | Component                  | `required` | When the host needs it                                                           |
 |----------------------------|------------|----------------------------------------------------------------------------------|
@@ -209,22 +216,24 @@ set_data_root_tool(directory="<absolute path to the project-hierarchy root>")
 
 The tool creates the directory if it does not exist. Verify with `read_data_root_tool`.
 
-### Step 4: Configure Google Sheets credentials (optional)
+### Step 4: Configure credentials (optional)
 
-Google credentials are an **optional** platform component. Skip this step entirely on hosts that do
-not fetch subject metadata or water-restriction logs from Google Sheets — `get_platform_environment_status_tool`
+Credentials are **optional** platform components. Skip this step entirely on hosts that do not fetch
+subject metadata or water-restriction logs from Google Sheets — `get_platform_environment_status_tool`
 will still report `overall_ok=True` because credentials carry `required=False`. Only the downstream
-tools that actually read sheets will fail (with a clear "credentials path not set" error) on a host
-that left the path unset.
+tools that actually read sheets will fail (with a clear error stating the credentials file has not been
+set) on a host that skipped this step.
 
-If the user's project pulls animal metadata or water restriction data from Google Sheets, set the
-credentials' path:
+If the user's project pulls animal metadata or water restriction data from Google Sheets, configure the
+`google` credentials category:
 
 ```text
-set_google_credentials_tool(credentials_path="<absolute path to credentials.json>")
+set_credentials_tool(credentials="google", file_path="<absolute path to the source credentials JSON>")
 ```
 
-Verify with `read_google_credentials_tool`.
+The tool copies the source file to `<working-directory>/credentials/google_credentials.json`. Verify
+with `read_credentials_tool(credentials="google")`. Use `list_supported_credentials_tool` to enumerate
+the supported categories and their canonical filenames.
 
 ### Step 5: Configure task templates directory
 
@@ -274,13 +283,15 @@ content from this skill; that is owned by `/task-templates`.
   stored root.
 - **Adding a persisted root to a host that previously passed explicit roots:** Step 3 only.
 
-### Google credentials
+### Credentials
 
 - **New host with Google Sheets integration:** Step 4 during initial bootstrap.
 - **Rotating credentials:** Step 4 only. This is needed when the Google Cloud service-account key is
   regenerated or when switching to a different service account.
 - **Adding Sheets integration to a host that previously skipped it:** Step 4 only.
-- **Credentials file moved on disk:** Step 4 to update the stored path.
+- **Source credentials file edited or regenerated:** Step 4 to re-copy it. The platform reads the copy
+  stored in its credentials directory, so changes to the original file do not propagate until the
+  credentials are re-set.
 
 ### Task templates directory
 
@@ -298,7 +309,7 @@ content from this skill; that is owned by `/task-templates`.
 - [ ] Working directory exists and is readable (`read_working_directory_tool` returns expected path)
 - [ ] Data root is set ONLY IF the host should default discovery / inventory to a persisted root —
       otherwise intentionally left unset (this is a healthy state, not an error)
-- [ ] Google credentials path is set ONLY IF the project fetches data from Google Sheets — otherwise
+- [ ] Google credentials file is set ONLY IF the project fetches data from Google Sheets — otherwise
       intentionally left unset (this is a healthy state, not an error)
 - [ ] Task templates directory is set ONLY IF the host authors templates or experiment configurations
       — otherwise intentionally left unset (this is a healthy state, not an error)
