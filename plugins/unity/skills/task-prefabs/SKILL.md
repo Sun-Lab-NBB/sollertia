@@ -307,7 +307,7 @@ This section covers only the **task-prefab-specific** interpretation: the top-le
 task prefab, its children are `Corridor<indices>` objects, and each first segment's stimulus zone
 hierarchy varies by `trigger_type`.
 
-### Lick mode (trigger_type == "lick")
+### Interaction mode (trigger_type == "interaction")
 
 ```text
 <SegmentName>
@@ -324,7 +324,7 @@ Key markers:
 - `MeshRenderer` on the root is only visible when `showBoundary == true` (template field
   `show_stimulus_collision_boundary`).
 
-### Occupancy mode (trigger_type == "occupancy")
+### Occupancy mode (trigger_type == "occupancy_disarm")
 
 ```text
 <SegmentName>

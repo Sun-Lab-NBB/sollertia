@@ -16,8 +16,8 @@ only source of truth for GIMBL in `sollertia-unity-tasks` — you MUST disregard
 knowledge (file names, class shapes, editor windows, MQTT wiring, conventions) that does not
 come from this skill or from the code under `Assets/Gimbl/` itself.
 
-**Reference-only skill.** No upstream — agents arrive here on demand from `/scene-setup` (auto-
-created scene infrastructure), `/task-parameters` (Actor / Display / MQTT class semantics),
+**Reference-only skill.** No upstream — agents arrive here on demand from `/scene-setup` (auto-created 
+scene infrastructure), `/task-parameters` (Actor / Display / MQTT class semantics),
 `/mqtt-contract` (channel API + lifecycle), `/task-generator` (segment prefabs and the Actor
 coordinate frame), and `/zone-prefabs` (modifier-script invariants).
 
@@ -328,7 +328,7 @@ lock, or it will race with the MQTT callback and drop or double-count movement s
 **`SimulatedLinearTreadmill.MovementSpeedMultiplier = 8.0f`** is hardcoded as a private
 `const float`. Anyone tuning keyboard-driven testing speed must edit this constant in
 `SimulatedLinearTreadmill.cs`; there is no inspector field, Task Parameters entry, or MQTT topic
-to override it at runtime. The lick trigger is wired to `_input.Player.Jump` (spacebar).
+to override it at runtime. The interaction trigger is wired to `_input.Player.Jump` (spacebar).
 
 **`ControllerOutput` indirection**: `ActorObject.Controller` is typed as `ControllerOutput` rather
 than the concrete `ControllerObject` subclass so swapping controllers does not invalidate the
@@ -465,7 +465,7 @@ focuses) the window. The five sections are rendered in fixed order by `OnGUI`:
 3. **Display** — Blank / Show toggle + `brightness` + `heightInVR`
 4. **Camera Mapping** — Refresh + per-monitor camera dropdowns + Show Full-Screen Views (button
    greyed in Play Mode)
-5. **Task** — `Require Lick` / `Require Wait` (conditional on zone presence) + `Track Length` /
+5. **Task** — `Require Interaction` / `Require Wait` (conditional on zone presence) + `Track Length` /
    `Track Seed`. The entire Task section's controls are greyed in Play Mode.
 
 See `/scene-setup` for the user-facing workflow and `/task-parameters` for the programmatic

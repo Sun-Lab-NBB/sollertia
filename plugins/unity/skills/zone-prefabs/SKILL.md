@@ -2,7 +2,7 @@
 name: zone-prefabs
 description: >-
   Manufactures new hand-authored trigger zone prefabs for sollertia-unity-tasks by copying one of
-  the two canonical templates (`StimulusTriggerZone.prefab` for lick mode, `OccupancyTriggerZone.prefab`
+  the two canonical templates (`StimulusTriggerZone.prefab` for interaction mode, `OccupancyTriggerZone.prefab`
   for occupancy mode) and rewriting the MonoBehaviour script GUIDs, region names, and field defaults.
   Use when adding a new `TriggerType` member or designing a new stimulus-zone variant that mixes
   existing modifier zones in a new configuration.
@@ -53,7 +53,7 @@ Both zone prefabs share a fixed structural skeleton:
   exactly one `MonoBehaviour` from `SL.Tasks`.
 - A `Transform.localPosition` of `(0, 0.505, 0)` on the root (the `ZoneVerticalOffset` defined in
   `CreateTask.cs`) and `(0, 0, 0)` on every modifier.
-- Placeholder `BoxCollider` sizes — `CreateTask.PlaceLickZone` and `CreateTask.PlaceOccupancyZone`
+- Placeholder `BoxCollider` sizes — `CreateTask.PlaceInteractionZone` and `CreateTask.PlaceOccupancyZone`
   overwrite them at task generation time, so the prefab's stored values are not authoritative.
 
 The only fields that vary between trigger zone variants are the script GUIDs on each
@@ -92,7 +92,7 @@ Both templates live under `Assets/InfiniteCorridorTask/Prefabs/` and are committ
 control. Read whichever one matches the target zone shape, then write the modified contents to a
 new path.
 
-### Lick template (`StimulusTriggerZone.prefab`)
+### Interaction template (`StimulusTriggerZone.prefab`)
 
 Hierarchy:
 
@@ -124,7 +124,7 @@ new "must-wait-then-acknowledge" pattern where the inner zone reads state off th
 ## Invariants you MUST preserve
 
 Copying a template imports every invariant for free. You MUST NOT modify the following — they
-are referenced by `CreateTask.PlaceLickZone` / `PlaceOccupancyZone` at task generation, by
+are referenced by `CreateTask.PlaceInteractionZone` / `PlaceOccupancyZone` at task generation, by
 `StimulusTriggerZone.cs` at runtime, or by both.
 
 ### On the root GameObject
@@ -314,7 +314,7 @@ When adding a region:
 1. Pick four fresh fileIDs that do not collide with any existing fileID in the prefab. Use random
    18–19-digit integers (e.g., `2839475610293847501`).
 2. Append the GameObject, Transform, MonoBehaviour, and BoxCollider blocks at the end of the file,
-   following the exact structure shown in the canonical templates (read the lick template for the
+   following the exact structure shown in the canonical templates (read the interaction template for the
    `GuidanceRegion` shape).
 3. Add the new GameObject's Transform fileID to the parent's `m_Children` list:
 
@@ -390,9 +390,9 @@ End-to-end walkthroughs of the two non-trivial zone-prefab authoring patterns li
   trigger" (rewarding) by writing a new `RewardOccupancyZone` script that preserves the
   `boundaryDisarmed` field name with flipped polarity, so `StimulusTriggerZone` and
   `OccupancyGuidanceZone` keep working unchanged.
-- **Example B:** Building a brand-new compound `SpeedLickTriggerZone` that gates lick-triggered
+- **Example B:** Building a brand-new compound `SpeedInteractionTriggerZone` that gates interaction-triggered
   stimulus on the animal's traversal speed through an upstream speed-test region — covers a new
-  parent script, a new sibling-region script, and a new `PlaceSpeedLickZone` placement helper.
+  parent script, a new sibling-region script, and a new `PlaceSpeedInteractionZone` placement helper.
 
 Load that file when you actually need to extend the zone vocabulary; the workflow above (Steps
 1–7) is enough for routine variants.

@@ -112,15 +112,16 @@ hierarchy depth and parent-child fileID pairings match the canonical occupancy p
 
 ---
 
-## Example B: New compound trigger — speed-gated lick reward
+## Example B: New compound trigger — speed-gated interaction reward
 
-Goal: ship a `SpeedLickTriggerZone` where the animal has to traverse an upstream **speed-test
-region** within a target running-speed range AND then lick inside a downstream **reward-lick
-region** to receive the stimulus. The two criteria are independent geometrically (separate
-colliders at separate cm offsets) and conjunctive at fire time (both must succeed in the same lap).
+Goal: ship a `SpeedInteractionTriggerZone` where the animal has to traverse an upstream **speed-test
+region** within a target running-speed range AND then engage the interaction sensor inside a
+downstream **reward-interaction region** to receive the stimulus. The two criteria are independent
+geometrically (separate colliders at separate cm offsets) and conjunctive at fire time (both must
+succeed in the same lap).
 
-`StimulusTriggerZone`'s built-in lick gate covers the lick half but has no notion of speed. To
-keep `ResetZone.cs`'s typed `FindObjectsByType<StimulusTriggerZone>` working without an explicit
+`StimulusTriggerZone`'s built-in interaction gate covers the interaction half but has no notion of
+speed. To keep `ResetZone.cs`'s typed `FindObjectsByType<StimulusTriggerZone>` working without an explicit
 edit, the new root parent script **subclasses** `StimulusTriggerZone` rather than replacing it.
 The new sibling-region script (`SpeedZone`) is a standalone `IResettable` — it does not subclass
 any of the three known types, so it requires an explicit `ResetZone.cs` registration.
@@ -130,7 +131,7 @@ any of the three known types, so it requires an explicit `ResetZone.cs` registra
 Under `Assets/InfiniteCorridorTask/Scripts/SpeedZone.cs` (invoke `/csharp-style`):
 
 - `[Serializable]` fields: `targetSpeedCmPerSec`, `toleranceCmPerSec`, plus an `[HideInInspector]`
-  `cmPerUnit` populated by `PlaceSpeedLickZone` at task generation time so the script does not
+  `cmPerUnit` populated by `PlaceSpeedInteractionZone` at task generation time so the script does not
   need to discover the conversion at runtime.
 - `IResettable` state: `inZone`, `speedMet`, `_entryPosZ`, `_entryTime`.
 - `OnTriggerEnter(Collider other)`: stamp `_entryPosZ = other.transform.position.z` and
@@ -140,20 +141,20 @@ Under `Assets/InfiniteCorridorTask/Scripts/SpeedZone.cs` (invoke `/csharp-style`
   and set `speedMet = Mathf.Abs(avg - targetSpeedCmPerSec) <= toleranceCmPerSec`.
 - `ResetState()`: clear `speedMet` and `inZone` so each lap is judged independently.
 
-`cmPerUnit` is the only piece of cross-script state. Injecting it from `PlaceSpeedLickZone`
+`cmPerUnit` is the only piece of cross-script state. Injecting it from `PlaceSpeedInteractionZone`
 (which already reads `template.vrEnvironment.cmPerUnityUnit`) keeps `SpeedZone` self-contained
 and avoids a `FindAnyObjectByType<Task>()` round-trip every frame.
 
-### Step 2: Author `SpeedLickTriggerZone : StimulusTriggerZone`
+### Step 2: Author `SpeedInteractionTriggerZone : StimulusTriggerZone`
 
-Under `Assets/InfiniteCorridorTask/Scripts/SpeedLickTriggerZone.cs` (invoke `/csharp-style`):
+Under `Assets/InfiniteCorridorTask/Scripts/SpeedInteractionTriggerZone.cs` (invoke `/csharp-style`):
 
 - Cache the sibling `SpeedZone` via `GetComponentInChildren<SpeedZone>()` in `Start` (after
   `base.Start()`).
-- Override the lick-mode fire condition. The simplest path is to make
-  `StimulusTriggerZone.UpdateLickMode` and `TriggerStimulus` `protected virtual` first (parallel
-  to Example A's `OccupancyZone` edits), then override `UpdateLickMode` to gate on
-  `_speedZone != null && _speedZone.speedMet` in addition to the existing lick-detection check.
+- Override the interaction-mode fire condition. The simplest path is to make
+  `StimulusTriggerZone.UpdateInteractionMode` and `TriggerStimulus` `protected virtual` first (parallel
+  to Example A's `OccupancyZone` edits), then override `UpdateInteractionMode` to gate on
+  `_speedZone != null && _speedZone.speedMet` in addition to the existing interaction-detection check.
 - Inherit `ResetState` from `StimulusTriggerZone`; `SpeedZone.ResetState` handles its own state.
 
 Subclassing means:
@@ -166,13 +167,13 @@ Subclassing means:
 
 ### Step 3: Copy and rename the prefab
 
-1. Copy `StimulusTriggerZone.prefab` → `Prefabs/SpeedLickTriggerZone.prefab`.
-2. Rename the root: `m_Name: StimulusTriggerZone` → `m_Name: SpeedLickTriggerZone`.
+1. Copy `StimulusTriggerZone.prefab` → `Prefabs/SpeedInteractionTriggerZone.prefab`.
+2. Rename the root: `m_Name: StimulusTriggerZone` → `m_Name: SpeedInteractionTriggerZone`.
 3. Rename the existing `GuidanceRegion` child: `m_Name: GuidanceRegion` → `m_Name: SpeedTestRegion`.
 
 ### Step 4: Swap script GUIDs
 
-- Root MonoBehaviour: swap `StimulusTriggerZone`'s GUID for `SpeedLickTriggerZone`'s GUID. The
+- Root MonoBehaviour: swap `StimulusTriggerZone`'s GUID for `SpeedInteractionTriggerZone`'s GUID. The
   root invariants (MeshFilter Quad, MeshRenderer TargetMat, MeshCollider Quad, BoxCollider
   trigger, `showBoundary: 0`, `isActive: 0`) all stay because the subclass inherits them.
 - `SpeedTestRegion` MonoBehaviour: swap `GuidanceZone`'s GUID for `SpeedZone`'s GUID. Replace
@@ -184,12 +185,12 @@ Subclassing means:
 ### Step 5: Validate via `inspect_prefab_tool`
 
 ```text
-SpeedLickTriggerZone        (SpeedLickTriggerZone + StimulusTriggerZone in components)
+SpeedInteractionTriggerZone (SpeedInteractionTriggerZone + StimulusTriggerZone in components)
 └── SpeedTestRegion         (SpeedZone in components, BoxCollider over speed-test range)
 ```
 
-The reward-lick collider lives on the root; it is not a separate child. `inspect_prefab_tool`'s
-`components` list for the root should include both the subclass name (`SpeedLickTriggerZone`)
+The reward-interaction collider lives on the root; it is not a separate child. `inspect_prefab_tool`'s
+`components` list for the root should include both the subclass name (`SpeedInteractionTriggerZone`)
 and — through inheritance polling — should at minimum confirm `BoxCollider`, `MeshFilter`,
 `MeshRenderer`, and `MeshCollider` are still present.
 
@@ -198,14 +199,14 @@ and — through inheritance polling — should at minimum confirm `BoxCollider`,
 - New `TriggerType` member (via `/library-extension`).
 - New YAML fields on `TrialStructure` for speed-test cm bounds, target speed, and tolerance
   (mirror the existing `stimulus_trigger_zone_*_cm` pattern; pass them through
-  `PlaceSpeedLickZone` in `CreateTask.cs`).
-- A `PlaceSpeedLickZone` helper that positions the root collider over the reward range and the
+  `PlaceSpeedInteractionZone` in `CreateTask.cs`).
+- A `PlaceSpeedInteractionZone` helper that positions the root collider over the reward range and the
   `SpeedTestRegion` collider over the speed-test range, writes `targetSpeedCmPerSec`,
   `toleranceCmPerSec`, and `cmPerUnit` onto the `SpeedZone` instance, and sets `showBoundary`
   on the root.
 - `BuildSegmentPrefabs` dispatch entry that selects the new prefab for the new `trigger_type`.
-- `DeleteProtectedPaths` entry for `SpeedLickTriggerZone.prefab`.
+- `DeleteProtectedPaths` entry for `SpeedInteractionTriggerZone.prefab`.
 - `ConfigLoader.ValidateTemplate` accepts the new `trigger_type` literal.
 - **`ResetZone.cs`** — add `resettables.AddRange(FindObjectsByType<SpeedZone>(FindObjectsSortMode.None));`
-  next to the existing three `FindObjectsByType` calls. `SpeedLickTriggerZone` is covered by the
+  next to the existing three `FindObjectsByType` calls. `SpeedInteractionTriggerZone` is covered by the
   existing `FindObjectsByType<StimulusTriggerZone>` line via polymorphism.

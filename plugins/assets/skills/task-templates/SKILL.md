@@ -67,7 +67,7 @@ only; snapshots are produced exclusively by `SessionData.create()` and are not c
 
 A template defines **what is possible** for a VR experiment. The paired experiment configuration picks
 a template (by `unity_scene_name`) and parameterizes it — state durations, per-trial reward volumes and
-puff/occupancy durations, project-specific overrides. The two are authored by two different skills with two
+puff durations, project-specific overrides. The two are authored by two different skills with two
 different ownership scopes.
 
 ### Where the template name flows
@@ -100,7 +100,7 @@ A `TaskTemplate` is composed of these classes (all defined in `sollertia_shared_
 | `Cue`            | A visual cue (name, uint8 code, length, optional texture) referenced by trial cue sequences                          |
 | `TrialStructure` | Per-trial spatial config: cue sequence, optional transitions, stimulus trigger zone, stimulus location, trigger type |
 | `VREnvironment`  | VR corridor configuration: spacing, segments per corridor, padding prefab, units, cue offset                         |
-| `TriggerType`    | Enum of stimulus trigger zone activators (`lick`, `occupancy`)                                                       |
+| `TriggerType`    | Enum of stimulus trigger zone activators (`interaction`, `occupancy_disarm`)                                         |
 
 `TaskTemplate.trial_structures` is a `dict[str, TrialStructure]` keyed by trial name. The template
 itself does **not** carry trial weights, experiment-specific reward parameters, or trial-class
@@ -236,10 +236,12 @@ trial subclass in the per-project experiment configuration via `/experiment-conf
   the trial-to-trial topology is the source of truth for corridor sequencing. Names make the
   topology order-independent and self-documenting; omitted keys carry implicit zero probability,
   so the dict need only enumerate reachable trials.
-- **`TrialStructure` is spatial-only** (no rewards, no puff durations, no occupancy thresholds)
-  because those are project-level behavioral parameters that vary between teams using the same
-  paradigm. They live on the experiment-config trial classes (`WaterRewardTrial`, `GasPuffTrial`)
-  authored by `/experiment-configuration` and are joined to the spatial structure by trial name.
+- **`TrialStructure` is spatial-only** (no rewards, no puff durations) — except for
+  `occupancy_duration_ms`, the single source of truth for the occupancy-disarm dwell time, which
+  Unity reads at generation time. Because rewards and puff durations are project-level behavioral
+  parameters that vary between teams using the same paradigm, they live on the experiment-config
+  trial classes (`WaterRewardTrial`, `GasPuffTrial`) authored by `/experiment-configuration` and
+  are joined to the spatial structure by trial name.
 - **`trigger_type` is on `TrialStructure`** because Unity must pick the zone prefab during
   template generation — long before any experiment-config trial is instantiated. The trigger
   type is therefore the template's contract with Unity; the matching experiment-config trial
@@ -319,9 +321,10 @@ Build the template dictionary in this order:
    collision boundary is visible, trigger type from `list_supported_trigger_types_tool`, and an
    optional `transitions` dict mapping target trial names to probabilities summing to 1.0).
 
-Trial weights, reward sizes, gas-puff durations, occupancy thresholds, experiment states, and the
+Trial weights, reward sizes, gas-puff durations, experiment states, and the
 choice of trial class (`WaterRewardTrial` vs `GasPuffTrial`) are **not** part of the template —
-they are added per-experiment by `/experiment-configuration`.
+they are added per-experiment by `/experiment-configuration`. (Occupancy-disarm dwell time is the
+exception: it lives on the template as the `TrialStructure.occupancy_duration_ms` field.)
 
 ### Step 5: Write, validate, and re-read
 
@@ -351,6 +354,9 @@ Pass `overwrite=True` only when intentionally replacing an existing template.
 - each trial name matches `^[A-Za-z0-9_]+$` (used verbatim in the Unity-side
   `<template>_<trial>.prefab` segment filename)
 - each trial `cue_sequence` is non-empty and references valid cue names
+- each trial `cue_sequence` is unique within the template (two trials must not share an identical
+  cue sequence; to make trials look identical to the animal yet stay distinguishable to the system,
+  define distinct cue codes that share the same texture)
 - each trial `transitions`, when provided, sums to 1.0 and references valid trial names
 - each `TrialStructure.trigger_type` is a valid `TriggerType` value
 - per-trial zone positions satisfy `start ≤ end`, `stimulus_location_cm ≥ start`, and all three are

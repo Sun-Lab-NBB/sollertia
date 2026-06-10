@@ -104,14 +104,14 @@ strings exactly.
 | `SESSION_START`        | `SessionStart`       | Unity → runtime | empty trigger (Unity MQTT client started)                       |
 | `SESSION_STOP`         | `SessionStop`        | Unity → runtime | empty trigger (Unity application quit)                          |
 | `MOTION`               | `Motion`             | runtime → Unity | `TreadmillMessage` `{movement: float}` (Unity-unit delta)       |
-| `LICK`                 | `Lick`               | runtime → Unity | empty trigger                                                   |
-| `STIMULUS`             | `Stimulus`           | Unity → runtime | empty trigger (a stimulus trigger zone fired)                   |
+| `INTERACTION`          | `Interaction`        | runtime → Unity | empty trigger                                                   |
+| `STIMULUS`             | `Stimulus`           | Unity → runtime | `StimulusMessage` `{trialName: string}` (id = trial name)       |
 | `DELAY`                | `Delay`              | Unity → runtime | `TriggerDelayMessage` `{delayMilliseconds: uint}`               |
 | `CUE_SEQUENCE_TRIGGER` | `CueSequenceTrigger` | runtime → Unity | empty trigger (request flattened cue sequence)                  |
 | `CUE_SEQUENCE`         | `CueSequence`        | Unity → runtime | `SequenceMessage` `{cueSequence: byte[]}`                       |
 | `SCENE_NAME_TRIGGER`   | `SceneNameTrigger`   | runtime → Unity | empty trigger (request active scene name)                       |
 | `SCENE_NAME`           | `SceneName`          | Unity → runtime | `SceneNameMessage` `{name: string}`                             |
-| `REQUIRE_LICK`         | `RequireLick`        | runtime → Unity | `BoolMessage` `{value: bool}` (inverse of reinforcing guidance) |
+| `REQUIRE_INTERACTION`  | `RequireInteraction` | runtime → Unity | `BoolMessage` `{value: bool}` (inverse of reinforcing guidance) |
 | `REQUIRE_WAIT`         | `RequireWait`        | runtime → Unity | `BoolMessage` `{value: bool}` (inverse of aversive guidance)    |
 
 The driver subscribes to the inbound subset it surfaces or resolves internally
@@ -165,10 +165,11 @@ asynchronous Unity messages it surfaces are enumerated by `VRTaskEventKind` (`In
 | `TRIGGER_DELAY_REQUESTED` | 2     | `DELAY`                             | Unity requests a brake pulse of `delay_ms` milliseconds                |
 | `UNITY_TERMINATED`        | 3     | `SESSION_STOP`                      | Unity runtime ended; the system must enter an emergency pause          |
 
-`VRTaskEvent` (frozen dataclass) carries `kind: VRTaskEventKind` and `delay_ms: int = 0` (populated
-only for `TRIGGER_DELAY_REQUESTED`). Handshake topics consumed during `cycle()` (`SESSION_START`,
-`SCENE_NAME`, `CUE_SEQUENCE`) resolve to `NONE` — they are handled by the setup sequence, not
-dispatched.
+`VRTaskEvent` (frozen dataclass) carries `kind: VRTaskEventKind`, `delay_ms: int = 0` (populated
+only for `TRIGGER_DELAY_REQUESTED`), and `trial_name` (populated only for `STIMULUS_TRIGGERED`, parsed
+from the `Stimulus` payload so the runtime can resolve the per-trial outcome). Handshake topics consumed
+during `cycle()` (`SESSION_START`, `SCENE_NAME`, `CUE_SEQUENCE`) resolve to `NONE` — they are handled by
+the setup sequence, not dispatched.
 
 `VRTaskState` (dataclass, the driver's `state` property) is the single source of truth shared between
 the setup handshake and per-cycle events:
@@ -202,7 +203,7 @@ VRTaskDriver(
 | `setup()`                              | Bridge-driven start-of-session handshake; see the Setup handshake note below.     |
 | `push_position(absolute_position)`     | Forward the animal's position to Unity as a movement delta (only emits on change) |
 | `push_lick_event()`                    | Notify Unity that the animal licked                                               |
-| `set_reinforcing_guidance(*, enabled)` | Toggle reinforcing guidance (publishes `RequireLick` = `not enabled`)             |
+| `set_reinforcing_guidance(*, enabled)` | Toggle reinforcing guidance (publishes `RequireInteraction` = `not enabled`)      |
 | `set_aversive_guidance(*, enabled)`    | Toggle aversive guidance (publishes `RequireWait` = `not enabled`)                |
 | `cycle() -> VRTaskEvent`               | Consume the next pending Unity message and return it as a typed event             |
 | `resume_after_unity_restart()`         | Re-arm Unity via the bridge, re-fetch the cue sequence, and clear `terminated`    |
@@ -217,7 +218,7 @@ VRTaskDriver(
 > stops Play Mode, and the operator confirms the render (yes advances and re-arms; no lets them adjust, then
 > re-arms and repeats). The caller MUST enable the VR screens before the call and disable them after.
 
-> **Guidance inversion.** Unity's `RequireLick` / `RequireWait` flags are the inverse of guidance: a
+> **Guidance inversion.** Unity's `RequireInteraction` / `RequireWait` flags are the inverse of guidance: a
 > `True` value forces the animal to perform the behavior unaided (the unguided case), so enabling
 > guidance publishes `value=False`. Preserve this inversion when changing guidance handling.
 
@@ -235,11 +236,11 @@ trial sequence the acquisition system can act on, using the per-trial cue motifs
   decomposition runs so re-decomposition after a Unity restart is cheap.
 - `DecomposedTrials` (frozen dataclass) — aligned per-trial sequences (index `i` = the i-th trial):
 
-  | Field                  | Type                      | Purpose                                                                                          |
-  |------------------------|---------------------------|--------------------------------------------------------------------------------------------------|
-  | `cumulative_distances` | `NDArray[float64]`        | Cumulative distance (cm) to reach the end of each trial                                          |
-  | `trial_names`          | `tuple[str, ...]`         | Join key the runtime uses to look up per-trial parameters in its experiment configuration        |
-  | `trigger_types`        | `tuple[TriggerType, ...]` | `TriggerType.LICK` = positive (reward-zone) trial; `OCCUPANCY` = aversive (occupancy-zone) trial |
+  | Field                  | Type                      | Purpose                                                                                                        |
+  |------------------------|---------------------------|----------------------------------------------------------------------------------------------------------------|
+  | `cumulative_distances` | `NDArray[float64]`        | Cumulative distance (cm) to reach the end of each trial                                                        |
+  | `trial_names`          | `tuple[str, ...]`         | Join key the runtime uses to look up per-trial parameters in its experiment configuration                      |
+  | `trigger_types`        | `tuple[TriggerType, ...]` | `TriggerType.INTERACTION` = positive (reward-zone) trial; `OCCUPANCY_DISARM` = aversive (occupancy-zone) trial |
 
 `TriggerType` is owned by `sollertia-shared-assets` (and its enum is extended via the assets plugin's
 `/library-extension`). The orchestrator reads the driver's `trial_names` — joining them against its
@@ -351,7 +352,7 @@ When modifying the VR task driver:
 - [ ] Bridge stays mandatory and loopback-only (no enable/disable config, no manual-prompt fallback)
 - [ ] monitored_topics updated for any new inbound surfaced topic
 - [ ] cycle() branches and VRTaskEventKind/VRTaskEvent updated for any new dispatchable event
-- [ ] Guidance inversion preserved (RequireLick/RequireWait publish `not enabled`)
+- [ ] Guidance inversion preserved (RequireInteraction/RequireWait publish `not enabled`)
 - [ ] Orchestrator _unity_cycle() handles any new event kind (experiment:mesoscope-vr-runtime)
 - [ ] Trial decomposition (DecomposedTrials) updated if the per-trial data model changed
 - [ ] Event model / topic contract tables in this skill updated

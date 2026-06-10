@@ -25,7 +25,7 @@ pipeline `create_task_tool` invokes), `/zone-prefabs` (Step 7 wiring), and asset
 - The `CreateTask.CreateFromTemplate` pipeline (cue synthesis, segment synthesis, task assembly)
 - Cue prefab internal layout (`Right`/`Left` quads) generated from templates
 - Segment prefab internal layout (cue instances, `Floor`, `Walls`, `ResetZone`, trigger zone)
-- Zone placement math (`PlaceLickZone` and `PlaceOccupancyZone`)
+- Zone placement math (`PlaceInteractionZone` and `PlaceOccupancyZone`)
 - Constraints on adding new zone types, cue shapes, or segment layouts
 - The `CreateTask → New Task` Editor menu entry and its relationship to `create_task_tool`
 
@@ -63,8 +63,8 @@ CreateTask.CreateFromTemplate(absoluteTemplatePath, relativeConfigPath, savePath
 │   ├── Place cue instances sequentially along +Z
 │   ├── Build Floor (plane) and Walls (LeftWall + RightWall quads)
 │   ├── For each trial_structure[]:
-│   │   ├── trigger_type == "lick"       → PlaceLickZone
-│   │   └── trigger_type == "occupancy"  → PlaceOccupancyZone
+│   │   ├── trigger_type == "interaction"      → PlaceInteractionZone
+│   │   └── trigger_type == "occupancy_disarm" → PlaceOccupancyZone
 │   └── Place ResetZone at local Z = cueOffsetUnity (segment root is shifted upstream by the same
 │                                                    amount, so the ResetZone lands at world Z = 0,
 │                                                    the actor's per-corridor spawn point)
@@ -207,7 +207,7 @@ is also in `McpBridge.DeleteProtectedPaths` and cannot be deleted via `delete_as
 
 | Asset                                 | Type       | Purpose                                                          |
 |---------------------------------------|------------|------------------------------------------------------------------|
-| `Prefabs/StimulusTriggerZone.prefab`  | GameObject | Base prefab for lick-mode zones                                  |
+| `Prefabs/StimulusTriggerZone.prefab`  | GameObject | Base prefab for interaction-mode zones                           |
 | `Prefabs/OccupancyTriggerZone.prefab` | GameObject | Base prefab for occupancy-mode zones                             |
 | `Prefabs/ResetZone.prefab`            | GameObject | Placed at every segment's start                                  |
 | `Prefabs/Padding.prefab`              | GameObject | Appended past every corridor to cap the visible corridor depth   |
@@ -237,7 +237,7 @@ required-shared-assets table above and is protected by `McpBridge.DeleteProtecte
 `CreateTask` positions zones using the template's cm-valued fields, converted by `cm_per_unity_unit`. All math below
 runs per trial structure — a single segment may have at most one `StimulusTriggerZone` or `OccupancyTriggerZone`.
 
-### Lick mode (`PlaceLickZone`)
+### Interaction mode (`PlaceInteractionZone`)
 
 ```text
 zoneStartUnity        = trial.stimulus_trigger_zone_start_cm / cm_per_unity_unit
@@ -283,7 +283,7 @@ OccupancyGuidanceRegion.BoxCollider.center = (0, 0, occupancyCenterOffset + zone
 
 ### Critical invariant
 
-For lick-mode trials the generator places the zone root at the segment's center such that
+For interaction-mode trials the generator places the zone root at the segment's center such that
 `zone_z = zone.transform.localPosition.z` equals `(zone_end + zone_start) / (2 * cm_per_unity_unit)`,
 and the `BoxCollider.size.z` equals `(zone_end - zone_start) / cm_per_unity_unit`. For occupancy
 mode the generator places the root at `rootZ` (past the waiting range) instead — the root collider
@@ -301,7 +301,7 @@ After `BuildSegmentPrefabs` finishes, `CreateTask` builds the top-level task hie
 <TaskName>
 │   components: [Task]
 │   Task.configPath    = relativeConfigPath (stored for runtime load)
-│   Task.requireLick   = true                (default; overridden at runtime by MQTT)
+│   Task.requireInteraction = true           (default; overridden at runtime by MQTT)
 │
 ├── Corridor000          localPosition = (0, 0, 0)
 │   ├── <segment0>       localPosition = (0, 0, 0)
@@ -387,10 +387,10 @@ recipe is split three ways:
 Apply your three skills' bullets in order. The pipeline-side touches owned here:
 
 1. Extend the `trigger_type` literal check in `ConfigLoader.ValidateTemplate` (currently accepts
-   `"lick"` and `"occupancy"` only); without this, every template that uses the new value fails at
+   `"interaction"` and `"occupancy_disarm"` only); without this, every template that uses the new value fails at
    load time.
 2. Add a new `if (trial.triggerType == "<new>")` branch in `BuildSegmentPrefabs` and a
-   corresponding `Place<New>Zone` helper following the pattern of `PlaceLickZone` /
+   corresponding `Place<New>Zone` helper following the pattern of `PlaceInteractionZone` /
    `PlaceOccupancyZone`.
 3. Add the new prefab path to `McpBridge.DeleteProtectedPaths` — `BuildSegmentPrefabs` loads zone
    prefabs by hardcoded path, and an accidental `delete_asset_tool` would break subsequent
@@ -462,7 +462,7 @@ base prefabs, the hand-authored shared materials, or the `McpBridge` dispatch su
 
 ```text
 Generator Pipeline Compliance:
-- [ ] Any change to zone placement is reflected in both PlaceLickZone and PlaceOccupancyZone if applicable
+- [ ] Any change to zone placement is reflected in both PlaceInteractionZone and PlaceOccupancyZone if applicable
 - [ ] New zone types appear in BuildSegmentPrefabs trigger-type switch AND in the zone base prefab set AND in
       McpBridge.DeleteProtectedPaths
 - [ ] Cue prefab regeneration remains shared and skip-if-exists; segment prefab regeneration remains always-rebuilt

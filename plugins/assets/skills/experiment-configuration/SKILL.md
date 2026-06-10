@@ -124,7 +124,7 @@ reads the phase correctly.
 ### Where the trial sequence comes from
 
 The experiment configuration **never enumerates or schedules trials** — it contributes only the
-**per-trial-type parameters** (reward volume, tone duration, puff duration, occupancy threshold). The trial
+**per-trial-type parameters** (reward volume, tone duration, puff duration). The trial
 sequence is owned by Unity (`sollertia-unity-tasks`): at session init the acquisition runtime requests a cue
 sequence materialized from the template's per-trial `transitions` (see `/task-templates`), then identifies trial
 boundaries by motif matching against each `TrialStructure`. Relative frequencies are encoded in the template's
@@ -164,8 +164,8 @@ are Mesoscope-VR's own — never assume they apply verbatim to another system.
   values are the **system's own** runtime trial classes. The task template provides each trial's spatial
   `TrialStructure` and the configuration pairs it with a runtime trial class by trial name.
   `list_supported_trial_types_tool` derives the trial list from this field. Mesoscope-VR's annotation is
-  `dict[str, WaterRewardTrial | GasPuffTrial]`, pairing `trigger_type: "lick"` → `WaterRewardTrial` and
-  `trigger_type: "occupancy"` → `GasPuffTrial` to match the zone prefab Unity instantiates; another system
+  `dict[str, WaterRewardTrial | GasPuffTrial]`, pairing `trigger_type: "interaction"` → `WaterRewardTrial` and
+  `trigger_type: "occupancy_disarm"` → `GasPuffTrial` to match the zone prefab Unity instantiates; another system
   defines and pairs its own trial classes.
 - **`unity_scene_name`** — a mandatory contract field. It identifies the paired `TaskTemplate` by filename stem
   and is verified against the scene loaded in Unity at session start, so two projects can point the same template
@@ -301,9 +301,9 @@ Mutate the payload to override the fields the user wants to customize. The schem
 
 - `trial_structures: dict[str, WaterRewardTrial | GasPuffTrial]` (Mesoscope-VR's exemplar annotation) — a
   per-trial dict; each entry is either a `WaterRewardTrial` (with `reward_size_ul`, `reward_tone_duration_ms`)
-  or a `GasPuffTrial` (with `puff_duration_ms`, `occupancy_duration_ms`). These are standalone, exemplar-specific
+  or a `GasPuffTrial` (with `puff_duration_ms`). These are standalone, exemplar-specific
   dataclasses carrying **only** runtime parameters; another system declares its own trial classes. The matching
-  spatial fields (cue sequence, zones, trigger type) live on the paired `TaskTemplate`'s
+  spatial fields (cue sequence, zones, trigger type, occupancy duration) live on the paired `TaskTemplate`'s
   `trial_structures[<same name>]` and are joined at session init.
 - `experiment_states: dict[str, ExperimentState]` — a dict, **not a list**. Access by string key
   (e.g. `experiment_states["state_1"].state_duration_s`), not by integer index. `from_task_template`
@@ -390,7 +390,7 @@ reason, that is currently not supported by the sollertia-shared-assets MCP layer
 2. If the new template does not exist, hand off to `/task-templates` to author it.
 3. Call `create_experiment_from_vr_template_tool(file_path=..., template_path=...)` pointing at the new
    template.
-4. Port the customizations (state durations, per-trial reward sizes, puff and occupancy durations,
+4. Port the customizations (state durations, per-trial reward sizes, puff durations,
    guidance counters) over manually.
 
 ---

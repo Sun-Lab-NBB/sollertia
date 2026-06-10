@@ -18,7 +18,7 @@ payload shapes, and direction. This skill is the audit-ready mirror of that file
 
 **Reference-only skill.** No upstream — agents arrive here on demand from `/task-prefabs`
 (generated zone scripts own these topics), `/scene-setup` (`UI-lick-reward` subscribes to
-`Lick` / `Stimulus`), `/task-parameters` (runtime alternative for `RequireLick` / `RequireWait`),
+`Interaction` / `Stimulus`), `/task-parameters` (runtime alternative for `RequireInteraction` / `RequireWait`),
 and `/play-mode` (mid-run flag flips).
 
 ---
@@ -37,14 +37,14 @@ and `/play-mode` (mid-run flag flips).
 - The `MQTTChannel` and `MQTTChannel<T>` class APIs (see `/gimbl-framework`)
 - MQTT broker installation or configuration (see the project `README.md`)
 - `sollertia-experiment`'s publishing side (owned by sollertia-experiment skills)
-- The Task Parameters MCP surface that mirrors `RequireLick` / `RequireWait` at editor time
+- The Task Parameters MCP surface that mirrors `RequireInteraction` / `RequireWait` at editor time
   (see `/task-parameters`)
 
 ---
 
 ## Topic conventions
 
-- **Flat PascalCase identifiers**, no slashes (e.g., `Lick`, `Stimulus`, `CueSequenceTrigger`). MQTT
+- **Flat PascalCase identifiers**, no slashes (e.g., `Interaction`, `Stimulus`, `CueSequenceTrigger`). MQTT
   brokers treat `X` and `X/` as distinct topics; the flat convention removes a class of accidental
   routing mismatches between Unity and external publishers.
 - **Centralized constants**: Every topic literal lives in `Assets/Gimbl/Scripts/MQTT/MQTTTopics.cs`
@@ -56,7 +56,7 @@ and `/play-mode` (mid-run flag flips).
   `string.Equals(..., StringComparison.Ordinal)` on both the broker and in-process loopback paths
   (`MQTTClient.cs:188` and `MQTTClient.cs:298`). Centralized constants make this invisible to
   Unity callers, but ad-hoc tools (`mosquitto_pub`, dashboards, hand-typed test publishers) must
-  match the casing exactly — `lick` and `Lick` are different topics.
+  match the casing exactly — `interaction` and `Interaction` are different topics.
 - **Trigger pairs**: "Trigger" topics come in pairs of `<Name>Trigger` (subscriber that asks
   Unity to publish) and `<Name>` (publisher that responds). The former carries no payload; the
   latter carries a JSON-serialized message. Lifecycle markers (`SessionStart` / `SessionStop`)
@@ -101,16 +101,19 @@ between `LinearTreadmill` and `SimulatedLinearTreadmill` is documented inline in
 `LinearTreadmill.cs`; you MUST NOT promote either method to `virtual` without re-reading that
 note.
 
-### Lick / stimulus (owned by `SL.Tasks.StimulusTriggerZone` and `Gimbl.SimulatedLinearTreadmill`)
+### Interaction / stimulus (owned by `SL.Tasks.StimulusTriggerZone` and `Gimbl.SimulatedLinearTreadmill`)
 
-| Constant   | Direction          | Channel type  | Payload | Publisher(s)                                                                   | Subscriber(s)                                                                     |
-|------------|--------------------|---------------|---------|--------------------------------------------------------------------------------|-----------------------------------------------------------------------------------|
-| `Lick`     | bidirectional      | `MQTTChannel` | empty   | sollertia-experiment hardware lickport; `SimulatedLinearTreadmill` Jump action | `SL.Tasks.StimulusTriggerZone.OnLickDetected`; `SL.UI.LickStimulusSpawner.OnLick` |
-| `Stimulus` | Unity → experiment | `MQTTChannel` | empty   | `SL.Tasks.StimulusTriggerZone.TriggerStimulus`                                 | sollertia-experiment; `SL.UI.LickStimulusSpawner.OnStimulus` (intra-Unity)        |
+| Constant      | Direction          | Channel type                                       | Payload                   | Publisher(s)                                                                   | Subscriber(s)                                                                            |
+|---------------|--------------------|----------------------------------------------------|---------------------------|--------------------------------------------------------------------------------|------------------------------------------------------------------------------------------|
+| `Interaction` | bidirectional      | `MQTTChannel`                                      | empty                     | sollertia-experiment hardware lickport; `SimulatedLinearTreadmill` Jump action | `SL.Tasks.StimulusTriggerZone.OnInteractionDetected`; `SL.UI.LickStimulusSpawner.OnLick` |
+| `Stimulus`    | Unity → experiment | `MQTTChannel<StimulusTriggerZone.StimulusMessage>` | `{ "trialName": string }` | `SL.Tasks.StimulusTriggerZone.TriggerStimulus`                                 | sollertia-experiment; `SL.UI.LickStimulusSpawner.OnStimulus` (intra-Unity)               |
 
 Both topics are multi-subscriber — see [Multi-consumer topics](#multi-consumer-topics) for the
-full subscriber map. `Lick` is bidirectional because the simulated treadmill publishes synthetic
-licks during keyboard-only runs while hardware publishes them in production.
+full subscriber map. `Interaction` is bidirectional because the simulated treadmill publishes
+synthetic licks during keyboard-only runs while hardware publishes them in production. The
+`Stimulus` payload carries the firing zone's owning trial name (set on `StimulusTriggerZone.trialName`
+by `CreateTask` at generation), so the stimulus identifier is the trial name; `sollertia-experiment`
+parses it into `VRTaskEvent.trial_name` and resolves the per-trial outcome from it.
 
 ### Occupancy guidance brake (owned by `SL.Tasks.OccupancyGuidanceZone`)
 
@@ -131,7 +134,7 @@ for the remaining occupancy duration.
 | `CueSequence`        | Unity → experiment | `MQTTChannel<Task.SequenceMessage>`  | `{ "cueSequence": byte[] }` | `Task.OnCueSequenceTrigger` | sollertia-experiment                                   |
 | `SceneNameTrigger`   | Unity ← experiment | `MQTTChannel`                        | empty                       | sollertia-experiment        | `Task.OnSceneNameTrigger` (replies on `SceneName`)     |
 | `SceneName`          | Unity → experiment | `MQTTChannel<Task.SceneNameMessage>` | `{ "name": string }`        | `Task.OnSceneNameTrigger`   | sollertia-experiment                                   |
-| `RequireLick`        | Unity ← experiment | `MQTTChannel<Task.BoolMessage>`      | `{ "value": bool }`         | sollertia-experiment        | `Task.OnRequireLick`                                   |
+| `RequireInteraction` | Unity ← experiment | `MQTTChannel<Task.BoolMessage>`      | `{ "value": bool }`         | sollertia-experiment        | `Task.OnRequireInteraction`                            |
 | `RequireWait`        | Unity ← experiment | `MQTTChannel<Task.BoolMessage>`      | `{ "value": bool }`         | sollertia-experiment        | `Task.OnRequireWait`                                   |
 
 Payload classes (all defined as public nested classes inside `SL.Tasks.Task`):
@@ -159,16 +162,16 @@ public class BoolMessage
 }
 ```
 
-Each `RequireLick` / `RequireWait` toggle is a single topic whose payload's `value` field carries
+Each `RequireInteraction` / `RequireWait` toggle is a single topic whose payload's `value` field carries
 the new state. Editor-time changes to the same flags are available through `/task-parameters`
 (`write_task_parameters_tool`).
 
 ### UI feedback (owned by `SL.UI.LickStimulusSpawner`)
 
-| Constant   | Direction                     | Channel type  | Subscriber action                                           |
-|------------|-------------------------------|---------------|-------------------------------------------------------------|
-| `Lick`     | Unity ← experiment / sim      | `MQTTChannel` | Spawns a lick indicator on the experimenter's UI canvas     |
-| `Stimulus` | Unity ← Unity (intra-process) | `MQTTChannel` | Spawns a stimulus indicator on the experimenter's UI canvas |
+| Constant      | Direction                     | Channel type  | Subscriber action                                           |
+|---------------|-------------------------------|---------------|-------------------------------------------------------------|
+| `Interaction` | Unity ← experiment / sim      | `MQTTChannel` | Spawns a lick indicator on the experimenter's UI canvas     |
+| `Stimulus`    | Unity ← Unity (intra-process) | `MQTTChannel` | Spawns a stimulus indicator on the experimenter's UI canvas |
 
 `LickStimulusSpawner` never publishes. The `Stimulus` case is an **intra-Unity** subscription —
 `StimulusTriggerZone` publishes, and both `LickStimulusSpawner` and `sollertia-experiment` subscribe.
@@ -178,14 +181,14 @@ This is intentional, not a bug.
 
 ## Multi-consumer topics
 
-`Lick` and `Stimulus` each have more than one subscriber inside Unity. When editing either, you
+`Interaction` and `Stimulus` each have more than one subscriber inside Unity. When editing either, you
 MUST verify every subscriber still behaves correctly.
 
-### `Lick`
+### `Interaction`
 
 Subscribers inside Unity:
-- `SL.Tasks.StimulusTriggerZone.OnLickDetected` — records a lick that occurred while the animal
-  was inside the zone (used by lick mode to fire the stimulus).
+- `SL.Tasks.StimulusTriggerZone.OnInteractionDetected` — records an interaction that occurred while the
+  animal was inside the zone (used by interaction mode to fire the stimulus).
 - `SL.UI.LickStimulusSpawner.OnLick` — spawns a UI indicator on the experimenter's canvas.
 
 Publishers:
@@ -254,7 +257,7 @@ work through its likely cause and first check.
 ### Unity subscribes but never receives
 
 - **Likely cause**: Topic string mismatch between sides, hand-typed literal drifted from the
-  constant, or casing differs (`Lick` vs `lick` — `MQTTClient` uses `StringComparison.Ordinal`).
+  constant, or casing differs (`Interaction` vs `interaction` — `MQTTClient` uses `StringComparison.Ordinal`).
 - **First check**: Confirm both sides reference `MQTTTopics.<Name>` (Unity) or the matching
   `sl-experiment` constant with identical casing.
 
@@ -309,7 +312,7 @@ work through its likely cause and first check.
   unreachable.
 - **First check**: Not a bug; the in-process loopback is the dev-without-broker path.
 
-### `RequireLick` / `RequireWait` writes have no effect
+### `RequireInteraction` / `RequireWait` writes have no effect
 
 - **Likely cause**: Payload missing the `value` field, or the JSON wrapper is malformed.
 - **First check**: Confirm payload is `{"value": true}` / `{"value": false}` (case-sensitive,
@@ -349,8 +352,8 @@ work through its likely cause and first check.
 |------------------------------------------|-------------------------------------------------------------------------------------|
 | `/gimbl-framework` (this plugin)         | Owns `MQTTClient`, `MQTTChannel`, and `MQTTChannel<T>` class references             |
 | `/task-prefabs` (this plugin)            | Generated prefabs wire the zones whose scripts own these topics                     |
-| `/task-parameters` (this plugin)         | Editor-time alternative for `RequireLick` / `RequireWait` flags                     |
-| `/scene-setup` (this plugin)             | `UI-lick-reward` subsystem subscribes to `Lick` and `Stimulus`                      |
+| `/task-parameters` (this plugin)         | Editor-time alternative for `RequireInteraction` / `RequireWait` flags              |
+| `/scene-setup` (this plugin)             | `UI-lick-reward` subsystem subscribes to `Interaction` and `Stimulus`               |
 | `/play-mode` (this plugin)               | MQTT activity is only live while the Editor is in `playing` state                   |
 | assets plugin `/task-templates`          | YAML cue codes appear as `byte` values in `CueSequence` payloads                    |
 | experiment plugin `/vr-driver-interface` | Host (Python) side — `_VRTaskMQTTTopics` mirrors this catalog; change both together |
