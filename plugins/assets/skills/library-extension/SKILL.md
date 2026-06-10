@@ -40,8 +40,9 @@ verification checklist before reporting an extension complete.
 
 **Does not cover:**
 - The line-by-line code changes themselves. Those are owned by the
-  **`sollertia-shared-assets` README** sections "Adding New Session Types" and "Adding New
-  Acquisition Systems" — this skill defers to the README as the authoritative recipe.
+  **`sollertia-shared-assets` README** sections "Adding New Session Types", "Adding New
+  Acquisition Systems", and "Adding a New Read Asset" — this skill defers to the README as the
+  authoritative recipe.
 - Authoring per-asset CRUD on existing systems and session types (see
   `/session-data`, `/session-descriptors`, `/session-hardware-state`,
   `/experiment-configuration`, `/task-templates`)
@@ -55,28 +56,34 @@ verification checklist before reporting an extension complete.
 
 ## Library extension model
 
-`sollertia-shared-assets` is structured around five **dispatch registries**. Each one is keyed by a
-member of the `SessionTypes`, `AcquisitionSystems`, or `ReadAssets` enum, and each one resolves a
-string identifier to a Python class that the MCP tools use to parse, validate, or build the
-corresponding asset. A separate **association**,
-`SYSTEM_SESSION_TYPES`, records which session types each acquisition system can run; it is keyed by
-`AcquisitionSystems` but maps to a `frozenset` of `SessionTypes` rather than a dispatch class, and
-`SessionData.create()` rejects any session-type / acquisition-system pairing it does not contain.
+`sollertia-shared-assets` is structured around six **dispatch registries**, all defined — fully
+populated — in the top-level `registries.py` module and keyed by members of the `SessionTypes`,
+`AcquisitionSystems`, `ReadAssets`, and `CredentialsTypes` enums (all in the top-level leaf module
+`enums.py`). Each registry resolves a string identifier to the Python class (or canonical filename)
+that the MCP tools use to parse, validate, or build the corresponding asset. A separate
+**association**, `SYSTEM_SESSION_TYPES`, records which session types each acquisition system can
+run; it is keyed by `AcquisitionSystems` but maps to a `frozenset` of `SessionTypes` rather than a
+dispatch class, and `SessionData.create()` rejects any session-type / acquisition-system pairing it
+does not contain. The system-facing registries are the extension point this skill orchestrates;
+`READ_ASSET_REGISTRY` and `CREDENTIALS_FILE_REGISTRY` are maintainer-curated contract registries —
+adding an entry there is a platform-contract decision, not a routine extension.
 
-| Registry                            | File                                       | Keyed by             | Maps to                                        |
-|-------------------------------------|--------------------------------------------|----------------------|------------------------------------------------|
-| `DESCRIPTOR_REGISTRY`               | `data_classes/extensions.py`               | `SessionTypes`       | Per-session-type descriptor dataclass          |
-| `HARDWARE_STATE_REGISTRY`           | `data_classes/extensions.py`               | `AcquisitionSystems` | Per-system hardware-state dataclass            |
-| `EXPERIMENT_CONFIGURATION_REGISTRY` | `configuration/configuration_utilities.py` | `AcquisitionSystems` | Per-system experiment-configuration dataclass  |
-| `SYSTEM_RAW_DATA_REGISTRY`          | `data_classes/session_data.py`             | `AcquisitionSystems` | Per-system raw-data sub-dataclass with `build` |
-| `SYSTEM_SESSION_TYPES`              | `data_classes/session_data.py`             | `AcquisitionSystems` | `frozenset[SessionTypes]` the system can run   |
-| `READ_ASSET_REGISTRY`               | `data_classes/read_assets.py`              | `ReadAssets`         | Per-read-asset on-disk dataclass               |
+| Registry                            | Keyed by             | Maps to                                        |
+|-------------------------------------|----------------------|------------------------------------------------|
+| `DESCRIPTOR_REGISTRY`               | `SessionTypes`       | Per-session-type descriptor dataclass          |
+| `HARDWARE_STATE_REGISTRY`           | `AcquisitionSystems` | Per-system hardware-state dataclass            |
+| `EXPERIMENT_CONFIGURATION_REGISTRY` | `AcquisitionSystems` | Per-system experiment-configuration dataclass  |
+| `SYSTEM_RAW_DATA_REGISTRY`          | `AcquisitionSystems` | Per-system raw-data sub-dataclass with `build` |
+| `SYSTEM_SESSION_TYPES`              | `AcquisitionSystems` | `frozenset[SessionTypes]` the system can run   |
+| `READ_ASSET_REGISTRY`               | `ReadAssets`         | Per-read-asset on-disk dataclass               |
+| `CREDENTIALS_FILE_REGISTRY`         | `CredentialsTypes`   | Canonical credentials filename per category    |
 
-These five registries, the `SYSTEM_SESSION_TYPES` association, the `SESSION_TYPES_USING_VR_TASK` gate, and the
-import-time checks that guard them are collected in one hub module, `data_classes/extensions.py`. The hub defines
-`DESCRIPTOR_REGISTRY` and `HARDWARE_STATE_REGISTRY` and re-exports the rest from the modules that consume them (the
-**File** column above is each registry's definition site; several cannot move without circular imports). When you add
-a registry entry, edit it at the File-column location; the hub picks it up automatically.
+These registries, the `SYSTEM_SESSION_TYPES` association, the `SESSION_TYPES_USING_VR_TASK` gate,
+`resolve_read_asset`, and the import-time checks that guard them are all defined — as plain,
+fully populated literals — in the top-level `registries.py` module. The enum members live in the
+leaf module `enums.py`; the dispatched classes live in the system subpackages (e.g.
+`mesoscope_vr/`) and the `data_classes/` contract package, which `registries.py` imports without
+circularity. When you add a registry entry, edit `registries.py` directly.
 
 Every `<System>ExperimentConfiguration` shares one contract: an `experiment_states` field (a mapping
 of `ExperimentState` — the experiment state machine; every experiment is a state machine, so this is
@@ -94,21 +101,21 @@ system's experiment-configuration class and derives the trial vocabulary from th
 class. The trial classes themselves are standalone dataclasses in
 `configuration/experiment_configuration.py`. `from_task_template` is a mandatory contract method on
 every `<System>ExperimentConfiguration`, enforced at import by `_assert_experiment_configuration_contract`
-(`data_classes/extensions.py`), and `create_experiment_from_vr_template_tool` dispatches through
+(`registries.py`), and `create_experiment_from_vr_template_tool` dispatches through
 `EXPERIMENT_CONFIGURATION_REGISTRY` to the resolved system's builder.
 
 ### The parity check
 
-`data_classes/extensions.py` (the extension-point hub) runs `_assert_registry_coverage()` at import time. The function
+`registries.py` (the top-level registry hub) runs `_assert_registry_coverage()` at import time. The function
 walks `(DESCRIPTOR_REGISTRY, HARDWARE_STATE_REGISTRY, EXPERIMENT_CONFIGURATION_REGISTRY,
-SYSTEM_RAW_DATA_REGISTRY, READ_ASSET_REGISTRY)` and raises `RuntimeError` if any enum member is
-missing its dispatch class. It additionally checks `SYSTEM_SESSION_TYPES`: every acquisition system
+SYSTEM_RAW_DATA_REGISTRY, READ_ASSET_REGISTRY, CREDENTIALS_FILE_REGISTRY)` and raises `RuntimeError` if any enum
+member is missing its dispatch class. It additionally checks `SYSTEM_SESSION_TYPES`: every acquisition system
 must declare at least one session type, and every session type must be claimed by at least one
 system. The hub also runs two contract checks at import: `_assert_descriptor_contract()` (every registered descriptor
 must declare the `incomplete` field the inspection tooling reads) and `_assert_experiment_configuration_contract()`
 (every registered `<System>ExperimentConfiguration` must declare the contract fields `experiment_states`,
-`trial_structures`, and `unity_scene_name` plus the `from_task_template` builder). Because the hub lives in the data
-layer, all of these run on a bare `import sollertia_shared_assets` (not
+`trial_structures`, and `unity_scene_name` plus the `from_task_template` builder). Because the package `__init__.py`
+imports `registries.py` directly, all of these run on a bare `import sollertia_shared_assets` (not
 only when `slsa mcp` starts), so an incomplete extension fails fast and names the offending registry; it cannot
 silently slip through.
 
@@ -127,7 +134,7 @@ them here** — read them, then come back for the cross-skill update map below.
 
 For new trial classes and new trigger types, the README does not currently
 carry a step-by-step recipe. Use the **per-scenario touch lists** below as the working spec, then
-propose a README update in the same PR so the recipe lands next to the existing two.
+propose a README update in the same PR so the recipe lands next to the existing three.
 
 ---
 
@@ -139,31 +146,32 @@ touches** (which is what this skill uniquely owns), and the downstream-library c
 ### Adding a new `SessionTypes` member
 
 **Code touches** — follow the README's "Adding New Session Types" recipe:
-1. Append the member to `SessionTypes` (`data_classes/session_data.py`), and add it to the
-   `SYSTEM_SESSION_TYPES` frozenset of every acquisition system that can run it (same file). The
-   parity check fails if the new type is claimed by no system, and `SessionData.create()` rejects
-   it for any system whose set omits it.
-2. Add the `<Type>Descriptor` dataclass in the runtime-data module of the system that runs the new type (the
-   Mesoscope-VR descriptors live in `data_classes/mesoscope_runtime_data.py`); export it from
-   `data_classes/__init__.py`. The descriptor MUST declare an `incomplete: bool = True` field — the
+1. Append the member to `SessionTypes` (`enums.py`), and add it to the `SYSTEM_SESSION_TYPES`
+   frozenset of every acquisition system that can run it (`registries.py`). The parity check fails
+   if the new type is claimed by no system, and `SessionData.create()` rejects it for any system
+   whose set omits it.
+2. Add the `<Type>Descriptor` dataclass in the `runtime_data.py` module of the subpackage of the system that runs
+   the new type (the Mesoscope-VR descriptors live in `mesoscope_vr/runtime_data.py`); export it from the
+   subpackage's `__init__.py`. The descriptor MUST declare an `incomplete: bool = True` field — the
    session-inspection tooling reads it, and `_assert_descriptor_contract()` fails the import if it is missing.
-3. Register the descriptor in `DESCRIPTOR_REGISTRY` (`data_classes/extensions.py`, the extension-point hub).
-4. The required-asset policy lives in `SessionData.required_raw_assets` (`data_classes/session_data.py`), not in a
+3. Register the descriptor in `DESCRIPTOR_REGISTRY` (`registries.py`) — import the class from its system
+   subpackage there.
+4. The required-asset policy lives in `SessionData.required_raw_assets` (`data_hierarchy/session_data.py`), not in a
    per-session-type branch. It is data-driven: `experiment_configuration.yaml` is required whenever the session has
    an `experiment_name`, and `vr_configuration.yaml` is required for any session type listed in the
-   `SESSION_TYPES_USING_VR_TASK` frozenset (same file). If the new type runs the corridor task, add it to that
+   `SESSION_TYPES_USING_VR_TASK` frozenset (`registries.py`). If the new type runs the corridor task, add it to that
    frozenset; if it needs some other extra raw asset, extend `required_raw_assets`.
 5. Run the test suite — `_assert_registry_coverage()` catches a forgotten descriptor entry or an unclaimed session
    type, and `_assert_descriptor_contract()` fails the import if the descriptor omits `incomplete`. A missing
    `SESSION_TYPES_USING_VR_TASK` entry is not import-checked, so cover the new type in
-   `tests/data_classes/session_data_test.py`, where `required_raw_assets` is unit-tested.
+   `tests/data_hierarchy/session_data_test.py`, where `required_raw_assets` is unit-tested.
 
 **Skill touches** — update each of the following so its hardcoded enumeration matches the new
 member:
 
 | Skill                       | What to update                                                                                                                                                                                       |
 |-----------------------------|------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
-| `/session-data`             | The `SessionTypes` enumeration sentence under "SessionTypes"; the required-assets paragraph that singles out `mesoscope experiment` if the new type also needs the experiment configuration snapshot |
+| `/session-data`             | The `SessionTypes` enumeration sentence under "Session types"; the required-assets paragraph if the new type changes which per-session snapshots are required                                        |
 | `/session-descriptors`      | The "Session types and descriptor classes" mapping table                                                                                                                                             |
 | `/session-hardware-state`   | The "Per-session-type field population" table — add a row for the new type even if it produces no hardware-state file (record the absence explicitly so callers do not infer "missing data")         |
 | `/experiment-configuration` | Mention the new session type only if the experiment-configuration flow accepts it (it currently does not — only `mesoscope experiment` consumes the experiment configuration snapshot)               |
@@ -179,21 +187,23 @@ member:
 ### Adding a new `AcquisitionSystems` member
 
 **Code touches** — follow the README's "Adding New Acquisition Systems" recipe:
-1. Append the member to `AcquisitionSystems` (`configuration/configuration_utilities.py`).
-2. Add `<System>HardwareState` in a new `data_classes/<system>_runtime_data.py` module (the Mesoscope-VR classes
-   live in `data_classes/mesoscope_runtime_data.py`; the same module later holds the system's descriptors), and add
-   `<System>RawData` in `data_classes/session_data.py`; export them all from `data_classes/__init__.py`.
-3. Add `<System>ExperimentConfiguration` (a new module under `configuration/`); export it from
-   `configuration/__init__.py`.
-4. Register the dataclasses in `HARDWARE_STATE_REGISTRY`, `EXPERIMENT_CONFIGURATION_REGISTRY`,
-   and `SYSTEM_RAW_DATA_REGISTRY`, and add a `SYSTEM_SESSION_TYPES` entry mapping the new system to
-   the `frozenset` of `SessionTypes` it can run (declare at least one, or the parity check fails).
-5. Add the `from_task_template` classmethod to its `<System>ExperimentConfiguration` (mirror
+1. Append the member to `AcquisitionSystems` (`enums.py`).
+2. Create a new `<system>/` subpackage (a sibling of `mesoscope_vr/`) holding all the system's dataclasses:
+   `<system>/runtime_data.py` holds `<System>HardwareState` plus the system's per-session-type descriptors (mirror
+   `mesoscope_vr/runtime_data.py`); `<system>/raw_data.py` holds `<System>RawData` with its `build` classmethod and
+   any `<System>RawDataFiles` / `<System>Directories` enums (mirror `mesoscope_vr/raw_data.py`); and
+   `<system>/experiment_configuration.py` holds `<System>ExperimentConfiguration` (mirror
+   `mesoscope_vr/experiment_configuration.py`). Export every class from the subpackage's `__init__.py`.
+3. In `registries.py`, import the new classes from the system subpackage and register them in
+   `HARDWARE_STATE_REGISTRY`, `EXPERIMENT_CONFIGURATION_REGISTRY`, and `SYSTEM_RAW_DATA_REGISTRY`, and add a
+   `SYSTEM_SESSION_TYPES` entry mapping the new system to the `frozenset` of `SessionTypes` it can run (declare at
+   least one, or the parity check fails).
+4. Add the `from_task_template` classmethod to its `<System>ExperimentConfiguration` (mirror
    `MesoscopeExperimentConfiguration.from_task_template`) alongside the contract fields `experiment_states`,
    `trial_structures`, and `unity_scene_name`. The shared `create_experiment_from_vr_template_tool` dispatches
    through `EXPERIMENT_CONFIGURATION_REGISTRY` to the system's `from_task_template`, so no new tool is needed;
    `write_experiment_configuration_tool` already authors the system's full payload generically.
-6. Run the test suite — `_assert_registry_coverage()` catches the dispatch registries and the
+5. Run the test suite — `_assert_registry_coverage()` catches the dispatch registries and the
    `SYSTEM_SESSION_TYPES` pairing, and `_assert_experiment_configuration_contract()` fails the import if the new
    `<System>ExperimentConfiguration` omits a contract field or the `from_task_template` builder.
 
@@ -252,13 +262,13 @@ split three ways and each skill owns its slice — apply all three:
 | Slice                                                                       | Owning skill                          |
 |-----------------------------------------------------------------------------|---------------------------------------|
 | Python `TriggerType` enum + `from_task_template` branch (this skill, below) | `/library-extension` (this skill)     |
-| Hand-authored zone prefab manufacturing                                     | unity plugin `/zone-prefabs` (Step 7) |
+| Hand-authored zone prefab manufacturing                                     | unity plugin `/zone-prefabs` (Steps 1–6) |
 | `CreateTask` pipeline edits + `DeleteProtectedPaths`                        | unity plugin `/task-generator`        |
 
 **Code touches** owned here:
 1. Append the member to `TriggerType` in `configuration/vr_configuration.py`.
 2. Update `MesoscopeExperimentConfiguration.from_task_template` in
-   `configuration/mesoscope_configuration.py` to add the matching `elif trial_structure.trigger_type
+   `mesoscope_vr/experiment_configuration.py` to add the matching `elif trial_structure.trigger_type
    == TriggerType.<NEW>:` branch, instantiating the corresponding runtime trial class (which may
    itself be new — see "Adding a new runtime trial class").
 
@@ -278,13 +288,16 @@ downstream consumers (sollertia-forgery) read that dataclass and never touch the
 dataclass is storage-agnostic, and the acquisition library translates any source into it. `SurgeryData`
 (the `surgery_data` read asset) is the current example. This applies only to assets the platform
 **reads**; assets it only **writes** to an external source (e.g., the water-restriction log) need no
-dataclass and no registry entry.
+dataclass and no registry entry. Read assets are a maintainer-curated contract surface: each entry is
+a durable translation contract, and adding one is a platform-contract decision by the
+sollertia-shared-assets maintainers rather than a routine extension.
 
 **Code touches** — follow the README's "Adding a New Read Asset" recipe:
-1. Add the `<Asset>Data` dataclass inheriting `YamlConfig` (mirror `data_classes/surgery_data.py`);
-   export it from `data_classes/__init__.py`.
-2. Append the member to `ReadAssets` (`data_classes/read_assets.py`).
-3. Register the dataclass in `READ_ASSET_REGISTRY` (same file) under the new key.
+1. Add the `<Asset>Data` dataclass in a new module under `data_classes/` (the contract package; mirror
+   `data_classes/surgery_data.py`); export it from `data_classes/__init__.py`. Contract modules export
+   plain dataclasses and never consume the dispatch registries.
+2. Append the member to `ReadAssets` (`enums.py`).
+3. Register the dataclass in `READ_ASSET_REGISTRY` (`registries.py`) under the new key.
 4. Run the test suite — `_assert_registry_coverage()` catches a forgotten registry entry at import,
    naming the missing member.
 
@@ -314,10 +327,10 @@ the next import attempt and the resulting error message points at one registry a
 
 ### Step 2: Apply the code touches
 
-Defer to the README sections cited above for `SessionTypes` and `AcquisitionSystems` extensions.
-For the other three scenarios, follow the touch lists in this skill. Run the test suite after
-each scenario's code touches land — `_assert_registry_coverage()` catches the dispatch-registry
-side, but required-asset branches need explicit test coverage.
+Defer to the README sections cited above for `SessionTypes`, `AcquisitionSystems`, and read-asset
+extensions. For the trial-class and trigger-type scenarios, follow the touch lists in this skill.
+Run the test suite after each scenario's code touches land — `_assert_registry_coverage()` catches
+the dispatch-registry side, but required-asset branches need explicit test coverage.
 
 ### Step 3: Apply the skill touches
 
@@ -350,8 +363,8 @@ required-asset branches, and the skill content.
 | Adding an enum member without registering its dispatch class         | `_assert_registry_coverage()` raises at import time, so `slsa mcp` fails to start until every registry is wired. Run `python -c 'import sollertia_shared_assets'` after the code change.                                                                                                                                                                                                |
 | Forgetting `from_task_template` wiring                               | `from_task_template` is a contract method on every `<System>ExperimentConfiguration`; `_assert_experiment_configuration_contract()` raises at import if it (or a contract field) is missing, so there is no registry to forget. Within `from_task_template`, every `TriggerType` the template can carry needs a branch — an unmapped trigger raises rather than being silently dropped. |
 | Forgetting the descriptor `incomplete` field                         | A new `<Type>Descriptor` that omits `incomplete: bool = True` fails the import via `_assert_descriptor_contract()` (the inspection tooling reads this field). Declare it on every new descriptor.                                                                                                                                                                                       |
-| Forgetting the required-asset entry                                  | The required-asset policy is `SessionData.required_raw_assets`; a session type that runs the corridor task but is missing from `SESSION_TYPES_USING_VR_TASK` is NOT import-checked and will pass `inspect_sessions_tool` even when its VR snapshot is missing. Cover the new type in `tests/data_classes/session_data_test.py`.                                                         |
-| Updating the descriptor schema without bumping the dataclass version | Existing on-disk YAMLs can fail to load. Treat schema changes to existing dataclasses as a separate migration concern — not as part of the extension flow this skill covers.                                                                                                                                                                                                            |
+| Forgetting the required-asset entry                                  | The required-asset policy is `SessionData.required_raw_assets`; a session type that runs the corridor task but is missing from `SESSION_TYPES_USING_VR_TASK` is NOT import-checked and will pass `inspect_sessions_tool` even when its VR snapshot is missing. Cover the new type in `tests/data_hierarchy/session_data_test.py`.                                                       |
+| Updating an existing descriptor schema in place                      | Existing on-disk YAMLs can fail to load. Treat schema changes to existing dataclasses as a separate migration concern, coordinated through the library's semantic versioning — not as part of the extension flow this skill covers.                                                                                                                                                                                                            |
 
 ---
 
@@ -387,7 +400,7 @@ Code side:
 - [ ] Identified exactly one extension scenario (or applied multiple sequentially)
 - [ ] Followed the README recipe for SessionTypes / AcquisitionSystems extensions
 - [ ] `python -c 'import sollertia_shared_assets'` succeeds without RuntimeError from the import-time checks in
-      `data_classes/extensions.py` (`_assert_registry_coverage`, `_assert_descriptor_contract`,
+      `registries.py` (`_assert_registry_coverage`, `_assert_descriptor_contract`,
       `_assert_experiment_configuration_contract`) — all run on a bare import
 - [ ] A new `<Type>Descriptor` declares `incomplete: bool = True` (enforced by `_assert_descriptor_contract`)
 - [ ] `SYSTEM_SESSION_TYPES` pairs the new session type / acquisition system (the parity check
@@ -397,7 +410,7 @@ Code side:
       enforced by `_assert_experiment_configuration_contract` (if a new acquisition system)
 - [ ] `READ_ASSET_REGISTRY` carries the new dataclass (if a new read asset)
 - [ ] `SessionData.required_raw_assets` covers the new session type's required assets — a type that runs the corridor
-      task is added to `SESSION_TYPES_USING_VR_TASK` and covered in `tests/data_classes/session_data_test.py`
+      task is added to `SESSION_TYPES_USING_VR_TASK` and covered in `tests/data_hierarchy/session_data_test.py`
       (if applicable)
 - [ ] The new trial class is in the `trial_structures` union annotation and the `from_task_template`
       trigger → trial mapping of each using `<System>ExperimentConfiguration` (if a new runtime trial
@@ -429,9 +442,9 @@ You SHOULD proactively invoke this skill when the user mentions any of the follo
 - The import-time error message "registry is missing entries for ..." (the user has hit
   `_assert_registry_coverage()` because the previous extension was incomplete)
 - "How do I add support for ..." in the context of `sollertia-shared-assets`
-- A PR description that touches one of the registries (`DESCRIPTOR_REGISTRY`,
-  `HARDWARE_STATE_REGISTRY`, `EXPERIMENT_CONFIGURATION_REGISTRY`, `SYSTEM_RAW_DATA_REGISTRY`,
-  `READ_ASSET_REGISTRY`)
+- A PR description that touches `registries.py` or any of the registries it defines
+  (`DESCRIPTOR_REGISTRY`, `HARDWARE_STATE_REGISTRY`, `EXPERIMENT_CONFIGURATION_REGISTRY`,
+  `SYSTEM_RAW_DATA_REGISTRY`, `READ_ASSET_REGISTRY`, `CREDENTIALS_FILE_REGISTRY`)
 
 Do NOT invoke this skill for ordinary CRUD against existing systems and session types — those
 are owned by `/session-data`, `/session-descriptors`, `/session-hardware-state`,
