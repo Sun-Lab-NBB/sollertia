@@ -457,9 +457,10 @@ The platform `TriggerType` enum carries all five members (`INTERACTION`, `COLLIS
 `OCCUPANCY_ARM`, `OCCUPANCY_TRIGGER`); the C# `ConfigLoader` accepts all five literals. System support is a
 **per-system subset**: a new `TriggerType` member does **not** require a `from_task_template` branch — each
 acquisition system maps only the subset it supports and may leave a member unmapped. The Mesoscope-VR system's
-`from_task_template` maps `INTERACTION` (→ `WaterRewardTrial`) and `OCCUPANCY_DISARM` (→ `GasPuffTrial`), and does
-not map `collision`, `occupancy_arm`, or `occupancy_trigger`, so a Mesoscope-VR config that uses one of those raises
-a clear "not mapped to a runtime trial class" error. All five modes share one MQTT/wire contract:
+`from_task_template` maps `INTERACTION` (→ `MesoscopeWaterRewardTrial`) and `OCCUPANCY_DISARM`
+(→ `MesoscopeGasPuffTrial`), and does not map `collision`, `occupancy_arm`, or `occupancy_trigger`, so a
+Mesoscope-VR config that uses one of those raises a clear "not mapped to a runtime trial class" error.
+All five modes share one MQTT/wire contract:
 every mode publishes the same `Stimulus{trialName}` event, adds no topics, and does not change
 `require_interaction` / `require_wait`. `list_supported_trigger_types_tool` returns all five values.
 

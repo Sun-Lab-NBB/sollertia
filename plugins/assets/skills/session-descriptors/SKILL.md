@@ -111,10 +111,9 @@ The three **non-window-checking** descriptors (`LickTrainingDescriptor`,
 - **`animal_weight_g`** — the animal's weight at the start of the session.
 - **`maximum_unconsumed_rewards`** — cap on consecutive unclaimed water rewards before
   delivery is paused.
-- **Runtime-recorded water totals** — four float fields that distinguish water delivered
-  during active runtime, water dispensed while paused, any post-session top-up the
-  experimenter administered manually, and the target volume the animal should have received.
-  Inspect the schema for exact field names.
+- **Runtime-recorded water totals** — three float fields that distinguish water delivered
+  during active runtime, water dispensed while paused, and any post-session top-up the
+  experimenter administered manually. Inspect the schema for exact field names.
 
 `WindowCheckingDescriptor` does **not** carry `animal_weight_g`, `maximum_unconsumed_rewards`,
 or water totals — its only session-type-specific field is `surgery_quality`.

@@ -90,19 +90,22 @@ of `ExperimentState` — the experiment state machine; every experiment is a sta
 required), a `trial_structures` field (the trials the experiment runs — required; the concrete
 trial classes vary per system), a `unity_scene_name` field (the corridor scene the system presents),
 and a `from_task_template` builder. Fields beyond the contract are system-specific.
-Mesoscope-VR is one exemplar of the contract: its `WaterRewardTrial` / `GasPuffTrial` trial classes
-are exemplar-specific, and another system has its own trial classes and may add different fields.
+Mesoscope-VR is one exemplar of the contract: its `MesoscopeWaterRewardTrial` / `MesoscopeGasPuffTrial`
+trial classes are exemplar-specific, and another system has its own trial classes and may add
+different fields.
 
 A system's trial classes are introspected from its experiment configuration's `trial_structures`
 field via the `collect_field_dataclasses` helper in
 `interfaces/mcp_instance.py`. `list_supported_trial_types_tool(acquisition_system)` resolves the
 system's experiment-configuration class and derives the trial vocabulary from that field;
 `MesoscopeExperimentConfiguration.from_task_template` maps the subset of `TriggerType` members it
-supports to runtime trial classes (it maps `INTERACTION` → `WaterRewardTrial` and `OCCUPANCY_DISARM`
-→ `GasPuffTrial`; `COLLISION`, `OCCUPANCY_ARM`, and `OCCUPANCY_TRIGGER` are intentionally unmapped
-and raise a clear "not mapped to a runtime trial class" error if a Mesoscope-VR config uses them).
-The trial classes themselves are standalone dataclasses in
-`configuration/experiment_configuration.py`. `from_task_template` is a mandatory contract method on
+supports to runtime trial classes (it maps `INTERACTION` → `MesoscopeWaterRewardTrial` and
+`OCCUPANCY_DISARM` → `MesoscopeGasPuffTrial`; `COLLISION`, `OCCUPANCY_ARM`, and `OCCUPANCY_TRIGGER`
+are intentionally unmapped and raise a clear "not mapped to a runtime trial class" error if a
+Mesoscope-VR config uses them).
+The trial classes themselves are standalone dataclasses defined in the owning system's subpackage
+(Mesoscope-VR's live in `mesoscope_vr/experiment_configuration.py`, next to
+`MesoscopeExperimentConfiguration`). `from_task_template` is a mandatory contract method on
 every `<System>ExperimentConfiguration`, enforced at import by `_assert_experiment_configuration_contract`
 (`registries.py`), and `create_experiment_from_vr_template_tool` dispatches through
 `EXPERIMENT_CONFIGURATION_REGISTRY` to the resolved system's builder.
@@ -238,13 +241,14 @@ framing reflects the new member:
 ### Adding a new runtime trial class
 
 **Code touches:**
-1. Define the new class in `configuration/experiment_configuration.py` as a standalone
-   `@dataclass(frozen=True, slots=True)` (mirror `WaterRewardTrial` / `GasPuffTrial` for shape). The new class
+1. Define the new class in the owning system's `<system>/experiment_configuration.py` as a standalone
+   `@dataclass(frozen=True, slots=True)`, prefixing its name with the system name (mirror
+   `MesoscopeWaterRewardTrial` / `MesoscopeGasPuffTrial` for shape and naming). The new class
    carries **only** runtime parameters (rewards, durations, thresholds) — no spatial fields. Those
    live on the matching `TrialStructure` inside the paired task template.
-2. Export it from `configuration/__init__.py`.
+2. Export it from the system subpackage's `__init__.py` and the top-level `__init__.py`.
 3. Add it to the `trial_structures` union annotation of each `<System>ExperimentConfiguration` that
-   uses it (e.g. `dict[str, WaterRewardTrial | GasPuffTrial | <NewTrial>]`).
+   uses it (e.g. `dict[str, MesoscopeWaterRewardTrial | MesoscopeGasPuffTrial | <NewTrial>]`).
 4. Update that config class's `from_task_template` trigger → trial mapping so the matching
    `TriggerType` instantiates the new class (which may itself be new — see "Adding a new
    `TriggerType` member").
@@ -275,8 +279,8 @@ accepts all five literals). **System support is a per-system subset**: each acqu
 `TriggerType` member therefore does **not** require a `from_task_template` branch in every system. A 
 system that does not support it simply omits the branch, and a config that uses the unmapped member
 raises a clear "not mapped to a runtime trial class" error. The Mesoscope-VR system maps `INTERACTION`
-(→ `WaterRewardTrial`) and `OCCUPANCY_DISARM` (→ `GasPuffTrial`), and does not map `COLLISION`,
-`OCCUPANCY_ARM`, or `OCCUPANCY_TRIGGER`.
+(→ `MesoscopeWaterRewardTrial`) and `OCCUPANCY_DISARM` (→ `MesoscopeGasPuffTrial`), and does not map
+`COLLISION`, `OCCUPANCY_ARM`, or `OCCUPANCY_TRIGGER`.
 
 **Code touches** owned here:
 1. Append the member to `TriggerType` in `configuration/vr_configuration.py`.

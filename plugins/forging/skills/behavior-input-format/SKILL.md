@@ -103,7 +103,7 @@ The pipeline uses `rglob` for all three artifact classes, so files may be nested
 ### Producer
 
 The `MesoscopeVRSystem` class in `sl_experiment.mesoscope_vr.data_acquisition` owns the runtime
-`DataLogger` for every Mesoscope-VR session. On startup it instantiates:
+`DataLogger` for every Mesoscope-VR session. On startup, it instantiates:
 
 ```python
 DataLogger(
@@ -236,13 +236,13 @@ messages.
 
 **Code-prefixed payload layouts:**
 
-| Code | Name (sollertia-experiment enum)    | Payload layout                                         | Bytes |
-|------|------------------------------|--------------------------------------------------------|-------|
-| 1    | `SYSTEM_STATE`               | `[1: uint8][state_code: uint8]`                        | 2     |
-| 2    | `RUNTIME_STATE`              | `[2: uint8][state_code: uint8]`                        | 2     |
-| 3    | `REINFORCING_GUIDANCE_STATE` | `[3: uint8][enabled: uint8 (0 or 1)]`                  | 2     |
-| 4    | `AVERSIVE_GUIDANCE_STATE`    | `[4: uint8][enabled: uint8 (0 or 1)]`                  | 2     |
-| 5    | `DISTANCE_SNAPSHOT`          | `[5: uint8][traveled_distance: 8 bytes little-endian]` | 9     |
+| Code | Name (sollertia-experiment enum) | Payload layout                                         | Bytes |
+|------|----------------------------------|--------------------------------------------------------|-------|
+| 1    | `SYSTEM_STATE`                   | `[1: uint8][state_code: uint8]`                        | 2     |
+| 2    | `RUNTIME_STATE`                  | `[2: uint8][state_code: uint8]`                        | 2     |
+| 3    | `REINFORCING_GUIDANCE_STATE`     | `[3: uint8][enabled: uint8 (0 or 1)]`                  | 2     |
+| 4    | `AVERSIVE_GUIDANCE_STATE`        | `[4: uint8][enabled: uint8 (0 or 1)]`                  | 2     |
+| 5    | `DISTANCE_SNAPSHOT`              | `[5: uint8][traveled_distance: 8 bytes little-endian]` | 9     |
 
 **SYSTEM_STATE / RUNTIME_STATE:** The trailing `state_code` byte is the numeric code of the
 destination state. State enums live in sollertia-experiment and are not interpreted by forgery — codes
@@ -416,7 +416,7 @@ Eligibility rule: a module feather produces a job only if its `(type, id)` pair 
 may have feather files for hardware that was not configured for that run.
 
 The `MesoscopeHardwareState` YAML itself is authored and validated via `/session-hardware-state` in the
-assets plugin. This skill only documents how the behavior pipeline consults specific fields
+assets' plugin. This skill only documents how the behavior pipeline consults specific fields
 for module eligibility.
 
 ### Jobs produced
@@ -429,8 +429,8 @@ Ineligible modules contribute zero jobs even if the feather file exists.
 ## Experiment configuration dependency
 
 `MesoscopeExperimentConfiguration` YAML is required only for `MESOSCOPE_EXPERIMENT` sessions. It
-defines the trial structures (`WaterRewardTrial`, `GasPuffTrial`) used to decompose VR wall cue
-sequences into trials. Without it, the runtime processing job cannot emit `vr_cue_data.feather`,
+defines the trial structures (`MesoscopeWaterRewardTrial`, `MesoscopeGasPuffTrial`) used to decompose
+VR wall cue sequences into trials. Without it, the runtime processing job cannot emit `vr_cue_data.feather`,
 `vr_trigger_zone_data.feather`, or `trial_data.feather` for experiment sessions. Authoring and
 schema reference live in `/configuration:experiment-configuration`.
 

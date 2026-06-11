@@ -106,9 +106,10 @@ A `TaskTemplate` is composed of these classes (all defined in `sollertia_shared_
 itself does **not** carry trial weights, experiment-specific reward parameters, or trial-class
 choices — those live on the system-specific experiment configuration (e.g.
 `MesoscopeExperimentConfiguration`) and are owned by `/experiment-configuration`.
-The standalone trial classes `WaterRewardTrial` and `GasPuffTrial` are experiment-scope classes;
-they appear in this skill only when you call `list_supported_trial_types_tool` to enumerate what an
-experiment configuration may instantiate to pair with a template's `TrialStructure` entries.
+The standalone Mesoscope-VR trial classes `MesoscopeWaterRewardTrial` and `MesoscopeGasPuffTrial` are
+experiment-scope classes; they appear in this skill only when you call `list_supported_trial_types_tool`
+to enumerate what an experiment configuration may instantiate to pair with a template's
+`TrialStructure` entries.
 
 For canonical field definitions and valid values, call `describe_template_schema_tool` — do not rely on
 handwritten documentation that may drift from the slsa source of truth. For the canonical trial-class
@@ -234,8 +235,9 @@ All three occupancy modes keep the occupancy-guidance brake (the `OccupancyGuida
 
 **System support is a per-system subset.** The platform `TriggerType` enum carries all five, but each
 acquisition system maps only the subset it can resolve to its own stimuli. The Mesoscope-VR system's
-`from_task_template` maps `interaction` (→ `WaterRewardTrial`) and `occupancy_disarm` (→ `GasPuffTrial`),
-and does not map `collision`, `occupancy_arm`, or `occupancy_trigger`, so a configuration that uses one of
+`from_task_template` maps `interaction` (→ `MesoscopeWaterRewardTrial`) and `occupancy_disarm`
+(→ `MesoscopeGasPuffTrial`), and does not map `collision`, `occupancy_arm`, or `occupancy_trigger`, so a
+configuration that uses one of
 those on Mesoscope-VR raises a clear "not mapped to a runtime trial class" error. Adding a new `TriggerType`
 member therefore does **not** require a `from_task_template` branch in every system — a system may leave a
 mode unsupported. See `/library-extension` for the cross-cutting recipe.
@@ -269,8 +271,8 @@ mode unsupported. See `/library-extension` for the cross-cutting recipe.
   (`occupancy_disarm`, `occupancy_arm`, `occupancy_trigger`), which Unity reads at generation time.
   Because rewards and puff durations are project-level behavioral
   parameters that vary between teams using the same paradigm, they live on the experiment-config
-  trial classes (`WaterRewardTrial`, `GasPuffTrial`) authored by `/experiment-configuration` and
-  are joined to the spatial structure by trial name.
+  trial classes (`MesoscopeWaterRewardTrial`, `MesoscopeGasPuffTrial`) authored by
+  `/experiment-configuration` and are joined to the spatial structure by trial name.
 - **`trigger_type` is on `TrialStructure`** because Unity must pick the zone prefab during
   template generation — long before any experiment-config trial is instantiated. The trigger
   type is therefore the template's contract with Unity; the matching experiment-config trial
@@ -335,8 +337,8 @@ list_supported_trigger_types_tool()
 ```
 
 Use the schema and enum lists as the source of truth — the enum tools pin down the exact strings
-accepted by `trigger_type` and the exact class names used for the `GasPuffTrial` and
-`WaterRewardTrial` variants. This avoids silent typos that slip past YAML syntax but fail at runtime.
+accepted by `trigger_type` and the exact class names used for the `MesoscopeGasPuffTrial` and
+`MesoscopeWaterRewardTrial` variants. This avoids silent typos that slip past YAML syntax but fail at runtime.
 
 ### Step 4: Author the template
 
@@ -350,8 +352,8 @@ Build the template dictionary in this order:
    collision boundary is visible, trigger type from `list_supported_trigger_types_tool`, and an
    optional `transitions` dict mapping target trial names to probabilities summing to 1.0).
 
-Trial weights, reward sizes, gas-puff durations, experiment states, and the
-choice of trial class (`WaterRewardTrial` vs `GasPuffTrial`) are **not** part of the template —
+Trial weights, reward sizes, gas-puff durations, experiment states, and the choice of trial class
+(`MesoscopeWaterRewardTrial` vs `MesoscopeGasPuffTrial`) are **not** part of the template —
 they are added per-experiment by `/experiment-configuration`. (Occupancy dwell time is the
 exception: it lives on the template as the `TrialStructure.occupancy_duration_ms` field, shared by all
 three occupancy modes.)
@@ -427,7 +429,7 @@ for instantiating templates into experiment configurations.
 4. Write the template back with `write_template_tool` (use `overwrite=True`).
 5. Re-run `validate_template_tool` to confirm the new entry passes cross-reference checks.
 6. Hand off to `/experiment-configuration` if a per-project experiment needs to pair this trial with
-   a `WaterRewardTrial` or `GasPuffTrial` runtime class and assign weights.
+   a `MesoscopeWaterRewardTrial` or `MesoscopeGasPuffTrial` runtime class and assign weights.
 
 ### Migrate a template to a new VR scene
 

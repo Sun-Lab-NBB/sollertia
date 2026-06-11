@@ -251,13 +251,13 @@ clear "not mapped to a runtime trial class" error.
 
 Mesoscope-VR's `from_task_template` currently maps **two** members:
 
-| `TriggerType` member | Mesoscope-VR runtime trial | Notes                                               |
-|----------------------|----------------------------|-----------------------------------------------------|
-| `INTERACTION`        | `WaterRewardTrial`         | positive (reward-zone) trial                        |
-| `OCCUPANCY_DISARM`   | `GasPuffTrial`             | aversive (occupancy-zone) trial                     |
-| `COLLISION`          | (unmapped)                 | not mapped to a runtime trial class on Mesoscope-VR |
-| `OCCUPANCY_ARM`      | (unmapped)                 | not mapped to a runtime trial class on Mesoscope-VR |
-| `OCCUPANCY_TRIGGER`  | (unmapped)                 | not mapped to a runtime trial class on Mesoscope-VR |
+| `TriggerType` member | Mesoscope-VR runtime trial  | Notes                                               |
+|----------------------|-----------------------------|-----------------------------------------------------|
+| `INTERACTION`        | `MesoscopeWaterRewardTrial` | positive (reward-zone) trial                        |
+| `OCCUPANCY_DISARM`   | `MesoscopeGasPuffTrial`     | aversive (occupancy-zone) trial                     |
+| `COLLISION`          | (unmapped)                  | not mapped to a runtime trial class on Mesoscope-VR |
+| `OCCUPANCY_ARM`      | (unmapped)                  | not mapped to a runtime trial class on Mesoscope-VR |
+| `OCCUPANCY_TRIGGER`  | (unmapped)                  | not mapped to a runtime trial class on Mesoscope-VR |
 
 The orchestrator reads the driver's `trial_names` — joining them against its experiment configuration's trial
 structures to build the per-trial reward/puff arrays — along with `cue_sequence_distances` and

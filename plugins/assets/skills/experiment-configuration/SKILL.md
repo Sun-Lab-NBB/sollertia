@@ -166,11 +166,11 @@ are Mesoscope-VR's own — never assume they apply verbatim to another system.
   `list_supported_trial_types_tool` derives the trial list from this field. The platform `trigger_type` taxonomy
   has **five** modes (`interaction`, `collision`, `occupancy_disarm`, `occupancy_arm`, `occupancy_trigger`), but
   each acquisition system maps only the **subset** it supports. The Mesoscope-VR system's annotation for example is
-  `dict[str, WaterRewardTrial | GasPuffTrial]`, and its `from_task_template` maps `trigger_type: "interaction"`
-  → `WaterRewardTrial` and `trigger_type: "occupancy_disarm"` → `GasPuffTrial` to match the zone prefab Unity
-  instantiates; `collision`, `occupancy_arm`, and `occupancy_trigger` are not mapped on Mesoscope-VR, so a config that
-  uses one raises a clear "not mapped to a runtime trial class" error. Another system defines and pairs its own trial
-  classes for whatever subset it supports.
+  `dict[str, MesoscopeWaterRewardTrial | MesoscopeGasPuffTrial]`, and its `from_task_template` maps
+  `trigger_type: "interaction"` → `MesoscopeWaterRewardTrial` and `trigger_type: "occupancy_disarm"` →
+  `MesoscopeGasPuffTrial` to match the zone prefab Unity instantiates; `collision`, `occupancy_arm`, and
+  `occupancy_trigger` are not mapped on Mesoscope-VR, so a config that uses one raises a clear "not mapped to a
+  runtime trial class" error. Another system defines and pairs its own trial classes for whatever subset it supports.
 - **`unity_scene_name`** — a mandatory contract field. It identifies the paired `TaskTemplate` by filename stem
   and is verified against the scene loaded in Unity at session start, so two projects can point the same template
   at differently-named scene files.
@@ -303,10 +303,11 @@ Mutate the payload to override the fields the user wants to customize. The schem
 `MesoscopeExperimentConfiguration`, currently the only concrete experiment-config subclass; consult
 `describe_experiment_configuration_schema_tool` with the matching `acquisition_system` value for any other system.
 
-- `trial_structures: dict[str, WaterRewardTrial | GasPuffTrial]` (Mesoscope-VR's exemplar annotation) — a
-  per-trial dict; each entry is either a `WaterRewardTrial` (with `reward_size_ul`, `reward_tone_duration_ms`)
-  or a `GasPuffTrial` (with `puff_duration_ms`). These are standalone, exemplar-specific
-  dataclasses carrying **only** runtime parameters; another system declares its own trial classes. The matching
+- `trial_structures: dict[str, MesoscopeWaterRewardTrial | MesoscopeGasPuffTrial]` (Mesoscope-VR's exemplar
+  annotation) — a per-trial dict; each entry is either a `MesoscopeWaterRewardTrial` (with `reward_size_ul`,
+  `reward_tone_duration_ms`) or a `MesoscopeGasPuffTrial` (with `puff_duration_ms`). These are standalone,
+  system-specific dataclasses carrying **only** runtime parameters, defined in the owning system's subpackage;
+  another system declares its own trial classes. The matching
   spatial fields (cue sequence, zones, trigger type, occupancy duration) live on the paired `TaskTemplate`'s
   `trial_structures[<same name>]` and are joined at session init.
 - `experiment_states: dict[str, ExperimentState]` — a dict, **not a list**. Access by string key
@@ -379,14 +380,14 @@ reason, that is currently not supported by the sollertia-shared-assets MCP layer
 
 ## Common patterns
 
-| Goal                                  | Pattern                                                                                                                                                                                                                                                                                                             |
-|---------------------------------------|---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
-| Reuse a template across projects      | Call `create_experiment_from_vr_template_tool` per project (one `file_path` per destination), then override per-project fields                                                                                                                                                                                      |
-| Change reward volume for a trial type | Edit `trial_structures["<trial>"].reward_size_ul` for `WaterRewardTrial` entries                                                                                                                                                                                                                                    |
-| Change gas-puff duration              | Edit `trial_structures["<trial>"].puff_duration_ms` for `GasPuffTrial` entries                                                                                                                                                                                                                                      |
-| Adjust a state's duration             | Edit `experiment_states["<state-key>"].state_duration_s` (state machine is a dict)                                                                                                                                                                                                                                  |
-| Add a new state to the state machine  | Add a new key to the `experiment_states` dict, then re-validate                                                                                                                                                                                                                                                     |
-| Add a new spatial trial entry         | First hand off to `/task-templates` to add the `TrialStructure` to the template, then either re-run `create_experiment_from_vr_template_tool` with `overwrite=True` or amend this skill's experiment config via `write_experiment_configuration_tool` to add the matching `WaterRewardTrial` / `GasPuffTrial` entry |
+| Goal                                  | Pattern                                                                                                                                                                                                                                                                                                                               |
+|---------------------------------------|---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| Reuse a template across projects      | Call `create_experiment_from_vr_template_tool` per project (one `file_path` per destination), then override per-project fields                                                                                                                                                                                                        |
+| Change reward volume for a trial type | Edit `trial_structures["<trial>"].reward_size_ul` for `MesoscopeWaterRewardTrial` entries                                                                                                                                                                                                                                             |
+| Change gas-puff duration              | Edit `trial_structures["<trial>"].puff_duration_ms` for `MesoscopeGasPuffTrial` entries                                                                                                                                                                                                                                               |
+| Adjust a state's duration             | Edit `experiment_states["<state-key>"].state_duration_s` (state machine is a dict)                                                                                                                                                                                                                                                    |
+| Add a new state to the state machine  | Add a new key to the `experiment_states` dict, then re-validate                                                                                                                                                                                                                                                                       |
+| Add a new spatial trial entry         | First hand off to `/task-templates` to add the `TrialStructure` to the template, then either re-run `create_experiment_from_vr_template_tool` with `overwrite=True` or amend this skill's experiment config via `write_experiment_configuration_tool` to add the matching `MesoscopeWaterRewardTrial` / `MesoscopeGasPuffTrial` entry |
 
 ### Moving an experiment to a new template
 
