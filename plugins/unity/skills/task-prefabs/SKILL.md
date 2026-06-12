@@ -73,6 +73,11 @@ sliding-window corridor traversal), see assets plugin's `/task-templates`. For t
 `CreateTask.CreateFromTemplate` pipeline internals (cue / segment build passes, shader chain,
 zone placement math, hand-authored protected assets), see `/task-generator`.
 
+**Scene scope.** `create_task_tool` produces a new **corridor** scene by copying `ExperimentTemplate.unity` — that is
+the only scene topology this skill creates, and creating new corridor scenes this way is fully agent-autonomous. A
+scene with a different Display rig or a non-corridor topology has no author-derived recipe; escalate to the human
+supervisor (see `/scene-setup`). You MUST NOT hand-author a scene to work around this.
+
 ---
 
 ## MCP tool surface

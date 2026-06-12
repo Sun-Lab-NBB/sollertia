@@ -118,6 +118,10 @@ downstream acquisition rigs adopt this layout. The Display section of the Parame
 controls brightness and VR height; the **Camera Mapping** section binds the three per-monitor
 cameras (`Left View`, `Center View`, `Right View`) to OS monitor indices.
 
+**Scope boundary.** This skill configures the project's standard three-monitor corridor rig. Authoring a *different*
+Display rig or a non-corridor scene topology has no author-derived recipe — escalate to the human supervisor and
+co-design it in a generative, collaborative mode. You MUST NOT hand-author a new rig or scene topology autonomously.
+
 ### Assigning monitors
 
 1. Open `Window → Task Parameters` and scroll to **Camera Mapping**.

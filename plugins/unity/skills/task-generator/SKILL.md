@@ -423,6 +423,14 @@ affects both flows. Test through both the menu and the MCP tools after any pipel
 
 ### Adding a new zone trigger type
 
+**Recipe boundary.** A new trigger mode is agent-doable even when its firing behavior is genuinely novel — the
+`/zone-prefabs` worked examples cover a speed-gated interaction reward and a cumulative-occupancy variant end to end.
+The recipe holds as long as the new mode is a zone modifier (subclass an existing zone, or a standalone `IResettable`
+registered in `ResetZone`) on a copied zone prefab whose root subclasses `StimulusTriggerZone` and publishes the
+standard `Stimulus{trialName}` event. Escalate to the human supervisor only when the behavior needs a new MQTT topic,
+new `Task.cs` runtime mechanics, or geometry outside a single corridor segment — those are paradigm-level and have no
+author-derived recipe.
+
 This skill owns the **`CreateTask` pipeline edits** for a new `TriggerType`. The full cross-cutting
 recipe is split three ways:
 
@@ -466,9 +474,13 @@ every mode publishes the same `Stimulus{trialName}` event, adds no topics, and d
 
 ### Adding a new cue or segment
 
-No code changes are needed for cues. To add a new cue texture:
+No code changes are needed for cues, but **importing a new cue texture is a human hand-off** — you cannot author PNG
+or other binary image assets. To add a new cue texture:
 
-1. Import the `.png` (or compatible image) into `Assets/InfiniteCorridorTask/Textures/`.
+1. **Hand the texture off to the user.** If the referenced image is not already under
+   `Assets/InfiniteCorridorTask/Textures/`, stop and ask the user to supply it — state the intended cue `name`,
+   `code`, `length_cm`, and target filename. The user imports the `.png` (or compatible image) and then loops you back
+   to continue. You MUST NOT let generation dead-end in a `Failed to load texture` error.
 2. Reference the filename from the YAML template's `cues[].texture` field together with a unique `name`,
    `code`, and `lengthCm`.
 3. Regenerate the task via `create_task_tool`; the cue prefab and matching material are created automatically

@@ -196,6 +196,12 @@ paradigms use one or two segments per corridor. Every concept in this skill (cue
 transition probabilities, trial structures, `cue_offset_cm`, `segments_per_corridor`) is built
 around this hierarchy.
 
+**Autonomy boundary.** The infinite corridor is the **only** supported VR paradigm, and the only one with an
+author-derived recipe. You can author and validate new corridor templates autonomously. Extending *beyond* the
+corridor — a new topology (T-maze, open field, branching), a new `VREnvironment` class, or new runtime mechanics — has
+no recipe: escalate to the human supervisor and co-design it in a generative, collaborative mode. This is not a
+capability ceiling but the absence of a deterministic recipe, so the work must be human-supervised.
+
 ### How template fields are used
 
 | Field                                 | Consumer-side role                                                                                                                                                                                                                                                                                               |
