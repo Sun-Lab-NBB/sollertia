@@ -136,11 +136,12 @@ them here** — read them, then come back for the cross-skill update map below.
 |---------------------------------|----------------------------------|
 | New `SessionTypes` member       | "Adding New Session Types"       |
 | New `AcquisitionSystems` member | "Adding New Acquisition Systems" |
+| New runtime trial class         | "Adding a New Trial Class"       |
+| New `TriggerType` member        | "Adding a New Trigger Type"      |
 | New read asset                  | "Adding a New Read Asset"        |
 
-For new trial classes and new trigger types, the README does not currently
-carry a step-by-step recipe. Use the **per-scenario touch lists** below as the working spec, then
-propose a README update in the same PR so the recipe lands next to the existing three.
+The README carries a recipe for every scenario in the table above. The **per-scenario touch lists**
+below add the cross-skill updates that accompany each recipe.
 
 ---
 
@@ -240,7 +241,7 @@ framing reflects the new member:
 
 ### Adding a new runtime trial class
 
-**Code touches:**
+**Code touches** — follow the README's "Adding a New Trial Class" recipe:
 1. Define the new class in the owning system's `<system>/experiment_configuration.py` as a standalone
    `@dataclass(frozen=True, slots=True)`, prefixing its name with the system name (mirror
    `MesoscopeWaterRewardTrial` / `MesoscopeGasPuffTrial` for shape and naming). The new class
@@ -282,7 +283,7 @@ raises a clear "not mapped to a runtime trial class" error. The Mesoscope-VR sys
 (→ `MesoscopeWaterRewardTrial`) and `OCCUPANCY_DISARM` (→ `MesoscopeGasPuffTrial`), and does not map
 `COLLISION`, `OCCUPANCY_ARM`, or `OCCUPANCY_TRIGGER`.
 
-**Code touches** owned here:
+**Code touches** — follow the README's "Adding a New Trigger Type" recipe for the Python slice owned here:
 1. Append the member to `TriggerType` in `configuration/vr_configuration.py`.
 2. For **each system that supports the new member**, update that system's `from_task_template` to add
    the matching `elif trial_structure.trigger_type == TriggerType.<NEW>:` branch, instantiating the
