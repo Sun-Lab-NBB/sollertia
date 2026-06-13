@@ -491,9 +491,15 @@ supported under the always-regenerate flow because `CleanGeneratedSegments` woul
 prefab on the next generation pass. Express new segment geometry by adding a trial structure to the YAML
 template instead.
 
-### Adding a new template-driven field
+A template field is a **two-repo mirror** — the YAML deserializer maps each underscored YAML key to the camelCase C#
+member, so the two class definitions must stay in lockstep or the field is silently dropped (or fails to parse) at
+`create_task` time, far from the edit that caused it, in the other repo. There is no automated parity check; this is a
+manual, verify-before-done step.
 
-1. Add the field to the `TaskTemplate` (or nested) class in `sollertia-shared-assets`.
+1. Add the field to the `TaskTemplate` (or nested) Python dataclass in `sollertia-shared-assets`, **and** add the
+   matching `[Serializable]` field to the mirror C# class (`TaskTemplate.cs` / `Cue.cs` / `TrialStructure.cs` /
+   `VREnvironment.cs`) in this repo. The C# member name MUST be the camelCase counterpart of the underscored YAML key
+   (e.g. `cue_offset_cm` → `cueOffsetCm`), and its optionality / default MUST match the Python side.
 2. Add a getter or conversion helper (e.g. a `*Unity` accessor) to `TaskTemplate.cs` if the field needs unit
    conversion.
 3. Thread the field through `CreateFromTemplate` to the relevant sub-step.
@@ -501,6 +507,9 @@ template instead.
    [Cue prefab anatomy](#cue-prefab-anatomy), [Segment prefab anatomy](#segment-prefab-anatomy),
    or [Zone placement math](#zone-placement-math) section above so callers can see how the new
    field surfaces in the generated prefab.
+5. **Verify the round-trip**: author a template that sets the new field, run `create_task_tool`, and confirm via
+   `inspect_prefab_tool` (or the field's downstream effect) that the value actually arrived on the C# side — a missing
+   or mistyped mirror field surfaces here as a dropped value, not a compile error.
 
 ---
 
@@ -552,4 +561,7 @@ Generator Pipeline Compliance:
       per ControllerTypes enum value under the "Controllers" root
 - [ ] After any generator change, regenerate a representative template via create_task_tool and spot-check the
       prefab via inspect_prefab_tool against the expected hierarchy
+- [ ] Any new template field has a matching [Serializable] C# mirror field (camelCase of the underscored YAML key,
+      with matching optionality/default) in TaskTemplate.cs / Cue.cs / TrialStructure.cs / VREnvironment.cs, verified
+      by a create_task_tool + inspect_prefab_tool round-trip — the two-repo schema mirror has no automated parity check
 ```

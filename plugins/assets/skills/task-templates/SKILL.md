@@ -468,6 +468,10 @@ for instantiating templates into experiment configurations.
 - [ ] read_template_tool returned the expected content after the write
 - [ ] If the template targets a Unity scene, unity plugin's /task-prefabs was invoked for prefab
       generation and validation
+- [ ] If a NEW schema field was added (not just a new value), confirmed it is a two-repo mirror change — the Python
+      dataclass in sollertia-shared-assets AND the matching C# [Serializable] field in sollertia-unity-tasks (the
+      camelCase counterpart of the underscored YAML key, with matching optionality/default); see unity plugin's
+      /task-generator "Adding a new template-driven field"
 ```
 
 ---

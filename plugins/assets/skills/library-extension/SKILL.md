@@ -434,6 +434,10 @@ Code side:
 - [ ] The new trial class is in the `trial_structures` union annotation and the `from_task_template`
       trigger → trial mapping of each using `<System>ExperimentConfiguration` (if a new runtime trial
       class)
+- [ ] For a new `TriggerType` member, confirmed for EVERY acquisition system that the member is either mapped to a
+      trial class in that system's `from_task_template` OR deliberately left unmapped (a config using an unmapped
+      member then raises the clear "not mapped to a runtime trial class" error) — the per-system decision is explicit,
+      not an accidental omission, since no import-time parity check covers `TriggerType` coverage
 - [ ] Test suite passes; `slsa mcp` starts cleanly
 
 Skill side:

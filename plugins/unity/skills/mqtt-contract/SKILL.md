@@ -250,6 +250,10 @@ You MUST work through this checklist before introducing a new MQTT topic:
 - [ ] Payload class (if typed) is a public class with public fields (JsonUtility constraint)
 - [ ] `experiment:vr-driver-interface` is updated on its side (`_VRTaskMQTTTopics`) — coordinate the change across both repos
 - [ ] This skill's topic catalog is updated with the new entry
+- [ ] Did NOT treat Editor / keyboard-only success as proof of wiring — `MQTTClient.Publish` loops messages in-process
+      when no broker is connected, so a Unity-only topic with no `sollertia-experiment` counterpart appears to work
+      locally and silently drops in production; confirmed the experiment-side publisher / subscriber landed in the
+      same release
 ```
 
 ---

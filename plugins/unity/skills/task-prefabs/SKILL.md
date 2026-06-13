@@ -469,6 +469,10 @@ Task Prefabs Compliance:
 - [ ] inspect_prefab_tool hierarchy matches the template's cue / segment / trial counts
 - [ ] Stale cue prefabs and materials are removed via delete_asset_tool before regeneration when
       a cue texture changes without a name or length rename
+- [ ] Every cues[].texture in the template resolves to an existing file under
+      Assets/InfiniteCorridorTask/Textures/; a missing texture is handed off to the user to supply (you cannot author
+      binary image assets) and generation resumes only after they import it — never left to fail with "Failed to load
+      texture"
 - [ ] Generated prefabs are not hand-edited; regeneration goes through delete_task_tool →
       create_task_tool
 ```
