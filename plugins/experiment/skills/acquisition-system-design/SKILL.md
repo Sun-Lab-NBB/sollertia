@@ -353,6 +353,7 @@ per-system skills answer "only this one."
 | `experiment:pipeline`                              | End-to-end acquisition-system lifecycle orchestration context.                                                                          |
 | `assets:library-extension`                         | Owns the `sollertia-shared-assets` enum/registry recipe for a new system; step 2 of the build-a-new-system workflow hands off here.     |
 | `experiment:google-sheets-processing`              | Owns the external data-service processor category — the `SurgeryLog` / `WaterLog` API, schema contract, and custom-processor authoring. |
+| `experiment:system-design-pipeline`                | Orchestrates this static-composition phase into the full cross-repo build of a new acquisition system.                                  |
 
 ---
 

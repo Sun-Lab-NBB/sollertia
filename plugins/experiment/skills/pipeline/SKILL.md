@@ -25,6 +25,7 @@ ordering, handoff conditions to phase-specific skills, and the boundary between 
 - The configuration-time vs runtime boundary
 
 **Does not cover:**
+- Designing or building a new acquisition system type — see `/system-design-pipeline`
 - Detailed tool usage for any individual phase (see phase-specific skills)
 - MCP server connectivity (see each plugin's `*-mcp-environment-setup` skill, e.g.
   `/experiment-mcp-environment-setup`, `/assets-mcp-environment-setup`)
