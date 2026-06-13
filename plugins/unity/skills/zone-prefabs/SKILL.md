@@ -1,20 +1,19 @@
 ---
 name: zone-prefabs
 description: >-
-  Manufactures new hand-authored trigger zone prefabs for sollertia-unity-tasks by copying one of
-  the two canonical templates (`StimulusTriggerZone.prefab` for the interaction and collision modes,
-  `OccupancyTriggerZone.prefab` for the occupancy_disarm, occupancy_arm, and occupancy_trigger modes)
-  and rewriting the MonoBehaviour script GUIDs, region names, and field defaults.
-  Use when adding a new `TriggerType` member or designing a new stimulus-zone variant that mixes
-  existing modifier zones in a new configuration.
+  Manufactures new trigger zone prefabs for sollertia-unity-tasks with the `clone_zone_prefab_tool` MCP
+  tool, which copies one of the two canonical base prefabs (`StimulusTriggerZone.prefab` for the interaction
+  and collision modes, `OccupancyTriggerZone.prefab` for the occupancy modes) and swaps the modifier scripts,
+  region names, and field defaults through Unity's serialization layer. Use when adding a new `TriggerType`
+  member or designing a new stimulus-zone variant that mixes existing modifier zones in a new configuration.
 user-invocable: false
 ---
 
 # Sollertia Unity zone prefabs
 
-Authors new hand-authored trigger zone prefabs for `sollertia-unity-tasks` by copying one of the
-two committed templates, swapping the modifier scripts and field defaults, and validating the
-result with `inspect_prefab_tool` — instead of constructing prefab YAML from scratch.
+Authors new trigger zone prefabs for `sollertia-unity-tasks` with the `clone_zone_prefab_tool` MCP tool:
+it copies one of the two committed base prefabs, swaps the modifier scripts and field defaults through
+Unity's serialization layer, and returns the resulting hierarchy for validation.
 
 ---
 
@@ -43,7 +42,54 @@ result with `inspect_prefab_tool` — instead of constructing prefab YAML from s
 
 ---
 
-## Why copy-and-edit, not generate-from-spec
+## Manufacturing a zone prefab
+
+The `clone_zone_prefab_tool` MCP tool (owned by `/task-prefabs`, relayed to `McpBridge.CloneZonePrefab`)
+performs the whole prefab-authoring step in one call. It copies a canonical base prefab, renames regions,
+swaps the root and region modifier scripts for new compiled `MonoBehaviour` types, applies serialized field
+overrides, and returns the resulting hierarchy in the same shape as `inspect_prefab_tool`. Unity assigns the
+fileIDs, script references, and `m_Children` / `m_Father` wiring through its serialization layer, so the
+result is correct by construction and validates in the same call.
+
+```text
+clone_zone_prefab_tool(
+    source_prefab="Assets/InfiniteCorridorTask/Prefabs/StimulusTriggerZone.prefab",
+    destination_prefab="Assets/InfiniteCorridorTask/Prefabs/SpeedInteractionTriggerZone.prefab",
+    root_script="SpeedInteractionTriggerZone",
+    regions=[{"match": "GuidanceRegion", "rename": "SpeedTestRegion", "script": "SpeedZone",
+              "fields": {"targetSpeedCmPerSec": 20, "toleranceCmPerSec": 5}}],
+)
+```
+
+The tool resolves every script name before it writes anything, so a typo or an uncompiled script fails before
+any asset is created, and it rolls the asset back if a later edit fails. The new prefab's root takes the
+destination filename. The tool enforces the same guarantees this skill applies by hand: the source must be
+one of the two canonical base prefabs, the destination must sit under `Assets/InfiniteCorridorTask/Prefabs/`
+and may not name a protected base, and each region `match` must resolve to exactly one descendant.
+
+**Prerequisites:** author and compile the new `MonoBehaviour` script(s) first (see the
+[pre-flight checklist](#pre-flight-checklist)), then run the tool. Hand off the downstream wiring afterward
+(see [Step 7](#step-7-hand-off-the-remaining-wiring)).
+
+### Compose behavior with trials, not regions
+
+`clone_zone_prefab_tool` edits a base prefab's existing region slots and stops there by design. A task is
+built from one-zone-per-trial segments strung into a corridor, so extra behavior comes from adding a trial to
+the template, and cues can reuse a texture so trials that look identical still differ in code. Reach for a
+richer single zone only when one trial genuinely needs two coupled sensors; otherwise express the new
+behavior as another trial. This is why the tool targets a single zone's slots and leaves multi-region
+composition to the task template.
+
+### When to drop to the manual workflow
+
+The tool covers rename, root and region script swaps, and field overrides — the operations every shipped
+variant and both [worked examples](#worked-examples) need. Use the
+[manual fallback workflow](#manual-fallback-workflow) to add or remove a region (the one operation the tool
+leaves to a future version) or to inspect the raw YAML when a clone result is surprising.
+
+---
+
+## Why clone a base prefab
 
 Both zone prefabs share a fixed structural skeleton:
 
@@ -57,12 +103,11 @@ Both zone prefabs share a fixed structural skeleton:
 - Placeholder `BoxCollider` sizes — `CreateTask.PlaceInteractionZone` and `CreateTask.PlaceOccupancyZone`
   overwrite them at task generation time, so the prefab's stored values are not authoritative.
 
-The only fields that vary between trigger zone variants are the script GUIDs on each
+The only fields that vary between trigger zone variants are the modifier scripts on each
 `MonoBehaviour`, the GameObject `m_Name` values, and the serialized field defaults on each modifier
-script. Everything else is identical. Manufacturing a new variant from a spec language would
-require redescribing the entire skeleton on every call; copying the closest existing template and
-patching the three fields above is faster, lower-risk, and lets the agent rely on standard
-file-editing tools (`Read`, `Edit`, `Write`) instead of a custom MCP tool.
+script. Everything else is identical. `clone_zone_prefab_tool` copies the closest base prefab and patches
+exactly those three fields through Unity's serialization layer, so the new variant inherits the skeleton and
+every invariant below for free.
 
 ---
 
@@ -213,7 +258,11 @@ For a newly authored script, read its `.cs.meta` to extract the freshly minted G
 
 ---
 
-## Workflow
+## Manual fallback workflow
+
+Use this workflow to add or remove a region (the one operation `clone_zone_prefab_tool` leaves to a future
+version), or to inspect raw YAML when a clone result is surprising. For rename, script swaps, and field
+overrides, the tool in "Manufacturing a zone prefab" is the primary path.
 
 ### Step 1: Pick the template
 
@@ -421,8 +470,8 @@ End-to-end walkthroughs of the two non-trivial zone-prefab authoring patterns li
   stimulus on the animal's traversal speed through an upstream speed-test region — covers a new
   parent script, a new sibling-region script, and a new `PlaceSpeedInteractionZone` placement helper.
 
-Load that file when you actually need to extend the zone vocabulary; the workflow above (Steps
-1–7) is enough for routine variants.
+Load that file when you actually need to extend the zone vocabulary; the `clone_zone_prefab_tool` flow
+above handles routine variants in one call.
 
 ---
 
@@ -494,6 +543,8 @@ You MUST verify this checklist before submitting any new or modified hand-author
 
 ```text
 Zone Prefabs Compliance:
+- [ ] clone_zone_prefab_tool was used for rename, script-swap, and field-override authoring; the manual
+      YAML workflow was used only to add or remove a region
 - [ ] The new modifier script exists under Assets/InfiniteCorridorTask/Scripts/ with a valid
       .cs.meta and a stable GUID
 - [ ] The new prefab path is under Assets/InfiniteCorridorTask/Prefabs/ and the filename matches

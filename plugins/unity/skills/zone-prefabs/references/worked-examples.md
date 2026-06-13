@@ -1,8 +1,13 @@
 # Worked examples: zone-prefab authoring
 
-Concrete end-to-end walkthroughs for the two non-trivial zone-prefab authoring patterns. Each
-example assumes the reader has already completed every step in `SKILL.md` ("Workflow", Steps 1–7)
-and just needs a worked illustration of the script-side and YAML-side choices.
+Concrete end-to-end walkthroughs for the two non-trivial zone-prefab authoring patterns. Each example
+assumes the reader has already authored and compiled the new MonoBehaviour script(s) and just needs a worked
+illustration of the script-side and prefab-side choices.
+
+**Tool shortcut:** the prefab-side steps each example spells out by hand (copy the base prefab, rename
+regions, swap the modifier scripts, set field defaults, and validate) are a single `clone_zone_prefab_tool`
+call (see `SKILL.md` "Manufacturing a zone prefab"). The manual steps remain here as a reference for what the
+tool does and for the add/remove-region case the tool leaves to a future version.
 
 ---
 
