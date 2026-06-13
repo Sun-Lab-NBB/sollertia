@@ -34,6 +34,13 @@ The Mesoscope-VR ACTOR board currently exercises the multi-`module_id` pattern w
 instances at id 1 (water reward) and id 2 (gas puff). No other module currently has multiple
 instances on a single controller board.
 
+A firmware `Module` is generic and reusable, but its `ModuleInterface` wrapper may be specialized for
+specific equipment — in its name, its calibration, and how its data is processed downstream.
+`MesoscopeFrameTTLInterface` (a generic `TTLModule` named and processed for the mesoscope's
+frame-acquisition signal) and the `WaterValveInterface` / `GasPuffValveInterface` split over a single
+`ValveModule` are both examples. The specialization is intentional; an equipment-specific interface still
+lives in the shared `cross_system` layer and stays reusable by any system that drives the same hardware.
+
 ---
 
 ## Hardware-surface catalog

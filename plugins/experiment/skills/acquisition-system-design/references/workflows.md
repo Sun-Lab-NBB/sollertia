@@ -59,7 +59,7 @@ only microcontrollers gains a camera), follow these steps:
    will not import.
 
 3. **Author the per-subsystem configuration dataclasses.** One per subsystem, in the new system's package
-   (typically `<system>/configuration.py`).
+   alongside the system configuration class (Mesoscope-VR for example defines both in `mesoscope_vr/system.py`).
 
 4. **Author the system configuration class.** Inherits `SystemConfiguration` (from `cross_system`),
    composes the configuration dataclasses, includes a `name` field and any auxiliary sections
@@ -75,18 +75,44 @@ only microcontrollers gains a camera), follow these steps:
 7. **Author the lifecycle orchestrator.** Typically, in `<system>/system_controller.py`.
 
 8. **Wire the system into the package's CLI.** Add a `<system>` command group to the `sle` CLI (e.g.,
-   `sle mesoscope`), alongside the hardware-agnostic `sle get` group.
+   `sle mesoscope`), alongside the hardware-agnostic `sle get` group, and register it in
+   `interfaces/entry_points.py`'s `_register_subcommands`.
 
-9. **(Optional but recommended) Author dedicated agentic assets for the new system.** A new
-   acquisition system optionally benefits from its own per-system instance skill in this plugin,
-   documenting the system's hardware subsystems, configuration field surface, binding-class composition, and
-   lifecycle. Follow the structure of `experiment:mesoscope-vr`. The system runs without it, but
-   omitting it leaves the system driveable yet undocumented for agents (and the pattern skills above
-   keep pointing at Mesoscope-VR as the sole worked instance).
+9. **Author the system's MCP tool module.** Add `interfaces/<system>_tools.py` exposing the system's
+   configuration and data-management tools — system-configuration read / write / validate /
+   describe-schema, hardware and mount verification, and the preprocess / delete / migrate session
+   tools — mirroring `mesoscope_vr_tools.py`. The MCP server discovers every `*_tools.py` module by
+   filename suffix, so the module registers automatically; the hardware-agnostic `get_tools` are
+   inherited unchanged. Without this module the new system is CLI-driveable but exposes no
+   system-specific MCP surface to agents.
 
-10. **(Optional but recommended) Author a per-system runtime skill** when the system has non-trivial
+10. **(Optional but recommended) Author dedicated agentic assets for the new system.** A new
+    acquisition system optionally benefits from its own per-system instance skill in this plugin,
+    documenting the system's hardware subsystems, configuration field surface, binding-class composition, and
+    lifecycle. Follow the structure of `experiment:mesoscope-vr`. The system runs without it, but
+    omitting it leaves the system driveable yet undocumented for agents (and the pattern skills above
+    keep pointing at Mesoscope-VR as the sole worked instance).
+
+11. **(Optional but recommended) Author a per-system runtime skill** when the system has non-trivial
     runtime modes / state machines / training behaviors. Follow the structure of
     `experiment:mesoscope-vr-runtime`.
+
+**Per-package deliverables.** A complete acquisition-system package mirrors the Mesoscope-VR layout:
+
+- `<system>/system.py` — the per-subsystem configuration dataclasses, the `<System>SystemConfiguration`
+  subclass, its `register_system_configuration` call, and the typed `get_system_configuration` accessor.
+- `<system>/binding_classes.py` — the per-subsystem binding classes.
+- `<system>/system_controller.py` — the lifecycle orchestrator.
+- `<system>/data_acquisition.py` — the per-mode logic functions (one per session type the system runs).
+- `<system>/visualizer.py`, `<system>/runtime_ui.py`, `<system>/maintenance_ui.py`, and an instrument-driver
+  module — added as the system's hardware and runtime modes require.
+- `interfaces/<system>.py` — the `sle <system>` CLI command group (registered in `entry_points.py`).
+- `interfaces/<system>_tools.py` — the per-system MCP tool module (auto-discovered by the server).
+
+The shared `cross_system` package supplies the reusable building blocks these compose: the
+`SystemConfiguration` create / resolve / load lifecycle, the microcontroller `ModuleInterface` wrappers (see
+`experiment:microcontroller-interface`), the Zaber stack (see `experiment:zaber-interface`), and the
+session-preprocessing primitives (see `experiment:data-management`).
 
 ---
 

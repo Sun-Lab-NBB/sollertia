@@ -85,7 +85,7 @@ A Sollertia acquisition system is composed of three layers, top-down:
 ┌─────────────────────────────────────────────────────────────────────────────────┐
 │  Layer 1: System Configuration YAML                                             │
 │  ─────────────────────────────────                                              │
-│  <System>SystemConfiguration   ── persisted as <system>_configuration.yaml      │
+│  <System>SystemConfiguration ── persisted as <system>_system_configuration.yaml │
 │      ├── <System>FileSystem    ── filesystem paths (host-machine state)         │
 │      ├── <System>Cameras       ── per-camera configuration                      │
 │      ├── <System>MicroControllers ── per-microcontroller-module configuration   │

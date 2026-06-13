@@ -20,7 +20,9 @@ migration helpers) live in `sollertia_experiment/cross_system/data_preprocessing
 acquisition system supplies its own concrete orchestration. Mesoscope-VR is the current example: its
 `preprocess_session_data`, `purge_session`, and `migrate_animal_between_projects` orchestrators live in
 `sollertia_experiment/mesoscope_vr/data_preprocessing.py` and add system-specific steps such as
-mesoscope-frame compression.
+mesoscope-frame compression. The shared primitives a system's orchestrators compose are
+`assemble_session_logs`, `push_session_data`, `delete_session_directories`, `migrate_session_directory`,
+`rename_session_videos`, and `snapshot_surgery_data`.
 
 ---
 
@@ -230,16 +232,16 @@ warning, confirm via AskUserQuestion, delete only if confirmed, and report befor
 
 ## Related skills
 
-| Skill                                  | Relationship                                                             |
-|----------------------------------------|--------------------------------------------------------------------------|
-| `/experiment-mcp-environment-setup`    | Run first if the `sle mcp` server is not connected                       |
-| assets plugin `/project-hierarchy`     | Enumerates projects/animals/sessions (read-only)                         |
-| assets plugin `/session-discovery`     | Filters sessions and returns confirmed session paths to feed these tools |
-| assets plugin `/session-data`          | Owns the `SessionData` marker that defines each session                  |
-| `/mesoscope-vr`                        | Defines `filesystem.storage_directories`, the transfer destinations      |
+| Skill                                  | Relationship                                                                                                               |
+|----------------------------------------|----------------------------------------------------------------------------------------------------------------------------|
+| `/experiment-mcp-environment-setup`    | Run first if the `sle mcp` server is not connected                                                                         |
+| assets plugin `/project-hierarchy`     | Enumerates projects/animals/sessions (read-only)                                                                           |
+| assets plugin `/session-discovery`     | Filters sessions and returns confirmed session paths to feed these tools                                                   |
+| assets plugin `/session-data`          | Owns the `SessionData` marker that defines each session                                                                    |
+| `/mesoscope-vr`                        | Defines `filesystem.storage_directories`, the transfer destinations                                                        |
 | `/google-sheets-processing`            | Owns the `SurgeryLog` / `WaterLog` processors that preprocessing invokes to snapshot surgery data and update the water log |
-| forging plugin `/server-configuration` | Remote storage transfer configuration consumed downstream                |
-| `/pipeline`                            | Phase 7 (post-process and manage) is owned by this skill                 |
+| forging plugin `/server-configuration` | Remote storage transfer configuration consumed downstream                                                                  |
+| `/pipeline`                            | Phase 7 (post-process and manage) is owned by this skill                                                                   |
 
 ---
 
