@@ -6,7 +6,7 @@ description: >-
   write_task_parameters_tool, which mirror the Actor, MQTT, Display, Camera Mapping, and Task
   sections of `Window → Task Parameters`. Use when inspecting or programmatically changing per-scene
   Task / Actor / Display / MQTT / Camera Mapping settings without opening the Editor window manually.
-user-invocable: true
+user-invocable: false
 ---
 
 # Sollertia Unity task parameters
@@ -36,7 +36,7 @@ programmatic entry point for those fields.
 - Writing any subset of those fields and receiving the post-write snapshot on success
   (`write_task_parameters_tool`)
 - The option lists (allowed enum values) and visibility flags returned alongside the state
-- Validation rules that mirror the GUI (zone-gated `require_lick` / `require_wait`, monitor index
+- Validation rules that mirror the GUI (zone-gated `require_interaction` / `require_wait`, monitor index
   bounds, controller / model / camera membership)
 - Choosing between Parameters window writes and scene-file edits
 
@@ -88,7 +88,7 @@ is never `None`.
     {"monitor": 2, "left": 1920, "top": 0, "camera": "Center View"},
     {"monitor": 3, "left": 3840, "top": 0, "camera": "Right View"}
   ],
-  "task":           {"require_lick": true, "require_wait": false, "track_length": 15000.0, "track_seed": -1}
+  "task":           {"require_interaction": true, "require_wait": false, "track_length": 15000.0, "track_seed": -1}
 }
 ```
 
@@ -148,13 +148,13 @@ the `task` section uses this:
 ```json
 {
   "task": {
-    "require_lick": true,
+    "require_interaction": true,
     "require_wait": false
   }
 }
 ```
 
-The GUI hides `Require Lick` when no `GuidanceZone` exists in the scene and hides `Require Wait`
+The GUI hides `Require Interaction` when no `GuidanceZone` exists in the scene and hides `Require Wait`
 when no `OccupancyZone` exists. The bridge mirrors that by **rejecting** writes to those fields
 when the matching zone is absent. When `visibility.task.<field> == false`, you MUST NOT include
 the matching field in a write payload — the bridge will reject it. See
@@ -204,13 +204,13 @@ On error the response is **only** `{"success": false, "error": "..."}` — no `s
 
 `Undo` coverage is asymmetric: only the `task` section registers an undo step
 (`Undo.RecordObject(task, "Write Task Parameters")`); writes to `actor`, `mqtt`, `display`, and
-`camera_mapping` cannot be reverted with `Ctrl+Z` in the Editor. You MUST NOT bundle multisection
+`camera_mapping` cannot be reverted with `Ctrl+Z` (`Cmd+Z` on macOS) in the Editor. You MUST NOT bundle multisection
 writes expecting a single undo to roll them all back.
 
 The bridge marks the active scene dirty when any write succeeds and runs `EditorUtility.SetDirty`
 on any modified `DisplaySettings` asset (and calls `FullScreenViewManager.SaveCameras()`, which
 internally runs `EditorUtility.SetDirty` plus `AssetDatabase.SaveAssets` on the
-`FullScreenViewsSaved` asset). A subsequent `Ctrl+S` / `EditorSceneManager.SaveOpenScenes()`
+`FullScreenViewsSaved` asset). A subsequent `Ctrl+S` (`Cmd+S` on macOS) / `EditorSceneManager.SaveOpenScenes()`
 persists every scene-level change. A `display.height_in_vr` write additionally translates the
 `DisplayObject` GameObject by setting `display.transform.localPosition = (0, height_in_vr, 0)`,
 so the scene's display rig moves in lockstep with the asset value.
@@ -248,8 +248,8 @@ multiple scenes in the same session.
 
 ### Toggle guidance modes for a runtime experiment
 
-The Task fields (`require_lick`, `require_wait`) are also addressable at runtime via MQTT
-(`RequireLick` / `RequireWait` topics carrying `BoolMessage`). Editor-time writes through this
+The Task fields (`require_interaction`, `require_wait`) are also addressable at runtime via MQTT
+(`RequireInteraction` / `RequireWait` topics carrying `BoolMessage`). Editor-time writes through this
 tool persist the value in the scene; MQTT writes change the live value during Play Mode without
 modifying the scene. Use this tool to set the **default** before entering Play Mode and the MQTT
 path to flip it mid-experiment.
@@ -267,7 +267,7 @@ The bridge rejects writes that the GUI would also refuse. Each rejection returns
 | `actor`          | `controller`                   | Value is not in `options.actor.controller`                                                      |
 | `camera_mapping` | `monitor`                      | 1-based index outside `[1, monitors.Count]`                                                     |
 | `camera_mapping` | `camera`                       | Value is not in `options.camera_mapping.camera`                                                 |
-| `task`           | `require_lick`                 | Scene has no `GuidanceZone` (i.e., `visibility.task.require_lick == false`)                     |
+| `task`           | `require_interaction`          | Scene has no `GuidanceZone` (i.e., `visibility.task.require_interaction == false`)              |
 | `task`           | `require_wait`                 | Scene has no `OccupancyZone` (i.e., `visibility.task.require_wait == false`)                    |
 
 Other fields (`mqtt.ip`, `mqtt.port`, `display.*`, `task.track_length`, `task.track_seed`) accept
@@ -275,7 +275,7 @@ any numeric / string value the underlying `Convert.ToSingle` / `Convert.ToInt32`
 can parse; the bridge does not impose a range check here. The GUI itself does not either, so an
 out-of-range brightness or a negative `track_length` will write but produce runtime warnings.
 
-The zone-gated rejection of `require_lick` and `require_wait` is **intentional**: a successful
+The zone-gated rejection of `require_interaction` and `require_wait` is **intentional**: a successful
 write guarantees the flag will actually take effect at runtime. You MUST NOT paper over a
 rejection by writing the underlying `Task` field through a different path — the missing zone means
 the toggle has nothing to gate.
@@ -307,13 +307,13 @@ The GUI disables several controls while the Editor is in Play Mode:
 | `mqtt`           | Entire section greyed out — input fields do not accept changes and no `EditorPrefs` writes happen from the GUI     |
 | `display`        | Editable; `current_brightness` changes are reflected immediately on the live display                               |
 | `camera_mapping` | The "Show Full-Screen Views" button is disabled; field writes still go through                                     |
-| `task`           | Greyed out — flip via MQTT (`RequireLick` / `RequireWait`) for mid-run changes instead                             |
+| `task`           | Greyed out — flip via MQTT (`RequireInteraction` / `RequireWait`) for mid-run changes instead                      |
 
 The bridge does NOT enforce these GUI gates — `write_task_parameters_tool` ignores the Editor
 Play Mode state and lets every section through, including `mqtt.*` writes that propagate to
-`EditorPrefs` and the live `MQTTClient`, and `task.require_lick` / `task.require_wait` writes that
+`EditorPrefs` and the live `MQTTClient`, and `task.require_interaction` / `task.require_wait` writes that
 the GUI would refuse. Treat the table above as a soft contract: prefer the MQTT path
-(`RequireLick` / `RequireWait` topics) for guidance toggles once a run is in progress, and avoid
+(`RequireInteraction` / `RequireWait` topics) for guidance toggles once a run is in progress, and avoid
 `mqtt.*` writes mid-session because mutating the live broker connection is unsupported.
 
 Use `get_play_state_tool` (`/play-mode`) to check `state == "edit"` before issuing
@@ -328,7 +328,7 @@ Use `get_play_state_tool` (`/play-mode`) to check `state == "edit"` before issui
 | `state.actor == null` even though an Actor exists                               | The Actor was placed outside the root and `FindAnyObjectByType<ActorObject>()` missed it     | Confirm the Actor is in the active scene; `inspect_scene_tool` (`/task-scenes`) to verify                                                      |
 | `state.task == null`                                                            | No `Task` component in the active scene (only the empty `ExperimentTemplate` template scene) | `create_task_tool(scene_name=..., task_prefab_path=...)` (`/task-scenes`) to seed a task                                                       |
 | Write rejected: "Invalid controller '...'"                                      | The controller name is not in `options.actor.controller`                                     | Re-read `options.actor.controller`; copy the exact string (it is the GameObject name)                                                          |
-| Write rejected: "Cannot set require_lick: the active scene has no GuidanceZone" | The current task prefab has no lick-mode segments                                            | The flag is not applicable — leave it alone, or open a scene whose template includes lick-mode trials                                          |
+| Write rejected: "Cannot set require_interaction: scene has no GuidanceZone"     | The current task prefab has no interaction-mode segments                                     | The flag is not applicable — leave it alone, or open a scene whose template includes interaction-mode trials                                   |
 | Write rejected: "Invalid monitor index N; scene has M monitors"                 | Camera mapping payload references a 1-based monitor index outside `[1, M]`                   | Re-read `state.camera_mapping` to enumerate valid `monitor` indices                                                                            |
 | `state.camera_mapping == []`                                                    | OS reported zero monitors at scene load                                                      | Click "Refresh Monitor Positions" in the GUI or replug displays, then retry                                                                    |
 | Writes succeed but the GUI shows old values                                     | The Parameters window cached the value before the write landed                               | The bridge already shares the GUI's `FullScreenViewManager` for camera mapping; for other sections close and reopen `Window → Task Parameters` |
@@ -344,9 +344,10 @@ Use `get_play_state_tool` (`/play-mode`) to check `state == "edit"` before issui
 | `/scene-setup` (this plugin)                  | Upstream — owns the `MainWindow` GUI and the auto-creation of Actors / Controllers / Displays |
 | `/play-mode` (this plugin)                    | Upstream — `get_play_state_tool` gates writes that the GUI greys out at runtime               |
 | `/task-prefabs` (this plugin)                 | Upstream — generates the task prefab whose `Task` component this skill mutates                |
-| `/mqtt-contract` (this plugin)                | Reference for the `RequireLick` / `RequireWait` runtime alternative to `task` writes          |
+| `/mqtt-contract` (this plugin)                | Reference for the `RequireInteraction` / `RequireWait` runtime alternative to `task` writes   |
 | `/gimbl-framework` (this plugin)              | Reference for `ActorObject`, `DisplayObject`, `MQTTClient`, and `ControllerOutput` semantics  |
-| assets plugin `/assets-mcp-environment-setup` | Upstream — owns the slsa MCP server diagnostic                                                |
+| `assets:assets-mcp-environment-setup` | Upstream — owns the slsa MCP server diagnostic                                                |
+| `experiment:vr-driver-interface`      | Host sets `RequireInteraction` / `RequireWait` at runtime via `set_*_guidance`                |
 
 ---
 
@@ -361,7 +362,7 @@ Task Parameters Compliance:
 - [ ] Unity Editor is running and McpBridge is reachable (else /unity-mcp-environment-setup)
 - [ ] read_task_parameters_tool runs before every write to capture the current options list
 - [ ] Write payloads contain only field values present in options.<section>.<field>
-- [ ] require_lick / require_wait writes are gated on visibility.task.<field> == true
+- [ ] require_interaction / require_wait writes are gated on visibility.task.<field> == true
 - [ ] camera_mapping entries use 1-based monitor indices matching state.camera_mapping[*].monitor
 - [ ] Post-write snapshot is inspected to confirm the new state matches the requested change
 - [ ] MQTT writes are avoided while the Editor is in Play Mode (use /play-mode to confirm state)

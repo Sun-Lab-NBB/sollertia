@@ -6,7 +6,7 @@ description: >-
   removal of every generated artifact for a task), inspect_prefab_tool, and delete_asset_tool
   (individual cue / material cleanup). Use when a template needs a matching task built or removed,
   or when auditing prefab hierarchy and colliders.
-user-invocable: true
+user-invocable: false
 ---
 
 # Sollertia Unity task prefabs
@@ -30,8 +30,8 @@ marketplace may call.
 - Template naming, header, and commenting conventions required for correct task creation
 
 **Does not cover:**
-- Authoring the YAML task template itself (see assets plugin's `/task-templates`)
-- Authoring per-project experiment configurations (see assets plugin's `/experiment-configuration`)
+- Authoring the YAML task template itself (see `assets:task-templates`)
+- Authoring per-project experiment configurations (see `assets:experiment-configuration`)
 - Listing, opening, or inspecting scenes (see `/task-scenes`)
 - Entering / exiting Play Mode (see `/play-mode`)
 - Unity Editor bridge diagnostics (see `/unity-mcp-environment-setup`)
@@ -44,7 +44,7 @@ A single task is three name-aligned files on disk. The base name (`MF_Reward`, `
 is greppable across all three:
 
 ```text
-Assets/InfiniteCorridorTask/Configurations/<name>.yaml      template          (authored by assets /task-templates)
+Assets/InfiniteCorridorTask/Configurations/<name>.yaml      template          (authored by assets assets:task-templates)
                                 │
                                 │  create_task_tool (single call)
                                 ▼
@@ -57,7 +57,7 @@ convention is enforced by the tool itself: `template_name="MF_Reward"` produces
 `Tasks/MF_Reward.prefab` and `Scenes/MF_Reward.unity` unconditionally. Both MCP `create_task_tool`
 and the `CreateTask → New Task` Editor menu reject templates outside the `Configurations/`
 directory so the cross-template cue-texture preflight, the runtime config-path resolver, and
-downstream tooling all see a single canonical home — use assets plugin's `/working-directory`
+downstream tooling all see a single canonical home — use `assets:working-directory`
 (`set_task_templates_directory_tool`) to configure the MCP-side path.
 
 Two derived artifact tiers sit below the task prefab:
@@ -69,9 +69,14 @@ Two derived artifact tiers sit below the task prefab:
   **shared** across every template that declares the same `(name, length_cm)` cue identity.
 
 For the abstract template model (cue / segment / trial vocabulary, transition graph,
-sliding-window corridor traversal), see assets plugin's `/task-templates`. For the
+sliding-window corridor traversal), see `assets:task-templates`. For the
 `CreateTask.CreateFromTemplate` pipeline internals (cue / segment build passes, shader chain,
 zone placement math, hand-authored protected assets), see `/task-generator`.
+
+**Scene scope.** `create_task_tool` produces a new **corridor** scene by copying `ExperimentTemplate.unity` — that is
+the only scene topology this skill creates, and creating new corridor scenes this way is fully agent-autonomous. A
+scene with a different Display rig or a non-corridor topology has no author-derived recipe; escalate to the human
+supervisor (see `/scene-setup`). You MUST NOT hand-author a scene to work around this.
 
 ---
 
@@ -156,10 +161,10 @@ Templates that do not follow these conventions may still generate prefabs, but d
 
 ### Step 1: Verify prerequisites
 
-- `slsa mcp` server connected (else assets plugin's `/assets-mcp-environment-setup`).
+- `slsa mcp` server connected (else `assets:assets-mcp-environment-setup`).
 - Unity Editor running with McpBridge listening (else `/unity-mcp-environment-setup` in this plugin).
 - Template exists under `Assets/InfiniteCorridorTask/Configurations/<template-name>.yaml`. If not,
-  hand off to assets plugin's `/task-templates` to author it first.
+  hand off to `assets:task-templates` to author it first.
 
 ### Step 2: Create the task
 
@@ -191,7 +196,7 @@ Verify the hierarchy matches the template — cue count, segment order, trial zo
 - The scene already exists at `Assets/Scenes/<template-name>.unity` — `create_task_tool` produced
   it in step 2. For navigation between scenes, hand off to `/task-scenes`.
 - For runtime testing: hand off to `/play-mode`.
-- For per-project experiment configuration: hand off to assets plugin's `/experiment-configuration`.
+- For per-project experiment configuration: hand off to `assets:experiment-configuration`.
 
 ---
 
@@ -276,13 +281,13 @@ Use this composite flow for end-to-end task creation; each step is owned by a di
 
 | Step | Skill (owner)                      | Action                                                                                       |
 |------|------------------------------------|----------------------------------------------------------------------------------------------|
-| 1    | assets `/task-templates`           | Author `Assets/InfiniteCorridorTask/Configurations/<name>.yaml`                              |
+| 1    | assets `assets:task-templates`           | Author `Assets/InfiniteCorridorTask/Configurations/<name>.yaml`                              |
 | 2    | `/task-prefabs` (this skill)       | `create_task_tool(template_name="<name>")` — builds the task prefab AND the matching scene   |
 | 3    | `/task-prefabs` (this skill)       | `inspect_prefab_tool(prefab_path="Assets/InfiniteCorridorTask/Tasks/<name>.prefab")`         |
 | 4    | `/task-scenes`                     | `open_scene_tool(scene_path="Assets/Scenes/<name>.unity")` — the scene was created in step 2 |
 | 5    | `/scene-setup`                     | Configure Display rig and optional `SimulatedLinearTreadmill`                                |
 | 6    | `/play-mode`                       | `enter_play_mode_tool()` → exercise → `exit_play_mode_tool()`                                |
-| 7    | assets `/experiment-configuration` | (Optional) Bind the template to a per-project experiment configuration                       |
+| 7    | assets `assets:experiment-configuration` | (Optional) Bind the template to a per-project experiment configuration                       |
 
 Checkpoints between steps:
 
@@ -305,9 +310,17 @@ optional `children`); the canonical shape contract — and the warning about sil
 missing scripts and key-presence checks — lives in `/task-scenes` "Inspect the active scene".
 This section covers only the **task-prefab-specific** interpretation: the top-level object is the
 task prefab, its children are `Corridor<indices>` objects, and each first segment's stimulus zone
-hierarchy varies by `trigger_type`.
+hierarchy varies by `trigger_type`. The five `trigger_type` modes are `interaction`, `collision`,
+`occupancy_disarm`, `occupancy_arm`, and `occupancy_trigger`. `CreateTask` sets the
+`StimulusTriggerZone` `TriggerMode` enum field (`Interaction`, `Collision`, `OccupancyDisarm`,
+`OccupancyArm`, `OccupancyTrigger`) from `trigger_type`, and the zone dispatches on that enum. The
+three occupancy modes share the `OccupancyTriggerZone.prefab` source and the occupancy-guidance brake
+(`OccupancyGuidanceZone` publishing `Delay`); `CreateTask` only varies the occupancy sub-mode.
+`collision` reuses `StimulusTriggerZone.prefab` with its `GuidanceRegion` child stripped and the
+root collider set as a thin boundary wall at `stimulus_location`. No mode has its own prefab file,
+and every mode publishes the same `Stimulus{trialName}` event.
 
-### Lick mode (trigger_type == "lick")
+### Interaction mode (trigger_type == "interaction")
 
 ```text
 <SegmentName>
@@ -324,7 +337,23 @@ Key markers:
 - `MeshRenderer` on the root is only visible when `showBoundary == true` (template field
   `show_stimulus_collision_boundary`).
 
-### Occupancy mode (trigger_type == "occupancy")
+### Collision mode (trigger_type == "collision")
+
+```text
+<SegmentName>
+└── StimulusTriggerZone              ← root collider is a thin boundary wall at stimulus_location
+                                       components: ["StimulusTriggerZone", "BoxCollider", "MeshRenderer"]
+```
+
+Key markers:
+- Root has `StimulusTriggerZone` in `components` with `TriggerMode == Collision`; crossing the thin
+  boundary wall fires the stimulus unconditionally — no sensor, no occupancy.
+- No child zone. `CreateTask` reuses `StimulusTriggerZone.prefab` but strips the `GuidanceRegion`
+  child and sets the root collider as a thin wall at `stimulus_location`.
+- `MeshRenderer` on the root is only visible when `showBoundary == true` (template field
+  `show_stimulus_collision_boundary`).
+
+### Occupancy disarm mode (trigger_type == "occupancy_disarm")
 
 ```text
 <SegmentName>
@@ -336,9 +365,50 @@ Key markers:
 ```
 
 Key markers:
-- Root has `StimulusTriggerZone` in `components`. Its position is the stimulus boundary — this is **past** the
-  occupancy waiting range by design.
+- Root has `StimulusTriggerZone` in `components` with `TriggerMode == OccupancyDisarm`. Its position is the
+  stimulus boundary — this is **past** the occupancy waiting range by design.
 - Two children: `OccupancyRegion` (wait zone) and `OccupancyGuidanceRegion` (guidance activation near the boundary).
+- The `OccupancyZone` exposes the generic `occupancyMet` field; in disarm mode the
+  parent `StimulusTriggerZone` fires on a boundary collision while occupancy is **not** met.
+- If only one child exists, the prefab is miswired. Regenerate from the template.
+
+### Occupancy arm mode (trigger_type == "occupancy_arm")
+
+```text
+<SegmentName>
+└── StimulusTriggerZone              ← collider is the boundary past the occupancy range
+    ├── OccupancyRegion              ← collider covers the wait range (offset by center.z)
+    │                                  components: ["OccupancyZone", "BoxCollider"]
+    └── OccupancyGuidanceRegion      ← placed at the downstream end of the occupancy range
+                                       components: ["OccupancyGuidanceZone", "BoxCollider"]
+```
+
+Key markers:
+- Hierarchy is identical to occupancy disarm — `CreateTask` reuses `OccupancyTriggerZone.prefab` and only sets the
+  occupancy sub-mode. The root `StimulusTriggerZone` carries `TriggerMode == OccupancyArm`.
+- The inverse of disarm: occupying the zone **arms** the boundary, and colliding with the now-armed boundary
+  (occupancy **met**) fires the stimulus. The `occupancyMet` signal on `OccupancyZone` is the same generic flag;
+  the parent applies the per-mode firing rule.
+- Two children: `OccupancyRegion` (wait zone) and `OccupancyGuidanceRegion` (guidance activation near the boundary).
+- If only one child exists, the prefab is miswired. Regenerate from the template.
+
+### Occupancy trigger mode (trigger_type == "occupancy_trigger")
+
+```text
+<SegmentName>
+└── StimulusTriggerZone              ← no boundary collision; firing is occupancy-only
+    ├── OccupancyRegion              ← collider covers the wait range (offset by center.z)
+    │                                  components: ["OccupancyZone", "BoxCollider"]
+    └── OccupancyGuidanceRegion      ← placed at the downstream end of the occupancy range
+                                       components: ["OccupancyGuidanceZone", "BoxCollider"]
+```
+
+Key markers:
+- Hierarchy reuses `OccupancyTriggerZone.prefab`; the root `StimulusTriggerZone` carries
+  `TriggerMode == OccupancyTrigger`.
+- Occupying the zone for the required duration fires the stimulus **immediately** — there is no boundary collision.
+- Two children: `OccupancyRegion` (wait zone) and `OccupancyGuidanceRegion` (guidance activation), so the
+  occupancy-guidance brake still applies; the `occupancyMet` signal fires once the required dwell elapses.
 - If only one child exists, the prefab is miswired. Regenerate from the template.
 
 ### Disarmed segments and ignorable components
@@ -355,9 +425,9 @@ either visual geometry or standard Unity components every GameObject carries.
 
 | Symptom                                                                   | Cause                                                                                                                                                                                                                                                                                                                                                                      | Resolution                                                                                                                                                                                                                                                                                                                                                                                            |
 |---------------------------------------------------------------------------|----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|-------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
-| `create_task_tool` returns "Template not found"                           | Template file missing from `Configurations/`                                                                                                                                                                                                                                                                                                                               | Hand off to assets plugin's `/task-templates`                                                                                                                                                                                                                                                                                                                                                         |
+| `create_task_tool` returns "Template not found"                           | Template file missing from `Configurations/`                                                                                                                                                                                                                                                                                                                               | Hand off to `assets:task-templates`                                                                                                                                                                                                                                                                                                                                                         |
 | `create_task_tool` returns "Scene already exists at: …"                   | The target scene exists; regeneration is an explicit two-step action                                                                                                                                                                                                                                                                                                       | Call `delete_task_tool` for the existing scene, then re-run `create_task_tool`                                                                                                                                                                                                                                                                                                                        |
-| `create_task_tool` returns "Cross-template cue-texture conflict detected" | Two or more templates in `Configurations/` declare the same `(cue name, length_cm)` identity with different `texture` values — the preflight aborts before any prefab is touched                                                                                                                                                                                           | Rename or re-length the colliding cue in one of the templates, or unify the textures, then re-run. Hand off to assets plugin's `/task-templates` for the YAML edits                                                                                                                                                                                                                                   |
+| `create_task_tool` returns "Cross-template cue-texture conflict detected" | Two or more templates in `Configurations/` declare the same `(cue name, length_cm)` identity with different `texture` values — the preflight aborts before any prefab is touched                                                                                                                                                                                           | Rename or re-length the colliding cue in one of the templates, or unify the textures, then re-run. Hand off to `assets:task-templates` for the YAML edits                                                                                                                                                                                                                                   |
 | `inspect_prefab_tool` returns "Prefab not found at: …"                    | Prefab missing from `Tasks/` (deleted, or `create_task_tool` failed silently)                                                                                                                                                                                                                                                                                              | Re-run `create_task_tool` for the template; if the prefab still does not appear, check the Unity Console for `CreateTask` errors                                                                                                                                                                                                                                                                      |
 | All Unity tools return "Unity Editor is not reachable"                    | Editor or McpBridge offline                                                                                                                                                                                                                                                                                                                                                | `/unity-mcp-environment-setup` in this plugin                                                                                                                                                                                                                                                                                                                                                         |
 | Trigger type mismatch between template and prefab                         | GUID reference drift                                                                                                                                                                                                                                                                                                                                                       | Open the prefab in the Editor and re-link zone                                                                                                                                                                                                                                                                                                                                                        |
@@ -367,19 +437,20 @@ either visual geometry or standard Unity components every GameObject carries.
 
 ## Related skills
 
-| Skill                                         | Relationship                                                    |
-|-----------------------------------------------|-----------------------------------------------------------------|
-| `/unity-mcp-environment-setup` (this plugin)  | Run first if Unity Editor is unreachable                        |
-| `/task-scenes` (this plugin)                  | Consumer — opens / inspects the scene this skill produced       |
-| `/play-mode` (this plugin)                    | Consumer — exercises the prefab at runtime                      |
-| `/scene-setup` (this plugin)                  | Consumer — configures displays / controller before Play Mode    |
-| `/task-parameters` (this plugin)              | Consumer — reads / writes the generated `Task` component fields |
-| `/task-generator` (this plugin)               | Reference for the `CreateTask` pipeline this tool invokes       |
-| `/mqtt-contract` (this plugin)                | Reference for MQTT topics wired by generated zone scripts       |
-| `/gimbl-framework` (this plugin)              | Reference for `ActorObject` coordinate frame usage              |
-| assets plugin `/task-templates`               | Upstream — owns the YAML template the prefab is built from      |
-| assets plugin `/experiment-configuration`     | Downstream — per-project instantiation of the template          |
-| assets plugin `/assets-mcp-environment-setup` | Run first — owns the slsa MCP server diagnostic                 |
+| Skill                                         | Relationship                                                        |
+|-----------------------------------------------|---------------------------------------------------------------------|
+| `/unity-mcp-environment-setup` (this plugin)  | Run first if Unity Editor is unreachable                            |
+| `/task-scenes` (this plugin)                  | Consumer — opens / inspects the scene this skill produced           |
+| `/play-mode` (this plugin)                    | Consumer — exercises the prefab at runtime                          |
+| `/scene-setup` (this plugin)                  | Consumer — configures displays / controller before Play Mode        |
+| `/task-parameters` (this plugin)              | Consumer — reads / writes the generated `Task` component fields     |
+| `/task-generator` (this plugin)               | Reference for the `CreateTask` pipeline this tool invokes           |
+| `/mqtt-contract` (this plugin)                | Reference for MQTT topics wired by generated zone scripts           |
+| `/gimbl-framework` (this plugin)              | Reference for `ActorObject` coordinate frame usage                  |
+| `assets:task-templates`               | Upstream — owns the YAML template the prefab is built from          |
+| `assets:experiment-configuration`     | Downstream — per-project instantiation of the template              |
+| `assets:assets-mcp-environment-setup` | Run first — owns the slsa MCP server diagnostic                     |
+| `experiment:vr-driver-interface`      | Host consumes the cues and zones in the generated prefab at runtime |
 
 ---
 
@@ -398,6 +469,10 @@ Task Prefabs Compliance:
 - [ ] inspect_prefab_tool hierarchy matches the template's cue / segment / trial counts
 - [ ] Stale cue prefabs and materials are removed via delete_asset_tool before regeneration when
       a cue texture changes without a name or length rename
+- [ ] Every cues[].texture in the template resolves to an existing file under
+      Assets/InfiniteCorridorTask/Textures/; a missing texture is handed off to the user to supply (you cannot author
+      binary image assets) and generation resumes only after they import it — never left to fail with "Failed to load
+      texture"
 - [ ] Generated prefabs are not hand-edited; regeneration goes through delete_task_tool →
       create_task_tool
 ```

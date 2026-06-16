@@ -7,7 +7,7 @@
     {
       "name": "assets",
       "source": "./plugins/assets",
-      "description": "Provides configuration authoring, session and subject metadata discovery skills for sollertia-shared-assets. Includes MCP bindings for reading, writing, and validating every Sollertia platform shared asset (configuration files, session YAMLs, subject records, and task templates). Backed by the sollertia-shared-assets MCP server (slsa)."
+      "description": "Provides configuration authoring, session and subject metadata discovery skills for sollertia-shared-assets. Includes MCP bindings for reading, writing, and validating every Sollertia platform shared asset (configuration files, session YAMLs, subject records, and task templates). Backed by the sollertia-shared-assets MCP server (slsa); system-specific record schemas live in the per-system companion plugin (e.g. the mesoscope plugin)."
     },
     {
       "name": "unity",
@@ -17,7 +17,12 @@
     {
       "name": "experiment",
       "source": "./plugins/experiment",
-      "description": "Provides acquisition system setup, experiment design, system health checks, hardware interface, and runtime data management skills for sollertia-experiment. Includes MCP bindings for Zaber motor management, session preprocessing, and animal migration."
+      "description": "Provides the system-agnostic core skills for sollertia-experiment: acquisition system design and runtime patterns, hardware interfaces, system setup and health checks, and session lifecycle management. System-specific skills live in dedicated companion plugins (e.g. the 'mesoscope' plugin). Includes MCP bindings for Zaber motor management, session preprocessing, and animal migration."
+    },
+    {
+      "name": "mesoscope",
+      "source": "./plugins/mesoscope",
+      "description": "Provides Mesoscope-VR system-specific skills covering the sollertia-experiment system-specific layer (hardware subsystem inventory and MesoscopeSystemConfiguration, the runtime state machine, orchestrator, UIs, `sle mesoscope` CLI, and per-session Zaber and Mesoscope position snapshots) and the sollertia-shared-assets Mesoscope-VR record schemas (session descriptors, MesoscopeHardwareState, and MesoscopeExperimentConfiguration trial structures). Optional system plugin layered on the core plugins; relies on and requires both the experiment plugin's sollertia-experiment MCP server (sle mcp) and the assets plugin's sollertia-shared-assets MCP server (slsa mcp)."
     },
     {
       "name": "forging",

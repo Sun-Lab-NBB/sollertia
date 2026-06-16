@@ -5,7 +5,7 @@ description: >-
   sollertia-shared-assets MCP server's Unity relay. Owns list_scenes_tool, open_scene_tool,
   inspect_scene_tool, and list_assets_tool. Use when listing, switching, or inspecting task
   scenes, or when enumerating project assets.
-user-invocable: true
+user-invocable: false
 ---
 
 # Sollertia Unity task scenes
@@ -223,7 +223,10 @@ chain). It is in `McpBridge.DeleteProtectedPaths`, so `delete_asset_tool` refuse
 | `/scene-setup` (this plugin)                 | Consumer — configures the scene for runtime after opening                                     |
 | `/task-parameters` (this plugin)             | Consumer — reads / writes Actor / MQTT / Display / Camera Mapping / Task fields after opening |
 | `/play-mode` (this plugin)                   | Consumer — typically entered after opening a target scene                                     |
-| assets plugin `/task-templates`              | Upstream — template filename defines the conventional scene name                              |
+| `assets:task-templates`              | Upstream — template filename defines the conventional scene name                              |
+| `/mqtt-contract` (this plugin)               | Active scene name is also exchanged over the `SceneName` / `SceneNameTrigger` wire pair       |
+| `experiment:vr-driver-interface`     | Host verifies the active scene name during the `setup()` handshake                            |
+| `assets:experiment-configuration`    | Owns `unity_scene_name`, which selects the scene to open                                      |
 
 ---
 

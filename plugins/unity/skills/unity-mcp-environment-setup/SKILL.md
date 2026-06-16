@@ -5,14 +5,14 @@ description: >-
   `McpBridge` (HTTP listener on 127.0.0.1:8090, [::1]:8090, and localhost:8090; Editor running;
   script compiled). Use when Unity relay tools fail with "Unity Editor is not reachable" or when
   starting a session that needs the Unity tools.
-user-invocable: true
+user-invocable: false
 ---
 
 # Sollertia Unity MCP environment setup
 
 Diagnoses and resolves the **Unity-side** wiring of the Unity Editor relay used by every
 Unity-family tool exposed by `sollertia-shared-assets` — the `slsa mcp` server itself is owned by
-the assets plugin's `/assets-mcp-environment-setup`.
+`assets:assets-mcp-environment-setup`.
 
 ---
 
@@ -26,8 +26,8 @@ the assets plugin's `/assets-mcp-environment-setup`.
 - Diagnosing why Unity relay tools return "Unity Editor is not reachable"
 
 **Does not cover:**
-- Diagnosing `slsa` CLI / `slsa mcp` availability (see assets plugin's `/assets-mcp-environment-setup`)
-- Sollertia working directory setup (see assets plugin's `/working-directory`)
+- Diagnosing `slsa` CLI / `slsa mcp` availability (see `assets:assets-mcp-environment-setup`)
+- Sollertia working directory setup (see `assets:working-directory`)
 - Unity Editor installation or project setup (see the `sollertia-unity-tasks` README)
 - Prefab, scene, Task Parameters, or Play Mode workflows (see `/task-prefabs`, `/task-scenes`,
   `/task-parameters`, `/play-mode`)
@@ -80,7 +80,7 @@ You MUST follow these steps in order when a Unity relay tool returns "Unity Edit
 ### Step 1: Confirm the slsa MCP server is connected
 
 If the `sollertia-shared-assets` MCP server itself is disconnected, no Unity tool can reach the
-bridge. Hand off to the assets plugin's `/assets-mcp-environment-setup` first.
+bridge. Hand off to `assets:assets-mcp-environment-setup` first.
 
 ### Step 2: Confirm the Unity Editor is running
 
@@ -200,7 +200,7 @@ still work, but first-call latency can stretch to several seconds. Re-focus the 
 
 | Skill                                         | Relationship                                           |
 |-----------------------------------------------|--------------------------------------------------------|
-| assets plugin `/assets-mcp-environment-setup` | Run first — owns the slsa MCP server diagnostic        |
+| `assets:assets-mcp-environment-setup` | Run first — owns the slsa MCP server diagnostic        |
 | `/task-prefabs` (this plugin)                 | Consumer — prefab generation / inspection / validation |
 | `/task-scenes` (this plugin)                  | Consumer — scene and asset management                  |
 | `/play-mode` (this plugin)                    | Consumer — runtime control                             |
@@ -209,7 +209,7 @@ still work, but first-call latency can stretch to several seconds. Re-focus the 
 | `/task-generator` (this plugin)               | Reference for the `CreateTask` pipeline internals      |
 | `/mqtt-contract` (this plugin)                | Reference for MQTT topics crossing this relay's tools  |
 | `/gimbl-framework` (this plugin)              | Reference for the GIMBL VR framework                   |
-| assets plugin `/task-templates`               | Upstream — prefabs are generated from templates        |
+| `assets:task-templates`               | Upstream — prefabs are generated from templates        |
 
 ---
 
@@ -220,7 +220,7 @@ downstream Unity-tool skill.
 
 ```text
 Unity MCP Environment Compliance:
-- [ ] slsa mcp server is connected (assets plugin's /assets-mcp-environment-setup)
+- [ ] slsa mcp server is connected (assets:assets-mcp-environment-setup)
 - [ ] Unity Editor is running with sollertia-unity-tasks open
 - [ ] Unity Console shows "McpBridge: Listening on http://127.0.0.1:8090/, http://[::1]:8090/, and http://localhost:8090/"
 - [ ] curl POST to localhost:8090 returns a JSON success response

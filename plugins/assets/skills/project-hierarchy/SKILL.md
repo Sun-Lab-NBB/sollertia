@@ -2,19 +2,20 @@
 name: project-hierarchy
 description: >-
   Discovers the Sollertia project hierarchy (projects, animals, experiments, subjects,
-  sessions) via the sollertia-shared-assets MCP server. Wraps the single
-  get_data_root_overview_tool that builds the tree from SessionData contents. Use when
-  enumerating projects, animals, or sessions, or walking the project tree.
-user-invocable: true
+  sessions) and creates new projects via the sollertia-shared-assets MCP server. Owns
+  get_data_root_overview_tool (hierarchy discovery) and create_project_tool (project creation).
+  Use when enumerating projects, animals, or sessions, walking the project tree, or creating a project.
+user-invocable: false
 ---
 
 # Sollertia project hierarchy
 
-Reader skill for the Sollertia project hierarchy. Every project / animal / session listing is
-built from a single call to `get_data_root_overview_tool` on the `slsa mcp` MCP server. The tool
-walks every `session_data.yaml` marker under the data root and groups results by the identity
-fields inside each `SessionData`, so stray directories cannot surface as phantom projects or
-animals.
+Skill for discovering and creating entries in the Sollertia project hierarchy. Project / animal /
+session listings come from `get_data_root_overview_tool` on the `slsa mcp` MCP server; new projects
+are materialized with `create_project_tool`. By default, the overview walks every `session_data.yaml`
+marker under the data root and groups results by the identity fields inside each `SessionData`, so
+stray directories cannot surface as phantom projects or animals. Its `directories` strategy
+additionally surfaces empty project and animal directories that hold no sessions yet.
 
 ---
 
@@ -22,25 +23,23 @@ animals.
 
 **Covers:**
 - Discovering projects, animals, experiments, subjects, and sessions
+- Creating new projects (the `create_project_tool` MCP tool, equivalent to the `slsa configure project` CLI)
 - The directory layout of a Sollertia project tree
 - The relationship between projects, animals, sessions, experiments, and subjects
 
 **Does not cover:**
-- Creating new projects. Project directories are created by the `slsa configure project` CLI
-  command (`slsa configure project -p <name> -r <root>`), which creates
-  `<root>/<project>/configuration/`. There is no dedicated project-creation MCP tool. The project
-  directory must already exist before any session or experiment configuration can be authored;
-  `SessionData.create` refuses to create a session when it is missing.
-- Authoring per-project `MesoscopeExperimentConfiguration` (see `/experiment-configuration`)
+- Authoring per-project experiment configuration YAMLs (see `/experiment-configuration`; for the
+  Mesoscope-VR concrete schema, `mesoscope:mesoscope-vr-experiment-schema`)
 - Reading or writing `SessionData` (see `/session-data`)
 - Per-session inventory and health reports (see `/session-data`, which owns `inspect_sessions_tool`)
 - Reading or writing session descriptors (see `/session-descriptors`)
-- Reading subject metadata (see `/subject-metadata`)
-- Reading or writing datasets (see forging plugin's `/datasets`)
+- Reading subject metadata (see `/data-assets`)
+- Reading or writing datasets (see `forging:datasets`)
 - Initial working directory setup (see `/working-directory`)
 
-This skill's single tool is read-only and may be called as a **natural share** by any other skill
-that needs to enumerate the hierarchy.
+This skill's discovery tool (`get_data_root_overview_tool`) is read-only and may be called as a
+**natural share** by any other skill that needs to enumerate the hierarchy. Project creation
+(`create_project_tool`) is a write operation owned by this skill.
 
 ---
 
@@ -74,7 +73,7 @@ distributed system it points at.
 - **Project at the top** captures the unit of scientific ownership. Multiple animals contribute
   to one project; session-level analysis joins across animals within a project. Datasets are
   also project-scoped — each dataset belongs to exactly one project and aggregates sessions
-  across animals within that project (see forging plugin's `/datasets`) — they are a downstream
+  across animals within that project (see `forging:datasets`) — they are a downstream
   aggregation, not a primary hierarchy.
 - **Animals nested under project, not the inverse.** Each animal belongs to exactly one project
   at a time. Inverting the hierarchy ("animal at top, projects under it") would require
@@ -101,7 +100,7 @@ following nested structure:
 ```text
 <root-directory>/
 └── <project>/
-    ├── configuration/                          # MesoscopeExperimentConfiguration files
+    ├── configuration/                          # per-system experiment configuration YAMLs
     │   ├── <experiment-1>.yaml
     │   └── <experiment-2>.yaml
     ├── <animal-1>/
@@ -121,7 +120,7 @@ marker lives inside `<session>/raw_data/`.
 Each subject (animal) is expected to belong to **exactly one project at a time**. An animal that
 surfaces under multiple project entries in `get_data_root_overview_tool` output is an error
 state. Remediation — migrating a subject from one project to another — is owned by the
-experiment plugin's `/data-management` skill,
+`experiment:data-management` skill,
 which exposes the migration tool that transfers all the animal's session data from the source
 project to the destination project.
 
@@ -131,12 +130,37 @@ list by `SessionData.project_name`, and the `animals` list under each project re
 animal with at least one session naming that project. An animal whose sessions name different
 projects will appear under every project it has contributed to — a healthy data root has each
 animal under exactly one project. Subject-level metadata (surgery, implants, drugs, injections)
-is owned by `/subject-metadata` and is outside the scope of this skill.
+is owned by `/data-assets` and is outside the scope of this skill.
 
 Datasets are a higher-level grouping that aggregates sessions across animals **within a single
 project**. The `DatasetData` schema carries a single `project` field — there is no
 cross-project dataset shape. A dataset is identified by a `dataset.yaml` marker discoverable
-anywhere under the data root. Datasets are owned by the forging plugin's `/datasets` skill.
+anywhere under the data root. Datasets are owned by `forging:datasets` skill.
+
+### How the hierarchy is modeled and enumerated
+
+The library models this tree with two path-grammar dataclasses — `ProjectData` (a `<root>/<project>`
+view) and `AnimalData` (a `<root>/<project>/<animal>` view). Both are pure path views: they resolve
+locations from the root and names without requiring the directories to exist, and either can be rebound
+onto a different root (such as a mounted storage tier) via `for_root`. `ProjectData.experiment_configs()`
+lists a project's `configuration/*.yaml` files; `AnimalData.session_path(<name>)` resolves a session
+directory. Agents do not instantiate these directly — they surface through the MCP tool and the
+`slsa get` CLI described below.
+
+Project enumeration has **two strategies that disagree on empty projects**:
+
+- **Markers (authoritative, default).** Buckets projects by the `project_name` inside each discovered
+  `session_data.yaml`. Only projects that hold at least one session surface, so stray directories cannot
+  appear as phantom projects.
+- **Directories.** Walks the project / animal directory layout directly, so it also surfaces freshly
+  created projects — and projects whose sessions have been migrated to long-term storage — that hold no
+  sessions. This is what the `slsa get projects` CLI command uses.
+
+`get_data_root_overview_tool` accepts a `strategy` argument selecting between them. It defaults to
+`markers` and, when called with `directories`, augments the result with the empty project and animal
+directories the marker walk misses. The distinction matters right after `create_project_tool` /
+`slsa configure project`: the new, empty project is invisible under the default `markers` strategy (no
+session markers yet) but visible under `directories` and to `slsa get projects`.
 
 ---
 
@@ -148,8 +172,23 @@ anywhere under the data root. Datasets are owned by the forging plugin's `/datas
 |-------------------------------|-------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
 | `get_data_root_overview_tool` | Builds the project → animal → session hierarchy from `SessionData` contents, with per-project aggregate counts (animals, sessions-by-type, lifecycle status, `experiment_count`, `dataset_count`) and a flat `sessions` list for downstream filtering |
 
+`get_data_root_overview_tool` accepts a `strategy` argument (`markers` default, or `directories` to also
+surface empty project and animal directories — see the two-strategies section above).
+
+### Creation (write)
+
+| Tool                  | Purpose                                                                                                                            |
+|-----------------------|------------------------------------------------------------------------------------------------------------------------------------|
+| `create_project_tool` | Creates a new project structure (`<root>/<project>/configuration/`) under the configured data root or an explicit `root_directory` |
+
 For per-project experiment-configuration enumeration, use `discover_experiments_tool` via
 `/experiment-configuration` — it owns that tool.
+
+The `slsa get` CLI group reports the same hierarchy from the persisted data root without going through
+the MCP server: `slsa get projects` lists project directories (directories strategy — includes empty
+projects), and `slsa get experiments -p <project>` lists a project's experiment-configuration stems (via
+`ProjectData.experiment_configs()`). Use these for a quick host-side check; use `get_data_root_overview_tool`
+when an agent needs the full session-level tree.
 
 `get_data_root_overview_tool` is the one-call replacement for all previous project / animal /
 session enumeration tools. Per-project aggregates (`sessions_by_type`, `experiment_count`,
@@ -191,7 +230,9 @@ shaped for downstream chaining with `filter_sessions_tool` (see `/session-discov
 ### Survey what is on a data root
 
 1. **Verify prerequisites:** The `sollertia-shared-assets` MCP server is connected (else
-   `/assets-mcp-environment-setup`). The caller must know the absolute path to the data root.
+   `/assets-mcp-environment-setup`). The caller must know the absolute path to the data root — when the
+   host has one persisted, recall it with `read_data_root_tool` (owned by `/working-directory`) rather
+   than asking the user.
 2. **Fetch the overview:**
    ```text
    get_data_root_overview_tool(root_directory="<absolute path to data root>")
@@ -230,18 +271,20 @@ shaped for downstream chaining with `filter_sessions_tool` (see `/session-discov
    ```
 2. **Scan `projects[*].animals[*].id` across projects**; any animal that appears under more than
    one project is an error state. Flag those IDs to the user and hand off to the experiment
-   plugin's `/data-management` to migrate the subject if needed.
-3. **Hand off to `/subject-metadata`** to read individual subject records (surgery, implants,
+   plugin's `experiment:data-management` to migrate the subject if needed.
+3. **Hand off to `/data-assets`** to read individual subject records (surgery, implants,
    injections, drugs).
 
 ### Bootstrap a new project
 
-Project directories are created by the `slsa configure project` CLI command, not by an MCP
-tool: `slsa configure project -p <project_name> -r <root_directory>` creates
-`<root_directory>/<project_name>/configuration/`. The project directory must exist before
-`SessionData.create` (in the experiment plugin's `/managing-session-data`) can create the first
+Create a project with `create_project_tool`, which materializes `<root>/<project>/configuration/`
+under the configured data root (or an explicit `root_directory`). The equivalent CLI command is
+`slsa configure project -p <project_name> -r <root_directory>`. The project directory must exist
+before `SessionData.create` (in `experiment:data-management`) can create the first
 session — `SessionData.create` raises `FileNotFoundError` when the project directory is missing.
-After the project exists, confirm it is visible with `get_data_root_overview_tool`.
+A brand-new project holds no session markers, so confirm it with `get_data_root_overview_tool`'s
+`directories` strategy (or `slsa get projects`); the default `markers` strategy will not list it until
+it holds a session.
 
 ---
 
@@ -250,25 +293,25 @@ After the project exists, confirm it is visible with `get_data_root_overview_too
 ```text
 - [ ] sollertia-shared-assets MCP server is connected
 - [ ] get_data_root_overview_tool was used for any project / animal / session enumeration
-- [ ] Project-creation workflows were handed off to the `slsa configure project` CLI command (this skill is read-only)
-- [ ] Did not call any write_* or set_* tool from this skill — this skill is read-only
+- [ ] Project creation used create_project_tool (or the slsa configure project CLI), resolving the data root or an explicit root
+- [ ] Did not call write_* / set_* tools beyond create_project_tool — hierarchy discovery remains read-only
 - [ ] Handed off to /experiment-configuration for any experiment authoring
-- [ ] Handed off to /session-data, /session-descriptors, /subject-metadata, or forging plugin's
-      /datasets for any read that goes deeper than the hierarchy itself
+- [ ] Handed off to /session-data, /session-descriptors, /data-assets, or forging plugin's
+      forging:datasets for any read that goes deeper than the hierarchy itself
 ```
 
 ---
 
 ## Related skills
 
-| Skill                                             | Relationship                                                                |
-|---------------------------------------------------|-----------------------------------------------------------------------------|
-| `/assets-mcp-environment-setup`                   | Run first if the MCP server is not connected                                |
-| `/working-directory`                              | Required prerequisite — bootstraps the local working directory the agent uses to resolve project roots |
-| experiment plugin `/managing-session-data`        | Creates sessions. Project directories must exist beforehand (`slsa configure project`) |
-| `/experiment-configuration`                       | Consumes projects to author experiment YAMLs                                |
-| `/session-discovery`                              | Chains `get_data_root_overview_tool` through `filter_sessions_tool`         |
-| `/session-data`                                   | Owns `inspect_sessions_tool` for per-session inventory and health reports   |
-| `/session-descriptors`                            | Reads per-session descriptors                                               |
-| `/subject-metadata`                               | Reads subject records                                                       |
-| forging plugin `/datasets`                        | Aggregates sessions                                                         |
+| Skill                           | Relationship                                                                                           |
+|---------------------------------|--------------------------------------------------------------------------------------------------------|
+| `/assets-mcp-environment-setup` | Run first if the MCP server is not connected                                                           |
+| `/working-directory`            | Required prerequisite — bootstraps the local working directory the agent uses to resolve project roots |
+| `experiment:data-management`    | Creates sessions. Project directories must exist beforehand (`create_project_tool`)                    |
+| `/experiment-configuration`     | Consumes projects to author experiment YAMLs                                                           |
+| `/session-discovery`            | Chains `get_data_root_overview_tool` through `filter_sessions_tool`                                    |
+| `/session-data`                 | Owns `inspect_sessions_tool` for per-session inventory and health reports                              |
+| `/session-descriptors`          | Reads per-session descriptors                                                                          |
+| `/data-assets`                  | Reads read assets (e.g., surgery/subject records)                                                      |
+| `forging:datasets`              | Aggregates sessions                                                                                    |

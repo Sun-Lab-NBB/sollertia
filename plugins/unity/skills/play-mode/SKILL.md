@@ -5,7 +5,7 @@ description: >-
   MCP server's Unity relay. Owns enter_play_mode_tool, exit_play_mode_tool, and
   get_play_state_tool. Use when manually exercising a task prefab, checking play state, or
   gating Unity operations on it.
-user-invocable: true
+user-invocable: false
 ---
 
 # Sollertia Unity Play Mode
@@ -180,4 +180,4 @@ to `edit`.
 | `/task-prefabs` (this plugin)                 | Upstream — generates the prefab under test                                                          |
 | `/task-parameters` (this plugin)              | Upstream — set Actor / Task / Display fields in edit mode before entering Play Mode                 |
 | `/mqtt-contract` (this plugin)                | Reference for topics that drive runtime behavior and runtime alternatives to Task Parameters writes |
-| assets plugin `/assets-mcp-environment-setup` | Upstream — owns the slsa MCP server diagnostic                                                      |
+| `assets:assets-mcp-environment-setup` | Upstream — owns the slsa MCP server diagnostic                                                      |

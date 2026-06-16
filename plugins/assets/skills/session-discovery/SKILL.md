@@ -6,7 +6,7 @@ description: >-
   get_data_root_overview_tool through filter_sessions_tool to produce `session_paths` lists
   consumed by downstream batch skills. Use when locating sessions ahead of any batch workflow
   or filtering a previously discovered list.
-user-invocable: true
+user-invocable: false
 ---
 
 # Session discovery
@@ -14,7 +14,7 @@ user-invocable: true
 Discovers and filters Sollertia sessions via the sollertia-shared-assets MCP tools. This skill is
 domain-agnostic — it provides the raw discover → filter surface that any downstream batch skill
 can chain from. For behavior-processing eligibility rules, see the sollertia-forgery plugin's
-`/behavior-input-format`.
+`forging:behavior-input-format`.
 
 ---
 
@@ -32,10 +32,10 @@ can chain from. For behavior-processing eligibility rules, see the sollertia-for
   `/project-hierarchy`, which owns `get_data_root_overview_tool`
 - Reading individual `SessionData` markers or full session health reports — see `/session-data`
 - Reading or generating project manifest files — see the sollertia-forgery plugin's
-  `/project-manifest`
-- Checksum verification or regeneration — see the sollertia-forgery plugin's `/checksum-verification`
-- Session transfer or deletion — see the sollertia-forgery plugin's `/session-transfer`
-- Behavior-processing eligibility rules — see the sollertia-forgery plugin's `/behavior-input-format`
+  `forging:project-manifest`
+- Checksum verification or regeneration — see the sollertia-forgery plugin's `forging:checksum-verification`
+- Session transfer or deletion — see the sollertia-forgery plugin's `forging:session-transfer`
+- Behavior-processing eligibility rules — see the sollertia-forgery plugin's `forging:behavior-input-format`
 - MCP server connectivity issues — see `/assets-mcp-environment-setup`
 
 ---
@@ -54,15 +54,16 @@ You MUST confirm the root directory path with the user before calling
 
 ### Session discovery
 
-| Tool                          | Purpose                                                                                                                                         |
-|-------------------------------|-------------------------------------------------------------------------------------------------------------------------------------------------|
-| `get_data_root_overview_tool` | Recursively discovers sessions by `session_data.yaml` markers and builds the project / animal / session tree from `SessionData` identity fields |
+| Tool                          | Purpose                                                                                                                                                                                                                      |
+|-------------------------------|------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| `get_data_root_overview_tool` | Recursively discovers sessions by `session_data.yaml` markers and builds the project / animal / session tree from `SessionData` identity fields; the `directories` strategy also surfaces empty project / animal hierarchies |
 
 **Parameters:**
 
-| Parameter        | Type    | Default    | Description                                                |
-|------------------|---------|------------|------------------------------------------------------------|
-| `root_directory` | `str`   | (required) | Absolute path to root directory; searched recursively      |
+| Parameter        | Type  | Default    | Description                                                                                                  |
+|------------------|-------|------------|--------------------------------------------------------------------------------------------------------------|
+| `root_directory` | `str` | (required) | Absolute path to root directory; searched recursively                                                        |
+| `strategy`       | `str` | `markers`  | `markers` (default, session-backed only) or `directories` (also surfaces empty project / animal directories) |
 
 There is no server-side `project`, `animal_id`, or `session_types` narrowing. The tool scans the
 entire root and returns the full hierarchy; callers filter client-side (for project / animal /
@@ -124,7 +125,7 @@ its output and returns a filtered subset with the same structure.
 | `exclude_sessions` | `list[str] / None` | `None`     | Session names to exclude (precedence over all inclusion)    |
 | `include_animals`  | `list[str] / None` | `None`     | Animal IDs to include; only these animals considered        |
 | `exclude_animals`  | `list[str] / None` | `None`     | Animal IDs to exclude (precedence over `include_animals`)   |
-| `utc_timezone`     | `bool`             | `True`     | Interpret dates in UTC; `False` for America/New_York        |
+| `utc_timezone`     | `bool`             | `True`     | Interpret dates in UTC; `False` for host local time         |
 
 **Filtering precedence:** Animal filtering is applied before session filtering. Exclusion always
 takes precedence over inclusion. The `exclude_sessions` list overrides both `include_sessions` and
@@ -144,7 +145,9 @@ user. An `invalid_entries` key appears when input entries lack the required `ses
 ### Step 1: Confirm root directory
 
 Ask the user for the absolute path to the directory to search. A data-root or project-level
-root is the typical input. For project hierarchy conventions, see `/project-hierarchy`.
+root is the typical input. When the host has a data root persisted via `/working-directory`,
+`read_data_root_tool` supplies a default to confirm with the user rather than asking them to type it.
+For project hierarchy conventions, see `/project-hierarchy`.
 
 ### Step 2: Run discovery
 
@@ -188,12 +191,12 @@ from step 3) and the requested criteria.
 
 Present the final `session_paths` list to the user. Once confirmed, hand off to the appropriate
 downstream skill:
-- Sollertia-forgery plugin's `/checksum-verification` for data integrity operations
-- Sollertia-forgery plugin's `/session-transfer` for transfer or deletion
-- Sollertia-forgery plugin's `/project-manifest` for manifest generation
-- Sollertia-forgery plugin's `/behavior-processing` for behavior extraction (filter by eligible
+- Sollertia-forgery plugin's `forging:checksum-verification` for data integrity operations
+- Sollertia-forgery plugin's `forging:session-transfer` for transfer or deletion
+- Sollertia-forgery plugin's `forging:project-manifest` for manifest generation
+- Sollertia-forgery plugin's `forging:behavior-processing` for behavior extraction (filter by eligible
   session types first)
-- Sollertia-forgery plugin's `/dataset-forging` for dataset assembly
+- Sollertia-forgery plugin's `forging:dataset-forging` for dataset assembly
 
 ---
 
@@ -237,9 +240,9 @@ Session discovery:
 | `/project-hierarchy`                    | Owns `get_data_root_overview_tool` as the tree walk                              |
 | `/session-data`                         | Reference: SessionData marker and `inspect_sessions_tool` for per-session health |
 | `/session-descriptors`                  | Reference: per-session descriptor repair                                         |
-| forging plugin `/project-manifest`      | Downstream: manifest reading and generation                                      |
-| forging plugin `/checksum-verification` | Downstream: consumes confirmed session_paths                                     |
-| forging plugin `/session-transfer`      | Downstream: consumes confirmed session_paths                                     |
-| forging plugin `/behavior-processing`   | Downstream: consumes confirmed session_paths                                     |
-| forging plugin `/dataset-forging`       | Downstream: consumes confirmed session names                                     |
-| forging plugin `/behavior-input-format` | Reference: behavior-processing eligibility rules                                 |
+| `forging:project-manifest`      | Downstream: manifest reading and generation                                      |
+| `forging:checksum-verification` | Downstream: consumes confirmed session_paths                                     |
+| `forging:session-transfer`      | Downstream: consumes confirmed session_paths                                     |
+| `forging:behavior-processing`   | Downstream: consumes confirmed session_paths                                     |
+| `forging:dataset-forging`       | Downstream: consumes confirmed session names                                     |
+| `forging:behavior-input-format` | Reference: behavior-processing eligibility rules                                 |

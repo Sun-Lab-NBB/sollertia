@@ -4,7 +4,7 @@ description: >-
   Diagnoses and resolves sollertia-forgery MCP server connectivity issues (environment,
   command availability, Python version, dependencies). Use when the MCP tools are
   unavailable, the server fails to start, or a new session needs sollertia-forgery tools.
-user-invocable: true
+user-invocable: false
 ---
 
 # MCP environment setup
@@ -23,7 +23,7 @@ Diagnoses and resolves sollertia-forgery MCP server connectivity and environment
 - Environment-specific guidance for conda, pip, and uv workflows
 
 **Does not cover:**
-- MCP tool usage for session discovery (see the assets plugin's `/session-discovery`)
+- MCP tool usage for session discovery (see `assets:session-discovery`)
 - MCP tool usage for manifest reading and generation (see `/project-manifest`)
 - MCP tool usage for checksum verification (see `/checksum-verification`)
 - MCP tool usage for session transfer and deletion (see `/session-transfer`)
@@ -71,7 +71,7 @@ The sollertia forging plugin's Claude integration is split across two distributi
 
 | Component                                                                 | Distributed via                 | What it provides                                                        |
 |---------------------------------------------------------------------------|---------------------------------|-------------------------------------------------------------------------|
-| Skills (assets plugin `/session-discovery`, `/behavior-processing`, etc.) | sollertia forging plugin        | Skill files that guide agents through workflows                         |
+| Skills (`assets:session-discovery`, `/behavior-processing`, etc.) | sollertia forging plugin        | Skill files that guide agents through workflows                         |
 | MCP server registration                                                   | sollertia forging plugin        | Plugin entry that tells the Claude assistant how to start the server    |
 | MCP server code (`sl-mcp`)                                                | sollertia-forgery pip package   | The actual CLI command and server implementation                        |
 
@@ -127,7 +127,8 @@ Expected: a path inside the active environment's `site-packages`. If the import 
 ### Step 5: Verify core dependencies
 
 ```bash
-python -c "import mcp, polars, numpy, numba, scipy, ataraxis_time, ataraxis_base_utilities, ataraxis_data_structures, sollertia_shared_assets; print('ok')"
+python -c "import mcp, polars, numpy, numba, scipy, ataraxis_time, ataraxis_base_utilities, \
+ataraxis_data_structures, sollertia_shared_assets; print('ok')"
 ```
 
 Expected: prints `ok`. Any `ImportError` indicates a missing or version-incompatible dependency — see
@@ -145,7 +146,7 @@ mamba activate slf_dev
 pip install -e .
 ```
 
-Run inside `/home/cyberaxolotl/Desktop/GitHubRepos/sollertia-forgery`. The editable installation wires the
+Run inside the cloned `sollertia-forgery` repository directory. The editable installation wires the
 `sl-mcp` entry point into the environment's `bin/` so Claude Code can launch it by name.
 
 ### uv
@@ -163,6 +164,9 @@ python3.14 -m venv .venv
 source .venv/bin/activate
 pip install -e .
 ```
+
+On Windows, replace `source .venv/bin/activate` with `.venv\Scripts\activate` in the uv and pip
+workflows above (the conda / mamba workflow is identical on all platforms).
 
 ---
 
@@ -183,7 +187,7 @@ pip install -e .
 
 | Skill                                | Relationship                                                       |
 |--------------------------------------|--------------------------------------------------------------------|
-| assets plugin `/session-discovery`   | Downstream: session discovery once MCP is verified                 |
+| `assets:session-discovery`   | Downstream: session discovery once MCP is verified                 |
 | `/project-manifest`                  | Downstream: manifest reading and generation require MCP tools      |
 | `/checksum-verification`             | Downstream: checksum batch pipeline requires MCP tools             |
 | `/session-transfer`                  | Downstream: transfer and deletion pipeline requires MCP tools      |

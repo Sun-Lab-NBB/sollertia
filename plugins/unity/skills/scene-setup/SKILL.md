@@ -6,7 +6,7 @@ description: >-
   SimulatedLinearTreadmill controllers from the Actor section, and the optional UI lick-reward
   feedback canvas. Use when preparing a new scene for Play Mode, swapping hardware for the
   simulated treadmill, or fixing missing display / controller errors.
-user-invocable: true
+user-invocable: false
 ---
 
 # Sollertia Unity scene setup
@@ -29,7 +29,7 @@ runnable."
   Actor section's Controller dropdown
 - Brightness / VR height tuning via the Display section
 - MQTT broker IP / port via the MQTT section (project-wide; persisted in `EditorPrefs`)
-- Task-component fields (`Require Lick`, `Require Wait`, `Track Length`, `Track Seed`) via the
+- Task-component fields (`Require Interaction`, `Require Wait`, `Track Length`, `Track Seed`) via the
   Task section
 - Adding the `UI-lick-reward` canvas subsystem for experimenter feedback
 - Scene-specific vs project-wide configuration state
@@ -118,6 +118,10 @@ downstream acquisition rigs adopt this layout. The Display section of the Parame
 controls brightness and VR height; the **Camera Mapping** section binds the three per-monitor
 cameras (`Left View`, `Center View`, `Right View`) to OS monitor indices.
 
+**Scope boundary.** This skill configures the project's standard three-monitor corridor rig. Authoring a *different*
+Display rig or a non-corridor scene topology has no author-derived recipe — escalate to the human supervisor and
+co-design it in a generative, collaborative mode. You MUST NOT hand-author a new rig or scene topology autonomously.
+
 ### Assigning monitors
 
 1. Open `Window → Task Parameters` and scroll to **Camera Mapping**.
@@ -188,7 +192,7 @@ dropdown.
 3. Controls (Unity Input System action map `SimulatedInput`):
    - **W / Up arrow** — move forward
    - **S / Down arrow** — move backward
-   - **Space (Jump action)** — simulate a single lick (publishes `Lick`).
+   - **Space (Jump action)** — simulate a single interaction (publishes `Interaction`).
 
 Movement speed is scaled by `MovementSpeedMultiplier = 8.0f` in `SimulatedLinearTreadmill.cs`.
 
@@ -196,7 +200,7 @@ Movement speed is scaled by `MovementSpeedMultiplier = 8.0f` in `SimulatedLinear
 
 Before running a real session, set Controller back to `Linear` in the Actor section, confirm the
 MQTT broker IP / port in the MQTT section, and verify the connection with **Test Connection**.
-Leaving `Simulated Linear` selected in a production scene publishes spurious `Lick` events on
+Leaving `Simulated Linear` selected in a production scene publishes spurious `Interaction` events on
 every spacebar press, corrupting the session log.
 
 The `Simulated Linear` GameObject **stays in the scene** — it is just unselected by the dropdown.
@@ -219,12 +223,12 @@ See that skill for the option-list contract and validation rules.
 The `Task` section exposes the task component's tunable parameters, all of which are mirrored on the
 `Task.cs` `MonoBehaviour` but addressable only through this window or `/task-parameters`:
 
-| Field          | Type  | Effect                                                                         | Conditional rendering                    |
-|----------------|-------|--------------------------------------------------------------------------------|------------------------------------------|
-| `Require Lick` | bool  | Lick-guidance toggle (also mirrored over MQTT `RequireLick`)                   | Hidden when scene has no `GuidanceZone`  |
-| `Require Wait` | bool  | Occupancy-guidance toggle (also mirrored over MQTT `RequireWait`)              | Hidden when scene has no `OccupancyZone` |
-| `Track Length` | float | Total length of the pre-generated random trial sequence (Unity units)          | Always visible                           |
-| `Track Seed`   | int   | RNG seed for the random trial sequence (`-1` requests a nondeterministic seed) | Always visible                           |
+| Field                 | Type  | Effect                                                                         | Conditional rendering                    |
+|-----------------------|-------|--------------------------------------------------------------------------------|------------------------------------------|
+| `Require Interaction` | bool  | Interaction-guidance toggle (also mirrored over MQTT `RequireInteraction`)     | Hidden when scene has no `GuidanceZone`  |
+| `Require Wait`        | bool  | Occupancy-guidance toggle (also mirrored over MQTT `RequireWait`)              | Hidden when scene has no `OccupancyZone` |
+| `Track Length`        | float | Total length of the pre-generated random trial sequence (Unity units)          | Always visible                           |
+| `Track Seed`          | int   | RNG seed for the random trial sequence (`-1` requests a nondeterministic seed) | Always visible                           |
 
 Controls are **disabled in Play Mode** because the live guidance toggles are driven by MQTT during
 runtime. To flip a toggle mid-run, publish on the matching MQTT topic instead (see `/mqtt-contract`).
@@ -255,14 +259,14 @@ nothing about the runtime data.
 | Asset                              | Purpose                                                          |
 |------------------------------------|------------------------------------------------------------------|
 | `UI-Control.prefab`                | Canvas prefab carrying `LickStimulusSpawner`                     |
-| `LickMsg.prefab`                   | Instantiated when `Lick` is received                             |
+| `LickMsg.prefab`                   | Instantiated when `Interaction` is received                      |
 | `RewardMsg.prefab`                 | Instantiated when `Stimulus` is received                         |
 | `lickAnimation.anim`               | Short animation played by `LickMessage` on spawn                 |
 | `rewardAnimation.anim`             | Short animation played by `StimulusMessage` on spawn             |
 
 ### Scripts
 
-- `LickStimulusSpawner.cs` — the root MonoBehaviour on `UI-Control`. Subscribes to `Lick` and
+- `LickStimulusSpawner.cs` — the root MonoBehaviour on `UI-Control`. Subscribes to `Interaction` and
   `Stimulus` and instantiates the corresponding indicator prefab on the canvas.
 - `LickMessage.cs` — attached to `LickMsg`. Drives the lick indicator animation and self-destructs.
 - `StimulusMessage.cs` — attached to `RewardMsg`. Drives the stimulus indicator animation and
@@ -362,5 +366,5 @@ configuration can be saved and reused.
 | `/play-mode` (this plugin)                | Consumer — entered after scene setup passes the pre-Play Mode checklist         |
 | `/gimbl-framework` (this plugin)          | Reference for `MainWindow` invariants, `ActorObject`, `DisplayObject`, etc.     |
 | `/mqtt-contract` (this plugin)            | Topics consumed by `UI-lick-reward` and published by `Simulated Linear`         |
-| assets plugin `/task-templates`           | Upstream — owns the YAML that drove the prefab via `/task-prefabs`              |
-| assets plugin `/experiment-configuration` | Upstream — per-project instantiation of the template (drives `Task.configPath`) |
+| `assets:task-templates`           | Upstream — owns the YAML that drove the prefab via `/task-prefabs`              |
+| `assets:experiment-configuration` | Upstream — per-project instantiation of the template (drives `Task.configPath`) |

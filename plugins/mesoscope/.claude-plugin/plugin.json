@@ -1,0 +1,8 @@
+{
+  "name": "mesoscope",
+  "version": "1.0.0",
+  "description": "Agentic access to the Mesoscope-VR reference acquisition system. Covers the sollertia-experiment system-specific layer (hardware subsystem inventory and MesoscopeSystemConfiguration, the runtime state machine, orchestrator, UIs, and `sle mesoscope` CLI, the per-session Zaber and Mesoscope position snapshots and raw-data layout) and the sollertia-shared-assets Mesoscope-VR record schemas (the four session descriptors, MesoscopeHardwareState, and the MesoscopeExperimentConfiguration trial structures). Optional system-specific companion to the core plugins; relies on the sollertia-experiment MCP server (sle mcp) from the experiment plugin and the sollertia-shared-assets MCP server (slsa mcp) from the assets plugin, both of which it requires.",
+  "repository": "https://github.com/Sun-Lab-NBB/sollertia",
+  "license": "Apache-2.0",
+  "skills": "./skills/"
+}

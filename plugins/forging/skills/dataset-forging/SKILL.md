@@ -5,7 +5,7 @@ description: >-
   sollertia-forgery MCP server (dataset resolution, batch prep, execution, progress, cancel,
   retry, cleanup). Use when assembling analysis-ready feathers from processed behavior and
   cindra outputs or managing forging jobs across a dataset.
-user-invocable: true
+user-invocable: false
 ---
 
 # Dataset forging
@@ -24,20 +24,20 @@ off to downstream skills for output verification and querying.
 - Progress monitoring, cancellation, cleanup, failed-job reset, and cross-dataset overview
 
 **Does not cover:**
-- Session discovery and filtering (see the assets plugin's `/session-discovery`)
+- Session discovery and filtering (see `assets:session-discovery`)
 - Upstream input file formats and cross-library handoff (see `/dataset-forging-input-format`)
 - Output verification, schemas, or interpretation (see `/dataset-forging-results`)
 - MCP server connectivity (see `/forging-mcp-environment-setup`)
 - Upstream behavior processing (see `/behavior-processing`)
-- Upstream cindra processing (see `/cindra:single-recording-processing` and
-  `/cindra:multi-recording-processing`)
+- Upstream cindra processing (see `cindra@cindra:single-recording-processing` and
+  `cindra@cindra:multi-recording-processing`)
 
 **Handoff rules:** If MCP tools are unavailable, invoke `/forging-mcp-environment-setup`.
-If the user has not yet run session discovery, invoke the assets plugin's `/session-discovery` first. After
+If the user has not yet run session discovery, invoke `assets:session-discovery` first. After
 all jobs complete successfully, hand off to `/dataset-forging-results` to verify and
 query outputs.
 
-**Note:** `/cindra:*` refers to the **cindra** plugin from the
+**Note:** `cindra@cindra:*` refers to the **cindra** plugin from the
 [cindra marketplace](https://github.com/Sun-Lab-NBB/cindra).
 
 ---
@@ -48,7 +48,7 @@ You MUST use the sollertia-forgery MCP tools for all forging operations. Do not 
 `sollertia_forgery.forging.pipeline` directly or invoke the `sl-forge` CLI — those
 bypass the background execution manager and the progress/timing monitoring surface.
 
-You MUST have confirmed session names and a project root from the assets plugin's `/session-discovery`
+You MUST have confirmed session names and a project root from `assets:session-discovery`
 before calling `prepare_forging_batch_tool`. Do not guess, infer, or discover paths from
 within this skill.
 
@@ -220,8 +220,8 @@ project_root/
 │   │   ├── processed_data/
 │   │   │   ├── behavior_data/          ← from /behavior-processing
 │   │   │   └── mesoscope_data/
-│   │   │       ├── <single-recording>/ ← from /cindra:single-recording-processing
-│   │   │       └── multiday/{dataset_name}/  ← from /cindra:multi-recording-processing
+│   │   │       ├── <single-recording>/ ← from cindra@cindra:single-recording-processing
+│   │   │       └── multiday/{dataset_name}/  ← from cindra@cindra:multi-recording-processing
 │   │   ├── data.feather                ← FORGED OUTPUT (this pipeline)
 │   │   └── session_descriptor.yaml  ← FORGED COPY (this pipeline)
 │   └── session_2/...
@@ -302,11 +302,11 @@ Only one execution session can be active at a time.
 ### Pre-processing checklist
 
 ```text
-- [ ] Confirmed session names and project_root from the assets plugin's /session-discovery
+- [ ] Confirmed session names and project_root from assets:session-discovery
 - [ ] Every session in the batch is MESOSCOPE_EXPERIMENT
 - [ ] /behavior-processing has completed for every session (behavior feathers present)
-- [ ] /cindra:single-recording-processing has completed for every session
-- [ ] /cindra:multi-recording-processing has completed with the SAME dataset name
+- [ ] cindra@cindra:single-recording-processing has completed for every session
+- [ ] cindra@cindra:multi-recording-processing has completed with the SAME dataset name
 - [ ] hardware_state.yaml and experiment_configuration.yaml present under raw_data/
 - [ ] Worker budget decision made with user (default -1 for auto-resolution)
 - [ ] No other forging execution session currently active
@@ -318,7 +318,7 @@ first. See `/dataset-forging-input-format` for per-file details on upstream prer
 ### Workflow steps
 
 1. **Receive confirmed inputs** — Get session names, project root, and the target
-   dataset name(s) from the user. Session names come from the assets plugin's `/session-discovery`.
+   dataset name(s) from the user. Session names come from `assets:session-discovery`.
 
 2. **Prepare batch** — Call `prepare_forging_batch_tool` with the list of dataset
    specifications. Inspect the result:
@@ -331,7 +331,7 @@ first. See `/dataset-forging-input-format` for per-file details on upstream prer
      `MESOSCOPE_EXPERIMENT`; remove it from the batch.
    - `invalid_datasets[].error` starting with `"Unable to resolve the directory for session"`
      → session name does not resolve under `project_root`; cross-check with
-     the assets plugin's `/session-discovery`.
+     `assets:session-discovery`.
 
 3. **Present discovered jobs** — For each dataset in the manifest, show the session
    count and any pre-existing SUCCEEDED / FAILED counts. Format suggestion:
@@ -478,8 +478,8 @@ To rebuild only the session set of an existing dataset without deleting first:
 | Error pattern                                                   | Action                                                                |
 |-----------------------------------------------------------------|-----------------------------------------------------------------------|
 | Behavior tracker not found / ambiguous                          | Rerun `/behavior-processing` for the session                          |
-| Cindra single-recording tracker not found / ambiguous           | Rerun `/cindra:single-recording-processing` for the session           |
-| Cindra multi-day file missing (`cell_fluorescence.npy`, etc.)   | Rerun `/cindra:multi-recording-processing` with the same dataset name |
+| Cindra single-recording tracker not found / ambiguous           | Rerun `cindra@cindra:single-recording-processing` for the session           |
+| Cindra multi-day file missing (`cell_fluorescence.npy`, etc.)   | Rerun `cindra@cindra:multi-recording-processing` with the same dataset name |
 | Hardware state YAML missing / missing required field            | See `/dataset-forging-input-format` and the assets plugin             |
 | Experiment configuration YAML missing                           | See `/dataset-forging-input-format`                                   |
 | Experiment descriptor YAML missing                              | See `/dataset-forging-input-format`; add the file under `raw_data/`   |
@@ -495,15 +495,15 @@ To rebuild only the session set of an existing dataset without deleting first:
 | Skill                                           | Relationship                                                                  |
 |-------------------------------------------------|-------------------------------------------------------------------------------|
 | `/forging-mcp-environment-setup`                | Prerequisite: MCP server connectivity                                         |
-| assets plugin `/session-discovery`              | Upstream: session discovery and filtering                                     |
+| `assets:session-discovery`              | Upstream: session discovery and filtering                                     |
 | `/dataset-forging-input-format`                 | Reference: upstream artifacts and session / dataset layout                    |
 | `/dataset-forging-results`                      | Downstream: output verification, schemas, and querying                        |
 | `/behavior-processing`                          | Upstream: produces behavior feathers consumed by forging                      |
 | `/behavior-results`                             | Upstream reference: schema of the behavior feathers consumed here             |
-| `/cindra:single-recording-processing`           | Upstream: produces single-recording cindra outputs consumed here              |
-| `/cindra:multi-recording-processing`            | Upstream: produces multi-day cindra outputs (dataset name must match)         |
-| `/cindra:single-recording-results`              | Upstream reference: schemas of the cindra single-recording outputs            |
-| `/cindra:multi-recording-results`               | Upstream reference: schemas of the cindra multi-day outputs                   |
+| `cindra@cindra:single-recording-processing`           | Upstream: produces single-recording cindra outputs consumed here              |
+| `cindra@cindra:multi-recording-processing`            | Upstream: produces multi-day cindra outputs (dataset name must match)         |
+| `cindra@cindra:single-recording-results`              | Upstream reference: schemas of the cindra single-recording outputs            |
+| `cindra@cindra:multi-recording-results`               | Upstream reference: schemas of the cindra multi-day outputs                   |
 
 ---
 
@@ -512,9 +512,9 @@ To rebuild only the session set of an existing dataset without deleting first:
 ```text
 Dataset Forging Workflow:
 - [ ] Verified MCP server connectivity (invoked /forging-mcp-environment-setup if unavailable)
-- [ ] Received confirmed session names and project_root from the assets plugin's /session-discovery
+- [ ] Received confirmed session names and project_root from assets:session-discovery
 - [ ] Confirmed every session is MESOSCOPE_EXPERIMENT
-- [ ] Confirmed upstream /behavior-processing and /cindra:* outputs exist
+- [ ] Confirmed upstream /behavior-processing and cindra@cindra:* outputs exist
 - [ ] Prepared batch via prepare_forging_batch_tool
 - [ ] Resolved any invalid_datasets with the user (force_recreate as needed)
 - [ ] Presented discovered job counts per dataset

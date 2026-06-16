@@ -1,19 +1,19 @@
 ---
 name: zone-prefabs
 description: >-
-  Manufactures new hand-authored trigger zone prefabs for sollertia-unity-tasks by copying one of
-  the two canonical templates (`StimulusTriggerZone.prefab` for lick mode, `OccupancyTriggerZone.prefab`
-  for occupancy mode) and rewriting the MonoBehaviour script GUIDs, region names, and field defaults.
-  Use when adding a new `TriggerType` member or designing a new stimulus-zone variant that mixes
-  existing modifier zones in a new configuration.
-user-invocable: true
+  Manufactures new trigger zone prefabs for sollertia-unity-tasks with the `clone_zone_prefab_tool` MCP
+  tool, which copies one of the two canonical base prefabs (`StimulusTriggerZone.prefab` for the interaction
+  and collision modes, `OccupancyTriggerZone.prefab` for the occupancy modes) and swaps the modifier scripts,
+  region names, and field defaults through Unity's serialization layer. Use when adding a new `TriggerType`
+  member or designing a new stimulus-zone variant that mixes existing modifier zones in a new configuration.
+user-invocable: false
 ---
 
 # Sollertia Unity zone prefabs
 
-Authors new hand-authored trigger zone prefabs for `sollertia-unity-tasks` by copying one of the
-two committed templates, swapping the modifier scripts and field defaults, and validating the
-result with `inspect_prefab_tool` — instead of constructing prefab YAML from scratch.
+Authors new trigger zone prefabs for `sollertia-unity-tasks` with the `clone_zone_prefab_tool` MCP tool:
+it copies one of the two committed base prefabs, swaps the modifier scripts and field defaults through
+Unity's serialization layer, and returns the resulting hierarchy for validation.
 
 ---
 
@@ -33,8 +33,8 @@ result with `inspect_prefab_tool` — instead of constructing prefab YAML from s
 - Task prefab generation from YAML templates (see `/task-prefabs`)
 - Modifications to the `CreateTask` pipeline that consumes zone prefabs (see `/task-generator`)
 - Adding a new `TriggerType` member to the shared-assets registry (see assets plugin's
-  `/library-extension`)
-- Authoring the new MonoBehaviour script itself (see `/csharp-style` in the automation plugin)
+  `assets:library-extension`)
+- Authoring the new MonoBehaviour script itself (see `ataraxis@automation:csharp-style` in the automation plugin)
 - Editing protected hand-authored assets — `/task-generator` "Required shared assets" enumerates
   the full set (zone base prefabs, shared materials, scene base template). They are source
   templates and shared assets that `CreateTask` and the generated prefabs reference, and they
@@ -42,7 +42,54 @@ result with `inspect_prefab_tool` — instead of constructing prefab YAML from s
 
 ---
 
-## Why copy-and-edit, not generate-from-spec
+## Manufacturing a zone prefab
+
+The `clone_zone_prefab_tool` MCP tool (owned by `/task-prefabs`, relayed to `McpBridge.CloneZonePrefab`)
+performs the whole prefab-authoring step in one call. It copies a canonical base prefab, renames regions,
+swaps the root and region modifier scripts for new compiled `MonoBehaviour` types, applies serialized field
+overrides, and returns the resulting hierarchy in the same shape as `inspect_prefab_tool`. Unity assigns the
+fileIDs, script references, and `m_Children` / `m_Father` wiring through its serialization layer, so the
+result is correct by construction and validates in the same call.
+
+```text
+clone_zone_prefab_tool(
+    source_prefab="Assets/InfiniteCorridorTask/Prefabs/StimulusTriggerZone.prefab",
+    destination_prefab="Assets/InfiniteCorridorTask/Prefabs/SpeedInteractionTriggerZone.prefab",
+    root_script="SpeedInteractionTriggerZone",
+    regions=[{"match": "GuidanceRegion", "rename": "SpeedTestRegion", "script": "SpeedZone",
+              "fields": {"targetSpeedCmPerSec": 20, "toleranceCmPerSec": 5}}],
+)
+```
+
+The tool resolves every script name before it writes anything, so a typo or an uncompiled script fails before
+any asset is created, and it rolls the asset back if a later edit fails. The new prefab's root takes the
+destination filename. The tool enforces the same guarantees this skill applies by hand: the source must be
+one of the two canonical base prefabs, the destination must sit under `Assets/InfiniteCorridorTask/Prefabs/`
+and may not name a protected base, and each region `match` must resolve to exactly one descendant.
+
+**Prerequisites:** author and compile the new `MonoBehaviour` script(s) first (see the
+[pre-flight checklist](#pre-flight-checklist)), then run the tool. Hand off the downstream wiring afterward
+(see [Step 7](#step-7-hand-off-the-remaining-wiring)).
+
+### Compose behavior with trials, not regions
+
+`clone_zone_prefab_tool` edits a base prefab's existing region slots and stops there by design. A task is
+built from one-zone-per-trial segments strung into a corridor, so extra behavior comes from adding a trial to
+the template, and cues can reuse a texture so trials that look identical still differ in code. Reach for a
+richer single zone only when one trial genuinely needs two coupled sensors; otherwise express the new
+behavior as another trial. This is why the tool targets a single zone's slots and leaves multi-region
+composition to the task template.
+
+### When to drop to the manual workflow
+
+The tool covers rename, root and region script swaps, and field overrides — the operations every shipped
+variant and both [worked examples](#worked-examples) need. Use the
+[manual fallback workflow](#manual-fallback-workflow) to add or remove a region (the one operation the tool
+leaves to a future version) or to inspect the raw YAML when a clone result is surprising.
+
+---
+
+## Why clone a base prefab
 
 Both zone prefabs share a fixed structural skeleton:
 
@@ -53,15 +100,14 @@ Both zone prefabs share a fixed structural skeleton:
   exactly one `MonoBehaviour` from `SL.Tasks`.
 - A `Transform.localPosition` of `(0, 0.505, 0)` on the root (the `ZoneVerticalOffset` defined in
   `CreateTask.cs`) and `(0, 0, 0)` on every modifier.
-- Placeholder `BoxCollider` sizes — `CreateTask.PlaceLickZone` and `CreateTask.PlaceOccupancyZone`
+- Placeholder `BoxCollider` sizes — `CreateTask.PlaceInteractionZone` and `CreateTask.PlaceOccupancyZone`
   overwrite them at task generation time, so the prefab's stored values are not authoritative.
 
-The only fields that vary between trigger zone variants are the script GUIDs on each
+The only fields that vary between trigger zone variants are the modifier scripts on each
 `MonoBehaviour`, the GameObject `m_Name` values, and the serialized field defaults on each modifier
-script. Everything else is identical. Manufacturing a new variant from a spec language would
-require redescribing the entire skeleton on every call; copying the closest existing template and
-patching the three fields above is faster, lower-risk, and lets the agent rely on standard
-file-editing tools (`Read`, `Edit`, `Write`) instead of a custom MCP tool.
+script. Everything else is identical. `clone_zone_prefab_tool` copies the closest base prefab and patches
+exactly those three fields through Unity's serialization layer, so the new variant inherits the skeleton and
+every invariant for free.
 
 ---
 
@@ -76,7 +122,7 @@ You MUST verify all the following before manufacturing a new zone prefab:
 2. **The new script lives in the `SL.Tasks` namespace** (or a subnamespace), inherits from
    `MonoBehaviour`, and implements `IResettable` if it carries per-lap state. Follow the existing
    `OccupancyZone` / `GuidanceZone` pattern in `Assets/InfiniteCorridorTask/Scripts/`.
-3. **Style compliance.** Invoke `/csharp-style` (automation plugin) before writing the new script,
+3. **Style compliance.** Invoke `ataraxis@automation:csharp-style` before writing the new script,
    and run CSharpier on the modified C# files before committing.
 4. **Unity Editor running** with `McpBridge` reachable. The validation step relies on
    `inspect_prefab_tool`, which fails without the bridge. Invoke `/unity-mcp-environment-setup`
@@ -89,10 +135,29 @@ If any of the above is unmet, stop and resolve it before continuing.
 ## Canonical templates
 
 Both templates live under `Assets/InfiniteCorridorTask/Prefabs/` and are committed to source
-control. Read whichever one matches the target zone shape, then write the modified contents to a
-new path.
+control. The tool copies whichever one matches the target zone shape; pick the source by the table below.
 
-### Lick template (`StimulusTriggerZone.prefab`)
+The five `trigger_type` modes are backed by these two prefabs — no mode has its own prefab file.
+`CreateTask` reuses one template for each and selects the behavior at generation time:
+
+| `trigger_type`      | Backing prefab                | Fires when…                                                              |
+|---------------------|-------------------------------|--------------------------------------------------------------------------|
+| `interaction`       | `StimulusTriggerZone.prefab`  | the interaction sensor reports the animal inside the zone                |
+| `collision`         | `StimulusTriggerZone.prefab`  | the animal crosses an invisible boundary wall — no sensor, no occupancy  |
+| `occupancy_disarm`  | `OccupancyTriggerZone.prefab` | the animal collides with the boundary while occupancy is NOT met         |
+| `occupancy_arm`     | `OccupancyTriggerZone.prefab` | the animal collides with the now-armed boundary after occupancy IS met   |
+| `occupancy_trigger` | `OccupancyTriggerZone.prefab` | the required occupancy duration elapses — fires immediately, no boundary |
+
+`StimulusTriggerZone` dispatches on a `TriggerMode` enum field (`Interaction`, `Collision`,
+`OccupancyDisarm`, `OccupancyArm`, `OccupancyTrigger`) that `CreateTask` sets from `trigger_type`.
+For the `collision` mode,
+`CreateTask.PlaceCollisionZone` reuses `StimulusTriggerZone.prefab` with its `GuidanceRegion` child
+stripped and the root collider set as a thin boundary wall at `stimulus_location`. The `occupancy_arm`
+and `occupancy_trigger` modes reuse `OccupancyTriggerZone.prefab` unchanged — `CreateTask` only
+selects the occupancy sub-mode. All three occupancy modes keep the occupancy-guidance brake
+(`OccupancyGuidanceZone` publishing `Delay`).
+
+### Interaction template (`StimulusTriggerZone.prefab`)
 
 Hierarchy:
 
@@ -103,7 +168,9 @@ StimulusTriggerZone               ← root, 6 components
 
 Use this template when the new zone needs exactly one modifier region that reports the animal's
 arrival to `StimulusTriggerZone`. Examples: a new "approach detector" that triggers stimulus on
-zone entry without occupancy timing.
+zone entry without occupancy timing. The shipped `interaction` and `collision` modes both back
+onto this prefab — `collision` reuses it with the `GuidanceRegion` child stripped and the root
+collider sized as a thin boundary wall.
 
 ### Occupancy template (`OccupancyTriggerZone.prefab`)
 
@@ -117,255 +184,33 @@ OccupancyTriggerZone              ← root, 6 components
 
 Use this template when the new zone needs a nested modifier (a child of a modifier). Examples: a
 new "must-wait-then-acknowledge" pattern where the inner zone reads state off the outer zone via
-`GetComponentInParent`.
+`GetComponentInParent`. The shipped `occupancy_disarm`, `occupancy_arm`, and `occupancy_trigger`
+modes all back onto this prefab — `CreateTask` reuses it unchanged and only selects the occupancy
+sub-mode on the parent `StimulusTriggerZone`.
 
 ---
 
-## Invariants you MUST preserve
+## Manual fallback workflow
 
-Copying a template imports every invariant for free. You MUST NOT modify the following — they
-are referenced by `CreateTask.PlaceLickZone` / `PlaceOccupancyZone` at task generation, by
-`StimulusTriggerZone.cs` at runtime, or by both.
+Use this workflow to add or remove a region (the one operation `clone_zone_prefab_tool` leaves to a future
+version), or to inspect raw YAML when a clone result is surprising. For rename, script swaps, and field
+overrides, the tool in "Manufacturing a zone prefab" is the primary path.
 
-### On the root GameObject
-
-| Field                              | Required value                                                                |
-|------------------------------------|-------------------------------------------------------------------------------|
-| `Transform.m_LocalPosition`        | `{x: 0, y: 0.505, z: 0}` (the `ZoneVerticalOffset`)                           |
-| `MeshFilter.m_Mesh`                | `{fileID: 10210, guid: 0000000000000000e000000000000000}` (built-in Quad)     |
-| `MeshRenderer.m_Materials[0]`      | `{fileID: 2100000, guid: 0517064f81d2dc54fac8fa8c97538189}` (`TargetMat.mat`) |
-| `MeshCollider.m_Mesh`              | Same built-in Quad as the MeshFilter                                          |
-| `MeshCollider.m_IsTrigger`         | `0` (false — this is the physical boundary)                                   |
-| `BoxCollider.m_IsTrigger`          | `1` (true — this is the StimulusTriggerZone detection)                        |
-| `BoxCollider.m_Size` / `m_Center`  | Placeholder — `ConfigureRootZoneCollider` overwrites                          |
-| `StimulusTriggerZone.showBoundary` | `0` (false; `CreateTask` sets it per trial at generation)                     |
-| `StimulusTriggerZone.isActive`     | `0` (false; `ResetZone.ResetState` activates at lap start)                    |
-
-### On every modifier-zone child
-
-| Field                             | Required value                                      |
-|-----------------------------------|-----------------------------------------------------|
-| `Transform.m_LocalPosition`       | `{x: 0, y: 0, z: 0}`                                |
-| `BoxCollider.m_IsTrigger`         | `1` (true)                                          |
-| `BoxCollider.m_Size` / `m_Center` | Placeholder — `Place*Zone` overwrites at generation |
-| Exactly one `MonoBehaviour`       | The modifier script (e.g., `GuidanceZone`)          |
-
-### Hierarchy integrity
-
-- Every entry in a parent's `m_Children: [{fileID: X}]` must match the `m_Father: {fileID: Y}` on
-  the referenced child's Transform.
-- fileIDs are scoped per-prefab — renaming a region needs no fileID change. Adding a new region
-  requires picking a fresh 18–19-digit integer that does not collide with any existing fileID in
-  the same prefab.
-- The script GUID on every `MonoBehaviour` (`m_Script: {fileID: 11500000, guid: ...}`) must match
-  the `guid:` value in the script's `.cs.meta` file.
-
----
-
-## Modifier script GUID lookup
-
-Every script GUID lives in the script's `.cs.meta` companion file. To resolve a script's GUID:
-
-```text
-Read("Assets/InfiniteCorridorTask/Scripts/<ScriptName>.cs.meta")
-```
-
-Find the line `guid: <32-character hex string>`. That value goes into the prefab's
-`m_Script.guid` field.
-
-The four scripts currently used by the two committed templates have the following GUIDs (verify
-against the `.cs.meta` files before each edit — Unity GUIDs are sticky, but verification catches
-copy-paste errors in advance):
-
-| Script class            | `.cs.meta` path                                                     | GUID                               |
-|-------------------------|---------------------------------------------------------------------|------------------------------------|
-| `StimulusTriggerZone`   | `Assets/InfiniteCorridorTask/Scripts/StimulusTriggerZone.cs.meta`   | `72389065db4262222b18469cd7662432` |
-| `GuidanceZone`          | `Assets/InfiniteCorridorTask/Scripts/GuidanceZone.cs.meta`          | `d99710621d4dc286b93af3d3946e3440` |
-| `OccupancyZone`         | `Assets/InfiniteCorridorTask/Scripts/OccupancyZone.cs.meta`         | `5ac4de8c500fd94d192243204f3a2a99` |
-| `OccupancyGuidanceZone` | `Assets/InfiniteCorridorTask/Scripts/OccupancyGuidanceZone.cs.meta` | `dcab3a92479672720b736c7ef24fcacf` |
-
-For a newly authored script, read its `.cs.meta` to extract the freshly minted GUID.
-
----
-
-## Workflow
-
-### Step 1: Pick the template
-
-| New zone has...                                     | Copy this template                                            |
-|-----------------------------------------------------|---------------------------------------------------------------|
-| One modifier region, flat                           | `StimulusTriggerZone.prefab`                                  |
-| One modifier region with a nested guidance modifier | `OccupancyTriggerZone.prefab`                                 |
-| Two or more sibling modifier regions                | `StimulusTriggerZone.prefab` (then add siblings — see Step 5) |
-
-### Step 2: Read the source prefab
-
-Use `Read` to load the entire source prefab YAML:
-
-```text
-Read("Assets/InfiniteCorridorTask/Prefabs/<Source>.prefab")
-```
-
-Keep the file contents in working memory — every subsequent edit operates on this exact text.
-
-### Step 3: Write to the new path
-
-Use `Write` to copy the source contents to the target path. Target paths must live under
-`Assets/InfiniteCorridorTask/Prefabs/` and the filename should match the new `TriggerType` (e.g.,
-`MyNewTriggerZone.prefab`):
-
-```text
-Write("Assets/InfiniteCorridorTask/Prefabs/MyNewTriggerZone.prefab", <contents>)
-```
-
-The `m_Name` values inside the copied YAML still reference the source's GameObject names
-(`OccupancyTriggerZone`, `OccupancyRegion`, etc.) — patching them is part of Step 4.
-
-### Step 4: Edit the new prefab
-
-Apply these `Edit` calls in order. Each operates on the new prefab file you just wrote.
-
-#### 4a. Rename the root
-
-Replace the root GameObject's `m_Name` to match the new prefab filename basename:
-
-```text
-Edit(
-  file_path="Assets/InfiniteCorridorTask/Prefabs/MyNewTriggerZone.prefab",
-  old_string="  m_Name: OccupancyTriggerZone",
-  new_string="  m_Name: MyNewTriggerZone"
-)
-```
-
-The root name is cosmetic (`BuildSegmentPrefabs` resolves the prefab by filename), but match the
-filename for hierarchy clarity.
-
-#### 4b. Swap modifier script GUIDs
-
-For each `MonoBehaviour` whose script you are replacing, edit the surrounding `m_Script` block.
-Include enough context to make the edit unique (the `m_GameObject` fileID above the
-`m_EditorHideFlags`, or the field values below the GUID line, both work):
-
-```text
-Edit(
-  file_path="Assets/InfiniteCorridorTask/Prefabs/MyNewTriggerZone.prefab",
-  old_string=|
-    m_Script: {fileID: 11500000, guid: 5ac4de8c500fd94d192243204f3a2a99, type: 3}
-    m_Name: 
-    m_EditorClassIdentifier: Assembly-CSharp::OccupancyZone
-    occupancyDurationMs: 1000
-  ,
-  new_string=|
-    m_Script: {fileID: 11500000, guid: <new-script-guid>, type: 3}
-    m_Name: 
-    m_EditorClassIdentifier: Assembly-CSharp::MyNewZone
-    myDurationMs: 2000
-)
-```
-
-The `m_EditorClassIdentifier` is informational, but updating it preserves diff readability when
-the prefab is opened in the Editor later. The committed templates leave the field empty on the
-root MonoBehaviour in both prefabs and populate it on modifier MonoBehaviours
-(`Assembly-CSharp::OccupancyZone`, `Assembly-CSharp::OccupancyGuidanceZone`) in
-`OccupancyTriggerZone.prefab`; preserve the source's polarity when editing.
-
-Repeat for every modifier `MonoBehaviour` you are replacing. A root or modifier script may be
-replaced with a **subclass** of the original (`StimulusTriggerZone`, `OccupancyZone`,
-`OccupancyGuidanceZone`) without breaking `ResetZone.Start`'s typed `FindObjectsByType<T>`
-discovery; a fully unrelated `IResettable` class is invisible to it and needs an explicit
-registration in `ResetZone.cs` (see Step 7).
-
-#### 4c. Rename modifier regions
-
-For each region whose `m_Name` you want to change, edit the GameObject block. Region names are
-cosmetic but should match the new zone's terminology:
-
-```text
-Edit(
-  file_path="Assets/InfiniteCorridorTask/Prefabs/MyNewTriggerZone.prefab",
-  old_string="  m_Name: OccupancyRegion",
-  new_string="  m_Name: MyNewRegion"
-)
-```
-
-#### 4d. Override field defaults
-
-Field defaults live inside each `MonoBehaviour` block under the `m_EditorClassIdentifier` line.
-Adjust them in place. Adding a new field that the new script declares is also fine — the YAML
-deserializer reads field names directly:
-
-```text
-Edit(
-  file_path="Assets/InfiniteCorridorTask/Prefabs/MyNewTriggerZone.prefab",
-  old_string="  occupancyDurationMs: 1000",
-  new_string="  myDurationMs: 2000"
-)
-```
-
-Removing a field is also fine — Unity will fall back to the script's declared default value.
-
-### Step 5: Add or remove modifier regions (optional)
-
-Adding a new sibling or nested region requires appending three YAML blocks (GameObject, Transform,
-BoxCollider, MonoBehaviour) and wiring the new fileIDs into the parent's `m_Children` list.
-
-When adding a region:
-
-1. Pick four fresh fileIDs that do not collide with any existing fileID in the prefab. Use random
-   18–19-digit integers (e.g., `2839475610293847501`).
-2. Append the GameObject, Transform, MonoBehaviour, and BoxCollider blocks at the end of the file,
-   following the exact structure shown in the canonical templates (read the lick template for the
-   `GuidanceRegion` shape).
-3. Add the new GameObject's Transform fileID to the parent's `m_Children` list:
-
-   ```yaml
-   m_Children:
-   - {fileID: 3732166563701906224}    # existing
-   - {fileID: 2839475610293847501}    # new
-   ```
-
-4. Set the new Transform's `m_Father` to the parent's Transform fileID:
-
-   ```yaml
-   m_Father: {fileID: 1872135180607641772}
-   ```
-
-The simpler path is to **start from the closest structural match** and only add or remove regions
-when neither template's hierarchy fits.
-
-When removing a region: delete its four YAML blocks (GameObject + Transform + MonoBehaviour +
-BoxCollider) and remove its Transform fileID from the parent's `m_Children` list.
-
-### Step 6: Validate via inspect_prefab_tool
-
-Run `inspect_prefab_tool` (owned by `/task-prefabs`) against the new prefab. The tool returns the
-hierarchy Unity actually loads — if the YAML is malformed, the tool errors out before producing a
-hierarchy, which is a stronger signal than visual inspection.
-
-```text
-inspect_prefab_tool(prefab_path="Assets/InfiniteCorridorTask/Prefabs/MyNewTriggerZone.prefab")
-```
-
-Verify:
-- The root has a `StimulusTriggerZone` component (in the `components` list) and a
-  `BoxCollider`.
-- Each modifier region has the expected new script in `components`.
-- `collider_size` and `collider_center` on the root are non-zero (size is a placeholder; presence
-  matters more than the value).
-- The hierarchy depth and child ordering match the template you copied.
-
-If `inspect_prefab_tool` fails, the YAML is broken. Re-read the file, compare to the source
-template via `git diff`, and fix the structural divergence before continuing.
+The template invariants, the script-GUID lookup, and the step-by-step YAML edits (Steps 1–6: pick, read,
+write, rename, swap script GUIDs, add/remove regions, validate) live in
+[references/manual-yaml-editing.md](references/manual-yaml-editing.md). Author and compile the new script
+first (see the [pre-flight checklist](#pre-flight-checklist)), apply those edits, then hand off the wiring
+below.
 
 ### Step 7: Hand off the remaining wiring
 
-The new prefab is unreferenced after Step 6. The full cross-cutting recipe is split three ways:
+The new prefab is unreferenced once it is validated. The full cross-cutting recipe is split three ways:
 
-| Slice                                                | Owning skill                                                    |
-|------------------------------------------------------|-----------------------------------------------------------------|
-| Python `TriggerType` enum + registry parity          | assets plugin `/library-extension` (Adding a new `TriggerType`) |
-| `CreateTask` pipeline edits + `DeleteProtectedPaths` | `/task-generator` (Adding a new zone trigger type)              |
-| Hand-authored prefab (this skill)                    | Steps 1–6 above                                                 |
+| Slice                                                | Owning skill                                            |
+|------------------------------------------------------|---------------------------------------------------------|
+| Python `TriggerType` enum + registry parity          | `assets:library-extension` (Adding a new `TriggerType`) |
+| `CreateTask` pipeline edits + `DeleteProtectedPaths` | `/task-generator` (Adding a new zone trigger type)      |
+| Prefab authoring (this skill)                        | `clone_zone_prefab_tool`, or the manual reference above |
 
 The only `ResetZone` consideration that lives in this skill (because it depends on the new
 modifier script's class identity) is:
@@ -376,7 +221,7 @@ modifier script's class identity) is:
   standalone `IResettable` needs an explicit `FindObjectsByType<NewZone>` line added to
   `ResetZone.cs`, or per-lap state for the new zone is never reset.
 
-Once `/library-extension`, `/task-generator`, and this skill's bullets have all landed, the new
+Once `assets:library-extension`, `/task-generator`, and this skill's bullets have all landed, the new
 prefab is usable by any YAML template that declares the new `trigger_type`.
 
 ---
@@ -386,16 +231,18 @@ prefab is usable by any YAML template that declares the new `trigger_type`.
 End-to-end walkthroughs of the two non-trivial zone-prefab authoring patterns live in
 [references/worked-examples.md](references/worked-examples.md):
 
-- **Example A:** Inverting an `OccupancyTriggerZone` from "disable trigger" (aversive) to "enable
-  trigger" (rewarding) by writing a new `RewardOccupancyZone` script that preserves the
-  `boundaryDisarmed` field name with flipped polarity, so `StimulusTriggerZone` and
-  `OccupancyGuidanceZone` keep working unchanged.
-- **Example B:** Building a brand-new compound `SpeedLickTriggerZone` that gates lick-triggered
+- **Example A:** Building a `CumulativeOccupancyTriggerZone` whose occupancy timer accumulates
+  across multiple zone entries within a lap (instead of restarting each entry) by subclassing
+  `OccupancyZone` and overriding one `protected virtual` hook — so `StimulusTriggerZone`,
+  `OccupancyGuidanceZone`, and `ResetZone` pick the subclass up polymorphically with no edit.
+  (For the disarm-vs-arm polarity, prefer the built-in `occupancy_disarm` / `occupancy_arm` modes
+  over authoring a subclass — `StimulusTriggerZone`'s `TriggerMode` enum already covers it.)
+- **Example B:** Building a brand-new compound `SpeedInteractionTriggerZone` that gates interaction-triggered
   stimulus on the animal's traversal speed through an upstream speed-test region — covers a new
-  parent script, a new sibling-region script, and a new `PlaceSpeedLickZone` placement helper.
+  parent script, a new sibling-region script, and a new `PlaceSpeedInteractionZone` placement helper.
 
-Load that file when you actually need to extend the zone vocabulary; the workflow above (Steps
-1–7) is enough for routine variants.
+Load that file when you actually need to extend the zone vocabulary; the `clone_zone_prefab_tool` flow
+above handles routine variants in one call.
 
 ---
 
@@ -430,42 +277,45 @@ Load that file when you actually need to extend the zone vocabulary; the workflo
 
 ## Failure modes
 
-| Symptom                                                                              | Cause                                                                         | Resolution                                                                                                                                                               |
-|--------------------------------------------------------------------------------------|-------------------------------------------------------------------------------|--------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
-| `inspect_prefab_tool` returns "Prefab not found at: …"                               | Prefab was not saved, or path is wrong                                        | Re-run Step 3; confirm the `Write` call returned success                                                                                                                 |
-| `inspect_prefab_tool` returns success but no `StimulusTriggerZone` component on root | Root MonoBehaviour was accidentally removed or its script GUID is invalid     | Re-read the source template; restore the root MonoBehaviour block verbatim                                                                                               |
-| `inspect_prefab_tool` returns success but the modifier region is missing             | Child block was deleted but parent's `m_Children` still references its fileID | Remove the orphan fileID from `m_Children` or restore the deleted blocks                                                                                                 |
-| Hierarchy returned by `inspect_prefab_tool` is flat (no children)                    | `m_Father` ↔ `m_Children` symmetry was broken                                 | Verify every child's Transform `m_Father` matches the parent Transform's fileID, and that the parent's `m_Children` list contains the child's Transform fileID           |
-| Modifier script defaults look correct but the runtime behavior is wrong              | `m_Script.guid` references the wrong script                                   | Re-read the target script's `.cs.meta` and confirm the GUID; the `m_EditorClassIdentifier` line is informational and may lag the real script class until Unity reimports |
-| Unity Editor reports "missing script" when opening the new prefab                    | Either the script does not exist yet, or the GUID is malformed                | Confirm the `.cs` and `.cs.meta` files exist under `Scripts/`; ensure the GUID is 32 hex characters with no whitespace                                                   |
-| New prefab disappears after a cleanup pass                                           | Prefab not added to `McpBridge.DeleteProtectedPaths`                          | Add the path to the protected set and recover the prefab from git                                                                                                        |
-| Task generation succeeds but the new zone never triggers                             | `BuildSegmentPrefabs` does not route to the new prefab                        | Hand off to `/task-generator` — add a `trigger_type` branch and a `Place...Zone` helper                                                                                  |
+| Symptom                                                                              | Cause                                                                          | Resolution                                                                                                                                                               |
+|--------------------------------------------------------------------------------------|--------------------------------------------------------------------------------|--------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| `clone_zone_prefab_tool` returns "Script type '…' not found"                         | The named root or region script is not authored or the project is not compiled | Author the script, let Unity compile, then re-run the tool                                                                                                               |
+| `clone_zone_prefab_tool` returns "Field '…' does not exist on …"                     | A `fields` override names a member the modifier script does not declare        | Correct the field name to one the script declares; the tool rolled the asset back, so no partial prefab remains                                                          |
+| `inspect_prefab_tool` returns success but no `StimulusTriggerZone` component on root | Root MonoBehaviour was accidentally removed or its script GUID is invalid      | Re-read the source template; restore the root MonoBehaviour block verbatim (manual workflow only)                                                                        |
+| Hierarchy returned by `inspect_prefab_tool` is flat (no children)                    | `m_Father` ↔ `m_Children` symmetry was broken                                  | Verify every child's Transform `m_Father` matches the parent Transform's fileID, and that the parent's `m_Children` list contains the child's Transform fileID           |
+| Modifier script defaults look correct but the runtime behavior is wrong              | `m_Script.guid` references the wrong script                                    | Re-read the target script's `.cs.meta` and confirm the GUID; the `m_EditorClassIdentifier` line is informational and may lag the real script class until Unity reimports |
+| Unity Editor reports "missing script" when opening the new prefab                    | Either the script does not exist yet, or the GUID is malformed                 | Confirm the `.cs` and `.cs.meta` files exist under `Scripts/`; ensure the GUID is 32 hex characters with no whitespace                                                   |
+| New prefab disappears after a cleanup pass                                           | Prefab not added to `McpBridge.DeleteProtectedPaths`                           | Add the path to the protected set and recover the prefab from git                                                                                                        |
+| Task generation succeeds but the new zone never triggers                             | `BuildSegmentPrefabs` does not route to the new prefab                         | Hand off to `/task-generator` — add a `trigger_type` branch and a `Place...Zone` helper                                                                                  |
 
 ---
 
 ## Related skills
 
-| Skill                                        | Relationship                                                               |
-|----------------------------------------------|----------------------------------------------------------------------------|
-| `/task-prefabs` (this plugin)                | Provides `inspect_prefab_tool` used for Step 6 validation                  |
-| `/task-generator` (this plugin)              | Reference for `BuildSegmentPrefabs`, `Place...Zone`, and validator updates |
-| `/task-parameters` (this plugin)             | Reference if the new zone exposes Inspector-driven fields                  |
-| `/task-scenes` (this plugin)                 | Consumer — places the regenerated task prefab into a scene                 |
-| `/play-mode` (this plugin)                   | Consumer — exercises the new zone at runtime                               |
-| `/mqtt-contract` (this plugin)               | Reference if the new modifier publishes or subscribes to MQTT topics       |
-| `/unity-mcp-environment-setup` (this plugin) | Run first if `inspect_prefab_tool` cannot reach the Unity Editor           |
-| assets plugin `/library-extension`           | Required for new `TriggerType` member and registry parity check            |
-| automation plugin `/csharp-style`            | Required when authoring the new modifier script and editing C# wiring      |
-| automation plugin `/commit`                  | Run after the prefab, script, and wiring changes are ready to commit       |
+| Skill                                        | Relationship                                                                                               |
+|----------------------------------------------|------------------------------------------------------------------------------------------------------------|
+| `/task-prefabs` (this plugin)                | Provides `clone_zone_prefab_tool` and `inspect_prefab_tool`                                                |
+| `/task-generator` (this plugin)              | Reference for `BuildSegmentPrefabs`, `Place...Zone`, and validator updates                                 |
+| `/task-parameters` (this plugin)             | Reference if the new zone exposes Inspector-driven fields                                                  |
+| `/task-scenes` (this plugin)                 | Consumer — places the regenerated task prefab into a scene                                                 |
+| `/play-mode` (this plugin)                   | Consumer — exercises the new zone at runtime                                                               |
+| `/mqtt-contract` (this plugin)               | Reference if the new modifier publishes or subscribes to MQTT topics                                       |
+| `/unity-mcp-environment-setup` (this plugin) | Run first if the Unity Editor bridge is unreachable                                                        |
+| `assets:library-extension`                   | Required for new `TriggerType` member and registry parity check                                            |
+| `ataraxis@automation:csharp-style`           | Required when authoring the new modifier script and editing C# wiring                                      |
+| `ataraxis@automation:commit`                 | Run after the prefab, script, and wiring changes are ready to commit                                       |
+| `experiment:vr-driver-interface`             | Host consumes the `Stimulus{trialName}` events these zones emit, joined via `DecomposedTrials.trial_names` |
 
 ---
 
 ## Verification checklist
 
-You MUST verify this checklist before submitting any new or modified hand-authored zone prefab.
+You MUST verify this checklist before submitting any new or modified zone prefab.
 
 ```text
 Zone Prefabs Compliance:
+- [ ] clone_zone_prefab_tool was used for rename, script-swap, and field-override authoring; the manual
+      YAML workflow was used only to add or remove a region
 - [ ] The new modifier script exists under Assets/InfiniteCorridorTask/Scripts/ with a valid
       .cs.meta and a stable GUID
 - [ ] The new prefab path is under Assets/InfiniteCorridorTask/Prefabs/ and the filename matches
@@ -487,7 +337,7 @@ Zone Prefabs Compliance:
 - [ ] ConfigLoader.ValidateTemplate accepts the new trigger_type literal
 - [ ] ResetZone.Start finds the new IResettable (subclasses of the three known types are covered
       polymorphically; a standalone class needs an explicit FindObjectsByType registration)
-- [ ] /library-extension was invoked on the assets-plugin side to register the new TriggerType
+- [ ] assets:library-extension was invoked on the assets-plugin side to register the new TriggerType
       member and run the import-time parity check
 - [ ] CSharpier ran cleanly on the modified C# files (the new script, McpBridge.cs, ConfigLoader.cs,
       CreateTask.cs)
