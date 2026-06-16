@@ -28,7 +28,8 @@ additionally surfaces empty project and animal directories that hold no sessions
 - The relationship between projects, animals, sessions, experiments, and subjects
 
 **Does not cover:**
-- Authoring per-project `MesoscopeExperimentConfiguration` (see `/experiment-configuration`)
+- Authoring per-project experiment configuration YAMLs (see `/experiment-configuration`; for the
+  Mesoscope-VR concrete schema, `mesoscope:mesoscope-vr-experiment-schema`)
 - Reading or writing `SessionData` (see `/session-data`)
 - Per-session inventory and health reports (see `/session-data`, which owns `inspect_sessions_tool`)
 - Reading or writing session descriptors (see `/session-descriptors`)
@@ -99,7 +100,7 @@ following nested structure:
 ```text
 <root-directory>/
 └── <project>/
-    ├── configuration/                          # MesoscopeExperimentConfiguration files
+    ├── configuration/                          # per-system experiment configuration YAMLs
     │   ├── <experiment-1>.yaml
     │   └── <experiment-2>.yaml
     ├── <animal-1>/
@@ -303,14 +304,14 @@ it holds a session.
 
 ## Related skills
 
-| Skill                                | Relationship                                                                                           |
-|--------------------------------------|--------------------------------------------------------------------------------------------------------|
-| `/assets-mcp-environment-setup`      | Run first if the MCP server is not connected                                                           |
-| `/working-directory`                 | Required prerequisite — bootstraps the local working directory the agent uses to resolve project roots |
-| `experiment:data-management` | Creates sessions. Project directories must exist beforehand (`create_project_tool`)                    |
-| `/experiment-configuration`          | Consumes projects to author experiment YAMLs                                                           |
-| `/session-discovery`                 | Chains `get_data_root_overview_tool` through `filter_sessions_tool`                                    |
-| `/session-data`                      | Owns `inspect_sessions_tool` for per-session inventory and health reports                              |
-| `/session-descriptors`               | Reads per-session descriptors                                                                          |
-| `/data-assets`                       | Reads read assets (e.g., surgery/subject records)                                                      |
-| `forging:datasets`           | Aggregates sessions                                                                                    |
+| Skill                           | Relationship                                                                                           |
+|---------------------------------|--------------------------------------------------------------------------------------------------------|
+| `/assets-mcp-environment-setup` | Run first if the MCP server is not connected                                                           |
+| `/working-directory`            | Required prerequisite — bootstraps the local working directory the agent uses to resolve project roots |
+| `experiment:data-management`    | Creates sessions. Project directories must exist beforehand (`create_project_tool`)                    |
+| `/experiment-configuration`     | Consumes projects to author experiment YAMLs                                                           |
+| `/session-discovery`            | Chains `get_data_root_overview_tool` through `filter_sessions_tool`                                    |
+| `/session-data`                 | Owns `inspect_sessions_tool` for per-session inventory and health reports                              |
+| `/session-descriptors`          | Reads per-session descriptors                                                                          |
+| `/data-assets`                  | Reads read assets (e.g., surgery/subject records)                                                      |
+| `forging:datasets`              | Aggregates sessions                                                                                    |

@@ -30,7 +30,8 @@ helpers — no other skill in the marketplace may call these.
 - Enumerating supported trigger types (`list_supported_trigger_types_tool`)
 
 **Does not cover:**
-- Per-project `MesoscopeExperimentConfiguration` authoring (see `/experiment-configuration`)
+- Per-project experiment configuration authoring (see `/experiment-configuration`; for the Mesoscope-VR
+  concrete schema, `mesoscope:mesoscope-vr-experiment-schema`)
 - Setting the task templates directory path (see `/working-directory`)
 - Generating a Unity task from a template (see `unity:task-prefabs` —
   `create_task_tool` builds both the task prefab and the matching scene in one call)
@@ -106,10 +107,10 @@ A `TaskTemplate` is composed of these classes (all defined in `sollertia_shared_
 itself does **not** carry trial weights, experiment-specific reward parameters, or trial-class
 choices — those live on the system-specific experiment configuration (e.g.
 `MesoscopeExperimentConfiguration`) and are owned by `/experiment-configuration`.
-The standalone Mesoscope-VR trial classes `MesoscopeWaterRewardTrial` and `MesoscopeGasPuffTrial` are
-experiment-scope classes; they appear in this skill only when you call `list_supported_trial_types_tool`
-to enumerate what an experiment configuration may instantiate to pair with a template's
-`TrialStructure` entries.
+The system's runtime trial classes (e.g. on Mesoscope-VR, `MesoscopeWaterRewardTrial` and
+`MesoscopeGasPuffTrial`) are experiment-scope classes; they appear in this skill only when you call
+`list_supported_trial_types_tool` to enumerate what an experiment configuration may instantiate to pair
+with a template's `TrialStructure` entries.
 
 For canonical field definitions and valid values, call `describe_template_schema_tool` — do not rely on
 handwritten documentation that may drift from the slsa source of truth. For the canonical trial-class
@@ -204,13 +205,13 @@ capability ceiling but the absence of a deterministic recipe, so the work must b
 
 ### How template fields are used
 
-| Field                                 | Consumer-side role                                                                                                                                                                                                                                                                                               |
-|---------------------------------------|------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
-| **`cues`**                            | Unity bakes wall textures from each cue's `texture` asset; the uint8 `code` is the on-the-wire identifier the runtime uses for analysis.                                                                                                                                                                         |
+| Field                                 | Consumer-side role                                                                                                                                                                                                                                                                                                    |
+|---------------------------------------|-----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| **`cues`**                            | Unity bakes wall textures from each cue's `texture` asset; the uint8 `code` is the on-the-wire identifier the runtime uses for analysis.                                                                                                                                                                              |
 | **`vr_environment`**                  | Parameterizes corridor geometry: how many segments are visible at once, how parallel corridor instances are spaced, the centimeter↔Unity-unit conversion, the padding prefab, and the cue offset that shifts the cue sequence origin relative to each corridor's spawn point. See `unity:task-prefabs` for specifics. |
-| **`trial_structures`**                | Spatial config per trial type — cue sequence, stimulus trigger zone bounds, stimulus location, visible-boundary flag, trigger type, and optional transitions. The trigger type tells Unity which zone prefab to bake.                                                                                            |
-| **`trial_structures[].cue_sequence`** | Drives Unity's segment-prefab geometry: each trial generates a single segment prefab whose cue ordering matches this sequence. Cue prefab lengths sum to the segment length used by zone validation.                                                                                                             |
-| **`trial_structures[].transitions`**  | Drives Unity's segment-sequence resolver at session init. Sampled to materialize the deterministic trial chain; null/empty falls back to uniform-random successor selection.                                                                                                                                     |
+| **`trial_structures`**                | Spatial config per trial type — cue sequence, stimulus trigger zone bounds, stimulus location, visible-boundary flag, trigger type, and optional transitions. The trigger type tells Unity which zone prefab to bake.                                                                                                 |
+| **`trial_structures[].cue_sequence`** | Drives Unity's segment-prefab geometry: each trial generates a single segment prefab whose cue ordering matches this sequence. Cue prefab lengths sum to the segment length used by zone validation.                                                                                                                  |
+| **`trial_structures[].transitions`**  | Drives Unity's segment-sequence resolver at session init. Sampled to materialize the deterministic trial chain; null/empty falls back to uniform-random successor selection.                                                                                                                                          |
 
 After Unity emits the materialized cue sequence at session start, the acquisition runtime
 **decomposes it back into a trial timeline** by motif-matching each `TrialStructure`'s cue
@@ -240,13 +241,12 @@ All three occupancy modes keep the occupancy-guidance brake (the `OccupancyGuida
 `trigger_type`.
 
 **System support is a per-system subset.** The platform `TriggerType` enum carries all five, but each
-acquisition system maps only the subset it can resolve to its own stimuli. The Mesoscope-VR system's
-`from_task_template` maps `interaction` (→ `MesoscopeWaterRewardTrial`) and `occupancy_disarm`
-(→ `MesoscopeGasPuffTrial`), and does not map `collision`, `occupancy_arm`, or `occupancy_trigger`, so a
-configuration that uses one of
-those on Mesoscope-VR raises a clear "not mapped to a runtime trial class" error. Adding a new `TriggerType`
-member therefore does **not** require a `from_task_template` branch in every system — a system may leave a
-mode unsupported. See `/library-extension` for the cross-cutting recipe.
+acquisition system maps only the subset its `from_task_template` can resolve to its own runtime trial
+classes; a configuration that uses an unmapped mode raises a clear "not mapped to a runtime trial class"
+error. Adding a new `TriggerType` member therefore does **not** require a `from_task_template` branch in
+every system — a system may leave a mode unsupported. See `/library-extension` for the cross-cutting recipe.
+For the current Mesoscope-VR reference system's concrete mapping, see
+`mesoscope:mesoscope-vr-experiment-schema`.
 
 ### Why the template is shaped this way
 
@@ -276,8 +276,9 @@ mode unsupported. See `/library-extension` for the cross-cutting recipe.
   `occupancy_duration_ms`, the single source of truth for the dwell time used by every occupancy mode
   (`occupancy_disarm`, `occupancy_arm`, `occupancy_trigger`), which Unity reads at generation time.
   Because rewards and puff durations are project-level behavioral
-  parameters that vary between teams using the same paradigm, they live on the experiment-config
-  trial classes (`MesoscopeWaterRewardTrial`, `MesoscopeGasPuffTrial`) authored by
+  parameters that vary between teams using the same paradigm, they live on the system's runtime trial
+  classes (for Mesoscope-VR, `MesoscopeWaterRewardTrial` / `MesoscopeGasPuffTrial` — see
+  `mesoscope:mesoscope-vr-experiment-schema`) authored by
   `/experiment-configuration` and are joined to the spatial structure by trial name.
 - **`trigger_type` is on `TrialStructure`** because Unity must pick the zone prefab during
   template generation — long before any experiment-config trial is instantiated. The trigger
@@ -293,15 +294,15 @@ mode unsupported. See `/library-extension` for the cross-cutting recipe.
 
 ## MCP tool surface
 
-| Tool                                  | Purpose                                                                       |
-|---------------------------------------|-------------------------------------------------------------------------------|
-| `discover_templates_tool`             | Lists all task templates in the configured templates directory                |
-| `read_template_tool`                  | Reads an existing template at an explicit path                                |
-| `write_template_tool`                 | Writes a new template or overwrites an existing one (exclusive to this skill) |
-| `describe_template_schema_tool`       | Returns the field schema for `TaskTemplate` (exclusive to this skill)         |
-| `validate_template_tool`              | Validates a template against its schema and cross-reference constraints       |
-| `list_supported_trial_types_tool`     | Enumerates trial classes supported by experiment configurations (exclusive)   |
-| `list_supported_trigger_types_tool`   | Enumerates the `TriggerType` enum values (exclusive)                          |
+| Tool                                | Purpose                                                                       |
+|-------------------------------------|-------------------------------------------------------------------------------|
+| `discover_templates_tool`           | Lists all task templates in the configured templates directory                |
+| `read_template_tool`                | Reads an existing template at an explicit path                                |
+| `write_template_tool`               | Writes a new template or overwrites an existing one (exclusive to this skill) |
+| `describe_template_schema_tool`     | Returns the field schema for `TaskTemplate` (exclusive to this skill)         |
+| `validate_template_tool`            | Validates a template against its schema and cross-reference constraints       |
+| `list_supported_trial_types_tool`   | Enumerates trial classes supported by experiment configurations (exclusive)   |
+| `list_supported_trigger_types_tool` | Enumerates the `TriggerType` enum values (exclusive)                          |
 
 `read_template_tool`, `write_template_tool`, and `validate_template_tool` take an explicit
 `file_path` — path resolution is the caller's responsibility. The canonical home for **live**
@@ -343,8 +344,8 @@ list_supported_trigger_types_tool()
 ```
 
 Use the schema and enum lists as the source of truth — the enum tools pin down the exact strings
-accepted by `trigger_type` and the exact class names used for the `MesoscopeGasPuffTrial` and
-`MesoscopeWaterRewardTrial` variants. This avoids silent typos that slip past YAML syntax but fail at runtime.
+accepted by `trigger_type` and the exact class names of the supported runtime trial variants for the
+target system (e.g. on Mesoscope-VR). This avoids silent typos that slip past YAML syntax but fail at runtime.
 
 ### Step 4: Author the template
 
@@ -359,8 +360,8 @@ Build the template dictionary in this order:
    optional `transitions` dict mapping target trial names to probabilities summing to 1.0).
 
 Trial weights, reward sizes, gas-puff durations, experiment states, and the choice of trial class
-(`MesoscopeWaterRewardTrial` vs `MesoscopeGasPuffTrial`) are **not** part of the template —
-they are added per-experiment by `/experiment-configuration`. (Occupancy dwell time is the
+(e.g. on Mesoscope-VR, `MesoscopeWaterRewardTrial` vs `MesoscopeGasPuffTrial`) are **not** part of the
+template — they are added per-experiment by `/experiment-configuration`. (Occupancy dwell time is the
 exception: it lives on the template as the `TrialStructure.occupancy_duration_ms` field, shared by all
 three occupancy modes.)
 
@@ -435,7 +436,8 @@ for instantiating templates into experiment configurations.
 4. Write the template back with `write_template_tool` (use `overwrite=True`).
 5. Re-run `validate_template_tool` to confirm the new entry passes cross-reference checks.
 6. Hand off to `/experiment-configuration` if a per-project experiment needs to pair this trial with
-   a `MesoscopeWaterRewardTrial` or `MesoscopeGasPuffTrial` runtime class and assign weights.
+   a runtime trial class (e.g. on Mesoscope-VR, `MesoscopeWaterRewardTrial` or `MesoscopeGasPuffTrial`)
+   and assign weights.
 
 ### Migrate a template to a new VR scene
 
@@ -478,12 +480,13 @@ for instantiating templates into experiment configurations.
 
 ## Related skills
 
-| Skill                                    | Relationship                                                                                             |
-|------------------------------------------|----------------------------------------------------------------------------------------------------------|
-| `/working-directory`                     | Required prerequisite — owns the templates directory path                                                |
-| `/assets-mcp-environment-setup`          | Run first if the MCP server is not connected                                                             |
-| `/experiment-configuration`              | Consumer — instantiates templates into per-project experiments                                           |
-| `/library-extension`                     | Cross-cutting recipe to add a new `TriggerType` or runtime trial class                                   |
-| `unity:task-prefabs`             | Downstream — generates and validates the Unity prefab                                                    |
-| `unity:task-scenes`              | Downstream — places the generated prefab into a Unity scene                                              |
-| `experiment:vr-driver-interface` | Consumer — decomposes the cue sequence into trials using these motifs and trigger types                  |
+| Skill                                      | Relationship                                                                            |
+|--------------------------------------------|-----------------------------------------------------------------------------------------|
+| `/working-directory`                       | Required prerequisite — owns the templates directory path                               |
+| `/assets-mcp-environment-setup`            | Run first if the MCP server is not connected                                            |
+| `/experiment-configuration`                | Consumer — instantiates templates into per-project experiments                          |
+| `mesoscope:mesoscope-vr-experiment-schema` | Owns Mesoscope-VR's concrete trial-class field schema for the classes named here        |
+| `/library-extension`                       | Cross-cutting recipe to add a new `TriggerType` or runtime trial class                  |
+| `unity:task-prefabs`                       | Downstream — generates and validates the Unity prefab                                   |
+| `unity:task-scenes`                        | Downstream — places the generated prefab into a Unity scene                             |
+| `experiment:vr-driver-interface`           | Consumer — decomposes the cue sequence into trials using these motifs and trigger types |

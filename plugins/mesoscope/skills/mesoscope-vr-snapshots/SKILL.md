@@ -91,6 +91,55 @@ For the `MesoscopeHardwareState` read/write/describe trio (`read_session_hardwar
 
 ---
 
+## Mesoscope-VR raw-data layout contract
+
+Descriptors, hardware state, trial types, experiment configuration, and **raw-data layout** form a universal
+per-system contract: every Sollertia acquisition system is expected to define its own concrete instance. The
+generic registry dispatch and the create/write/validate/describe tooling are system-agnostic and live in the
+assets plugin (see `assets:session-data`). This section documents only Mesoscope-VR's **concrete instance** of
+the raw-data layout contract — the system-specific filenames, subdirectories, and path-resolution fields keyed by
+`SYSTEM_RAW_DATA_REGISTRY[AcquisitionSystems.MESOSCOPE_VR] -> MesoscopeRawData`.
+
+Unlike the descriptor / hardware-state / experiment-configuration contracts (which register a `YamlConfig`
+describe/read/write trio), the raw-data contract registers a **path-resolution dataclass**. `MesoscopeRawData` does
+not read or write any file: it only resolves the absolute on-disk locations of the system-specific raw assets under
+a session's `raw_data` directory. The position snapshots that this skill reads and writes are two of those assets;
+the snapshot MCP tools resolve their target paths through this dataclass.
+
+`MesoscopeRawDataFiles` enumerates the canonical filenames at the root of `raw_data` written exclusively by the
+Mesoscope-VR acquisition system:
+
+| Member                | Value                      | Captures                                                       |
+|-----------------------|----------------------------|----------------------------------------------------------------|
+| `ZABER_POSITIONS`     | `zaber_positions.yaml`     | Zaber motor position snapshot written at session start         |
+| `MESOSCOPE_POSITIONS` | `mesoscope_positions.yaml` | Mesoscope objective position snapshot written at session start |
+| `WINDOW_SCREENSHOT`   | `window_screenshot.png`    | Cranial imaging window screenshot captured at session start    |
+
+`MesoscopeDirectories` enumerates the canonical subdirectory names under `raw_data` written exclusively by the
+Mesoscope-VR acquisition system:
+
+| Member           | Value            | Captures                                                                      |
+|------------------|------------------|-------------------------------------------------------------------------------|
+| `MESOSCOPE_DATA` | `mesoscope_data` | LERC-compressed TIFF stacks and acquisition metadata written by preprocessing |
+
+`MesoscopeRawData.build(root)` is the single source of truth for the enum-to-field mapping. `SessionData`
+constructs the instance when the session's acquisition system is `MESOSCOPE_VR`, resolving each field as
+`root.joinpath(<enum value>)`:
+
+| Field                      | Resolves to                         | Source enum member                          |
+|----------------------------|-------------------------------------|---------------------------------------------|
+| `zaber_positions_path`     | `raw_data/zaber_positions.yaml`     | `MesoscopeRawDataFiles.ZABER_POSITIONS`     |
+| `mesoscope_positions_path` | `raw_data/mesoscope_positions.yaml` | `MesoscopeRawDataFiles.MESOSCOPE_POSITIONS` |
+| `window_screenshot_path`   | `raw_data/window_screenshot.png`    | `MesoscopeRawDataFiles.WINDOW_SCREENSHOT`   |
+| `mesoscope_data_path`      | `raw_data/mesoscope_data/`          | `MesoscopeDirectories.MESOSCOPE_DATA`       |
+
+`zaber_positions_path` and `mesoscope_positions_path` are the on-disk targets the position-snapshot tools read and
+write (this skill); `window_screenshot_path` and `mesoscope_data_path` are produced by the runtime and
+preprocessing and are not written by this skill. For the generic registry dispatch and the system-agnostic tools
+that operate over the raw-data layout, hand off to `assets:session-data`.
+
+---
+
 ## Workflows
 
 ### Inspecting position snapshots for a session
@@ -166,15 +215,15 @@ replacing the entire acquisition rig), patch the position snapshots from this sk
 
 ## Related skills
 
-| Skill                                     | Relationship                                                                                      |
-|-------------------------------------------|---------------------------------------------------------------------------------------------------|
-| `experiment:experiment-mcp-environment-setup`       | Run first if `sle mcp` is not connected                                                           |
-| `assets:session-hardware-state`   | Sibling — owns `MesoscopeHardwareState` (the third per-session snapshot)                          |
-| `assets:session-data`             | Owns the `SessionData` marker file                                                                |
-| `assets:session-descriptors`      | Owns the per-session descriptor files                                                             |
-| `/mesoscope-vr`                           | Provides `read_session_system_configuration_tool` for cross-reference                             |
-| `assets:experiment-configuration` | Provides `read_experiment_configuration_tool` for cross-reference (accepts session snapshot path) |
-| `experiment:zaber-interface`                        | Live Zaber motor configuration during runtime — does not touch snapshots                          |
+| Skill                                         | Relationship                                                                                                   |
+|-----------------------------------------------|----------------------------------------------------------------------------------------------------------------|
+| `experiment:experiment-mcp-environment-setup` | Run first if `sle mcp` is not connected                                                                        |
+| `assets:session-hardware-state`               | Sibling — owns `MesoscopeHardwareState` (the third per-session snapshot)                                       |
+| `assets:session-data`                         | Owns the `SessionData` marker file; dispatches the generic `SYSTEM_RAW_DATA_REGISTRY` (mesoscope tree -> here) |
+| `assets:session-descriptors`                  | Owns the per-session descriptor files                                                                          |
+| `/mesoscope-vr`                               | Provides `read_session_system_configuration_tool` for cross-reference                                          |
+| `assets:experiment-configuration`             | Provides `read_experiment_configuration_tool` for cross-reference (accepts session snapshot path)              |
+| `experiment:zaber-interface`                  | Live Zaber motor configuration during runtime — does not touch snapshots                                       |
 
 ---
 

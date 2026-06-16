@@ -49,12 +49,12 @@ verifying hardware interfaces through the ataraxis MCP servers, and wiring the s
 the four layers are complete, the system is *operated* through `/pipeline`, and the Sollertia
 configuration-time / runtime split applies (runtime acquisition is deterministic and AI-independent).
 
-| Layer                  | Repository                                             | Owning skill                                                   |
-|------------------------|--------------------------------------------------------|----------------------------------------------------------------|
-| Shared-assets contract | `sollertia-shared-assets`                              | `assets:library-extension`                             |
-| Hardware interfaces    | `sollertia-micro-controllers` + `sollertia-experiment` | `/microcontroller-interface` (+ ataraxis)                      |
-| Acquisition runtime    | `sollertia-experiment`                                 | `/acquisition-system-design` → `/acquisition-system-runtime`   |
-| Corridor task          | `sollertia-unity-tasks`                                | `assets:task-templates` → `unity:task-prefabs` |
+| Layer                  | Repository                                             | Owning skill                                                 |
+|------------------------|--------------------------------------------------------|--------------------------------------------------------------|
+| Shared-assets contract | `sollertia-shared-assets`                              | `assets:library-extension`                                   |
+| Hardware interfaces    | `sollertia-micro-controllers` + `sollertia-experiment` | `/microcontroller-interface` (+ ataraxis)                    |
+| Acquisition runtime    | `sollertia-experiment`                                 | `/acquisition-system-design` → `/acquisition-system-runtime` |
+| Corridor task          | `sollertia-unity-tasks`                                | `assets:task-templates` → `unity:task-prefabs`               |
 
 ### Phase ordering is load-bearing
 
@@ -221,13 +221,13 @@ list_supported_acquisition_systems_tool)?
 
 ## Cross-plugin handoffs at a glance
 
-Rows naming a Mesoscope-VR skill illustrate the worked example; the system you are building
-substitutes its own equivalents.
+Each row points to the system-agnostic owning skill; Mesoscope-VR is the worked example built
+through these same skills.
 
 | You need to…                                                   | Use…                                                              |
 |----------------------------------------------------------------|-------------------------------------------------------------------|
-| Register the system's contract in shared-assets                | `assets:library-extension`                                |
-| Add a trial class or trigger type                              | `assets:library-extension`                                |
+| Register the system's contract in shared-assets                | `assets:library-extension`                                        |
+| Add a trial class or trigger type                              | `assets:library-extension`                                        |
 | Add a paired `Module` + `ModuleInterface` (catalog, type code) | `/microcontroller-interface`                                      |
 | Write the firmware `Module` base mechanics                     | `ataraxis@microcontroller:firmware-module`                        |
 | Write the PC `ModuleInterface` base mechanics                  | `ataraxis@communication:microcontroller-interface`                |
@@ -238,11 +238,11 @@ substitutes its own equivalents.
 | Design the system's static composition                         | `/acquisition-system-design`                                      |
 | Implement the runtime loop, modes, CLI, MCP module             | `/acquisition-system-runtime`                                     |
 | Couple the runtime to the Unity VR task                        | `/vr-driver-interface`                                            |
-| Author the corridor task template                              | `assets:task-templates`                                   |
-| Generate the Unity prefab / scene from the template            | `unity:task-prefabs` / `unity:task-scenes`                     |
+| Author the corridor task template                              | `assets:task-templates`                                           |
+| Generate the Unity prefab / scene from the template            | `unity:task-prefabs` / `unity:task-scenes`                        |
 | Author a read / write external data-service processor          | `/google-sheets-processing`                                       |
-| Register a new external read asset                             | `assets:library-extension` / `assets:data-assets`               |
-| Register a new external-service credential category            | `assets:library-extension`                                |
+| Register a new external read asset                             | `assets:library-extension` / `assets:data-assets`                 |
+| Register a new external-service credential category            | `assets:library-extension`                                        |
 | Author the per-system instance / runtime skills                | `/acquisition-system-design` (steps 10–11)                        |
 | Configure a host and run the first session                     | `/pipeline`                                                       |
 
@@ -253,7 +253,7 @@ substitutes its own equivalents.
 | Skill                                              | Relationship                                                                                 |
 |----------------------------------------------------|----------------------------------------------------------------------------------------------|
 | `/pipeline`                                        | The operate-time counterpart; receives the built system for its first run                    |
-| `assets:library-extension`                 | Owns Phase 1 — the shared-assets contract, registries, and trial/trigger recipes             |
+| `assets:library-extension`                         | Owns Phase 1 — the shared-assets contract, registries, and trial/trigger recipes             |
 | `/microcontroller-interface`                       | Owns the Sollertia paired `Module` + `ModuleInterface` workflow and module catalog (Phase 2) |
 | `ataraxis@microcontroller:firmware-module`         | Owns the firmware `Module` authoring in Phase 2                                              |
 | `ataraxis@communication:microcontroller-interface` | Owns the `ModuleInterface` and `MicroControllerInterface` mechanics in Phase 2               |
@@ -261,10 +261,10 @@ substitutes its own equivalents.
 | `/zaber-interface`                                 | Owns the Zaber motor subsystem in Phase 2                                                    |
 | `/acquisition-system-design`                       | Owns Phase 3 static composition and the per-package deliverables manifest                    |
 | `/acquisition-system-runtime`                      | Owns Phase 3 runtime loop, modes, CLI, and MCP tool module                                   |
-| `assets:task-templates`                    | Owns the corridor task template in Phase 4                                                   |
-| `unity:task-prefabs`                       | Owns Unity prefab and scene generation in Phase 4                                            |
+| `assets:task-templates`                            | Owns the corridor task template in Phase 4                                                   |
+| `unity:task-prefabs`                               | Owns Unity prefab and scene generation in Phase 4                                            |
 | `/google-sheets-processing`                        | Owns the external data-service processors in Phase 5                                         |
-| `assets:data-assets`                       | Reads and amends the on-disk read assets a processor emits                                   |
+| `assets:data-assets`                               | Reads and amends the on-disk read assets a processor emits                                   |
 | `/acquisition-system-setup`                        | Resolves a built system to its owning instance skill during operation                        |
 
 ---

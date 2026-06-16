@@ -37,7 +37,7 @@ and must be invoked by hand-off.
 - Authoring per-project experiment configurations → `assets:experiment-configuration`
 - Reading the `SessionData` marker file → `assets:session-data`
 - Reading session descriptors → `assets:session-descriptors`
-- Reading frozen runtime snapshots → this plugin `mesoscope:mesoscope-vr-snapshots`
+- Reading frozen runtime snapshots → `mesoscope:mesoscope-vr-snapshots`
 - Reading subject metadata → `assets:data-assets`
 - Reading or curating datasets → `forging:datasets`
 
@@ -68,9 +68,9 @@ skill: `ataraxis@video:video-mcp-environment-setup`,
 
 ## Supported acquisition systems
 
-| System      | Description                                 | Schema reference                                                |
-|-------------|---------------------------------------------|-----------------------------------------------------------------|
-| `mesoscope` | Two-photon mesoscope with VR behavioral rig | this plugin `mesoscope:mesoscope-vr` (configuration-fields.md companion) |
+| System      | Description                                 | Schema reference                                             |
+|-------------|---------------------------------------------|--------------------------------------------------------------|
+| `mesoscope` | Two-photon mesoscope with VR behavioral rig | `mesoscope:mesoscope-vr` (configuration-fields.md companion) |
 
 When working with a specific acquisition system, hand off to that system's skill (e.g. `mesoscope:mesoscope-vr`)
 to read the canonical field schema. This skill does not duplicate that schema reference.
@@ -92,7 +92,7 @@ through the `sollertia-experiment` (`sle mcp`) server's `check_system_mounts_too
 Long-term storage locations are configured as entries in the system configuration's `storage_directories`
 mapping, keyed by destination name (the mapping also accepts additional destinations under arbitrary names).
 An entry left as an empty path is treated as not configured and is skipped — only the destinations a system
-actually declares need to be mounted:
+actually declares need to be mounted. For the Mesoscope-VR reference system, the seeded destinations are:
 
 | Mount Purpose  | `storage_directories` key | Description                              |
 |----------------|---------------------------|------------------------------------------|
@@ -108,21 +108,11 @@ preference.
 
 Within-system shares connect the separate PCs that together make up one acquisition system. Unlike long-term
 storage locations, which are one-way egress targets, a within-system share has no fixed direction — flow may be
-unidirectional or bidirectional. Typically, every PC aggregates its data onto the main acquisition PC before the data 
+unidirectional or bidirectional. Typically, every PC aggregates its data onto the main acquisition PC before the data
 is pushed to the long-term storage destination(s), but the main PC can also write back to a peer.
 
-The Mesoscope-VR system is a concrete example. Its `mesoscope_directory` field declares a within-system share
-with the ScanImagePC (a MATLAB workstation):
-
-| Mount Purpose      | Configuration Field    | Description                                    |
-|--------------------|------------------------|------------------------------------------------|
-| ScanImagePC share  | `mesoscope_directory`  | Data share with the ScanImagePC                |
-
-The share moves data only. The ScanImagePC writes the acquired imaging data — TIFFs,
-`MotionEstimator.me`, `fov.roi`, `zstack.tiff`, and the desktop alignment screenshot — into the
-share, and the acquisition PC reads it back during preprocessing and session setup. Mesoscope
-acquisition control travels over the shared MQTT broker, not through the share, so the ScanImagePC
-must expose this directory for the acquisition PC to mount as a direct-filesystem path.
+A within-system share connects peer PCs and moves data only. For the Mesoscope-VR reference system,
+`mesoscope_directory` is the ScanImagePC data share; see `mesoscope:mesoscope-vr`.
 
 ### Mount configuration
 
@@ -234,25 +224,9 @@ before running an experiment session.
 Invoke each tool and record what it returns. Mapping the discovered IDs and motor layout to fixed hardware
 roles is system-specific — hand off to the active acquisition system's skill for the canonical mapping.
 
-For the `mesoscope` system, that mapping is the following concrete example. Each `list_microcontrollers` ID
-maps to a fixed role:
-
-| Reported ID | Role    | Function                                            |
-|-------------|---------|-----------------------------------------------------|
-| `101`       | Actor   | Controls outputs (valves, brake, screen triggers)   |
-| `152`       | Sensor  | Monitors inputs (lick, torque, mesoscope frame TTL) |
-| `203`       | Encoder | High-precision wheel quadrature encoder             |
-
-The Zaber motors form three groups:
-
-| Group           | Axes           |
-|-----------------|----------------|
-| Headbar motors  | Z, Pitch, Roll |
-| Lickport motors | Z, Y, X        |
-| Wheel motor     | X (horizontal) |
-
-The system also exposes two cameras — a face camera and a body camera; match each `list_cameras` index to its
-role against the system's recorded configuration.
+For the current Mesoscope-VR reference system, `list_microcontrollers` returns three boards mapped to fixed
+actor/sensor/encoder roles, three Zaber groups, and two cameras — see `mesoscope:mesoscope-vr` for the canonical
+mapping.
 
 **Camera GenICam configuration verification.** When the active system records per-camera GenICam configuration
 paths (a standard practice for GenTL/GenICam cameras), verify the live cameras against their stored
@@ -281,7 +255,7 @@ After discovery completes, report the discovered hardware to the user as a struc
 1. `assets:working-directory` — set the working directory and the task templates directory.
    Also configure the `google` category credentials, but only if the system reads animal metadata from
    Google Sheets.
-2. the active acquisition system's skill (this plugin's `mesoscope:mesoscope-vr` for the `mesoscope` system) —
+2. the active acquisition system's skill (`mesoscope:mesoscope-vr` for the `mesoscope` system) —
    author the host machine's system configuration YAML against the discovered hardware values.
 3. `assets:project-hierarchy` — create the project (or projects) the host will record under.
 4. `assets:task-templates` — author or import the task templates the project will use.
@@ -302,17 +276,17 @@ You MUST NOT call `set_working_directory_tool`, `set_credentials_tool`,
 
 ## Troubleshooting
 
-| Error                                  | Cause                                  | Solution                                                                        |
-|----------------------------------------|----------------------------------------|---------------------------------------------------------------------------------|
-| Camera not found at expected index     | Wrong camera index                     | Re-run `list_cameras()`, hand off to the active system's skill                  |
-| Microcontroller connection failed      | Wrong port or disconnected             | Re-run `list_microcontrollers()`, check USB cables                              |
-| Zaber motor not responding             | Wrong port or powered off              | Re-run `get_zaber_devices_tool()`, verify power supply                          |
-| MQTT broker unreachable                | Broker not running                     | Start Mosquitto or the configured MQTT broker                                   |
-| Unity bridge unreachable               | Unity Editor not open                  | Open the Unity project in the editor; its MCP bridge auto-starts                |
-| FFMPEG not found                       | FFMPEG not installed                   | Install FFMPEG via the OS package manager                                       |
-| GPU not detected                       | NVIDIA driver missing                  | Install NVIDIA driver and restart                                               |
-| CTI file not configured                | GenTL producer not registered          | Hand off to `ataraxis@video:camera-setup` to register the CTI file              |
-| Live camera config differs from stored | Camera drifted or reconfigured         | Restore via `load_genicam_config`, or re-baseline via `dump_genicam_config`     |
+| Error                                  | Cause                                  | Solution                                                                                 |
+|----------------------------------------|----------------------------------------|------------------------------------------------------------------------------------------|
+| Camera not found at expected index     | Wrong camera index                     | Re-run `list_cameras()`, hand off to the active system's skill                           |
+| Microcontroller connection failed      | Wrong port or disconnected             | Re-run `list_microcontrollers()`, check USB cables                                       |
+| Zaber motor not responding             | Wrong port or powered off              | Re-run `get_zaber_devices_tool()`, verify power supply                                   |
+| MQTT broker unreachable                | Broker not running                     | Start Mosquitto or the configured MQTT broker                                            |
+| Unity bridge unreachable               | Unity Editor not open                  | Open the Unity project in the editor; its MCP bridge auto-starts                         |
+| FFMPEG not found                       | FFMPEG not installed                   | Install FFMPEG via the OS package manager                                                |
+| GPU not detected                       | NVIDIA driver missing                  | Install NVIDIA driver and restart                                                        |
+| CTI file not configured                | GenTL producer not registered          | Hand off to `ataraxis@video:camera-setup` to register the CTI file                       |
+| Live camera config differs from stored | Camera drifted or reconfigured         | Restore via `load_genicam_config`, or re-baseline via `dump_genicam_config`              |
 | Stored camera config file not found    | Declared path points at a missing file | Dump a baseline with `dump_genicam_config`, or fix the path via `mesoscope:mesoscope-vr` |
 
 For configuration-file-level errors (working directory not set, schema validation failures, missing projects),
@@ -345,13 +319,13 @@ hand off to the assets plugin skill that owns the affected asset.
 
 | Skill                                          | Relationship                                                            |
 |------------------------------------------------|-------------------------------------------------------------------------|
-| `assets:working-directory`             | Owns bootstrap state (working dir, credentials, templates dir)          |
-| this plugin `mesoscope:mesoscope-vr`                    | Owns `MesoscopeSystemConfiguration` authoring and validation            |
-| `forging:server-configuration`         | Owns `ServerConfiguration` authoring and validation                     |
-| `assets:project-hierarchy`             | Owns project creation (`create_project_tool`)                           |
-| `assets:task-templates`                | Owns task template authoring                                            |
-| `assets:experiment-configuration`      | Owns per-project experiment configuration authoring                     |
-| this plugin `/system-health-check`             | Lighter-weight pre-session verification sweep                           |
-| this plugin `/pipeline`                        | Phase 3 (Hardware bringup) is owned by this skill                       |
+| `assets:working-directory`                     | Owns bootstrap state (working dir, credentials, templates dir)          |
+| `mesoscope:mesoscope-vr`                       | Owns `MesoscopeSystemConfiguration` authoring and validation            |
+| `forging:server-configuration`                 | Owns `ServerConfiguration` authoring and validation                     |
+| `assets:project-hierarchy`                     | Owns project creation (`create_project_tool`)                           |
+| `assets:task-templates`                        | Owns task template authoring                                            |
+| `assets:experiment-configuration`              | Owns per-project experiment configuration authoring                     |
+| `/system-health-check`                         | Lighter-weight pre-session verification sweep                           |
+| `/pipeline`                                    | Phase 3 (Hardware bringup) is owned by this skill                       |
 | `ataraxis@video:camera-setup`                  | Canonical home for CTI configuration and runtime requirement deep-dives |
 | `ataraxis@communication:microcontroller-setup` | Canonical home for microcontroller manifest and discovery deep-dives    |

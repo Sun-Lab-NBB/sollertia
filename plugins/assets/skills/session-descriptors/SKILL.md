@@ -1,26 +1,30 @@
 ---
 name: session-descriptors
 description: >-
-  Reads, writes, and validates session descriptor YAMLs (LickTraining, RunTraining,
-  WindowChecking, MesoscopeExperiment descriptors) via the sollertia-shared-assets MCP server.
-  Owns write_session_descriptor_tool and describe_session_descriptor_schema_tool; tools are
-  file-path based, accepting raw session snapshots or forged dataset copies. Use when
-  repairing, amending, or inspecting a descriptor for any of the four session types.
+  Reads, writes, and validates per-system session descriptor YAMLs via the sollertia-shared-assets
+  MCP server. Descriptors are keyed on SessionTypes via DESCRIPTOR_REGISTRY; the parsing class
+  varies by session type while the filename, contract, and tools stay generic. Owns
+  write_session_descriptor_tool and describe_session_descriptor_schema_tool; tools are file-path
+  based, accepting raw session snapshots or forged dataset copies. Use when repairing, amending, or
+  inspecting a descriptor for any session type. For Mesoscope-VR's concrete descriptor schema, see
+  mesoscope:mesoscope-vr-session-schema.
 user-invocable: false
 ---
 
 # Sollertia session descriptors
 
-Reads, writes, and validates session descriptor YAML files via the `slsa mcp` MCP server.
-This skill is the **exclusive** owner of `write_session_descriptor_tool` and
+Reads, writes, and validates per-system session descriptor YAML files via the `slsa mcp` MCP
+server. This skill is the **exclusive** owner of `write_session_descriptor_tool` and
 `describe_session_descriptor_schema_tool` — no other skill in the marketplace may call these.
 
 Descriptors are treated as **standalone per-session records** keyed on their schema (the
-descriptor dataclass that matches a given `SessionTypes` value). The tools operate on whatever
-absolute `file_path` the caller supplies; they do not care whether that path points at a raw
-session snapshot, a forged dataset copy, or an ad-hoc location. The caller is responsible for
-resolving the path and supplying `session_type` so the right dataclass is used to parse or
-validate the file.
+descriptor dataclass that matches a given `SessionTypes` value via `DESCRIPTOR_REGISTRY`). The
+tools operate on whatever absolute `file_path` the caller supplies; they do not care whether that
+path points at a raw session snapshot, a forged dataset copy, or an ad-hoc location. The caller is
+responsible for resolving the path and supplying `session_type` so the right dataclass is used to
+parse or validate the file. This skill owns the **generic per-system descriptor contract**; the
+concrete field-level schema for any one system lives in that system's schema skill (for
+Mesoscope-VR, `mesoscope:mesoscope-vr-session-schema`).
 
 ---
 
@@ -46,8 +50,11 @@ validate the file.
   it back whole.
 - Resolving the canonical path for you. The caller (or a collaborating skill) supplies the
   absolute `file_path`; this skill only reads and writes.
+- Documenting any one system's concrete descriptor field-level schema (descriptor classes, field
+  names, types, defaults). For Mesoscope-VR, see `mesoscope:mesoscope-vr-session-schema`; for other
+  systems, call `describe_session_descriptor_schema_tool` against the resolved system.
 - Reading the `SessionData` marker file (see `/session-data`)
-- Reading or writing the per-session `MesoscopeHardwareState` snapshot (see
+- Reading or writing the per-session hardware-state snapshot (`hardware_state.yaml`) (see
   `/session-hardware-state`)
 - Reading the frozen `ZaberPositions` and `MesoscopePositions` snapshots (see the experiment
   plugin's `mesoscope:mesoscope-vr-snapshots`)
@@ -60,21 +67,23 @@ validate the file.
 
 ## Session types and descriptor classes
 
-Every descriptor file uses the same filename (`session_descriptor.yaml`) regardless of session
-type. The YAML parses into a session-type-specific descriptor dataclass:
+The descriptor file always uses the same filename (`session_descriptor.yaml`) regardless of
+session type. The YAML parses into a session-type-specific descriptor dataclass, and the library's
+`DESCRIPTOR_REGISTRY` maps each `SessionTypes` value → its descriptor class. **Only the parsing
+class varies by session type** — the filename, the file-path contract, the full-record-replacement
+semantics, and the MCP tool surface are all generic across systems and session types.
 
-| `SessionTypes` value   | Descriptor dataclass            |
-|------------------------|---------------------------------|
-| `lick training`        | `LickTrainingDescriptor`        |
-| `run training`         | `RunTrainingDescriptor`         |
-| `window checking`      | `WindowCheckingDescriptor`      |
-| `mesoscope experiment` | `MesoscopeExperimentDescriptor` |
+Each descriptor captures the **per-session** metadata that varies between sessions of the same type
+(reward volume actually delivered, water restriction status, observed behavior summary,
+experimenter notes). It is **distinct from** `SessionData`, which is the canonical session marker
+file.
 
-The library's `DESCRIPTOR_REGISTRY` maps `SessionTypes` → descriptor class; only the parsing
-class varies by session type. Each descriptor captures the **per-session** metadata that varies
-between sessions of the same type (reward volume actually delivered, water restriction status,
-observed behavior summary, experimenter notes). It is **distinct from** `SessionData`, which is
-the canonical session marker file.
+This skill is system-agnostic and does not enumerate the concrete descriptor classes or their
+fields. To learn which descriptor class a given session type resolves to and what fields it
+carries, call `describe_session_descriptor_schema_tool` for the session's resolved system (see
+**What a descriptor stores and how it is used** below). For Mesoscope-VR's concrete descriptor
+schema — the per-session-type descriptor classes and their exact field names, types, and defaults —
+see `mesoscope:mesoscope-vr-session-schema`.
 
 To enumerate the canonical `SessionTypes` strings, hand off to `/session-data` for the
 `list_supported_session_types_tool` call.
@@ -83,63 +92,42 @@ To enumerate the canonical `SessionTypes` strings, hand off to `/session-data` f
 
 ## What a descriptor stores and how it is used
 
-The summary below is loose, intended to orient an agent before it reads or amends a
-descriptor. For exact field names, types, and defaults call
-`describe_session_descriptor_schema_tool` or read the dataclass source — the schema is the
-canonical reference, this section is not.
+This section orients an agent before it reads or amends a descriptor, without committing to any
+one system's field set. The concrete fields a descriptor carries depend on the session's resolved
+system and session type, so **the schema tool is the canonical field reference, not this skill**:
+call `describe_session_descriptor_schema_tool` for the session's resolved system to obtain the
+exact field names, types, and defaults for a given session type. For Mesoscope-VR's concrete
+descriptor schema, see `mesoscope:mesoscope-vr-session-schema`.
 
-### Field categories
-
-All four descriptors share only **three** common fields:
-
-- **`experimenter`** — the supervising experimenter's ID.
-- **`incomplete`** — defaults to `True` and flips to `False` on a clean session end. This is
-  the durable **data-quality** signal: `incomplete=True` means the session ran past
-  initialization but hit a runtime issue and may have data gaps — the session still holds
-  real data and should not be purged. Distinct from the `nk.bin` **uninitialized** marker
-  described in `/session-data`: `nk.bin` presence means the runtime never finished
-  initializing the session at all, so there is no data of value and the session is a purge
-  target. The two signals are orthogonal and are surfaced as independent keys (`uninitialized`
-  and `incomplete`) by every status-reporting MCP tool.
-- **`experimenter_notes`** — runtime notes. The acquisition runtime requires the default
-  placeholder text be replaced before a session is signed off, so a non-default value is the
-  expected steady state.
-
-The three **non-window-checking** descriptors (`LickTrainingDescriptor`,
-`RunTrainingDescriptor`, `MesoscopeExperimentDescriptor`) additionally share:
-
-- **`animal_weight_g`** — the animal's weight at the start of the session.
-- **`maximum_unconsumed_rewards`** — cap on consecutive unclaimed water rewards before
-  delivery is paused.
-- **Runtime-recorded water totals** — three float fields that distinguish water delivered
-  during active runtime, water dispensed while paused, and any post-session top-up the
-  experimenter administered manually. Inspect the schema for exact field names.
-
-`WindowCheckingDescriptor` does **not** carry `animal_weight_g`, `maximum_unconsumed_rewards`,
-or water totals — its only session-type-specific field is `surgery_quality`.
-
-Beyond the shared fields above, each descriptor adds session-type-specific data:
-
-| Descriptor                      | Additional data                                                                                                                   |
-|---------------------------------|-----------------------------------------------------------------------------------------------------------------------------------|
-| `LickTrainingDescriptor`        | Lick-training reward schedule (reward size, tone duration, min/max reward delay) and training-time / water caps                   |
-| `RunTrainingDescriptor`         | Run-training thresholds (initial and final speed + duration, per-step increments, idle tolerance), reward schedule and water caps |
-| `MesoscopeExperimentDescriptor` | No additional fields beyond the non-window-checking shared set (reward schedule and zone params live on the experiment config)    |
-| `WindowCheckingDescriptor`      | `surgery_quality` (integer 0–3 grading the cranial-window surgery)                                                                |
+Regardless of system, every descriptor is a **per-session provenance and bookkeeping record** —
+who ran the session, how the animal behaved, how much water it received, and whether the runtime
+completed cleanly. A descriptor typically surfaces a durable **data-quality** signal (commonly an
+`incomplete` field): it means the session ran past initialization but hit a runtime issue and may
+have data gaps, yet still holds real data and should not be purged. This is distinct from the
+`nk.bin` **uninitialized** marker described in `/session-data`: `nk.bin` presence means the runtime
+never finished initializing the session at all, so there is no data of value and the session is a
+purge target. The two signals are orthogonal and are surfaced as independent keys (`uninitialized`
+and `incomplete`) by every status-reporting MCP tool. Confirm the exact field set against the
+schema tool before relying on any specific field.
 
 ### Lifecycle (high level)
 
 The acquisition runtime is the only authorized **primary** writer of the raw-session copy:
 
-1. At session start, it builds a precursor descriptor with the experimenter ID and starting
-   weight. For training sessions, training thresholds are seeded from the previous session's
-   descriptor cached at the per-animal `persistent_data/` slot (see `/project-hierarchy`), so
-   trained values carry across days without manual re-entry.
-2. At session end, the runtime records water totals and flips `incomplete` to `False`.
-3. The runtime then blocks shutdown until the experimenter replaces the default
-   `experimenter_notes` placeholder with real notes.
+1. At session start, it builds a precursor descriptor seeded with the known starting metadata for
+   that session and system. Some systems seed session-type-specific values (such as training
+   thresholds) from the previous session's descriptor cached at the per-animal `persistent_data/`
+   slot (see `/project-hierarchy`), so those values carry across days without manual re-entry.
+2. At session end, the runtime records the runtime-collected fields and flips the data-quality
+   signal (`incomplete`) to its clean-end value.
+3. The runtime then blocks shutdown until the experimenter replaces any default placeholder text
+   (such as `experimenter_notes`) with real notes.
 4. After verification, the descriptor is copied to the per-animal persistent cache, which
    becomes the seed for the next session of the same type.
+
+For the concrete per-system field set that participates in this lifecycle (which fields are
+seeded, which are runtime-recorded), call `describe_session_descriptor_schema_tool`; for
+Mesoscope-VR specifically, see `mesoscope:mesoscope-vr-session-schema`.
 
 The forging pipeline later writes a **secondary, independent** copy into the forged dataset
 hierarchy next to each session's `data.feather` (see **Known file locations** below). That
@@ -152,25 +140,25 @@ MCP, and neither does forging's initial copy step.
 
 ### Post-creation consumers
 
-After a descriptor exists on disk, downstream code reads it for:
+After a descriptor exists on disk, downstream code reads it for several generic purposes; the
+specific fields each consumer routes are system-dependent, so defer to the consumer's owning skill
+(and the system's schema skill) for exact field names:
 
 - **Cross-session continuity** — the next session's precursor reads the per-animal
-  persistent-cache copy to inherit training thresholds from the previous session of the same
-  type.
-- **Water-restriction logging** — the experiment library's preprocessing step reads water
-  totals, weight, and experimenter ID from the raw session copy and writes to the per-animal
-  water-restriction log; for window-checking sessions, reads `surgery_quality` and writes to
-  the surgery log instead.
-- **Project manifest assembly** — the forging library reads `incomplete` and
-  `experimenter_notes` from the raw session copy for the project-level manifest.
+  persistent-cache copy to inherit carried-over values from the previous session of the same type.
+- **Per-animal record logging** — the acquisition system's preprocessing step reads
+  session-summary fields from the raw session copy and writes them to the relevant per-animal log.
+- **Project manifest assembly** — the forging library reads the descriptor's status fields from
+  the raw session copy for the project-level manifest.
 - **Dataset eligibility and inclusion** — the forging library's dataset assembly verifies the
   descriptor exists in the raw session and copies it next to `data.feather` in the forged
   dataset so downstream analysis has experimenter context without touching raw data.
 
-For exact paths and call sites, defer to the owning skills (experiment plugin's data
-management, forging plugin's processing and forging skills). Descriptors themselves are
-primarily a **provenance and bookkeeping record** — what happened, who ran it, how much water
-the animal got — not an input to numerical processing.
+For exact paths, fields, and call sites, defer to the owning skills (experiment plugin's data
+management, forging plugin's processing and forging skills) and the system's schema skill
+(`mesoscope:mesoscope-vr-session-schema` for Mesoscope-VR). Descriptors themselves are primarily a
+**provenance and bookkeeping record** — what happened, who ran it, how much water the animal got —
+not an input to numerical processing.
 
 ### Known file locations
 
@@ -182,7 +170,7 @@ right path.
 | Location                                                    | Populated by                                                                   | Discovery path                                                                                                                        |
 |-------------------------------------------------------------|--------------------------------------------------------------------------------|---------------------------------------------------------------------------------------------------------------------------------------|
 | `<session>/raw_data/session_descriptor.yaml`                | Acquisition runtime at session end (primary on-disk copy)                      | Session root from `/session-discovery`; `inspect_sessions_tool` (`/session-data`) confirms presence in its `raw_data_files` inventory |
-| `<project_root>/<animal>/<session>/session_descriptor.yaml` | Forging pipeline (copy alongside `data.feather` at dataset assembly)           | Forging plugin's `forging:datasets` resolves the forged-session layout under a dataset's `project_root`                                      |
+| `<project_root>/<animal>/<session>/session_descriptor.yaml` | Forging pipeline (copy alongside `data.feather` at dataset assembly)           | Forging plugin's `forging:datasets` resolves the forged-session layout under a dataset's `project_root`                               |
 | `<persistent_data>/<animal>/session_descriptor.yaml`        | Acquisition runtime (per-animal cache used to seed the next same-type session) | `/project-hierarchy`                                                                                                                  |
 
 Other locations are possible — the tools take any absolute path — but the three above are the
@@ -328,12 +316,12 @@ Same as **Reading a descriptor** above, stopping at step 4.
 The three on-disk copies are independent — writing to one does not touch any other. Pick the
 target(s) that match the durability the user actually wants:
 
-| Scenario                                                                               | Action                                                                                                |
-|----------------------------------------------------------------------------------------|-------------------------------------------------------------------------------------------------------|
-| One raw session snapshot has a data-entry error                                        | `write_session_descriptor_tool` on `<session>/raw_data/session_descriptor.yaml`                       |
-| A forged dataset copy is wrong (e.g., it was copied from a bad raw snapshot)           | `write_session_descriptor_tool` on `<project_root>/<animal>/<session>/session_descriptor.yaml`        |
-| Both the raw snapshot and the forged copy are wrong for the same session               | Call `write_session_descriptor_tool` against each file separately — there is no propagation           |
-| The per-animal persistent cache is seeding the wrong values into future training runs  | Amend the cache copy directly (path from `/project-hierarchy`)                                        |
+| Scenario                                                                              | Action                                                                                         |
+|---------------------------------------------------------------------------------------|------------------------------------------------------------------------------------------------|
+| One raw session snapshot has a data-entry error                                       | `write_session_descriptor_tool` on `<session>/raw_data/session_descriptor.yaml`                |
+| A forged dataset copy is wrong (e.g., it was copied from a bad raw snapshot)          | `write_session_descriptor_tool` on `<project_root>/<animal>/<session>/session_descriptor.yaml` |
+| Both the raw snapshot and the forged copy are wrong for the same session              | Call `write_session_descriptor_tool` against each file separately — there is no propagation    |
+| The per-animal persistent cache is seeding the wrong values into future training runs | Amend the cache copy directly (path from `/project-hierarchy`)                                 |
 
 ---
 
@@ -362,15 +350,16 @@ target(s) that match the durability the user actually wants:
 
 ## Related skills
 
-| Skill                                       | Relationship                                                                                                             |
-|---------------------------------------------|--------------------------------------------------------------------------------------------------------------------------|
-| `/assets-mcp-environment-setup`             | Run first if the MCP server is not connected                                                                             |
-| `/working-directory`                        | Required prerequisite — bootstraps the local working directory the agent uses to resolve project roots                   |
-| `/session-data`                             | Sibling — owns `SessionData`, `list_supported_session_types_tool`, and `inspect_sessions_tool` for per-session inventory |
-| `/session-discovery`                        | Resolves raw session roots                                                                                               |
-| `/session-hardware-state`                   | Sibling — owns the per-session hardware-state snapshot                                                                   |
-| `/data-assets`                              | Sibling — owns read assets (e.g., subject/surgery records)                                                               |
-| `/project-hierarchy`                        | Provides `get_data_root_overview_tool` and per-animal persistent-cache paths                                             |
-| `mesoscope:mesoscope-vr-snapshots` | Owns the frozen Zaber and mesoscope-objective position snapshots                                                         |
-| `/library-extension`                        | Cross-cutting recipe to add a new `SessionTypes` member; lists the descriptor mapping table here that needs updating     |
-| `forging:datasets`                  | Resolves forged dataset per-session `session_descriptor.yaml` paths                                                      |
+| Skill                                   | Relationship                                                                                                             |
+|-----------------------------------------|--------------------------------------------------------------------------------------------------------------------------|
+| `/assets-mcp-environment-setup`         | Run first if the MCP server is not connected                                                                             |
+| `/working-directory`                    | Required prerequisite — bootstraps the local working directory the agent uses to resolve project roots                   |
+| `/session-data`                         | Sibling — owns `SessionData`, `list_supported_session_types_tool`, and `inspect_sessions_tool` for per-session inventory |
+| `/session-discovery`                    | Resolves raw session roots                                                                                               |
+| `/session-hardware-state`               | Sibling — owns the per-session hardware-state snapshot                                                                   |
+| `/data-assets`                          | Sibling — owns read assets (e.g., subject/surgery records)                                                               |
+| `/project-hierarchy`                    | Provides `get_data_root_overview_tool` and per-animal persistent-cache paths                                             |
+| `mesoscope:mesoscope-vr-session-schema` | Owns Mesoscope-VR's concrete descriptor field-level schema (classes, field names, types, defaults)                       |
+| `mesoscope:mesoscope-vr-snapshots`      | Owns the frozen Zaber and mesoscope-objective position snapshots                                                         |
+| `/library-extension`                    | Cross-cutting recipe to add a new `SessionTypes` member and its `DESCRIPTOR_REGISTRY` mapping                            |
+| `forging:datasets`                      | Resolves forged dataset per-session `session_descriptor.yaml` paths                                                      |

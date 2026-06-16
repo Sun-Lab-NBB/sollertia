@@ -63,8 +63,8 @@ generation — lives in the unity plugin. This skill owns the **host (Python) si
 | Unity-side editor MCP Bridge (scene / Play-Mode tools)               | `unity:play-mode`, `unity:scene-setup`             |
 | Unity-side MQTT topic contract (`MQTTTopics`)                        | `unity:mqtt-contract`                              |
 | Unity-side VR framework and game objects                             | `unity:gimbl-framework`                            |
-| `TaskTemplate` schema (cue catalog, geometry, motifs, trigger types) | `assets:task-templates`                    |
-| Runtime that consumes this driver                                    | `mesoscope:mesoscope-vr-runtime`                  |
+| `TaskTemplate` schema (cue catalog, geometry, motifs, trigger types) | `assets:task-templates`                            |
+| Runtime that consumes this driver                                    | `mesoscope:mesoscope-vr-runtime`                   |
 
 The driver builds on `ataraxis_communication_interface.MQTTCommunication` and only documents the
 Sollertia VR contract layered on top.
@@ -236,36 +236,26 @@ trial sequence the acquisition system can act on, using the per-trial cue motifs
   decomposition runs so re-decomposition after a Unity restart is cheap.
 - `DecomposedTrials` (frozen dataclass) — aligned per-trial sequences (index `i` = the i-th trial):
 
-  | Field                  | Type                      | Purpose                                                                                    |
-  |------------------------|---------------------------|--------------------------------------------------------------------------------------------|
-  | `cumulative_distances` | `NDArray[float64]`        | Cumulative distance (cm) to reach the end of each trial                                    |
-  | `trial_names`          | `tuple[str, ...]`         | Join key the runtime uses to look up per-trial parameters in its experiment configuration  |
-  | `trigger_types`        | `tuple[TriggerType, ...]` | The per-trial `TriggerType` member; the platform enum carries all five members (see below) |
+  | Field                  | Type               | Purpose                                                                                   |
+  |------------------------|--------------------|-------------------------------------------------------------------------------------------|
+  | `cumulative_distances` | `NDArray[float64]` | Cumulative distance (cm) to reach the end of each trial                                   |
+  | `trial_names`          | `tuple[str, ...]`  | Join key the runtime uses to look up per-trial parameters in its experiment configuration |
 
-`TriggerType` is owned by `sollertia-shared-assets` (and its enum is extended via the assets plugin's
-`assets:library-extension`). The platform enum carries **five** members — `INTERACTION`, `COLLISION`,
-`OCCUPANCY_DISARM`, `OCCUPANCY_ARM`, and `OCCUPANCY_TRIGGER` — but **each acquisition system maps only the
-subset it supports**. A new `TriggerType` member does NOT require a `from_task_template` branch in every
-system: a system may leave a member unsupported/unmapped, and a config that uses an unmapped member raises a
-clear "not mapped to a runtime trial class" error.
+The driver's `trial_names` are the join key the system's experiment configuration uses to look up per-trial
+structures; for the TriggerType taxonomy see `assets:experiment-configuration` / `assets:library-extension`,
+and for how a system maps trigger types to runtime trial classes see
+`mesoscope:mesoscope-vr-experiment-schema` (the `TriggerType` enum lives in `sollertia-shared-assets`).
 
-Mesoscope-VR's `from_task_template` currently maps **two** members:
-
-| `TriggerType` member | Mesoscope-VR runtime trial  | Notes                                               |
-|----------------------|-----------------------------|-----------------------------------------------------|
-| `INTERACTION`        | `MesoscopeWaterRewardTrial` | positive (reward-zone) trial                        |
-| `OCCUPANCY_DISARM`   | `MesoscopeGasPuffTrial`     | aversive (occupancy-zone) trial                     |
-| `COLLISION`          | (unmapped)                  | not mapped to a runtime trial class on Mesoscope-VR |
-| `OCCUPANCY_ARM`      | (unmapped)                  | not mapped to a runtime trial class on Mesoscope-VR |
-| `OCCUPANCY_TRIGGER`  | (unmapped)                  | not mapped to a runtime trial class on Mesoscope-VR |
+e.g. Mesoscope-VR maps `INTERACTION`->reward and `OCCUPANCY_DISARM`->gas-puff; for the full per-trigger
+mapping see `mesoscope:mesoscope-vr-experiment-schema`.
 
 The orchestrator reads the driver's `trial_names` — joining them against its experiment configuration's trial
-structures to build the per-trial reward/puff arrays — along with `cue_sequence_distances` and
-`state.cue_sequence`. `trigger_types` is an internal `DecomposedTrials` field that the driver does not expose
-as a property. All five modes share one MQTT/wire contract: every mode publishes the same
-`Stimulus{trialName}` event and adds no topics (see the [MQTT topic contract](#mqtt-topic-contract)); the
-Unity-side dispatch, prefab reuse, and mode-aware template geometry are owned by `unity:zone-prefabs`,
-`unity:task-generator`, and `assets:task-templates`.
+structures to build the per-trial outcome arrays (e.g. Mesoscope-VR's reward/puff arrays — see
+`mesoscope:mesoscope-vr-experiment-schema`) — along with `cue_sequence_distances` and `state.cue_sequence`.
+All trial modes share one MQTT/wire contract: every mode publishes the same `Stimulus{trialName}` event and
+adds no topics (see the [MQTT topic contract](#mqtt-topic-contract)); the Unity-side dispatch, prefab reuse,
+and mode-aware template geometry are owned by `unity:zone-prefabs`, `unity:task-generator`, and
+`assets:task-templates`.
 
 ---
 
@@ -331,7 +321,7 @@ side alone — Unity and the host silently desynchronize at runtime.
 | Editor bridge HTTP tools     | `UnityBridgeClient` (this skill)              | `unity:play-mode`, `unity:scene-setup` (`McpBridge.cs`)          | —                                                      |
 | Active scene name            | `expected_scene_name` + `SceneName` handshake | `unity:task-scenes`, `unity:task-prefabs`                        | `assets:experiment-configuration` (`unity_scene_name`) |
 | Cue catalog / trial motifs   | `decompose_cue_sequence` (this skill)         | `unity:task-generator`, `unity:task-prefabs`                     | `assets:task-templates` (`TaskTemplate`)               |
-| TriggerType / trigger zones  | `DecomposedTrials.trigger_types` (this skill) | `unity:zone-prefabs`, `unity:task-generator`                     | `assets:library-extension`, `assets:task-templates`    |
+| TriggerType / trigger zones  | `trial_names` join key (this skill)           | `unity:zone-prefabs`, `unity:task-generator`                     | `assets:library-extension`, `assets:task-templates`    |
 
 A wire-string, scene-name, cue-schema, or trigger-type change is a contract break that MUST be reconciled
 across every node in the matching row above — on both/all sides at once.
@@ -346,19 +336,19 @@ When in doubt, re-read `sollertia_experiment/vr_task/driver.py`,
 
 | Skill                                              | Relationship                                                                 |
 |----------------------------------------------------|------------------------------------------------------------------------------|
-| `mesoscope:mesoscope-vr-runtime`                  | Owns the orchestrator that composes and drives this driver                   |
-| `mesoscope:mesoscope-vr`                          | Defines `assets.vr_task` (`VRTaskConfiguration`) in the system config        |
-| `/acquisition-system-runtime`            | Platform-general runtime pattern this subsystem plugs into                   |
+| `mesoscope:mesoscope-vr-runtime`                   | Owns the orchestrator that composes and drives this driver                   |
+| `mesoscope:mesoscope-vr`                           | Defines `assets.vr_task` (`VRTaskConfiguration`) in the system config        |
+| `/acquisition-system-runtime`                      | Platform-general runtime pattern this subsystem plugs into                   |
 | `ataraxis@communication:microcontroller-interface` | `MQTTCommunication` mechanics the driver builds on                           |
-| `/system-health-check`                   | Pre-flight `check_unity_bridge_tool` that enforces the Unity Editor is open  |
+| `/system-health-check`                             | Pre-flight `check_unity_bridge_tool` that enforces the Unity Editor is open  |
 | `unity:play-mode`                                  | Unity-side editor bridge Play-Mode control the driver drives                 |
 | `unity:scene-setup`                                | Unity-side editor bridge scene activation the driver drives                  |
 | `unity:mqtt-contract`                              | Unity side of the MQTT topic contract (`MQTTTopics`)                         |
 | `unity:gimbl-framework`                            | Unity-side VR framework and game objects                                     |
 | `unity:task-prefabs`                               | Unity task prefab generation from templates                                  |
-| `assets:task-templates`                    | Authors the mandatory corridor task asset (`TaskTemplate`) decomposed here   |
-| `assets:library-extension`                 | Owns the `TriggerType` enum used by `DecomposedTrials`                       |
-| `assets:experiment-configuration`          | Owns `unity_scene_name` (verified by `setup()`) and the per-trial parameters |
+| `assets:task-templates`                            | Authors the mandatory corridor task asset (`TaskTemplate`) decomposed here   |
+| `assets:library-extension`                         | Owns the `TriggerType` enum (in `sollertia-shared-assets`)                   |
+| `assets:experiment-configuration`                  | Owns `unity_scene_name` (verified by `setup()`) and the per-trial parameters |
 
 ---
 

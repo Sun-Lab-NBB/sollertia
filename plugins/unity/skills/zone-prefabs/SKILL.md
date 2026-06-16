@@ -206,11 +206,11 @@ below.
 
 The new prefab is unreferenced once it is validated. The full cross-cutting recipe is split three ways:
 
-| Slice                                                | Owning skill                                                    |
-|------------------------------------------------------|-----------------------------------------------------------------|
+| Slice                                                | Owning skill                                            |
+|------------------------------------------------------|---------------------------------------------------------|
 | Python `TriggerType` enum + registry parity          | `assets:library-extension` (Adding a new `TriggerType`) |
-| `CreateTask` pipeline edits + `DeleteProtectedPaths` | `/task-generator` (Adding a new zone trigger type)              |
-| Prefab authoring (this skill)                        | `clone_zone_prefab_tool`, or the manual reference above         |
+| `CreateTask` pipeline edits + `DeleteProtectedPaths` | `/task-generator` (Adding a new zone trigger type)      |
+| Prefab authoring (this skill)                        | `clone_zone_prefab_tool`, or the manual reference above |
 
 The only `ResetZone` consideration that lives in this skill (because it depends on the new
 modifier script's class identity) is:
@@ -277,34 +277,34 @@ above handles routine variants in one call.
 
 ## Failure modes
 
-| Symptom                                                                              | Cause                                                                         | Resolution                                                                                                                                                               |
-|--------------------------------------------------------------------------------------|-------------------------------------------------------------------------------|--------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| Symptom                                                                              | Cause                                                                          | Resolution                                                                                                                                                               |
+|--------------------------------------------------------------------------------------|--------------------------------------------------------------------------------|--------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
 | `clone_zone_prefab_tool` returns "Script type '…' not found"                         | The named root or region script is not authored or the project is not compiled | Author the script, let Unity compile, then re-run the tool                                                                                                               |
 | `clone_zone_prefab_tool` returns "Field '…' does not exist on …"                     | A `fields` override names a member the modifier script does not declare        | Correct the field name to one the script declares; the tool rolled the asset back, so no partial prefab remains                                                          |
-| `inspect_prefab_tool` returns success but no `StimulusTriggerZone` component on root | Root MonoBehaviour was accidentally removed or its script GUID is invalid     | Re-read the source template; restore the root MonoBehaviour block verbatim (manual workflow only)                                                                        |
-| Hierarchy returned by `inspect_prefab_tool` is flat (no children)                    | `m_Father` ↔ `m_Children` symmetry was broken                                 | Verify every child's Transform `m_Father` matches the parent Transform's fileID, and that the parent's `m_Children` list contains the child's Transform fileID           |
-| Modifier script defaults look correct but the runtime behavior is wrong              | `m_Script.guid` references the wrong script                                   | Re-read the target script's `.cs.meta` and confirm the GUID; the `m_EditorClassIdentifier` line is informational and may lag the real script class until Unity reimports |
-| Unity Editor reports "missing script" when opening the new prefab                    | Either the script does not exist yet, or the GUID is malformed                | Confirm the `.cs` and `.cs.meta` files exist under `Scripts/`; ensure the GUID is 32 hex characters with no whitespace                                                   |
-| New prefab disappears after a cleanup pass                                           | Prefab not added to `McpBridge.DeleteProtectedPaths`                          | Add the path to the protected set and recover the prefab from git                                                                                                        |
-| Task generation succeeds but the new zone never triggers                             | `BuildSegmentPrefabs` does not route to the new prefab                        | Hand off to `/task-generator` — add a `trigger_type` branch and a `Place...Zone` helper                                                                                  |
+| `inspect_prefab_tool` returns success but no `StimulusTriggerZone` component on root | Root MonoBehaviour was accidentally removed or its script GUID is invalid      | Re-read the source template; restore the root MonoBehaviour block verbatim (manual workflow only)                                                                        |
+| Hierarchy returned by `inspect_prefab_tool` is flat (no children)                    | `m_Father` ↔ `m_Children` symmetry was broken                                  | Verify every child's Transform `m_Father` matches the parent Transform's fileID, and that the parent's `m_Children` list contains the child's Transform fileID           |
+| Modifier script defaults look correct but the runtime behavior is wrong              | `m_Script.guid` references the wrong script                                    | Re-read the target script's `.cs.meta` and confirm the GUID; the `m_EditorClassIdentifier` line is informational and may lag the real script class until Unity reimports |
+| Unity Editor reports "missing script" when opening the new prefab                    | Either the script does not exist yet, or the GUID is malformed                 | Confirm the `.cs` and `.cs.meta` files exist under `Scripts/`; ensure the GUID is 32 hex characters with no whitespace                                                   |
+| New prefab disappears after a cleanup pass                                           | Prefab not added to `McpBridge.DeleteProtectedPaths`                           | Add the path to the protected set and recover the prefab from git                                                                                                        |
+| Task generation succeeds but the new zone never triggers                             | `BuildSegmentPrefabs` does not route to the new prefab                         | Hand off to `/task-generator` — add a `trigger_type` branch and a `Place...Zone` helper                                                                                  |
 
 ---
 
 ## Related skills
 
-| Skill                                        | Relationship                                                               |
-|----------------------------------------------|----------------------------------------------------------------------------|
-| `/task-prefabs` (this plugin)                | Provides `clone_zone_prefab_tool` and `inspect_prefab_tool`                |
-| `/task-generator` (this plugin)              | Reference for `BuildSegmentPrefabs`, `Place...Zone`, and validator updates |
-| `/task-parameters` (this plugin)             | Reference if the new zone exposes Inspector-driven fields                  |
-| `/task-scenes` (this plugin)                 | Consumer — places the regenerated task prefab into a scene                 |
-| `/play-mode` (this plugin)                   | Consumer — exercises the new zone at runtime                               |
-| `/mqtt-contract` (this plugin)               | Reference if the new modifier publishes or subscribes to MQTT topics       |
-| `/unity-mcp-environment-setup` (this plugin) | Run first if the Unity Editor bridge is unreachable                        |
-| `assets:library-extension`           | Required for new `TriggerType` member and registry parity check            |
-| `ataraxis@automation:csharp-style`            | Required when authoring the new modifier script and editing C# wiring      |
-| `ataraxis@automation:commit`                  | Run after the prefab, script, and wiring changes are ready to commit       |
-| `experiment:vr-driver-interface`     | Host pairs `DecomposedTrials.trigger_types` with these trigger zones       |
+| Skill                                        | Relationship                                                                                               |
+|----------------------------------------------|------------------------------------------------------------------------------------------------------------|
+| `/task-prefabs` (this plugin)                | Provides `clone_zone_prefab_tool` and `inspect_prefab_tool`                                                |
+| `/task-generator` (this plugin)              | Reference for `BuildSegmentPrefabs`, `Place...Zone`, and validator updates                                 |
+| `/task-parameters` (this plugin)             | Reference if the new zone exposes Inspector-driven fields                                                  |
+| `/task-scenes` (this plugin)                 | Consumer — places the regenerated task prefab into a scene                                                 |
+| `/play-mode` (this plugin)                   | Consumer — exercises the new zone at runtime                                                               |
+| `/mqtt-contract` (this plugin)               | Reference if the new modifier publishes or subscribes to MQTT topics                                       |
+| `/unity-mcp-environment-setup` (this plugin) | Run first if the Unity Editor bridge is unreachable                                                        |
+| `assets:library-extension`                   | Required for new `TriggerType` member and registry parity check                                            |
+| `ataraxis@automation:csharp-style`           | Required when authoring the new modifier script and editing C# wiring                                      |
+| `ataraxis@automation:commit`                 | Run after the prefab, script, and wiring changes are ready to commit                                       |
+| `experiment:vr-driver-interface`             | Host consumes the `Stimulus{trialName}` events these zones emit, joined via `DecomposedTrials.trial_names` |
 
 ---
 

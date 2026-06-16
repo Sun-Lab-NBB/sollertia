@@ -86,17 +86,17 @@ Unity VR task driver the orchestrator uses to couple to the game engine, see
 
 ## Authoritative bases
 
-| Concern                                           | Authority                                              |
-|---------------------------------------------------|--------------------------------------------------------|
-| Platform-general runtime pattern                  | `experiment:acquisition-system-runtime`                |
-| Mesoscope-VR hardware composition                 | `/mesoscope-vr`                              |
-| Unity VR task driver + MQTT contract              | `experiment:vr-driver-interface`                       |
-| Per-firmware-module wrapper API                   | `experiment:microcontroller-interface`                 |
-| `SessionTypes` enum                               | `assets:session-descriptors`                   |
-| Session descriptor dataclass authoring            | `assets:session-descriptors`                   |
-| Task template authoring (trial structure)         | `assets:task-templates`                        |
-| Experiment configuration authoring                | `assets:experiment-configuration`              |
-| Session-data lifecycle                            | `experiment:data-management`                           |
+| Concern                                   | Authority                               |
+|-------------------------------------------|-----------------------------------------|
+| Platform-general runtime pattern          | `experiment:acquisition-system-runtime` |
+| Mesoscope-VR hardware composition         | `/mesoscope-vr`                         |
+| Unity VR task driver + MQTT contract      | `experiment:vr-driver-interface`        |
+| Per-firmware-module wrapper API           | `experiment:microcontroller-interface`  |
+| `SessionTypes` enum                       | `assets:session-descriptors`            |
+| Session descriptor dataclass authoring    | `assets:session-descriptors`            |
+| Task template authoring (trial structure) | `assets:task-templates`                 |
+| Experiment configuration authoring        | `assets:experiment-configuration`       |
+| Session-data lifecycle                    | `experiment:data-management`            |
 
 This skill documents how the runtime *consumes* descriptors, session data, and task templates. It
 does NOT document how to author them.
@@ -227,13 +227,13 @@ orchestrator's stimulus handling in `experiment_logic` / `runtime_cycle`.
 `MesoscopeVRLogMessageCodes` (`IntEnum`, in `acquisition_components.py`) defines the event codes the
 orchestrator emits to the DataLogger:
 
-| Code | Name                          | Meaning                                                       |
-|------|-------------------------------|---------------------------------------------------------------|
-| 1    | `SYSTEM_STATE`                | System has changed hardware-control (system) state            |
-| 2    | `RUNTIME_STATE`               | Acquired session has changed runtime state (stage)            |
-| 3    | `REINFORCING_GUIDANCE_STATE`  | Reinforcing-trial guidance state changed                      |
-| 4    | `AVERSIVE_GUIDANCE_STATE`     | Aversive-trial guidance state changed                         |
-| 5    | `DISTANCE_SNAPSHOT`           | Total traveled distance at Unity-signaled runtime termination |
+| Code | Name                         | Meaning                                                       |
+|------|------------------------------|---------------------------------------------------------------|
+| 1    | `SYSTEM_STATE`               | System has changed hardware-control (system) state            |
+| 2    | `RUNTIME_STATE`              | Acquired session has changed runtime state (stage)            |
+| 3    | `REINFORCING_GUIDANCE_STATE` | Reinforcing-trial guidance state changed                      |
+| 4    | `AVERSIVE_GUIDANCE_STATE`    | Aversive-trial guidance state changed                         |
+| 5    | `DISTANCE_SNAPSHOT`          | Total traveled distance at Unity-signaled runtime termination |
 
 New events get the next unused code (currently 6). These codes are consumed by downstream behavior
 processing in the forging plugin's behavior pipeline.
@@ -326,11 +326,11 @@ delivery. The maintenance GUI lives separately in `maintenance_ui.py`.
 
 The visualizer's display mode is set by `VisualizerMode` (`IntEnum`, in `visualizer.py`):
 
-| Mode            | Value | Panels displayed                                       |
-|-----------------|-------|--------------------------------------------------------|
-| `LICK_TRAINING` | 0     | Lick sensor signal, valve open events                  |
-| `RUN_TRAINING`  | 1     | Lick, valve, and running-speed plots                   |
-| `EXPERIMENT`    | 2     | All of the above plus the trial-performance panel      |
+| Mode            | Value | Panels displayed                                  |
+|-----------------|-------|---------------------------------------------------|
+| `LICK_TRAINING` | 0     | Lick sensor signal, valve open events             |
+| `RUN_TRAINING`  | 1     | Lick, valve, and running-speed plots              |
+| `EXPERIMENT`    | 2     | All of the above plus the trial-performance panel |
 
 Adding a new visualizer mode is a code change to `visualizer.py`, typically required when adding a
 new runtime mode whose display needs differ from the existing three.
@@ -458,21 +458,23 @@ reconcile this skill against ground truth.
 
 ## Related skills
 
-| Skill                                     | Relationship                                                                             |
-|-------------------------------------------|------------------------------------------------------------------------------------------|
-| `experiment:acquisition-system-runtime`   | Platform-general runtime pattern this system instantiates.                               |
-| `/mesoscope-vr`                 | Hardware composition for the binding classes the runtime composes.                       |
-| `experiment:acquisition-system-design`    | Platform-general static composition pattern.                                             |
-| `experiment:vr-driver-interface`          | The `VRTaskDriver` the orchestrator uses for Unity coupling; MQTT + trial decomposition. |
-| `experiment:microcontroller-interface`    | Per-module wrapper API the orchestrator and visualizer consume.                          |
-| `assets:session-descriptors`      | Authors descriptors and the `SessionTypes` enum the runtime consumes.                    |
-| `assets:task-templates`           | Authors task templates the experiment runtime loads.                                     |
-| `assets:experiment-configuration` | Authors experiment configurations the runtime loads.                                     |
-| `experiment:data-management`              | Downstream session-data lifecycle (preprocess, transfer, delete).                        |
-| `/mesoscope-vr-snapshots`       | Zaber/mesoscope position snapshots captured at session start.                            |
-| `unity:gimbl-framework`                   | Unity-side framework for the VR game engine.                                             |
-| `unity:mqtt-contract`                     | Unity-side MQTT topic registration.                                                      |
-| `unity:task-prefabs`                      | Unity-side task prefab generation from task templates.                                   |
+| Skill                                   | Relationship                                                                             |
+|-----------------------------------------|------------------------------------------------------------------------------------------|
+| `experiment:acquisition-system-runtime` | Platform-general runtime pattern this system instantiates.                               |
+| `/mesoscope-vr`                         | Hardware composition for the binding classes the runtime composes.                       |
+| `experiment:acquisition-system-design`  | Platform-general static composition pattern.                                             |
+| `experiment:vr-driver-interface`        | The `VRTaskDriver` the orchestrator uses for Unity coupling; MQTT + trial decomposition. |
+| `experiment:microcontroller-interface`  | Per-module wrapper API the orchestrator and visualizer consume.                          |
+| `assets:session-descriptors`            | Authors descriptors and the `SessionTypes` enum the runtime consumes.                    |
+| `assets:task-templates`                 | Authors task templates the experiment runtime loads.                                     |
+| `assets:experiment-configuration`       | Authors experiment configurations the runtime loads.                                     |
+| `experiment:data-management`            | Downstream session-data lifecycle (preprocess, transfer, delete).                        |
+| `/mesoscope-vr-snapshots`               | Zaber/mesoscope position snapshots captured at session start.                            |
+| `/mesoscope-vr-session-schema`          | Field-level schema for the descriptors + hardware state this runtime populates           |
+| `/mesoscope-vr-experiment-schema`       | Field-level schema for the experiment config + trial types this runtime executes         |
+| `unity:gimbl-framework`                 | Unity-side framework for the VR game engine.                                             |
+| `unity:mqtt-contract`                   | Unity-side MQTT topic registration.                                                      |
+| `unity:task-prefabs`                    | Unity-side task prefab generation from task templates.                                   |
 
 ---
 

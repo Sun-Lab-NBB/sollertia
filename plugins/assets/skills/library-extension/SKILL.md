@@ -92,20 +92,24 @@ trial classes vary per system), a `unity_scene_name` field (the corridor scene t
 and a `from_task_template` builder. Fields beyond the contract are system-specific.
 Mesoscope-VR is one exemplar of the contract: its `MesoscopeWaterRewardTrial` / `MesoscopeGasPuffTrial`
 trial classes are exemplar-specific, and another system has its own trial classes and may add
-different fields.
+different fields. For the authoritative field-level schema of this exemplar — the
+`MesoscopeExperimentConfiguration` fields, its two trial classes, and the trigger-to-trial mapping —
+see `mesoscope:mesoscope-vr-experiment-schema`; for the exemplar's descriptors and hardware-state
+schema, see `mesoscope:mesoscope-vr-session-schema`.
 
 A system's trial classes are introspected from its experiment configuration's `trial_structures`
 field via the `collect_field_dataclasses` helper in
 `interfaces/mcp_instance.py`. `list_supported_trial_types_tool(acquisition_system)` resolves the
-system's experiment-configuration class and derives the trial vocabulary from that field;
-`MesoscopeExperimentConfiguration.from_task_template` maps the subset of `TriggerType` members it
-supports to runtime trial classes (it maps `INTERACTION` → `MesoscopeWaterRewardTrial` and
-`OCCUPANCY_DISARM` → `MesoscopeGasPuffTrial`; `COLLISION`, `OCCUPANCY_ARM`, and `OCCUPANCY_TRIGGER`
-are intentionally unmapped and raise a clear "not mapped to a runtime trial class" error if a
-Mesoscope-VR config uses them).
+system's experiment-configuration class and derives the trial vocabulary from that field; each
+system's `from_task_template` maps the subset of `TriggerType` members it supports to runtime trial
+classes and leaves the rest intentionally unmapped, so a config that uses an unmapped member raises a
+clear "not mapped to a runtime trial class" error (e.g. Mesoscope-VR maps `INTERACTION` → reward and
+`OCCUPANCY_DISARM` → puff; see `mesoscope:mesoscope-vr-experiment-schema` for its full trigger-to-trial
+mapping).
 The trial classes themselves are standalone dataclasses defined in the owning system's subpackage
 (Mesoscope-VR's live in `mesoscope_vr/experiment_configuration.py`, next to
-`MesoscopeExperimentConfiguration`). `from_task_template` is a mandatory contract method on
+`MesoscopeExperimentConfiguration`; their exact fields are documented in
+`mesoscope:mesoscope-vr-experiment-schema`). `from_task_template` is a mandatory contract method on
 every `<System>ExperimentConfiguration`, enforced at import by `_assert_experiment_configuration_contract`
 (`registries.py`), and `create_experiment_from_vr_template_tool` dispatches through
 `EXPERIMENT_CONFIGURATION_REGISTRY` to the resolved system's builder.
@@ -176,12 +180,12 @@ touches** (which is what this skill uniquely owns), and the downstream-library c
 **Skill touches** — update each of the following so its hardcoded enumeration matches the new
 member:
 
-| Skill                       | What to update                                                                                                                                                                                       |
-|-----------------------------|------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
-| `/session-data`             | The `SessionTypes` enumeration sentence under "Session types"; the required-assets paragraph if the new type changes which per-session snapshots are required                                        |
-| `/session-descriptors`      | The "Session types and descriptor classes" mapping table                                                                                                                                             |
-| `/session-hardware-state`   | The "Per-session-type field population" table — add a row for the new type even if it produces no hardware-state file (record the absence explicitly so callers do not infer "missing data")         |
-| `/experiment-configuration` | Mention the new session type only if the experiment-configuration flow accepts it (it currently does not — only `mesoscope experiment` consumes the experiment configuration snapshot)               |
+| Skill                       | What to update                                                                                                                                                                                                                                                                          |
+|-----------------------------|-----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| `/session-data`             | The `SessionTypes` enumeration sentence under "Session types"; the required-assets paragraph if the new type changes which per-session snapshots are required                                                                                                                           |
+| `/session-descriptors`      | The "Session types and descriptor classes" mapping table (the Mesoscope-VR exemplar descriptors' authoritative field schema lives in `mesoscope:mesoscope-vr-session-schema`)                                                                                                           |
+| `/session-hardware-state`   | The "Per-session-type field population" table — add a row for the new type even if it produces no hardware-state file (record the absence explicitly so callers do not infer "missing data"); the Mesoscope-VR exemplar's field schema lives in `mesoscope:mesoscope-vr-session-schema` |
+| `/experiment-configuration` | Mention the new session type only if the experiment-configuration flow accepts it (it currently does not — only `mesoscope experiment` consumes the experiment configuration snapshot)                                                                                                  |
 
 **Downstream coordination:**
 - `sollertia-experiment` actually creates sessions of the new type during acquisition. Hand off to
@@ -200,7 +204,10 @@ member:
    `mesoscope_vr/runtime_data.py`); `<system>/raw_data.py` holds `<System>RawData` with its `build` classmethod and
    any `<System>RawDataFiles` / `<System>Directories` enums (mirror `mesoscope_vr/raw_data.py`); and
    `<system>/experiment_configuration.py` holds `<System>ExperimentConfiguration` (mirror
-   `mesoscope_vr/experiment_configuration.py`). Export every class from the subpackage's `__init__.py`.
+   `mesoscope_vr/experiment_configuration.py`). Export every class from the subpackage's `__init__.py`. For the
+   authoritative field schema of the Mesoscope-VR exemplars you are mirroring, see
+   `mesoscope:mesoscope-vr-session-schema` (descriptors and hardware-state) and
+   `mesoscope:mesoscope-vr-experiment-schema` (experiment-configuration and trial classes).
 3. In `registries.py`, import the new classes from the system subpackage and register them in
    `HARDWARE_STATE_REGISTRY`, `EXPERIMENT_CONFIGURATION_REGISTRY`, and `SYSTEM_RAW_DATA_REGISTRY`, and add a
    `SYSTEM_SESSION_TYPES` entry mapping the new system to the `frozenset` of `SessionTypes` it can run (declare at
@@ -217,12 +224,12 @@ member:
 **Skill touches** — update each of the following so its hardcoded "currently only Mesoscope-VR"
 framing reflects the new member:
 
-| Skill                       | What to update                                                                                                                                                                                                                                                                                                           |
-|-----------------------------|--------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
-| `/session-data`             | The `instance.system_raw_data` bullet under "Path-resolution sub-dataclasses on `SessionData`" — add the new `<System>RawData` field list; the `Mesoscope-VR` mention in "Does not cover" if `mesoscope:mesoscope-vr-snapshots` becomes one of several owners of system-specific snapshots                |
-| `/session-hardware-state`   | The frontmatter description, the "currently the only concrete subclass is `MesoscopeHardwareState`" prose, and the "Per-session-type field population (Mesoscope-VR example)" framing — clone the table format for the new system                                                                                        |
-| `/experiment-configuration` | The frontmatter description, the "currently only `MesoscopeExperimentConfiguration`" prose, and any per-trial-class assumptions specific to the Mesoscope-VR rig. The new system reuses `create_experiment_from_vr_template_tool` once its `<System>ExperimentConfiguration` implements the `from_task_template` builder |
-| `/task-templates`           | The "currently only `MesoscopeExperimentConfiguration`" mention                                                                                                                                                                                                                                                          |
+| Skill                       | What to update                                                                                                                                                                                                                                                                                                                                                                                                                       |
+|-----------------------------|--------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| `/session-data`             | The `instance.system_raw_data` bullet under "Path-resolution sub-dataclasses on `SessionData`" — add the new `<System>RawData` field list; the `Mesoscope-VR` mention in "Does not cover" if `mesoscope:mesoscope-vr-snapshots` becomes one of several owners of system-specific snapshots                                                                                                                                           |
+| `/session-hardware-state`   | The frontmatter description, the "currently the only concrete subclass is `MesoscopeHardwareState`" prose, and the "Per-session-type field population (Mesoscope-VR example)" framing — clone the table format for the new system. The Mesoscope-VR exemplar's authoritative field schema lives in `mesoscope:mesoscope-vr-session-schema`                                                                                           |
+| `/experiment-configuration` | The frontmatter description, the "currently only `MesoscopeExperimentConfiguration`" prose, and any per-trial-class assumptions specific to the Mesoscope-VR rig. The new system reuses `create_experiment_from_vr_template_tool` once its `<System>ExperimentConfiguration` implements the `from_task_template` builder. The Mesoscope-VR exemplar's authoritative field schema lives in `mesoscope:mesoscope-vr-experiment-schema` |
+| `/task-templates`           | The "currently only `MesoscopeExperimentConfiguration`" mention                                                                                                                                                                                                                                                                                                                                                                      |
 
 **Downstream coordination:**
 - `sollertia-experiment` owns the system-level hardware/software configuration classes and the
@@ -244,7 +251,8 @@ framing reflects the new member:
 **Code touches** — follow the README's "Adding a New Trial Class" recipe:
 1. Define the new class in the owning system's `<system>/experiment_configuration.py` as a standalone
    `@dataclass(frozen=True, slots=True)`, prefixing its name with the system name (mirror
-   `MesoscopeWaterRewardTrial` / `MesoscopeGasPuffTrial` for shape and naming). The new class
+   `MesoscopeWaterRewardTrial` / `MesoscopeGasPuffTrial` for shape and naming; their authoritative field
+   schema is documented in `mesoscope:mesoscope-vr-experiment-schema`). The new class
    carries **only** runtime parameters (rewards, durations, thresholds) — no spatial fields. Those
    live on the matching `TrialStructure` inside the paired task template.
 2. Export it from the system subpackage's `__init__.py` and the top-level `__init__.py`.
@@ -256,32 +264,32 @@ framing reflects the new member:
 
 **Skill touches:**
 
-| Skill                                    | What to update                                                                                                                                                                                                                                                                              |
-|------------------------------------------|---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
-| `/experiment-configuration`              | The "Templates vs experiment configurations" framing, the trigger → trial-class pairing convention, the `trial_structures` schema description, and the "Common patterns" table                                                                                                              |
-| `/task-templates`                        | The trial-class enumeration in the template vocabulary section                                                                                                                                                                                                                              |
-| `experiment:vr-driver-interface` | The `DecomposedTrials.trigger_types` semantics table (e.g. `INTERACTION` = reward, `OCCUPANCY_DISARM` = aversive; the `COLLISION` / `OCCUPANCY_ARM` / `OCCUPANCY_TRIGGER` members exist in the enum but Mesoscope-VR leaves them unmapped) and the orchestrator's per-trigger dispatch note |
+| Skill                            | What to update                                                                                                                                                                                                                                                                            |
+|----------------------------------|-------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| `/experiment-configuration`      | The "Templates vs experiment configurations" framing, the trigger → trial-class pairing convention, the `trial_structures` schema description, and the "Common patterns" table (the Mesoscope-VR exemplar's trial-class field schema lives in `mesoscope:mesoscope-vr-experiment-schema`) |
+| `/task-templates`                | The trial-class enumeration in the template vocabulary section                                                                                                                                                                                                                            |
+| `experiment:vr-driver-interface` | How the orchestrator dispatches per-trigger outcomes via the driver's `Stimulus` events (joined by `DecomposedTrials.trial_names`); the trigger->trial-class mapping itself lives in the system's experiment config (see `mesoscope:mesoscope-vr-experiment-schema`)                      |
 
 ### Adding a new `TriggerType` member
 
 This skill owns the **Python registry slice** of the cross-cutting recipe. The full extension is
 split three ways and each skill owns its slice — apply all three:
 
-| Slice                                                                                             | Owning skill                             |
-|---------------------------------------------------------------------------------------------------|------------------------------------------|
-| Python `TriggerType` enum + per-supporting-system `from_task_template` branch (this skill, below) | `/library-extension` (this skill)        |
-| Hand-authored zone prefab manufacturing                                                           | `unity:zone-prefabs` (Steps 1–6) |
-| `CreateTask` pipeline edits + `DeleteProtectedPaths`                                              | `unity:task-generator`           |
+| Slice                                                                                             | Owning skill                      |
+|---------------------------------------------------------------------------------------------------|-----------------------------------|
+| Python `TriggerType` enum + per-supporting-system `from_task_template` branch (this skill, below) | `/library-extension` (this skill) |
+| Hand-authored zone prefab manufacturing                                                           | `unity:zone-prefabs` (Steps 1–6)  |
+| `CreateTask` pipeline edits + `DeleteProtectedPaths`                                              | `unity:task-generator`            |
 
 The platform `TriggerType` enum carries the full taxonomy — currently five members: `INTERACTION`,
 `COLLISION`, `OCCUPANCY_DISARM`, `OCCUPANCY_ARM`, and `OCCUPANCY_TRIGGER` (the C# `ConfigLoader`
 accepts all five literals). **System support is a per-system subset**: each acquisition system's
 `from_task_template` maps only the members it supports, and may leave the rest unmapped. A new
-`TriggerType` member therefore does **not** require a `from_task_template` branch in every system. A 
+`TriggerType` member therefore does **not** require a `from_task_template` branch in every system. A
 system that does not support it simply omits the branch, and a config that uses the unmapped member
-raises a clear "not mapped to a runtime trial class" error. The Mesoscope-VR system maps `INTERACTION`
-(→ `MesoscopeWaterRewardTrial`) and `OCCUPANCY_DISARM` (→ `MesoscopeGasPuffTrial`), and does not map
-`COLLISION`, `OCCUPANCY_ARM`, or `OCCUPANCY_TRIGGER`.
+raises a clear "not mapped to a runtime trial class" error (e.g. Mesoscope-VR maps `INTERACTION` →
+reward and `OCCUPANCY_DISARM` → puff and leaves the rest unmapped; see
+`mesoscope:mesoscope-vr-experiment-schema` for its full trigger-to-trial mapping).
 
 **Code touches** — follow the README's "Adding a New Trigger Type" recipe for the Python slice owned here:
 1. Append the member to `TriggerType` in `configuration/vr_configuration.py`.
@@ -322,9 +330,9 @@ sollertia-shared-assets maintainers rather than a routine extension.
 
 **Skill touches:**
 
-| Skill                                         | What to update                                                                                                                                          |
-|-----------------------------------------------|---------------------------------------------------------------------------------------------------------------------------------------------------------|
-| `/data-assets`                                | No new skill needed — the generic data-asset tools serve the new asset automatically once registered; add it to that skill's worked examples if notable |
+| Skill                                 | What to update                                                                                                                                          |
+|---------------------------------------|---------------------------------------------------------------------------------------------------------------------------------------------------------|
+| `/data-assets`                        | No new skill needed — the generic data-asset tools serve the new asset automatically once registered; add it to that skill's worked examples if notable |
 | `experiment:google-sheets-processing` | Add the new asset's reader/translation and the registered dataclass it produces                                                                         |
 
 **Downstream coordination:**
@@ -389,26 +397,28 @@ required-asset branches, and the skill content.
 
 ## Related skills
 
-| Skill                                           | Relationship                                                                                                                                            |
-|-------------------------------------------------|---------------------------------------------------------------------------------------------------------------------------------------------------------|
-| `/assets-mcp-environment-setup`                 | Run if the parity check fails at import time — the failure manifests as an MCP startup error                                                            |
-| `/working-directory`                            | Required prerequisite — bootstraps the working directory consumed by every extension touch-point                                                        |
-| `/session-data`                                 | Receives skill touch-ups for new `SessionTypes` and new `AcquisitionSystems`                                                                            |
-| `/session-descriptors`                          | Receives skill touch-ups for new `SessionTypes`                                                                                                         |
-| `/session-hardware-state`                       | Receives skill touch-ups for new `SessionTypes` and new `AcquisitionSystems`                                                                            |
-| `/experiment-configuration`                     | Receives skill touch-ups for new `AcquisitionSystems`, runtime trial classes, and `TriggerType` members                                                 |
-| `/task-templates`                               | Receives skill touch-ups for new `TriggerType` and runtime trial classes                                                                                |
-| `experiment:acquisition-system-design`  | Owns the runtime-side configuration and binding-class design for any new acquisition system; authors the system's dedicated agentic assets (steps 9–10) |
-| `experiment:acquisition-system-runtime` | Owns the runtime that creates and runs sessions of any new session type during acquisition                                                              |
-| `experiment:data-management`            | Manages the post-acquisition lifecycle (preprocess, migrate, delete) for sessions of any type                                                           |
-| `experiment:google-sheets-processing`   | Owns the reader that translates an external source into a read asset's on-disk dataclass                                                                |
-| `forging:behavior-input-format`         | Decides eligibility of new session types for behavior processing                                                                                        |
-| `forging:project-manifest`              | Tabulates new session types in the project manifest                                                                                                     |
-| `forging:dataset-forging-input-format`  | Decides eligibility of new session types for dataset forging                                                                                            |
-| `unity:task-prefabs`                    | Generates Unity prefabs for new `TriggerType` members                                                                                                   |
-| `unity:task-scenes`                     | Authors Unity scenes for new acquisition systems                                                                                                        |
-| `ataraxis@automation:commit`                                       | Should be invoked after the cross-cutting changes land                                                                                                  |
-| `experiment:vr-driver-interface`        | Consumes the `TriggerType` enum via `DecomposedTrials.trigger_types`                                                                                    |
+| Skill                                      | Relationship                                                                                                                                                                                               |
+|--------------------------------------------|------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| `/assets-mcp-environment-setup`            | Run if the parity check fails at import time — the failure manifests as an MCP startup error                                                                                                               |
+| `/working-directory`                       | Required prerequisite — bootstraps the working directory consumed by every extension touch-point                                                                                                           |
+| `/session-data`                            | Receives skill touch-ups for new `SessionTypes` and new `AcquisitionSystems`                                                                                                                               |
+| `/session-descriptors`                     | Receives skill touch-ups for new `SessionTypes`                                                                                                                                                            |
+| `/session-hardware-state`                  | Receives skill touch-ups for new `SessionTypes` and new `AcquisitionSystems`                                                                                                                               |
+| `/experiment-configuration`                | Receives skill touch-ups for new `AcquisitionSystems`, runtime trial classes, and `TriggerType` members                                                                                                    |
+| `/task-templates`                          | Receives skill touch-ups for new `TriggerType` and runtime trial classes                                                                                                                                   |
+| `mesoscope:mesoscope-vr-session-schema`    | Authoritative field-level schema of the Mesoscope-VR exemplar's descriptors and hardware-state — the reference for the `mesoscope_vr/runtime_data.py` exemplars this skill mirrors                         |
+| `mesoscope:mesoscope-vr-experiment-schema` | Authoritative field-level schema of the Mesoscope-VR exemplar's experiment configuration and trial classes — the reference for the `mesoscope_vr/experiment_configuration.py` exemplars this skill mirrors |
+| `experiment:acquisition-system-design`     | Owns the runtime-side configuration and binding-class design for any new acquisition system; authors the system's dedicated agentic assets (steps 9–10)                                                    |
+| `experiment:acquisition-system-runtime`    | Owns the runtime that creates and runs sessions of any new session type during acquisition                                                                                                                 |
+| `experiment:data-management`               | Manages the post-acquisition lifecycle (preprocess, migrate, delete) for sessions of any type                                                                                                              |
+| `experiment:google-sheets-processing`      | Owns the reader that translates an external source into a read asset's on-disk dataclass                                                                                                                   |
+| `forging:behavior-input-format`            | Decides eligibility of new session types for behavior processing                                                                                                                                           |
+| `forging:project-manifest`                 | Tabulates new session types in the project manifest                                                                                                                                                        |
+| `forging:dataset-forging-input-format`     | Decides eligibility of new session types for dataset forging                                                                                                                                               |
+| `unity:task-prefabs`                       | Generates Unity prefabs for new `TriggerType` members                                                                                                                                                      |
+| `unity:task-scenes`                        | Authors Unity scenes for new acquisition systems                                                                                                                                                           |
+| `ataraxis@automation:commit`               | Should be invoked after the cross-cutting changes land                                                                                                                                                     |
+| `experiment:vr-driver-interface`           | Decomposes the VR cue sequence into `DecomposedTrials` (`trial_names`); the `TriggerType` enum lives in `sollertia-shared-assets`                                                                          |
 
 ---
 

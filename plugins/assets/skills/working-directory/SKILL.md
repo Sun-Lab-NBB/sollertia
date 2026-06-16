@@ -48,7 +48,7 @@ creates the `configuration/` and `credentials/` subdirectories:
 ```text
 <working-directory>/
 ├── configuration/
-│   ├── mesoscope_system_configuration.yaml  # Owned by sollertia-experiment
+│   ├── <system>_system_configuration.yaml   # Owned by sollertia-experiment (e.g. mesoscope_system_configuration.yaml)
 │   └── server_configuration.yaml            # Owned by sollertia-forgery
 └── credentials/
     └── google_credentials.json              # Configured via set_credentials_tool
@@ -62,8 +62,10 @@ MCP sessions on the same host. Other MCP tools resolve their default paths again
 This skill initializes the `configuration/` subdirectory but never reads or writes its files. The
 YAMLs inside are owned by downstream plugins:
 
-- `mesoscope_system_configuration.yaml` — backed by `MesoscopeSystemConfiguration` in
-  `sollertia-experiment`; its authoring follows `experiment:acquisition-system-design` pattern.
+- `<system>_system_configuration.yaml` — one per acquisition system, backed by a per-system
+  configuration class in `sollertia-experiment` (for the current Mesoscope-VR reference system,
+  `mesoscope_system_configuration.yaml` backed by `MesoscopeSystemConfiguration`); its authoring
+  follows `experiment:acquisition-system-design` pattern.
 - `server_configuration.yaml` — backed by `ServerConfiguration` in `sollertia-forgery`. Authored by
   `forging:server-configuration` skill.
 
@@ -326,17 +328,17 @@ content from this skill; that is owned by `/task-templates`.
 This skill is a prerequisite for **every** other skill in the 'assets' plugin. The relationships
 below summarize where each downstream skill picks up after the working directory is set.
 
-| Downstream skill                               | What it needs from this skill                            |
-|------------------------------------------------|----------------------------------------------------------|
-| `/assets-mcp-environment-setup`                | (sibling — run first if the MCP server is not connected) |
+| Downstream skill                       | What it needs from this skill                            |
+|----------------------------------------|----------------------------------------------------------|
+| `/assets-mcp-environment-setup`        | (sibling — run first if the MCP server is not connected) |
 | `experiment:acquisition-system-design` | Working directory                                        |
 | `forging:server-configuration`         | Working directory                                        |
-| `/task-templates`                              | Working directory + task templates directory             |
-| `/experiment-configuration`                    | Working directory                                        |
-| `/project-hierarchy`                           | Working directory; optionally the persisted data root    |
-| `/session-data`                                | Working directory                                        |
-| `/session-descriptors`                         | Working directory                                        |
-| `/session-hardware-state`                      | Working directory                                        |
-| `mesoscope:mesoscope-vr-snapshots`    | Working directory                                        |
-| `/data-assets`                                 | Working directory + Google credentials                   |
+| `/task-templates`                      | Working directory + task templates directory             |
+| `/experiment-configuration`            | Working directory                                        |
+| `/project-hierarchy`                   | Working directory; optionally the persisted data root    |
+| `/session-data`                        | Working directory                                        |
+| `/session-descriptors`                 | Working directory                                        |
+| `/session-hardware-state`              | Working directory                                        |
+| `mesoscope:mesoscope-vr-snapshots`     | Working directory                                        |
+| `/data-assets`                         | Working directory + Google credentials                   |
 | `forging:datasets`                     | Working directory                                        |

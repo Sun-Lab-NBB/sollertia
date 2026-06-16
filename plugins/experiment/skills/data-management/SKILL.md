@@ -112,9 +112,11 @@ system-to-session-type map when you need to compare systems.
 Preprocessing aggregates the session's data, applies any system-specific conversion or compression
 (for the Mesoscope-VR system this compresses the acquired mesoscope frames), updates the Google Sheets
 logs when they are configured (some systems do not use Google Sheets at all), and transfers data to
-every configured long-term storage destination (`filesystem.storage_directories`). When no storage
-destinations are configured, the transfer and the local-copy removal are skipped, and preprocessing is
-limited to on-premises data conversion and aggregation — the data remains on the acquisition host.
+the system's configured long-term storage destinations (the `StorageDestinations` collection in
+`cross_system/data_preprocessing.py`; for Mesoscope-VR these come from `filesystem.storage_directories`
+— see `mesoscope:mesoscope-vr`). When no storage destinations are configured, the transfer and the
+local-copy removal are skipped, and preprocessing is limited to on-premises data conversion and
+aggregation — the data remains on the acquisition host.
 
 ### Single session
 
@@ -142,8 +144,9 @@ Bulk preprocessing progress:
 ## Animal migration workflow
 
 Migration transfers all sessions for an animal from one project to another and reassigns them. The
-strategy depends on whether the host has any long-term storage destinations configured
-(`filesystem.storage_directories`):
+strategy depends on whether the host has any long-term storage destinations configured (the
+`StorageDestinations` collection in `cross_system/data_preprocessing.py`; for Mesoscope-VR these come
+from `filesystem.storage_directories` — see `mesoscope:mesoscope-vr`):
 
 - **With configured destinations** — the first configured destination is treated as the source of
   truth. Any session that still resides only in the local data root is **preprocessed automatically**
@@ -232,16 +235,16 @@ warning, confirm via AskUserQuestion, delete only if confirmed, and report befor
 
 ## Related skills
 
-| Skill                                  | Relationship                                                                                                               |
-|----------------------------------------|----------------------------------------------------------------------------------------------------------------------------|
-| `/experiment-mcp-environment-setup`    | Run first if the `sle mcp` server is not connected                                                                         |
-| `assets:project-hierarchy`     | Enumerates projects/animals/sessions (read-only)                                                                           |
-| `assets:session-discovery`     | Filters sessions and returns confirmed session paths to feed these tools                                                   |
-| `assets:session-data`          | Owns the `SessionData` marker that defines each session                                                                    |
-| `mesoscope:mesoscope-vr`                        | Defines `filesystem.storage_directories`, the transfer destinations                                                        |
-| `/google-sheets-processing`            | Owns the `SurgeryLog` / `WaterLog` processors that preprocessing invokes to snapshot surgery data and update the water log |
-| `forging:server-configuration` | Remote storage transfer configuration consumed downstream                                                                  |
-| `/pipeline`                            | Phase 7 (post-process and manage) is owned by this skill                                                                   |
+| Skill                               | Relationship                                                                                                               |
+|-------------------------------------|----------------------------------------------------------------------------------------------------------------------------|
+| `/experiment-mcp-environment-setup` | Run first if the `sle mcp` server is not connected                                                                         |
+| `assets:project-hierarchy`          | Enumerates projects/animals/sessions (read-only)                                                                           |
+| `assets:session-discovery`          | Filters sessions and returns confirmed session paths to feed these tools                                                   |
+| `assets:session-data`               | Owns the `SessionData` marker that defines each session                                                                    |
+| `mesoscope:mesoscope-vr`            | Defines `filesystem.storage_directories`, the transfer destinations                                                        |
+| `/google-sheets-processing`         | Owns the `SurgeryLog` / `WaterLog` processors that preprocessing invokes to snapshot surgery data and update the water log |
+| `forging:server-configuration`      | Remote storage transfer configuration consumed downstream                                                                  |
+| `/pipeline`                         | Phase 7 (post-process and manage) is owned by this skill                                                                   |
 
 ---
 

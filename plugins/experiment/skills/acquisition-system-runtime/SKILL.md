@@ -152,7 +152,7 @@ The session's heartbeat is a single cycle method the logic function calls repeat
 out to one bounded step per concern, so no single concern can starve the others:
 
 - **Data sync** — read each microcontroller subsystem's current state once per cycle through its
-  shared-memory-backed accessors (position, lick count, dispensed volume). Update the orchestrator's
+  shared-memory-backed accessors (e.g., position, lick count, dispensed volume). Update the orchestrator's
   trackers from the change since the previous cycle, and forward derived quantities to downstream
   subsystems and the visualizer. Microcontroller messages are received and parsed **asynchronously** off
   the main loop and published to shared memory — this step samples the latest published value, not a per-cycle
@@ -195,9 +195,9 @@ The session descriptor holds the runtime parameters for one session, authored as
   overrides forwarded by the CLI.
 - The orchestrator receives the finalized descriptor in-memory, caches it to disk at construction (so
   an interrupted session can still be preprocessed), and uses it to parameterize the state machine.
-- At session end the orchestrator updates the descriptor in place with runtime-discovered values (the
-  dispensed water volume, the final run-speed/duration thresholds, the completion flag), prompts the
-  operator for notes, and re-saves it.
+- At session end the orchestrator updates the descriptor in place with runtime-discovered values and a
+  completion flag (e.g., for Mesoscope-VR, water volumes / run-speed thresholds — see
+  `mesoscope:mesoscope-vr-runtime`), prompts the operator for notes, and re-saves it.
 
 The descriptor therefore carries both the session plan and a summary of its outcome, while the
 DataLogger archive carries the full sample-by-sample record. The descriptor makes a session
@@ -295,16 +295,16 @@ pattern not captured here, add it.
 
 ## Related skills
 
-| Skill                                  | Relationship                                                                                 |
-|----------------------------------------|----------------------------------------------------------------------------------------------|
-| `/acquisition-system-design` | Static composition counterpart (configuration, binding classes, construction/shutdown order) |
-| `mesoscope:mesoscope-vr-runtime`      | The current worked instance of this pattern                                                  |
-| `mesoscope:mesoscope-vr`              | The current worked instance of the static design pattern                                     |
-| `/microcontroller-interface` | Per-module wrapper APIs and the SharedMemoryArray accessors the loop reads                   |
-| `/vr-driver-interface`       | The typed-event asset-subsystem source (`VRTaskEvent`) the loop dispatches                   |
-| `assets:session-descriptors`   | Authors the descriptors and `SessionTypes` the runtime consumes                              |
-| `/data-management`           | Post-acquisition session-data lifecycle                                                      |
-| `/pipeline`                  | Where the runtime phase sits in the end-to-end lifecycle                                     |
+| Skill                            | Relationship                                                                                 |
+|----------------------------------|----------------------------------------------------------------------------------------------|
+| `/acquisition-system-design`     | Static composition counterpart (configuration, binding classes, construction/shutdown order) |
+| `mesoscope:mesoscope-vr-runtime` | The current worked instance of this pattern                                                  |
+| `mesoscope:mesoscope-vr`         | The current worked instance of the static design pattern                                     |
+| `/microcontroller-interface`     | Per-module wrapper APIs and the SharedMemoryArray accessors the loop reads                   |
+| `/vr-driver-interface`           | The typed-event asset-subsystem source (`VRTaskEvent`) the loop dispatches                   |
+| `assets:session-descriptors`     | Authors the descriptors and `SessionTypes` the runtime consumes                              |
+| `/data-management`               | Post-acquisition session-data lifecycle                                                      |
+| `/pipeline`                      | Where the runtime phase sits in the end-to-end lifecycle                                     |
 
 ---
 

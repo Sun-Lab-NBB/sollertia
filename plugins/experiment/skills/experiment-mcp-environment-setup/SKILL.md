@@ -42,10 +42,11 @@ Click CLI entry point defined in `pyproject.toml`:
 sle = "sollertia_experiment.interfaces.entry_points:sle_cli"
 ```
 
-`sle` is a Click group with three children: the `mcp` command, the `get` command group
-(hardware-agnostic discovery), and the `mesoscope` command group (Mesoscope-VR configuration,
-runtime, and session management). The single `sle mcp` server exposes the tools that back **both**
-the `get` and `mesoscope` groups to AI agents.
+`sle` is a Click group with the `mcp` command, the `get` command group (hardware-agnostic
+discovery), and one command group per acquisition system. For the current Mesoscope-VR reference
+system this is the `mesoscope` group (configuration, runtime, and session management; see
+`mesoscope:mesoscope-vr`). The single `sle mcp` server exposes the tools that back **both** the
+`get` group and the per-system groups to AI agents.
 
 | Server                 | CLI command | Purpose                                                                                                                                                                              |
 |------------------------|-------------|--------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
@@ -95,9 +96,10 @@ tool-specific errors instead.
 which sle
 ```
 
-`sle` is the single parent binary that owns the `mcp`, `get`, and `mesoscope` subcommands. If the
-binary is not found, proceed to step 3. The binary should resolve to the active Python environment's
-`bin/` directory. (Subcommand-level health is checked in step 5 via `--help` invocations.)
+`sle` is the single parent binary that owns the `mcp`, `get`, and per-system (currently
+`mesoscope`) subcommands. If the binary is not found, proceed to step 3. The binary should
+resolve to the active Python environment's `bin/` directory. (Subcommand-level health is checked
+in step 5 via `--help` invocations.)
 
 ### Step 3: Identify the environment type and resolve
 
@@ -162,21 +164,21 @@ plugin will automatically reconnect the server on the next session.
 | `sle: command not found`                  | sollertia-experiment not installed        | `pip install sollertia-experiment` in the active environment         |
 | Import error on `sle mcp`                 | Version skew with sollertia-shared-assets | `pip install --upgrade sollertia-experiment sollertia-shared-assets` |
 | Python version mismatch                   | Wrong environment activated               | Activate environment with Python >=3.14,<3.15                        |
-| Tools fail with "no system configuration" | `slsa` working directory not initialized  | Run `assets:working-directory` from the assets plugin                      |
+| Tools fail with "no system configuration" | `slsa` working directory not initialized  | Run `assets:working-directory` from the assets plugin                |
 | Tool fails with Zaber connection error    | Not an environment issue                  | Check `/zaber-interface` for hardware troubleshooting                |
 
 ---
 
 ## Related skills
 
-| Skill                                         | Relationship                                                                               |
-|-----------------------------------------------|--------------------------------------------------------------------------------------------|
-| `/zaber-interface`                            | Requires the `sollertia-experiment` MCP for device discovery and settings                  |
-| `/data-management`                            | Requires the `sollertia-experiment` MCP for session preprocess/delete and animal migration |
-| `mesoscope:mesoscope-vr-snapshots`                     | Requires the `sollertia-experiment` MCP for position snapshot read/write                   |
-| `mesoscope:mesoscope-vr`                               | Requires the `sollertia-experiment` MCP for system configuration authoring                 |
-| `/system-health-check`                        | Uses the server as part of the pre-session validation sweep                                |
-| `/pipeline`                                   | Orchestrates all phases that depend on MCP server connectivity                             |
+| Skill                                 | Relationship                                                                               |
+|---------------------------------------|--------------------------------------------------------------------------------------------|
+| `/zaber-interface`                    | Requires the `sollertia-experiment` MCP for device discovery and settings                  |
+| `/data-management`                    | Requires the `sollertia-experiment` MCP for session preprocess/delete and animal migration |
+| `mesoscope:mesoscope-vr-snapshots`    | Requires the `sollertia-experiment` MCP for position snapshot read/write                   |
+| `mesoscope:mesoscope-vr`              | Requires the `sollertia-experiment` MCP for system configuration authoring                 |
+| `/system-health-check`                | Uses the server as part of the pre-session validation sweep                                |
+| `/pipeline`                           | Orchestrates all phases that depend on MCP server connectivity                             |
 | `assets:assets-mcp-environment-setup` | Equivalent diagnostic for the `slsa mcp` server                                            |
 
 ---

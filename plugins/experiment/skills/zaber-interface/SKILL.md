@@ -61,9 +61,9 @@ sle mcp
 
 **MCP Tool for Verification:**
 
-| Tool                     | Purpose                                            |
-|--------------------------|----------------------------------------------------|
-| `get_zaber_devices_tool` | Discovers Zaber devices and their ports/axes       |
+| Tool                     | Purpose                                      |
+|--------------------------|----------------------------------------------|
+| `get_zaber_devices_tool` | Discovers Zaber devices and their ports/axes |
 
 **Verification workflow:**
 
@@ -147,15 +147,15 @@ Use the MCP tool `get_zaber_devices_tool()` to discover connected Zaber motors.
 
 ### Discovery output fields
 
-| Field       | Description                                                          |
-|-------------|----------------------------------------------------------------------|
-| Port        | Serial port path (e.g., `/dev/ttyUSB0`)                              |
-| Device Num  | Position in daisy-chain (1 = closest to USB)                         |
-| ID          | Hardware device identifier code                                      |
-| Label       | User-assigned label stored in non-volatile memory                    |
-| Name        | Manufacturer model name                                              |
-| Axis ID     | Axis number within the device (always 1 for single-axis controllers) |
-| Axis Label  | User-assigned axis label stored in non-volatile memory               |
+| Field      | Description                                                          |
+|------------|----------------------------------------------------------------------|
+| Port       | Serial port path (e.g., `/dev/ttyUSB0`)                              |
+| Device Num | Position in daisy-chain (1 = closest to USB)                         |
+| ID         | Hardware device identifier code                                      |
+| Label      | User-assigned label stored in non-volatile memory                    |
+| Name       | Manufacturer model name                                              |
+| Axis ID    | Axis number within the device (always 1 for single-axis controllers) |
+| Axis Label | User-assigned axis label stored in non-volatile memory               |
 
 ### Daisy-chain ordering
 
@@ -177,21 +177,21 @@ Zaber motors use predefined positions stored in non-volatile memory for safe ope
 
 ### Position types
 
-| Position    | Purpose                                           | When Used                        |
-|-------------|---------------------------------------------------|----------------------------------|
-| Park        | Safe position for shutdown and storage            | System shutdown, storage         |
-| Mount       | Position for mounting animal into enclosure       | Session start, animal mounting   |
-| Maintenance | Position for system maintenance and cleaning      | Between sessions, maintenance    |
+| Position    | Purpose                                      | When Used                      |
+|-------------|----------------------------------------------|--------------------------------|
+| Park        | Safe position for shutdown and storage       | System shutdown, storage       |
+| Mount       | Position for mounting animal into enclosure  | Session start, animal mounting |
+| Maintenance | Position for system maintenance and cleaning | Between sessions, maintenance  |
 
 ### Position storage
 
 Positions are stored in non-volatile USER_DATA variables on each motor controller:
 
-| Variable      | Purpose                                              |
-|---------------|------------------------------------------------------|
-| USER_DATA_11  | Park position (native motor units)                   |
-| USER_DATA_12  | Maintenance position (native motor units)            |
-| USER_DATA_13  | Mount position (native motor units)                  |
+| Variable     | Purpose                                   |
+|--------------|-------------------------------------------|
+| USER_DATA_11 | Park position (native motor units)        |
+| USER_DATA_12 | Maintenance position (native motor units) |
+| USER_DATA_13 | Mount position (native motor units)       |
 
 ### Position restoration
 
@@ -235,15 +235,15 @@ Use MCP tools to read and modify Zaber motor configuration stored in non-volatil
 
 ### Configurable settings
 
-| Setting                  | Type  | Description                              | Constraints                   |
-|--------------------------|-------|------------------------------------------|-------------------------------|
-| `park_position`          | `int` | Shutdown position (native units)         | Must be within motion limits  |
-| `maintenance_position`   | `int` | Maintenance position (native units)      | Must be within motion limits  |
-| `mount_position`         | `int` | Animal mounting position (native units)  | Must be within motion limits  |
-| `shutdown_flag`          | `int` | Proper shutdown indicator (see below)    | 0 or 1                        |
-| `unsafe_flag`            | `int` | Requires safe position for homing        | 0 or 1 (rarely modified)      |
-| `device_label`           | `str` | Device identifier                        | Auto-updates checksum         |
-| `axis_label`             | `str` | Axis identifier (optional, see below)    | No constraints                |
+| Setting                | Type  | Description                             | Constraints                  |
+|------------------------|-------|-----------------------------------------|------------------------------|
+| `park_position`        | `int` | Shutdown position (native units)        | Must be within motion limits |
+| `maintenance_position` | `int` | Maintenance position (native units)     | Must be within motion limits |
+| `mount_position`       | `int` | Animal mounting position (native units) | Must be within motion limits |
+| `shutdown_flag`        | `int` | Proper shutdown indicator (see below)   | 0 or 1                       |
+| `unsafe_flag`          | `int` | Requires safe position for homing       | 0 or 1 (rarely modified)     |
+| `device_label`         | `str` | Device identifier                       | Auto-updates checksum        |
+| `axis_label`           | `str` | Axis identifier (optional, see below)   | No constraints               |
 
 ### Read-only settings
 
@@ -358,10 +358,10 @@ Motors use a parking mechanism to prevent accidental movement:
 
 Motors use non-volatile flags to detect improper shutdown:
 
-| Flag          | Variable      | Purpose                                                |
-|---------------|---------------|--------------------------------------------------------|
-| Shutdown flag | USER_DATA_1   | Set to 1 on proper shutdown, 0 on startup              |
-| Unsafe flag   | USER_DATA_10  | Indicates motor requires specific position for homing  |
+| Flag          | Variable     | Purpose                                               |
+|---------------|--------------|-------------------------------------------------------|
+| Shutdown flag | USER_DATA_1  | Set to 1 on proper shutdown, 0 on startup             |
+| Unsafe flag   | USER_DATA_10 | Indicates motor requires specific position for homing |
 
 If a motor with `unsafe_flag=True` was not properly shut down, the system prompts for manual verification before
 proceeding.
@@ -455,8 +455,8 @@ dataclass patterns, see [references/zaber-api-reference.md](references/zaber-api
 | Skill                               | Relationship                                                                   |
 |-------------------------------------|--------------------------------------------------------------------------------|
 | `/acquisition-system-design`        | Platform-general pattern for composing a Zaber subsystem into a binding class  |
-| `mesoscope:mesoscope-vr`                     | Current consumer — composes `ZaberMotors` from `MesoscopeVRAssets`             |
-| `mesoscope:mesoscope-vr-snapshots`           | Reads/writes the `ZaberPositions` snapshot this subsystem restores from        |
+| `mesoscope:mesoscope-vr`            | Current consumer — composes `ZaberMotors` from `MesoscopeVRAssets`             |
+| `mesoscope:mesoscope-vr-snapshots`  | Reads/writes the `ZaberPositions` snapshot this subsystem restores from        |
 | `/acquisition-system-setup`         | Acquisition-system-level hardware discovery and verification                   |
 | `/experiment-mcp-environment-setup` | Run first if the `sle mcp` server is not connected                             |
 | `references/zaber-api-reference.md` | Complete `ZaberConnection` / `ZaberDevice` / `ZaberAxis` API and code examples |
@@ -476,6 +476,6 @@ Before integrating Zaber motors into an acquisition system:
 - [ ] Defined port assignment fields in the consuming system's configuration dataclass
 - [ ] Implemented binding class with park/unpark safety patterns
 - [ ] Added position snapshot and restoration support
-- [ ] Integrated into data_acquisition.py lifecycle
+- [ ] Integrated into the acquisition system's data-acquisition lifecycle (Mesoscope-VR ref: `mesoscope:mesoscope-vr`)
 - [ ] MyPy strict passes
 ```
