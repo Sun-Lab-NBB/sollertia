@@ -513,7 +513,7 @@ the framework or easy to break in non-obvious ways:
 | `Controllers/LinearTreadmill.cs`    | The hide-don't-chain Start contract is required by `SimulatedLinearTreadmill`       |
 | `Editor/MainWindow.cs`              | Auto-open hooks + EnsureControllers are load-bearing for scene initialization       |
 
-If a change here is unavoidable, update the `/csharp-style` verification pass and test against the
+If a change here is unavoidable, update the `ataraxis@automation:csharp-style` verification pass and test against the
 full display rig (three monitors) before committing.
 
 ---
@@ -554,5 +554,5 @@ full display rig (three monitors) before committing.
 | `/scene-setup` (this plugin)             | User-facing workflow for the MainWindow Task Parameters window                                 |
 | `/task-parameters` (this plugin)         | Programmatic mirror of the same window's Actor / MQTT / Display / Camera Mapping / Task fields |
 | `/task-generator` (this plugin)          | Segment prefabs sit inside the actor's coordinate frame                                        |
-| `/csharp-style` (automation plugin)      | GIMBL code is held to the same C# conventions as the project                                   |
-| experiment plugin `/vr-driver-interface` | Python peer of `MQTTClient` / `MQTTTopics` — the host end of the wire contract                 |
+| `ataraxis@automation:csharp-style`      | GIMBL code is held to the same C# conventions as the project                                   |
+| `experiment:vr-driver-interface` | Python peer of `MQTTClient` / `MQTTTopics` — the host end of the wire contract                 |

@@ -16,7 +16,7 @@ surface, and binding-class layer.
 
 For the platform-general acquisition-system design pattern, see `experiment:acquisition-system-design`.
 For Mesoscope-VR's runtime behavior (state machine, training modes, CLI), see
-`experiment:mesoscope-vr-runtime`.
+`/mesoscope-vr-runtime`.
 
 ---
 
@@ -34,7 +34,7 @@ For Mesoscope-VR's runtime behavior (state machine, training modes, CLI), see
 **Does not cover** (delegated):
 - The platform-general design pattern this system implements — see `experiment:acquisition-system-design`
 - Mesoscope-VR runtime behavior (state machine, training modes, visualizers, session descriptors,
-  CLI commands) — see `experiment:mesoscope-vr-runtime`
+  CLI commands) — see `/mesoscope-vr-runtime`
 - Per-firmware-module Python wrappers and slmc firmware Modules — see `experiment:microcontroller-interface`
 - Low-level VideoSystem API — see `ataraxis@video:camera-interface`
 - Low-level Zaber motor API — see `experiment:zaber-interface`
@@ -59,7 +59,7 @@ Virtual Reality environment. It is composed of the following hardware subsystems
 
 The lifecycle orchestrator (`MesoscopeVRSystem` in
 `sollertia_experiment/mesoscope_vr/system_controller.py`) composes the three binding classes and
-drives the system state machine. The orchestrator is documented in `experiment:mesoscope-vr-runtime`.
+drives the system state machine. The orchestrator is documented in `/mesoscope-vr-runtime`.
 
 ---
 
@@ -108,7 +108,7 @@ added, removed, or renamed.
 
 The configuration is persisted as `mesoscope_system_configuration.yaml` in the platform
 configuration directory resolved by `get_system_configuration_path()`. The host's data root must be
-set first via the assets plugin's `/working-directory` skill (`slsa configure data-root`).
+set first via `assets:working-directory` skill (`slsa configure data-root`).
 
 `MesoscopeSystemConfiguration` implements two non-default behaviors documented in
 `experiment:acquisition-system-design`:
@@ -346,7 +346,7 @@ ZaberMotors(
 ```
 
 Note: this binding class does NOT take a `DataLogger` — Zaber motor state is per-session position
-data captured by the `experiment:mesoscope-vr-snapshots` skill, not real-time logged events.
+data captured by the `/mesoscope-vr-snapshots` skill, not real-time logged events.
 
 The constructor connects to all three ports synchronously and retrieves the per-axis handles
 assuming the documented daisy-chain order. If the previous session's `ZaberPositions` snapshot is
@@ -454,7 +454,7 @@ the liveness probe and state queries). Only the ScanImagePC-local output root an
 remain function arguments; every acquisition parameter arrives in the command payloads.
 
 For when the orchestrator invokes these methods within the runtime state machine, see
-`experiment:mesoscope-vr-runtime`.
+`/mesoscope-vr-runtime`.
 
 ### Pre-flight bridge check
 
@@ -496,7 +496,7 @@ Captures the filesystem layout — two fields:
 
 The local **data root** (the directory under which all projects are stored on this machine) is NOT
 part of this section — it is the platform-shared data root, resolved with `get_data_root()` and set
-with the `slsa configure data-root` command (assets plugin `/working-directory`).
+with the `slsa configure data-root` command (`assets:working-directory`).
 
 Both fields default to empty paths; the user MUST set them per-host. The `check_system_mounts_tool`
 MCP tool validates that every declared path exists and is writable before any session starts.
@@ -537,7 +537,7 @@ For the full per-field documentation of the auxiliary sections, see
 ### Step 1: Verify prerequisites
 
 - The `sle mcp` server is connected. If not, run `experiment:experiment-mcp-environment-setup`.
-- The host working directory is set. If not, run the assets plugin's `/working-directory`.
+- The host working directory is set. If not, run `assets:working-directory`.
 
 ### Step 2: Determine whether to create or modify
 
@@ -565,7 +565,7 @@ For a new host, the user-supplied values are:
   (`get_zaber_devices_tool`).
 - **Filesystem paths** — `mesoscope_directory` and the `storage_directories` destination paths.
   Ask the user for absolute paths. The platform data root is set separately via
-  `slsa configure data-root` (assets plugin `/working-directory`).
+  `slsa configure data-root` (`assets:working-directory`).
 - **Google Sheet IDs** — ask the user for the sheet IDs (the long alphanumeric segment in the URL).
 - **Calibration data** — defaults in
   [`references/configuration-fields.md`](references/configuration-fields.md) are reasonable
@@ -591,7 +591,7 @@ hardware-port assumptions hold.
 ### Step 7: Hand off for server configuration
 
 If the user is also setting up remote storage transfer, hand off to the forging plugin's
-`/server-configuration` skill. This skill does not write the server configuration file.
+`forging:server-configuration` skill. This skill does not write the server configuration file.
 
 ---
 
@@ -694,7 +694,7 @@ The Mesoscope-VR runtime composes the three binding classes (`MicroControllerInt
 `sollertia_experiment/mesoscope_vr/system_controller.py`), and also constructs the `VRTaskDriver`
 (experiment sessions only) and the `MesoscopeDriver`. The orchestrator's responsibilities,
 state machine, training modes, and CLI surface are documented in
-`experiment:mesoscope-vr-runtime`.
+`/mesoscope-vr-runtime`.
 
 The handoff contract between this skill and the runtime skill:
 
@@ -733,16 +733,16 @@ ground truth.
 |----------------------------------------------------|--------------------------------------------------------------------------------------|
 | `experiment:acquisition-system-design`             | The platform-general pattern this system implements. Required reading.               |
 | `experiment:microcontroller-interface`             | The slmc + sle wrapper layer the microcontroller binding class composes.             |
-| `experiment:mesoscope-vr-runtime`                  | Mesoscope-VR runtime behavior (state machine, training modes, CLI).                  |
+| `/mesoscope-vr-runtime`                  | Mesoscope-VR runtime behavior (state machine, training modes, CLI).                  |
 | `experiment:zaber-interface`                       | Zaber motor mechanics consumed by `ZaberMotors`.                                     |
 | `experiment:vr-driver-interface`                   | The Unity VR task driver (`VRTaskDriver`) configured by `assets.vr_task`.            |
 | `ataraxis@video:camera-interface`                  | VideoSystem mechanics consumed by `VideoSystems`.                                    |
 | `ataraxis@communication:microcontroller-interface` | MicroControllerInterface mechanics consumed by `MicroControllerInterfaces`.          |
 | `experiment:acquisition-system-setup`              | Source of camera indices, microcontroller ports, Zaber ports via hardware discovery. |
-| `experiment:mesoscope-vr-snapshots`                | Per-session Zaber position snapshots consumed by `ZaberMotors.restore_position()`.   |
+| `/mesoscope-vr-snapshots`                | Per-session Zaber position snapshots consumed by `ZaberMotors.restore_position()`.   |
 | `experiment:google-sheets-processing`              | Reads/writes the sheets identified by `MesoscopeGoogleSheets` (`surgery_sheet_id`, `water_log_sheet_id`). |
-| assets plugin `/working-directory`                 | Required prerequisite for configuration authoring.                                   |
-| forging plugin `/server-configuration`             | Sibling configuration file for remote storage transfer.                              |
+| `assets:working-directory`                 | Required prerequisite for configuration authoring.                                   |
+| `forging:server-configuration`             | Sibling configuration file for remote storage transfer.                              |
 
 ---
 
@@ -752,19 +752,19 @@ ground truth.
 When authoring or modifying the Mesoscope-VR system configuration:
 
 Prerequisites:
-- [ ] /working-directory has been run on this host
+- [ ] assets:working-directory has been run on this host
 - [ ] sle mcp server is connected
 - [ ] describe_system_configuration_schema_tool was called and used as the source of truth for field names
 - [ ] references/configuration-fields.md was consulted for field semantics
 
 Authoring:
-- [ ] Camera indices sourced from /acquisition-system-setup, not guessed
-- [ ] Microcontroller ports sourced from /acquisition-system-setup, not guessed
-- [ ] Zaber motor ports sourced from /zaber-interface discovery, not guessed
+- [ ] Camera indices sourced from experiment:acquisition-system-setup, not guessed
+- [ ] Microcontroller ports sourced from experiment:acquisition-system-setup, not guessed
+- [ ] Zaber motor ports sourced from experiment:zaber-interface discovery, not guessed
 - [ ] write_system_configuration_tool succeeded without schema errors
 - [ ] read_system_configuration_tool returned the expected configuration after the write
 - [ ] validate_system_configuration_tool reported all mounts healthy
-- [ ] Did not call write_server_configuration_tool — handed off to forging plugin /server-configuration if needed
+- [ ] Did not call write_server_configuration_tool — handed off to forging:server-configuration if needed
 
 Modifying:
 - [ ] Hardware-subsystem modifications followed the cross-repo workflow (slmc + sle)

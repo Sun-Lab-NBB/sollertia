@@ -25,9 +25,9 @@ acquisition system's binding layer (currently Mesoscope-VR's `ZaberMotors`).
 - Composing Zaber motors into an acquisition system's binding class
 
 **Does not cover:**
-- Mesoscope-VR-specific integration — modifying `MesoscopeVRAssets` or extending `ZaberMotors` (see `/mesoscope-vr`)
+- Mesoscope-VR-specific integration — modifying `MesoscopeVRAssets` or extending `ZaberMotors` (see `mesoscope:mesoscope-vr`)
 - The platform-general pattern for composing a Zaber subsystem into a binding class (see `/acquisition-system-design`)
-- Reading or writing the `ZaberPositions` session snapshot (see `/mesoscope-vr-snapshots`)
+- Reading or writing the `ZaberPositions` session snapshot (see `mesoscope:mesoscope-vr-snapshots`)
 - The `zaber-motion` library internals (third-party; consult its own documentation)
 
 ---
@@ -43,7 +43,7 @@ Use this skill when:
 - Configuring motor positions in non-volatile memory
 
 For Mesoscope-VR-specific integration (modifying `MesoscopeVRAssets`, extending the `ZaberMotors`
-binding class), use `/mesoscope-vr`. For the platform-general pattern by which an acquisition system
+binding class), use `mesoscope:mesoscope-vr`. For the platform-general pattern by which an acquisition system
 composes Zaber motors into its binding layer, see `/acquisition-system-design`.
 
 ---
@@ -197,7 +197,7 @@ Positions are stored in non-volatile USER_DATA variables on each motor controlle
 
 A consuming acquisition system's binding class can restore motors to their previous-session positions from a
 position snapshot the system provides and persists. This enables consistent positioning across sessions. For the
-Mesoscope-VR implementation, see `/mesoscope-vr` (the `ZaberMotors` consumer) and `/mesoscope-vr-snapshots` (the snapshot).
+Mesoscope-VR implementation, see `mesoscope:mesoscope-vr` (the `ZaberMotors` consumer) and `mesoscope:mesoscope-vr-snapshots` (the snapshot).
 
 ---
 
@@ -455,8 +455,8 @@ dataclass patterns, see [references/zaber-api-reference.md](references/zaber-api
 | Skill                               | Relationship                                                                   |
 |-------------------------------------|--------------------------------------------------------------------------------|
 | `/acquisition-system-design`        | Platform-general pattern for composing a Zaber subsystem into a binding class  |
-| `/mesoscope-vr`                     | Current consumer — composes `ZaberMotors` from `MesoscopeVRAssets`             |
-| `/mesoscope-vr-snapshots`           | Reads/writes the `ZaberPositions` snapshot this subsystem restores from        |
+| `mesoscope:mesoscope-vr`                     | Current consumer — composes `ZaberMotors` from `MesoscopeVRAssets`             |
+| `mesoscope:mesoscope-vr-snapshots`           | Reads/writes the `ZaberPositions` snapshot this subsystem restores from        |
 | `/acquisition-system-setup`         | Acquisition-system-level hardware discovery and verification                   |
 | `/experiment-mcp-environment-setup` | Run first if the `sle mcp` server is not connected                             |
 | `references/zaber-api-reference.md` | Complete `ZaberConnection` / `ZaberDevice` / `ZaberAxis` API and code examples |

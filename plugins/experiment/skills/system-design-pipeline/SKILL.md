@@ -33,7 +33,7 @@ substitute the system you are building wherever a Mesoscope-VR skill or class is
 - The line-by-line authoring for any individual phase — each phase dispatches to its owning skill
 - Operating an already-built system (configure, run, preprocess) — see `/pipeline`
 - The Unity corridor scene mechanics beyond template authoring — see the unity plugin's
-  `/task-prefabs` and `/task-scenes`
+  `unity:task-prefabs` and `unity:task-scenes`
 - MCP server connectivity — see each plugin's `*-mcp-environment-setup` skill
 
 **Handoff rules:** This skill dispatches to the owning skill at each phase. Always invoke the
@@ -51,10 +51,10 @@ configuration-time / runtime split applies (runtime acquisition is deterministic
 
 | Layer                  | Repository                                             | Owning skill                                                   |
 |------------------------|--------------------------------------------------------|----------------------------------------------------------------|
-| Shared-assets contract | `sollertia-shared-assets`                              | assets plugin `/library-extension`                             |
+| Shared-assets contract | `sollertia-shared-assets`                              | `assets:library-extension`                             |
 | Hardware interfaces    | `sollertia-micro-controllers` + `sollertia-experiment` | `/microcontroller-interface` (+ ataraxis)                      |
 | Acquisition runtime    | `sollertia-experiment`                                 | `/acquisition-system-design` → `/acquisition-system-runtime`   |
-| Corridor task          | `sollertia-unity-tasks`                                | assets plugin `/task-templates` → unity plugin `/task-prefabs` |
+| Corridor task          | `sollertia-unity-tasks`                                | `assets:task-templates` → `unity:task-prefabs` |
 
 ### Phase ordering is load-bearing
 
@@ -69,18 +69,18 @@ verify each phase's handoff condition before starting the next.
 ## Build phases
 
 ```text
-1. Shared-assets contract   assets plugin /library-extension  (+ the shared-assets README recipes)
+1. Shared-assets contract   assets:library-extension  (+ the shared-assets README recipes)
 2. Hardware interfaces      /microcontroller-interface, ataraxis firmware-module / camera-interface, /zaber-interface
 3. Acquisition runtime      /acquisition-system-design → /acquisition-system-runtime
-4. Corridor task            assets plugin /task-templates → unity plugin /task-prefabs
-5. External services (opt.) /google-sheets-processing  (read/write processors; read-asset via /library-extension)
+4. Corridor task            assets:task-templates → unity:task-prefabs
+5. External services (opt.) /google-sheets-processing  (read/write processors; read-asset via assets:library-extension)
 6. Agentic assets (opt.)    /acquisition-system-design (per-system instance + runtime skills)
 →  Operate                  /pipeline  (configure a host and run the first session)
 ```
 
 ### Phase 1: Shared-assets contract
 
-- **Plugin / Skill:** assets plugin `/library-extension`, which defers the line-by-line recipe to the
+- **Plugin / Skill:** `assets:library-extension`, which defers the line-by-line recipe to the
   `sollertia-shared-assets` README ("Adding New Acquisition Systems", and "Adding a New Trial Class" /
   "Adding a New Trigger Type" / "Adding New Session Types" as the system needs them).
 - **Actions:** Append the `AcquisitionSystems` member; author the `<system>/` subpackage holding the
@@ -135,8 +135,8 @@ verify each phase's handoff condition before starting the next.
 
 ### Phase 4: Corridor task
 
-- **Plugin / Skill:** assets plugin `/task-templates` (author the `TaskTemplate`) → unity plugin
-  `/task-prefabs` and `/task-scenes` (generate the prefab and scene).
+- **Plugin / Skill:** `assets:task-templates` (author the `TaskTemplate`) → unity plugin
+  `unity:task-prefabs` and `unity:task-scenes` (generate the prefab and scene).
 - **Actions:** Author a corridor task template for the system. Every Sollertia system runs the linear
   infinite corridor, so a new system reuses the existing corridor — this is template authoring rather
   than new scene engineering. The experiment configuration's `unity_scene_name` must match the task
@@ -155,14 +155,14 @@ verify each phase's handoff condition before starting the next.
   reusable processor lives in `cross_system/`; a system-specific one in the system package. Wire it into
   preprocessing, gating on the configured identifiers.
 - **Read-asset coupling:** If a read processor emits a record type that is not an existing
-  `sollertia-shared-assets` read asset, register the new asset through assets plugin `/library-extension`
-  ("Adding a New Read Asset") and its read / amend surface through assets plugin `/data-assets` (Phase 1
+  `sollertia-shared-assets` read asset, register the new asset through `assets:library-extension`
+  ("Adding a New Read Asset") and its read / amend surface through `assets:data-assets` (Phase 1
   contract work) before wiring the processor.
 - **Credentials:** A request/response service authenticates with a credentials file managed by
   `sollertia-shared-assets` (the `CredentialsTypes` registry — currently only `google`, for Google Sheets). A
   service needing a new credential category registers it in slsa (a `CredentialsTypes` + `CREDENTIALS_FILE_REGISTRY`
   entry, a maintainer-curated contract decision in Phase 1); the credential file itself is configured per host at
-  operate time (`/pipeline` → assets plugin `/working-directory`).
+  operate time (`/pipeline` → `assets:working-directory`).
 - **Handoff condition:** The processor authenticates and round-trips against the external source; a read
   processor's records validate and snapshot to disk.
 
@@ -170,7 +170,7 @@ verify each phase's handoff condition before starting the next.
 
 - **Plugin / Skill:** `/acquisition-system-design` (workflow steps 10–11).
 - **Actions:** Author a per-system instance skill and, when the system has non-trivial runtime modes,
-  a per-system runtime skill — modeled on `experiment:mesoscope-vr` and `experiment:mesoscope-vr-runtime`.
+  a per-system runtime skill — modeled on `mesoscope:mesoscope-vr` and `mesoscope:mesoscope-vr-runtime`.
   The system runs without them, but omitting them leaves it driveable yet undocumented for agents.
 - **Handoff condition:** The system has an instance skill the operate pipeline can dispatch to.
 
@@ -202,7 +202,7 @@ other before the system imports or runs.
 ```text
 Is the system registered in sollertia-shared-assets (imports cleanly, appears in
 list_supported_acquisition_systems_tool)?
-├─ no  → Phase 1 (assets plugin /library-extension)
+├─ no  → Phase 1 (assets:library-extension)
 └─ yes
     └─ Does every hardware module have a verified Module + ModuleInterface pair?
         ├─ no  → Phase 2 (/microcontroller-interface, ataraxis firmware-module / camera-interface, /zaber-interface)
@@ -211,7 +211,7 @@ list_supported_acquisition_systems_tool)?
                 ├─ no  → Phase 3 (/acquisition-system-design → /acquisition-system-runtime)
                 └─ yes
                     └─ Does a corridor task template exist for the experiment config's unity_scene_name?
-                        ├─ no  → Phase 4 (assets plugin /task-templates → unity plugin /task-prefabs)
+                        ├─ no  → Phase 4 (assets:task-templates → unity:task-prefabs)
                         └─ yes → the system type is built; hand off to /pipeline to configure a host and
                                  run the first session (optional: external-service processors, Phase 5;
                                  agentic assets, Phase 6)
@@ -226,8 +226,8 @@ substitutes its own equivalents.
 
 | You need to…                                                   | Use…                                                              |
 |----------------------------------------------------------------|-------------------------------------------------------------------|
-| Register the system's contract in shared-assets                | assets plugin `/library-extension`                                |
-| Add a trial class or trigger type                              | assets plugin `/library-extension`                                |
+| Register the system's contract in shared-assets                | `assets:library-extension`                                |
+| Add a trial class or trigger type                              | `assets:library-extension`                                |
 | Add a paired `Module` + `ModuleInterface` (catalog, type code) | `/microcontroller-interface`                                      |
 | Write the firmware `Module` base mechanics                     | `ataraxis@microcontroller:firmware-module`                        |
 | Write the PC `ModuleInterface` base mechanics                  | `ataraxis@communication:microcontroller-interface`                |
@@ -238,11 +238,11 @@ substitutes its own equivalents.
 | Design the system's static composition                         | `/acquisition-system-design`                                      |
 | Implement the runtime loop, modes, CLI, MCP module             | `/acquisition-system-runtime`                                     |
 | Couple the runtime to the Unity VR task                        | `/vr-driver-interface`                                            |
-| Author the corridor task template                              | assets plugin `/task-templates`                                   |
-| Generate the Unity prefab / scene from the template            | unity plugin `/task-prefabs` / `/task-scenes`                     |
+| Author the corridor task template                              | `assets:task-templates`                                   |
+| Generate the Unity prefab / scene from the template            | `unity:task-prefabs` / `unity:task-scenes`                     |
 | Author a read / write external data-service processor          | `/google-sheets-processing`                                       |
-| Register a new external read asset                             | assets plugin `/library-extension` / `/data-assets`               |
-| Register a new external-service credential category            | assets plugin `/library-extension`                                |
+| Register a new external read asset                             | `assets:library-extension` / `assets:data-assets`               |
+| Register a new external-service credential category            | `assets:library-extension`                                |
 | Author the per-system instance / runtime skills                | `/acquisition-system-design` (steps 10–11)                        |
 | Configure a host and run the first session                     | `/pipeline`                                                       |
 
@@ -253,7 +253,7 @@ substitutes its own equivalents.
 | Skill                                              | Relationship                                                                                 |
 |----------------------------------------------------|----------------------------------------------------------------------------------------------|
 | `/pipeline`                                        | The operate-time counterpart; receives the built system for its first run                    |
-| assets plugin `/library-extension`                 | Owns Phase 1 — the shared-assets contract, registries, and trial/trigger recipes             |
+| `assets:library-extension`                 | Owns Phase 1 — the shared-assets contract, registries, and trial/trigger recipes             |
 | `/microcontroller-interface`                       | Owns the Sollertia paired `Module` + `ModuleInterface` workflow and module catalog (Phase 2) |
 | `ataraxis@microcontroller:firmware-module`         | Owns the firmware `Module` authoring in Phase 2                                              |
 | `ataraxis@communication:microcontroller-interface` | Owns the `ModuleInterface` and `MicroControllerInterface` mechanics in Phase 2               |
@@ -261,10 +261,10 @@ substitutes its own equivalents.
 | `/zaber-interface`                                 | Owns the Zaber motor subsystem in Phase 2                                                    |
 | `/acquisition-system-design`                       | Owns Phase 3 static composition and the per-package deliverables manifest                    |
 | `/acquisition-system-runtime`                      | Owns Phase 3 runtime loop, modes, CLI, and MCP tool module                                   |
-| assets plugin `/task-templates`                    | Owns the corridor task template in Phase 4                                                   |
-| unity plugin `/task-prefabs`                       | Owns Unity prefab and scene generation in Phase 4                                            |
+| `assets:task-templates`                    | Owns the corridor task template in Phase 4                                                   |
+| `unity:task-prefabs`                       | Owns Unity prefab and scene generation in Phase 4                                            |
 | `/google-sheets-processing`                        | Owns the external data-service processors in Phase 5                                         |
-| assets plugin `/data-assets`                       | Reads and amends the on-disk read assets a processor emits                                   |
+| `assets:data-assets`                       | Reads and amends the on-disk read assets a processor emits                                   |
 | `/acquisition-system-setup`                        | Resolves a built system to its owning instance skill during operation                        |
 
 ---

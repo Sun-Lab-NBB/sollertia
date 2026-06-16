@@ -364,5 +364,5 @@ work through its likely cause and first check.
 | `/task-parameters` (this plugin)         | Editor-time alternative for `RequireInteraction` / `RequireWait` flags              |
 | `/scene-setup` (this plugin)             | `UI-lick-reward` subsystem subscribes to `Interaction` and `Stimulus`               |
 | `/play-mode` (this plugin)               | MQTT activity is only live while the Editor is in `playing` state                   |
-| assets plugin `/task-templates`          | YAML cue codes appear as `byte` values in `CueSequence` payloads                    |
-| experiment plugin `/vr-driver-interface` | Host (Python) side — `_VRTaskMQTTTopics` mirrors this catalog; change both together |
+| `assets:task-templates`          | YAML cue codes appear as `byte` values in `CueSequence` payloads                    |
+| `experiment:vr-driver-interface` | Host (Python) side — `_VRTaskMQTTTopics` mirrors this catalog; change both together |

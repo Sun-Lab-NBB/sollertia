@@ -28,7 +28,7 @@ ordering, handoff conditions to phase-specific skills, and the boundary between 
 - Designing or building a new acquisition system type — see `/system-design-pipeline`
 - Detailed tool usage for any individual phase (see phase-specific skills)
 - MCP server connectivity (see each plugin's `*-mcp-environment-setup` skill, e.g.
-  `/experiment-mcp-environment-setup`, `/assets-mcp-environment-setup`)
+  `/experiment-mcp-environment-setup`, `assets:assets-mcp-environment-setup`)
 - Authoring system / experiment / session YAML files (see assets plugin skills)
 - Post-acquisition data processing (see forging plugin)
 
@@ -63,10 +63,10 @@ reads validated configuration files written during the AI-assisted phases.
 ## Pipeline phases
 
 ```text
-1. Working directory      assets plugin /working-directory
-2. System configuration   active system's skill (mesoscope → /mesoscope-vr)
+1. Working directory      assets:working-directory
+2. System configuration   active system's skill (mesoscope → mesoscope:mesoscope-vr)
 3. Hardware bringup        /acquisition-system-setup
-4. Experiment design       assets plugin /project-hierarchy → /task-templates → /experiment-configuration
+4. Experiment design       assets:project-hierarchy → assets:task-templates → assets:experiment-configuration
 5. Pre-session check       /system-health-check
 6. Runtime acquisition     active system run CLI, e.g. sle mesoscope run <mode>  (no MCP, no AI)
 7. Post-process & manage   /data-management
@@ -75,7 +75,7 @@ reads validated configuration files written during the AI-assisted phases.
 
 ### Phase 1: Working directory and credentials
 
-- **Plugin / Skill:** assets plugin → `/working-directory`
+- **Plugin / Skill:** assets plugin → `assets:working-directory`
 - **Actions:** Set the local Sollertia working directory (always required) and the task templates directory
   (required for every system, since every experiment seeds its configuration from a corridor task template).
   Optionally configure platform credentials by category — needed only for systems that integrate with the
@@ -88,7 +88,7 @@ reads validated configuration files written during the AI-assisted phases.
 ### Phase 2: System configuration
 
 - **Plugin / Skill:** the active acquisition system's skill (for the `mesoscope` system,
-  experiment plugin → `/mesoscope-vr`). Resolve the system type to its owning skill via
+  mesoscope plugin → `mesoscope:mesoscope-vr`). Resolve the system type to its owning skill via
   `/acquisition-system-setup`'s **Supported acquisition systems** registry.
 - **Actions:** Generate or edit the active system's configuration YAML via the `sle mcp` write
   tool (e.g. for the `mesoscope` system, `MesoscopeSystemConfiguration`).
@@ -102,7 +102,7 @@ reads validated configuration files written during the AI-assisted phases.
   platform-universal / domain-general stack), plus any system-specific instrument it composes (for the
   `mesoscope` system, the mesoscope itself, controlled via the ScanImage bridge). Validate the system
   configuration against discovered hardware. Update fields (camera indices, port assignments) using the
-  configuration plugin's MCP write tools as needed. Where a device has cached configuration in the system
+  assets plugin's MCP write tools as needed. Where a device has cached configuration in the system
   configuration directory, apply it as part of bringup — e.g. restore each camera's GenICam configuration
   from its cached file (`ataraxis@video:camera-setup`, path sourced from the system configuration).
 - **Handoff condition:** All required hardware enumerated; system configuration matches reality.
@@ -111,7 +111,7 @@ reads validated configuration files written during the AI-assisted phases.
   - `ataraxis@communication:microcontroller-setup` for microcontroller enumeration
   - `/zaber-interface` for Zaber motor discovery and validation (domain-general, not system-specific)
   - for any system-specific instrument the active system composes, that system's skill (for the
-    `mesoscope` system: the mesoscope via the ScanImage bridge; see `/mesoscope-vr`)
+    `mesoscope` system: the mesoscope via the ScanImage bridge; see `mesoscope:mesoscope-vr`)
 
 ### Phase 4: Experiment authoring
 
@@ -119,17 +119,17 @@ This phase spans three assets plugin skills, each owning exactly one slsa asset.
 Step 4b (task template), and Step 4c (experiment configuration) are all required: every experiment
 seeds its configuration from a corridor task template.
 
-- **Step 4a — `/project-hierarchy` (assets plugin):** Confirm the project under which the
+- **Step 4a — `assets:project-hierarchy`:** Confirm the project under which the
   experiment will live exists on disk (`get_data_root_overview_tool`), or create it with
   `create_project_tool` (equivalently the `slsa configure project` CLI). Projects must exist before a
   session can be recorded — `SessionData.create` raises `FileNotFoundError` if the project is missing.
-  Both the discovery tool and `create_project_tool` are owned by `/project-hierarchy`.
-- **Step 4b — `/task-templates` (assets plugin):** A task template (`TaskTemplate`) is the corridor
+  Both the discovery tool and `create_project_tool` are owned by `assets:project-hierarchy`.
+- **Step 4b — `assets:task-templates`:** A task template (`TaskTemplate`) is the corridor
   task asset: cue catalog, VR environment, and per-trial corridor geometry (each trial owns its own
   geometry — there is no separate segment catalog at the template level). Author or load the template
-  (owns `write_template_tool`), then hand off to the unity plugin's `/task-prefabs` if it targets a
+  (owns `write_template_tool`), then hand off to `unity:task-prefabs` if it targets a
   Unity scene (prefab generation and zone validation).
-- **Step 4c — `/experiment-configuration` (assets plugin):** Author the per-project experiment
+- **Step 4c — `assets:experiment-configuration`:** Author the per-project experiment
   configuration — trial structures, the experiment state machine, and runtime parameters (state
   durations, reward volumes). `create_experiment_from_vr_template_tool` seeds the configuration from a
   Unity VR task template (the template is read only at creation time and not stored in the result);
@@ -188,8 +188,8 @@ seeds its configuration from a corridor task template.
   otherwise loop back to Phase 6 for the next session.
 - **Actions:** Once a session is preprocessed and transferred to long-term storage, hand off to the
   forging plugin's behavior processing subsystem — session discovery / transfer
-  (`/session-transfer`), batch behavior processing (`/behavior-processing`), output verification
-  (`/behavior-results`), and dataset curation (`/datasets`).
+  (`forging:session-transfer`), batch behavior processing (`forging:behavior-processing`), output verification
+  (`forging:behavior-results`), and dataset curation (`forging:datasets`).
 - **Handoff condition:** The preprocessed session is present on the storage destination the forging
   plugin reads from.
 
@@ -199,13 +199,13 @@ seeds its configuration from a corridor task template.
 
 ```text
 Is the system already configured?
-├─ no  → start at Phase 1 (assets plugin /working-directory)
+├─ no  → start at Phase 1 (assets:working-directory)
 └─ yes
     └─ Is the hardware verified for this session?
         ├─ no  → /system-health-check
         └─ yes
             └─ Does an experiment configuration exist for this project?
-                ├─ no  → /project-hierarchy → /task-templates → /experiment-configuration
+                ├─ no  → assets:project-hierarchy → assets:task-templates → assets:experiment-configuration
                 └─ yes
                     └─ Is a session already recorded?
                         ├─ no  → user runs the active system's run CLI, e.g. `sle mesoscope run <mode>` (no AI involvement)
@@ -228,34 +228,34 @@ systems** registry).
 
 | You need to…                                      | Use…                                                                               |
 |---------------------------------------------------|------------------------------------------------------------------------------------|
-| Set the working directory or credentials          | assets plugin `/working-directory`                                                 |
-| Author the active system's configuration YAML     | that system's skill (for `mesoscope`, `/mesoscope-vr`)                             |
-| Author the server (remote transfer) configuration | forging plugin `/server-configuration`                                             |
-| Create a project                                  | `create_project_tool` or `slsa configure project` CLI (`/project-hierarchy`)       |
-| Author a task template                            | assets plugin `/task-templates`                                                    |
-| Author a per-project experiment configuration     | assets plugin `/experiment-configuration`                                          |
-| Read a session marker / inspect session metadata  | assets plugin `/session-data`                                                      |
-| Read or repair a session descriptor               | assets plugin `/session-descriptors`                                               |
-| Read or patch a frozen runtime snapshot           | experiment plugin `/mesoscope-vr-snapshots`                                        |
-| Look up animal surgery / implants / drugs         | assets plugin `/data-assets`                                                       |
-| Curate or read a dataset                          | forging plugin `/datasets`                                                         |
+| Set the working directory or credentials          | `assets:working-directory`                                                 |
+| Author the active system's configuration YAML     | that system's skill (for `mesoscope`, `mesoscope:mesoscope-vr`)                             |
+| Author the server (remote transfer) configuration | `forging:server-configuration`                                             |
+| Create a project                                  | `create_project_tool` or `slsa configure project` CLI (`assets:project-hierarchy`)       |
+| Author a task template                            | `assets:task-templates`                                                    |
+| Author a per-project experiment configuration     | `assets:experiment-configuration`                                          |
+| Read a session marker / inspect session metadata  | `assets:session-data`                                                      |
+| Read or repair a session descriptor               | `assets:session-descriptors`                                               |
+| Read or patch a frozen runtime snapshot           | `mesoscope:mesoscope-vr-snapshots`                                        |
+| Look up animal surgery / implants / drugs         | `assets:data-assets`                                                       |
+| Curate or read a dataset                          | `forging:datasets`                                                         |
 | Discover GenICam cameras                          | `ataraxis@video:camera-setup`                                                      |
 | Test camera acquisition interactively             | `ataraxis@video:camera-setup`                                                      |
 | Verify a camera against its stored GenICam config | `/system-health-check` (verify) / `/acquisition-system-setup` (at bringup)         |
 | Dump or restore a camera's GenICam config         | `ataraxis@video:camera-setup` (path sourced from the system configuration)         |
 | Discover microcontrollers / verify MQTT           | `ataraxis@communication:microcontroller-setup`                                     |
-| Write a new VideoSystem binding                   | `ataraxis@video:camera-interface` (general) / `/mesoscope-vr` (Mesoscope-specific) |
+| Write a new VideoSystem binding                   | `ataraxis@video:camera-interface` (general) / `mesoscope:mesoscope-vr` (Mesoscope-specific) |
 | Write a new ModuleInterface                       | `/microcontroller-interface` → `ataraxis@communication:microcontroller-interface`  |
 | Write firmware for a new module                   | `ataraxis@microcontroller:firmware-module`                                         |
 | Discover or configure Zaber motors                | `/zaber-interface`                                                                 |
-| Modify Mesoscope-VR hardware composition          | `/mesoscope-vr`                                                                    |
-| Modify Mesoscope-VR runtime behavior              | `/mesoscope-vr-runtime`                                                            |
+| Modify Mesoscope-VR hardware composition          | `mesoscope:mesoscope-vr`                                                                    |
+| Modify Mesoscope-VR runtime behavior              | `mesoscope:mesoscope-vr-runtime`                                                            |
 | Drive the Unity VR task / MQTT coupling           | `/vr-driver-interface`                                                             |
 | Design a new acquisition system (static)          | `/acquisition-system-design`                                                       |
 | Implement an acquisition-system runtime loop      | `/acquisition-system-runtime`                                                      |
-| Generate / verify Unity task prefab from template | unity plugin `/task-prefabs`                                                       |
-| Open / create a Unity scene                       | unity plugin `/task-scenes`                                                        |
-| Enter / exit Unity Play Mode                      | unity plugin `/play-mode`                                                          |
+| Generate / verify Unity task prefab from template | `unity:task-prefabs`                                                       |
+| Open / create a Unity scene                       | `unity:task-scenes`                                                        |
+| Enter / exit Unity Play Mode                      | `unity:play-mode`                                                          |
 
 ---
 

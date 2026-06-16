@@ -13,8 +13,8 @@ user-invocable: false
 
 Documents the Virtual Reality task driver — the host-side hardware subsystem that couples a Sollertia
 acquisition runtime to the Unity game engine implemented in `sollertia-unity-tasks`. This is the
-platform-general VR subsystem, parallel to `experiment:microcontroller-interface` (microcontrollers) and
-`experiment:zaber-interface` (motors): the `VRTaskDriver` in
+platform-general VR subsystem, parallel to `/microcontroller-interface` (microcontrollers) and
+`/zaber-interface` (motors): the `VRTaskDriver` in
 `sollertia_experiment/vr_task/driver.py` is hardware-agnostic and composed by an acquisition
 system's runtime orchestrator (currently Mesoscope-VR's `MesoscopeVRSystem`).
 
@@ -22,7 +22,7 @@ The VR task driver is a standard subsystem of every acquisition system, but it i
 session types that run the linear infinite corridor task: experiment sessions. The runtime orchestrator
 constructs it only for those session types (for Mesoscope-VR's `MesoscopeVRSystem`, only
 `MESOSCOPE_EXPERIMENT` sessions); `self._vr_task` is `None` for training and window-checking sessions,
-which run no corridor task (see `experiment:acquisition-system-runtime`).
+which run no corridor task (see `/acquisition-system-runtime`).
 
 The Unity side of the contract — the GIMBL framework, the `MQTTTopics` constant set, and task prefab
 generation — lives in the unity plugin. This skill owns the **host (Python) side**.
@@ -49,9 +49,9 @@ generation — lives in the unity plugin. This skill owns the **host (Python) si
 - The Unity-side MQTT topic registration / `MQTTTopics` constant set — see `unity:mqtt-contract`
 - Unity task prefab / scene generation from templates — see `unity:task-prefabs`, `unity:task-scenes`
 - `TaskTemplate` authoring (cue catalog, corridor geometry, per-trial cue motifs, trigger types) —
-  owned by the assets plugin's `/task-templates`
-- The runtime state machine that consumes the driver's events — see `experiment:mesoscope-vr-runtime`
-- The platform-general runtime/orchestrator pattern — see `experiment:acquisition-system-runtime`
+  owned by `assets:task-templates`
+- The runtime state machine that consumes the driver's events — see `mesoscope:mesoscope-vr-runtime`
+- The platform-general runtime/orchestrator pattern — see `/acquisition-system-runtime`
 
 ---
 
@@ -63,8 +63,8 @@ generation — lives in the unity plugin. This skill owns the **host (Python) si
 | Unity-side editor MCP Bridge (scene / Play-Mode tools)               | `unity:play-mode`, `unity:scene-setup`             |
 | Unity-side MQTT topic contract (`MQTTTopics`)                        | `unity:mqtt-contract`                              |
 | Unity-side VR framework and game objects                             | `unity:gimbl-framework`                            |
-| `TaskTemplate` schema (cue catalog, geometry, motifs, trigger types) | assets plugin `/task-templates`                    |
-| Runtime that consumes this driver                                    | `experiment:mesoscope-vr-runtime`                  |
+| `TaskTemplate` schema (cue catalog, geometry, motifs, trigger types) | `assets:task-templates`                    |
+| Runtime that consumes this driver                                    | `mesoscope:mesoscope-vr-runtime`                  |
 
 The driver builds on `ataraxis_communication_interface.MQTTCommunication` and only documents the
 Sollertia VR contract layered on top.
@@ -81,7 +81,7 @@ The driver reads `VRTaskConfiguration` (`sollertia_experiment/vr_task/configurat
 | `port` | `int` | `1883`        | Port number of the MQTT broker                                    |
 
 `VRTaskConfiguration` stores **only** the MQTT broker discovery fields. For Mesoscope-VR it is nested
-under `MesoscopeSystemConfiguration.assets.vr_task` (see `experiment:mesoscope-vr`). The geometric VR
+under `MesoscopeSystemConfiguration.assets.vr_task` (see `mesoscope:mesoscope-vr`). The geometric VR
 parameters (cue catalog, corridor geometry, cm-per-Unity-unit, per-trial cue motifs, trigger types)
 are NOT stored here — they live in the `TaskTemplate` resolved at experiment start by
 `load_vr_task_template(unity_scene_name)`, which reads from the shared VR task templates directory.
@@ -148,8 +148,8 @@ reply to `UnityBridgeError`, which the driver layer catches to retry, surface, o
 `enter_play_mode()` only presses the editor's play button; the MQTT `SessionStart` message remains the
 authoritative "Unity is armed and connected" signal, so `setup()` still waits for it after arming. A
 dedicated reachability check is surfaced to pre-flight via the `sle get unity` CLI command and the
-`check_unity_bridge_tool` MCP tool (see `experiment:system-health-check`,
-`experiment:acquisition-system-setup`).
+`check_unity_bridge_tool` MCP tool (see `/system-health-check`,
+`/acquisition-system-setup`).
 
 ---
 
@@ -243,7 +243,7 @@ trial sequence the acquisition system can act on, using the per-trial cue motifs
   | `trigger_types`        | `tuple[TriggerType, ...]` | The per-trial `TriggerType` member; the platform enum carries all five members (see below) |
 
 `TriggerType` is owned by `sollertia-shared-assets` (and its enum is extended via the assets plugin's
-`/library-extension`). The platform enum carries **five** members — `INTERACTION`, `COLLISION`,
+`assets:library-extension`). The platform enum carries **five** members — `INTERACTION`, `COLLISION`,
 `OCCUPANCY_DISARM`, `OCCUPANCY_ARM`, and `OCCUPANCY_TRIGGER` — but **each acquisition system maps only the
 subset it supports**. A new `TriggerType` member does NOT require a `from_task_template` branch in every
 system: a system may leave a member unsupported/unmapped, and a config that uses an unmapped member raises a
@@ -265,13 +265,13 @@ structures to build the per-trial reward/puff arrays — along with `cue_sequenc
 as a property. All five modes share one MQTT/wire contract: every mode publishes the same
 `Stimulus{trialName}` event and adds no topics (see the [MQTT topic contract](#mqtt-topic-contract)); the
 Unity-side dispatch, prefab reuse, and mode-aware template geometry are owned by `unity:zone-prefabs`,
-`unity:task-generator`, and the assets plugin's `/task-templates`.
+`unity:task-generator`, and `assets:task-templates`.
 
 ---
 
 ## Orchestrator integration
 
-The runtime orchestrator owns the driver lifecycle (see `experiment:mesoscope-vr-runtime`):
+The runtime orchestrator owns the driver lifecycle (see `mesoscope:mesoscope-vr-runtime`):
 
 1. `__init__` constructs the `VRTaskDriver` from `assets.vr_task` + the loaded `TaskTemplate`, **only**
    for `SessionTypes.MESOSCOPE_EXPERIMENT` sessions (`self._vr_task` is `None` otherwise).
@@ -304,7 +304,7 @@ Adding a topic is a coordinated change with the Unity project (`sollertia-unity-
 1. Add a member to `VRTaskEventKind`.
 2. Add any payload fields to `VRTaskEvent` (keep it a frozen dataclass; default new fields).
 3. Branch on the source topic in `cycle()` to construct and return the new event.
-4. Handle the new event kind in the orchestrator's `_unity_cycle()` (see `experiment:mesoscope-vr-runtime`).
+4. Handle the new event kind in the orchestrator's `_unity_cycle()` (see `mesoscope:mesoscope-vr-runtime`).
 5. Update the [Event model](#event-model) table here and bump `sollertia-experiment` version.
 
 ---
@@ -346,19 +346,19 @@ When in doubt, re-read `sollertia_experiment/vr_task/driver.py`,
 
 | Skill                                              | Relationship                                                                 |
 |----------------------------------------------------|------------------------------------------------------------------------------|
-| `experiment:mesoscope-vr-runtime`                  | Owns the orchestrator that composes and drives this driver                   |
-| `experiment:mesoscope-vr`                          | Defines `assets.vr_task` (`VRTaskConfiguration`) in the system config        |
-| `experiment:acquisition-system-runtime`            | Platform-general runtime pattern this subsystem plugs into                   |
+| `mesoscope:mesoscope-vr-runtime`                  | Owns the orchestrator that composes and drives this driver                   |
+| `mesoscope:mesoscope-vr`                          | Defines `assets.vr_task` (`VRTaskConfiguration`) in the system config        |
+| `/acquisition-system-runtime`            | Platform-general runtime pattern this subsystem plugs into                   |
 | `ataraxis@communication:microcontroller-interface` | `MQTTCommunication` mechanics the driver builds on                           |
-| `experiment:system-health-check`                   | Pre-flight `check_unity_bridge_tool` that enforces the Unity Editor is open  |
+| `/system-health-check`                   | Pre-flight `check_unity_bridge_tool` that enforces the Unity Editor is open  |
 | `unity:play-mode`                                  | Unity-side editor bridge Play-Mode control the driver drives                 |
 | `unity:scene-setup`                                | Unity-side editor bridge scene activation the driver drives                  |
 | `unity:mqtt-contract`                              | Unity side of the MQTT topic contract (`MQTTTopics`)                         |
 | `unity:gimbl-framework`                            | Unity-side VR framework and game objects                                     |
 | `unity:task-prefabs`                               | Unity task prefab generation from templates                                  |
-| assets plugin `/task-templates`                    | Authors the mandatory corridor task asset (`TaskTemplate`) decomposed here   |
-| assets plugin `/library-extension`                 | Owns the `TriggerType` enum used by `DecomposedTrials`                       |
-| assets plugin `/experiment-configuration`          | Owns `unity_scene_name` (verified by `setup()`) and the per-trial parameters |
+| `assets:task-templates`                    | Authors the mandatory corridor task asset (`TaskTemplate`) decomposed here   |
+| `assets:library-extension`                 | Owns the `TriggerType` enum used by `DecomposedTrials`                       |
+| `assets:experiment-configuration`          | Owns `unity_scene_name` (verified by `setup()`) and the per-trial parameters |
 
 ---
 
@@ -372,7 +372,7 @@ When modifying the VR task driver:
 - [ ] monitored_topics updated for any new inbound surfaced topic
 - [ ] cycle() branches and VRTaskEventKind/VRTaskEvent updated for any new dispatchable event
 - [ ] Guidance inversion preserved (RequireInteraction/RequireWait publish `not enabled`)
-- [ ] Orchestrator _unity_cycle() handles any new event kind (experiment:mesoscope-vr-runtime)
+- [ ] Orchestrator _unity_cycle() handles any new event kind (mesoscope:mesoscope-vr-runtime)
 - [ ] Trial decomposition (DecomposedTrials) updated if the per-trial data model changed
 - [ ] Event model / topic contract tables in this skill updated
 - [ ] sollertia-experiment version bumped; Unity side coordinated for any wire-string change

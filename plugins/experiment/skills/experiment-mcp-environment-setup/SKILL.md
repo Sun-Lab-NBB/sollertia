@@ -27,7 +27,7 @@ Diagnoses and resolves sollertia-experiment MCP server connectivity and environm
 - MCP tool usage for Zaber discovery/configuration (see `/zaber-interface`)
 - MCP tool usage for session preprocessing/deletion and animal migration (see `/data-management`)
 - sollertia-shared-assets `slsa mcp` server (see the assets plugin's
-  `/assets-mcp-environment-setup`)
+  `assets:assets-mcp-environment-setup`)
 - sollertia-experiment package development workflows
 
 ---
@@ -162,7 +162,7 @@ plugin will automatically reconnect the server on the next session.
 | `sle: command not found`                  | sollertia-experiment not installed        | `pip install sollertia-experiment` in the active environment         |
 | Import error on `sle mcp`                 | Version skew with sollertia-shared-assets | `pip install --upgrade sollertia-experiment sollertia-shared-assets` |
 | Python version mismatch                   | Wrong environment activated               | Activate environment with Python >=3.14,<3.15                        |
-| Tools fail with "no system configuration" | `slsa` working directory not initialized  | Run `/working-directory` from the assets plugin                      |
+| Tools fail with "no system configuration" | `slsa` working directory not initialized  | Run `assets:working-directory` from the assets plugin                      |
 | Tool fails with Zaber connection error    | Not an environment issue                  | Check `/zaber-interface` for hardware troubleshooting                |
 
 ---
@@ -173,11 +173,11 @@ plugin will automatically reconnect the server on the next session.
 |-----------------------------------------------|--------------------------------------------------------------------------------------------|
 | `/zaber-interface`                            | Requires the `sollertia-experiment` MCP for device discovery and settings                  |
 | `/data-management`                            | Requires the `sollertia-experiment` MCP for session preprocess/delete and animal migration |
-| `/mesoscope-vr-snapshots`                     | Requires the `sollertia-experiment` MCP for position snapshot read/write                   |
-| `/mesoscope-vr`                               | Requires the `sollertia-experiment` MCP for system configuration authoring                 |
+| `mesoscope:mesoscope-vr-snapshots`                     | Requires the `sollertia-experiment` MCP for position snapshot read/write                   |
+| `mesoscope:mesoscope-vr`                               | Requires the `sollertia-experiment` MCP for system configuration authoring                 |
 | `/system-health-check`                        | Uses the server as part of the pre-session validation sweep                                |
 | `/pipeline`                                   | Orchestrates all phases that depend on MCP server connectivity                             |
-| assets plugin `/assets-mcp-environment-setup` | Equivalent diagnostic for the `slsa mcp` server                                            |
+| `assets:assets-mcp-environment-setup` | Equivalent diagnostic for the `slsa mcp` server                                            |
 
 ---
 

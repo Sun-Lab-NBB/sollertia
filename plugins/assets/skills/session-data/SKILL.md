@@ -39,17 +39,17 @@ flow. The inventory side of "which descriptors and assets exist for a session" i
 - Reading or writing the per-session `MesoscopeHardwareState` snapshot (see
   `/session-hardware-state`)
 - Reading or writing the per-session Zaber and mesoscope-objective position snapshots (see the
-  experiment plugin's `/mesoscope-vr-snapshots`)
+  `mesoscope:mesoscope-vr-snapshots`)
 - Reading the frozen system configuration captured at session start (see the experiment plugin's
-  `/acquisition-system-design`)
+  `experiment:acquisition-system-design`)
 - Reading the frozen experiment configuration captured at session start (see
   `/experiment-configuration` for `read_experiment_configuration_tool`)
 - Reading subject metadata (see `/data-assets`)
 - Discovering projects, animals, or sessions (see `/project-hierarchy`, which owns
   `get_data_root_overview_tool`)
-- Datasets that aggregate sessions (see forging plugin's `/datasets`)
+- Datasets that aggregate sessions (see `forging:datasets`)
 - Preprocessing, deleting, or migrating sessions (see the experiment plugin's
-  `/data-management`)
+  `experiment:data-management`)
 
 ---
 
@@ -137,11 +137,11 @@ session root):
 │   ├── experiment_configuration.yaml          # /experiment-configuration (frozen, experiment sessions only)
 │   ├── vr_configuration.yaml                  # /task-templates frozen snapshot (corridor-task sessions only)
 │   ├── hardware_state.yaml                    # /session-hardware-state
-│   ├── zaber_positions.yaml                   # experiment plugin /mesoscope-vr-snapshots
-│   ├── mesoscope_positions.yaml               # experiment plugin /mesoscope-vr-snapshots
-│   ├── window_screenshot.png                  # experiment plugin /mesoscope-vr-snapshots (Mesoscope-VR)
-│   ├── ax_checksum.txt                        # raw_data integrity checksum (/data-management)
-│   ├── checksum_processing_tracker.yaml       # checksum resolution tracker (/data-management)
+│   ├── zaber_positions.yaml                   # mesoscope:mesoscope-vr-snapshots
+│   ├── mesoscope_positions.yaml               # mesoscope:mesoscope-vr-snapshots
+│   ├── window_screenshot.png                  # mesoscope:mesoscope-vr-snapshots (Mesoscope-VR)
+│   ├── ax_checksum.txt                        # raw_data integrity checksum (experiment:data-management)
+│   ├── checksum_processing_tracker.yaml       # checksum resolution tracker (experiment:data-management)
 │   ├── nk.bin                                 # uninitialized-session marker (see note below)
 │   └── ... acquired data files ...
 └── processed_data/                            # populated by downstream processing pipelines
@@ -311,11 +311,11 @@ In addition to `status`, each per-session report returns the independent boolean
    ```
 5. **Hand off to `/session-descriptors`** to read the descriptor contents.
 6. **Hand off to `/session-hardware-state`** to read the frozen `MesoscopeHardwareState`.
-7. **Hand off to the experiment plugin's `/mesoscope-vr-snapshots`** to read the Zaber and
+7. **Hand off to `mesoscope:mesoscope-vr-snapshots`** to read the Zaber and
    mesoscope-objective position snapshots.
 8. **Hand off to `/experiment-configuration`** for the frozen experiment configuration via
    `read_experiment_configuration_tool` (pass the session snapshot path).
-9. **Hand off to the experiment plugin's `/acquisition-system-design`** for the frozen
+9. **Hand off to `experiment:acquisition-system-design`** for the frozen
    `system_configuration.yaml` snapshot (it documents the per-system configuration pattern).
 
 ### Validating a session's file inventory
@@ -329,7 +329,7 @@ The per-session report's `required_assets` list enumerates every file the sessio
 configuration snapshot is required when the session carries an `experiment_name`; and the VR configuration
 snapshot is required when the session type runs the corridor task.
 The `issues` list restates missing required files as human-readable strings. Use this before
-handing off to the experiment plugin's `/data-management` for preprocessing.
+handing off to `experiment:data-management` for preprocessing.
 
 ### Batch lifecycle audit across a data root
 
@@ -341,10 +341,10 @@ handing off to the experiment plugin's `/data-management` for preprocessing.
    `/session-discovery`). The batch report gives you the same status plus full per-session
    inventory in one call.
 3. For sessions reported as `uninitialized`, coordinate purging via the experiment plugin's
-   `/data-management` — these have no data of value.
+   `experiment:data-management` — these have no data of value.
 4. For sessions reported as `incomplete` or `error`, read the per-session `issues` list and
-   hand off to `/session-descriptors`, `/session-hardware-state`, the experiment plugin's
-   `/mesoscope-vr-snapshots`, or `/data-management` to remediate.
+   hand off to `/session-descriptors`, `/session-hardware-state`, the mesoscope plugin's
+   `mesoscope:mesoscope-vr-snapshots`, or `experiment:data-management` to remediate.
 
 ### Querying supported session types
 
@@ -373,11 +373,11 @@ returns every platform session type regardless of which system can run it.
 - [ ] read_session_data_tool was only called when the raw payload fields
       (python_version / sollertia_experiment_version) were actually needed
 - [ ] inspect_sessions_tool was called before handing off to the experiment plugin's
-      /data-management for preprocessing (issues list is empty for required_assets)
+      experiment:data-management for preprocessing (issues list is empty for required_assets)
 - [ ] write_session_data_tool was only invoked for explicit repair workflows — not during
       normal acquisition, which is the acquisition runtime's responsibility
 - [ ] Handed off to /session-descriptors, /session-hardware-state, /data-assets,
-      /experiment-configuration, or the experiment plugin's /mesoscope-vr-snapshots for any read that
+      /experiment-configuration, or mesoscope:mesoscope-vr-snapshots for any read that
       goes deeper than the marker
 ```
 
@@ -393,10 +393,10 @@ returns every platform session type regardless of which system can run it.
 | `/session-discovery`                           | Filters the flat `sessions` list from `get_data_root_overview_tool`                                                                                     |
 | `/session-descriptors`                         | Sibling — owns the per-session descriptor read/write/schema                                                                                             |
 | `/session-hardware-state`                      | Sibling — owns the per-session `MesoscopeHardwareState` snapshot                                                                                        |
-| experiment plugin `/mesoscope-vr-snapshots`    | Owns the frozen Zaber and mesoscope-objective position snapshots                                                                                        |
+| `mesoscope:mesoscope-vr-snapshots`    | Owns the frozen Zaber and mesoscope-objective position snapshots                                                                                        |
 | `/data-assets`                                 | Sibling — owns read assets (e.g., animal-scoped surgery records)                                                                                        |
-| experiment plugin `/acquisition-system-design` | Documents the per-system configuration pattern authored and consumed at session start                                                                   |
+| `experiment:acquisition-system-design` | Documents the per-system configuration pattern authored and consumed at session start                                                                   |
 | `/experiment-configuration`                    | Owns `read_experiment_configuration_tool` (reads both project source and frozen session snapshot)                                                       |
 | `/library-extension`                           | Cross-cutting recipe to add new `SessionTypes` or `AcquisitionSystems` members; lists the skill content here that needs updating in lockstep            |
-| forging plugin `/datasets`                     | Datasets aggregate sessions                                                                                                                             |
-| experiment plugin `/data-management`           | Preprocesses, migrates, and deletes sessions. Project directories must already exist (created via `create_project_tool`) before sessions can be created |
+| `forging:datasets`                     | Datasets aggregate sessions                                                                                                                             |
+| `experiment:data-management`           | Preprocesses, migrates, and deletes sessions. Project directories must already exist (created via `create_project_tool`) before sessions can be created |

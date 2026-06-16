@@ -22,7 +22,7 @@ system configuration rather than through binding classes.
 
 This skill is a **pattern skill** — it documents the conventions and contracts that all Sollertia
 acquisition systems share, but does not document any single system's specific composition. For
-concrete instances, see the per-system skills (currently `experiment:mesoscope-vr`).
+concrete instances, see the per-system skills (currently `mesoscope:mesoscope-vr`).
 
 Detailed authoring patterns live in three reference files, loaded on demand:
 
@@ -51,26 +51,26 @@ Detailed authoring patterns live in three reference files, loaded on demand:
 
 **Does not cover** (delegated):
 - The per-firmware-module Python wrapper layer (`cross_system/module_interfaces.py`) and slmc
-  firmware Modules — see `experiment:microcontroller-interface`.
+  firmware Modules — see `/microcontroller-interface`.
 - Concrete Mesoscope-VR composition (the binding-class instances and their YAML field surface) — see
-  `experiment:mesoscope-vr`.
+  `mesoscope:mesoscope-vr`.
 - The platform-general runtime-behavior pattern (state machine, runtime loop, event dispatch) — see
-  `experiment:acquisition-system-runtime`.
+  `/acquisition-system-runtime`.
 - Concrete Mesoscope-VR runtime behavior (state machine, training modes, CLI) — see
-  `experiment:mesoscope-vr-runtime`.
-- The Unity VR task driver subsystem — see `experiment:vr-driver-interface`.
+  `mesoscope:mesoscope-vr-runtime`.
+- The Unity VR task driver subsystem — see `/vr-driver-interface`.
 - Low-level VideoSystem mechanics — see `ataraxis@video:camera-interface`.
 - Low-level MicroControllerInterface mechanics — see `ataraxis@communication:microcontroller-interface`.
-- Zaber motor interface mechanics — see `experiment:zaber-interface`.
+- Zaber motor interface mechanics — see `/zaber-interface`.
 - Per-session metadata, task templates, and experiment configuration — owned by the assets plugin
   (e.g. `assets:session-descriptors`, `assets:task-templates`, `assets:experiment-configuration`).
 - The `sollertia-shared-assets` enum/registry side of registering a new acquisition system (the
   `AcquisitionSystems` member, the dispatch registries, the per-system descriptor / hardware-state /
   experiment-config / raw-data dataclasses, and the `from_task_template` experiment-configuration
-  builder) — owned by the assets plugin's `/library-extension`.
+  builder) — owned by `assets:library-extension`.
 - The implementation of external data-service processors (the Google Sheets `SurgeryLog` / `WaterLog`
   classes, their schema contract, and authoring a custom one) — owned by
-  `experiment:google-sheets-processing`. This skill documents only where such processors sit in the
+  `/google-sheets-processing`. This skill documents only where such processors sit in the
   architecture (see [Auxiliary sections](#auxiliary-sections-beyond-hardware-subsystems) and the
   "External data-service processors" category in
   [references/subsystem-types.md](references/subsystem-types.md)).
@@ -206,8 +206,8 @@ binding class, and tears everything down in reverse so the DataLogger outlives e
 owns all cross-subsystem synchronization — individual binding classes stay oblivious to one another.
 The VR task driver is a standard subsystem of every acquisition system: the orchestrator constructs it
 unconditionally, then gates its use per session type — it runs the corridor task for experiment sessions
-and stays idle for training and window-checking sessions (see `experiment:acquisition-system-runtime` and
-`experiment:vr-driver-interface`).
+and stays idle for training and window-checking sessions (see `/acquisition-system-runtime` and
+`/vr-driver-interface`).
 (For microcontroller keepalive, the orchestrator passes each `MicroControllerInterface` a
 `keepalive_interval` at construction; AXCI sends the keepalive messages and raises on timeout.)
 
@@ -248,7 +248,7 @@ Three common changes each have a step-by-step procedure in
   class (the most common change).
 - **Authoring a custom data-service processor** — reuse or author a `SurgeryLog` / `WaterLog`-style
   processor for an external request/response service (a Google Sheet, a LIMS). See also
-  `experiment:google-sheets-processing`.
+  `/google-sheets-processing`.
 
 ---
 
@@ -279,7 +279,7 @@ also has no binding class and is constructed by per-session setup or preprocessi
 lifecycle surface see the "External data-service processors" category in
 [references/subsystem-types.md](references/subsystem-types.md), and for the Google Sheets processors
 (`SurgeryLog` / `WaterLog`), their schema contract, and authoring a custom one, see
-`experiment:google-sheets-processing`.
+`/google-sheets-processing`.
 
 **Filesystem fields rule:** Every filesystem field SHOULD be checked at configuration load time via
 a `check_system_mounts_tool` (or equivalent) that verifies the path exists and is writable. The
@@ -309,8 +309,8 @@ The Mesoscope-VR acquisition system is the current consumer of every pattern in 
   `sollertia_experiment/mesoscope_vr/system_controller.py`.
 
 For the Mesoscope-VR-specific surface — actual field names and values, binding-class
-composition details, modification workflows — see `experiment:mesoscope-vr`. For Mesoscope-VR's
-runtime states, training modes, and CLI, see `experiment:mesoscope-vr-runtime`.
+composition details, modification workflows — see `mesoscope:mesoscope-vr`. For Mesoscope-VR's
+runtime states, training modes, and CLI, see `mesoscope:mesoscope-vr-runtime`.
 
 ---
 
@@ -341,19 +341,19 @@ per-system skills answer "only this one."
 
 | Skill                                              | Relationship                                                                                                                            |
 |----------------------------------------------------|-----------------------------------------------------------------------------------------------------------------------------------------|
-| `experiment:microcontroller-interface`             | The per-module wrapper layer that binding classes compose. Authoritative for slmc/sle conventions.                                      |
-| `experiment:zaber-interface`                       | Shared Zaber motor interface mechanics. Binding classes that include motors compose this.                                               |
-| `experiment:mesoscope-vr`                          | The current Mesoscope-VR worked instance of this pattern.                                                                               |
-| `experiment:acquisition-system-runtime`            | The runtime-behavior counterpart to this static-composition pattern.                                                                    |
-| `experiment:mesoscope-vr-runtime`                  | Mesoscope-VR-specific runtime behavior (state machine, training modes, CLI). Built on this pattern.                                     |
-| `experiment:vr-driver-interface`                   | The Unity VR task driver, a standard subsystem of every acquisition system.                                                             |
+| `/microcontroller-interface`             | The per-module wrapper layer that binding classes compose. Authoritative for slmc/sle conventions.                                      |
+| `/zaber-interface`                       | Shared Zaber motor interface mechanics. Binding classes that include motors compose this.                                               |
+| `mesoscope:mesoscope-vr`                          | The current Mesoscope-VR worked instance of this pattern.                                                                               |
+| `/acquisition-system-runtime`            | The runtime-behavior counterpart to this static-composition pattern.                                                                    |
+| `mesoscope:mesoscope-vr-runtime`                  | Mesoscope-VR-specific runtime behavior (state machine, training modes, CLI). Built on this pattern.                                     |
+| `/vr-driver-interface`                   | The Unity VR task driver, a standard subsystem of every acquisition system.                                                             |
 | `ataraxis@video:camera-interface`                  | Low-level VideoSystem mechanics. Camera binding classes compose VideoSystem instances.                                                  |
 | `ataraxis@communication:microcontroller-interface` | Low-level MicroControllerInterface mechanics. Microcontroller binding classes compose these.                                            |
-| `experiment:acquisition-system-setup`              | Post-flash hardware discovery used to populate system configuration fields.                                                             |
-| `experiment:pipeline`                              | End-to-end acquisition-system lifecycle orchestration context.                                                                          |
+| `/acquisition-system-setup`              | Post-flash hardware discovery used to populate system configuration fields.                                                             |
+| `/pipeline`                              | End-to-end acquisition-system lifecycle orchestration context.                                                                          |
 | `assets:library-extension`                         | Owns the `sollertia-shared-assets` enum/registry recipe for a new system; step 2 of the build-a-new-system workflow hands off here.     |
-| `experiment:google-sheets-processing`              | Owns the external data-service processor category — the `SurgeryLog` / `WaterLog` API, schema contract, and custom-processor authoring. |
-| `experiment:system-design-pipeline`                | Orchestrates this static-composition phase into the full cross-repo build of a new acquisition system.                                  |
+| `/google-sheets-processing`              | Owns the external data-service processor category — the `SurgeryLog` / `WaterLog` API, schema contract, and custom-processor authoring. |
+| `/system-design-pipeline`                | Orchestrates this static-composition phase into the full cross-repo build of a new acquisition system.                                  |
 
 ---
 

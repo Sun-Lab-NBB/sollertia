@@ -33,7 +33,7 @@ additionally surfaces empty project and animal directories that hold no sessions
 - Per-session inventory and health reports (see `/session-data`, which owns `inspect_sessions_tool`)
 - Reading or writing session descriptors (see `/session-descriptors`)
 - Reading subject metadata (see `/data-assets`)
-- Reading or writing datasets (see forging plugin's `/datasets`)
+- Reading or writing datasets (see `forging:datasets`)
 - Initial working directory setup (see `/working-directory`)
 
 This skill's discovery tool (`get_data_root_overview_tool`) is read-only and may be called as a
@@ -72,7 +72,7 @@ distributed system it points at.
 - **Project at the top** captures the unit of scientific ownership. Multiple animals contribute
   to one project; session-level analysis joins across animals within a project. Datasets are
   also project-scoped — each dataset belongs to exactly one project and aggregates sessions
-  across animals within that project (see forging plugin's `/datasets`) — they are a downstream
+  across animals within that project (see `forging:datasets`) — they are a downstream
   aggregation, not a primary hierarchy.
 - **Animals nested under project, not the inverse.** Each animal belongs to exactly one project
   at a time. Inverting the hierarchy ("animal at top, projects under it") would require
@@ -119,7 +119,7 @@ marker lives inside `<session>/raw_data/`.
 Each subject (animal) is expected to belong to **exactly one project at a time**. An animal that
 surfaces under multiple project entries in `get_data_root_overview_tool` output is an error
 state. Remediation — migrating a subject from one project to another — is owned by the
-experiment plugin's `/data-management` skill,
+`experiment:data-management` skill,
 which exposes the migration tool that transfers all the animal's session data from the source
 project to the destination project.
 
@@ -134,7 +134,7 @@ is owned by `/data-assets` and is outside the scope of this skill.
 Datasets are a higher-level grouping that aggregates sessions across animals **within a single
 project**. The `DatasetData` schema carries a single `project` field — there is no
 cross-project dataset shape. A dataset is identified by a `dataset.yaml` marker discoverable
-anywhere under the data root. Datasets are owned by the forging plugin's `/datasets` skill.
+anywhere under the data root. Datasets are owned by `forging:datasets` skill.
 
 ### How the hierarchy is modeled and enumerated
 
@@ -270,7 +270,7 @@ shaped for downstream chaining with `filter_sessions_tool` (see `/session-discov
    ```
 2. **Scan `projects[*].animals[*].id` across projects**; any animal that appears under more than
    one project is an error state. Flag those IDs to the user and hand off to the experiment
-   plugin's `/data-management` to migrate the subject if needed.
+   plugin's `experiment:data-management` to migrate the subject if needed.
 3. **Hand off to `/data-assets`** to read individual subject records (surgery, implants,
    injections, drugs).
 
@@ -279,7 +279,7 @@ shaped for downstream chaining with `filter_sessions_tool` (see `/session-discov
 Create a project with `create_project_tool`, which materializes `<root>/<project>/configuration/`
 under the configured data root (or an explicit `root_directory`). The equivalent CLI command is
 `slsa configure project -p <project_name> -r <root_directory>`. The project directory must exist
-before `SessionData.create` (in the experiment plugin's `/data-management`) can create the first
+before `SessionData.create` (in `experiment:data-management`) can create the first
 session — `SessionData.create` raises `FileNotFoundError` when the project directory is missing.
 A brand-new project holds no session markers, so confirm it with `get_data_root_overview_tool`'s
 `directories` strategy (or `slsa get projects`); the default `markers` strategy will not list it until
@@ -296,7 +296,7 @@ it holds a session.
 - [ ] Did not call write_* / set_* tools beyond create_project_tool — hierarchy discovery remains read-only
 - [ ] Handed off to /experiment-configuration for any experiment authoring
 - [ ] Handed off to /session-data, /session-descriptors, /data-assets, or forging plugin's
-      /datasets for any read that goes deeper than the hierarchy itself
+      forging:datasets for any read that goes deeper than the hierarchy itself
 ```
 
 ---
@@ -307,10 +307,10 @@ it holds a session.
 |--------------------------------------|--------------------------------------------------------------------------------------------------------|
 | `/assets-mcp-environment-setup`      | Run first if the MCP server is not connected                                                           |
 | `/working-directory`                 | Required prerequisite — bootstraps the local working directory the agent uses to resolve project roots |
-| experiment plugin `/data-management` | Creates sessions. Project directories must exist beforehand (`create_project_tool`)                    |
+| `experiment:data-management` | Creates sessions. Project directories must exist beforehand (`create_project_tool`)                    |
 | `/experiment-configuration`          | Consumes projects to author experiment YAMLs                                                           |
 | `/session-discovery`                 | Chains `get_data_root_overview_tool` through `filter_sessions_tool`                                    |
 | `/session-data`                      | Owns `inspect_sessions_tool` for per-session inventory and health reports                              |
 | `/session-descriptors`               | Reads per-session descriptors                                                                          |
 | `/data-assets`                       | Reads read assets (e.g., surgery/subject records)                                                      |
-| forging plugin `/datasets`           | Aggregates sessions                                                                                    |
+| `forging:datasets`           | Aggregates sessions                                                                                    |

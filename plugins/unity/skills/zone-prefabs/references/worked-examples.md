@@ -50,11 +50,11 @@ policy hook so a subclass can resume instead of restart, without touching the pr
   (`Stopwatch.Start` resumes from the accumulated elapsed time; `Restart` zeroes it first).
 
 This is a behavior-preserving edit — every existing occupancy mode keeps the default
-`RestartTimerOnEntry => true`. Run `/csharp-style` and CSharpier before committing.
+`RestartTimerOnEntry => true`. Run `ataraxis@automation:csharp-style` and CSharpier before committing.
 
 ### Step 2: Write `CumulativeOccupancyZone : OccupancyZone`
 
-Under `Assets/InfiniteCorridorTask/Scripts/CumulativeOccupancyZone.cs` (invoke `/csharp-style`):
+Under `Assets/InfiniteCorridorTask/Scripts/CumulativeOccupancyZone.cs` (invoke `ataraxis@automation:csharp-style`):
 
 - Override `RestartTimerOnEntry => false` so re-entries resume the stopwatch and the dwell time
   accumulates across the lap.
@@ -89,7 +89,7 @@ depth and parent-child fileID pairings match the canonical occupancy prefab exac
 ### Step 6: Wire downstream per `SKILL.md` Step 7
 
 - New `TriggerType` member `OCCUPANCY_TRIGGER_CUMULATIVE` (`occupancy_trigger_cumulative`) via
-  `/library-extension`, plus the matching literal in `ConfigLoader.ValidateTemplate`.
+  `assets:library-extension`, plus the matching literal in `ConfigLoader.ValidateTemplate`.
 - A `PlaceCumulativeOccupancyZone` helper in `CreateTask.cs` (clone `PlaceOccupancyZone`) that
   instantiates `CumulativeOccupancyTriggerZone.prefab` and sets the root
   `StimulusTriggerZone.triggerMode = TriggerMode.OccupancyTrigger` — the variant reuses the
@@ -117,7 +117,7 @@ any of the three known types, so it requires an explicit `ResetZone.cs` registra
 
 ### Step 1: Author `SpeedZone.cs` (standalone `IResettable`)
 
-Under `Assets/InfiniteCorridorTask/Scripts/SpeedZone.cs` (invoke `/csharp-style`):
+Under `Assets/InfiniteCorridorTask/Scripts/SpeedZone.cs` (invoke `ataraxis@automation:csharp-style`):
 
 - `[Serializable]` fields: `targetSpeedCmPerSec`, `toleranceCmPerSec`, plus an `[HideInInspector]`
   `cmPerUnit` populated by `PlaceSpeedInteractionZone` at task generation time so the script does not
@@ -136,7 +136,7 @@ and avoids a `FindAnyObjectByType<Task>()` round-trip every frame.
 
 ### Step 2: Author `SpeedInteractionTriggerZone : StimulusTriggerZone`
 
-Under `Assets/InfiniteCorridorTask/Scripts/SpeedInteractionTriggerZone.cs` (invoke `/csharp-style`):
+Under `Assets/InfiniteCorridorTask/Scripts/SpeedInteractionTriggerZone.cs` (invoke `ataraxis@automation:csharp-style`):
 
 - Cache the sibling `SpeedZone` via `GetComponentInChildren<SpeedZone>()` in `Start` (after
   `base.Start()`).
@@ -185,7 +185,7 @@ and — through inheritance polling — should at minimum confirm `BoxCollider`,
 
 ### Step 6: Wire downstream per `SKILL.md` Step 7
 
-- New `TriggerType` member (via `/library-extension`).
+- New `TriggerType` member (via `assets:library-extension`).
 - New YAML fields on `TrialStructure` for speed-test cm bounds, target speed, and tolerance
   (mirror the existing `stimulus_trigger_zone_*_cm` pattern; pass them through
   `PlaceSpeedInteractionZone` in `CreateTask.cs`).

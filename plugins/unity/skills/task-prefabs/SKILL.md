@@ -30,8 +30,8 @@ marketplace may call.
 - Template naming, header, and commenting conventions required for correct task creation
 
 **Does not cover:**
-- Authoring the YAML task template itself (see assets plugin's `/task-templates`)
-- Authoring per-project experiment configurations (see assets plugin's `/experiment-configuration`)
+- Authoring the YAML task template itself (see `assets:task-templates`)
+- Authoring per-project experiment configurations (see `assets:experiment-configuration`)
 - Listing, opening, or inspecting scenes (see `/task-scenes`)
 - Entering / exiting Play Mode (see `/play-mode`)
 - Unity Editor bridge diagnostics (see `/unity-mcp-environment-setup`)
@@ -44,7 +44,7 @@ A single task is three name-aligned files on disk. The base name (`MF_Reward`, `
 is greppable across all three:
 
 ```text
-Assets/InfiniteCorridorTask/Configurations/<name>.yaml      template          (authored by assets /task-templates)
+Assets/InfiniteCorridorTask/Configurations/<name>.yaml      template          (authored by assets assets:task-templates)
                                 │
                                 │  create_task_tool (single call)
                                 ▼
@@ -57,7 +57,7 @@ convention is enforced by the tool itself: `template_name="MF_Reward"` produces
 `Tasks/MF_Reward.prefab` and `Scenes/MF_Reward.unity` unconditionally. Both MCP `create_task_tool`
 and the `CreateTask → New Task` Editor menu reject templates outside the `Configurations/`
 directory so the cross-template cue-texture preflight, the runtime config-path resolver, and
-downstream tooling all see a single canonical home — use assets plugin's `/working-directory`
+downstream tooling all see a single canonical home — use `assets:working-directory`
 (`set_task_templates_directory_tool`) to configure the MCP-side path.
 
 Two derived artifact tiers sit below the task prefab:
@@ -69,7 +69,7 @@ Two derived artifact tiers sit below the task prefab:
   **shared** across every template that declares the same `(name, length_cm)` cue identity.
 
 For the abstract template model (cue / segment / trial vocabulary, transition graph,
-sliding-window corridor traversal), see assets plugin's `/task-templates`. For the
+sliding-window corridor traversal), see `assets:task-templates`. For the
 `CreateTask.CreateFromTemplate` pipeline internals (cue / segment build passes, shader chain,
 zone placement math, hand-authored protected assets), see `/task-generator`.
 
@@ -161,10 +161,10 @@ Templates that do not follow these conventions may still generate prefabs, but d
 
 ### Step 1: Verify prerequisites
 
-- `slsa mcp` server connected (else assets plugin's `/assets-mcp-environment-setup`).
+- `slsa mcp` server connected (else `assets:assets-mcp-environment-setup`).
 - Unity Editor running with McpBridge listening (else `/unity-mcp-environment-setup` in this plugin).
 - Template exists under `Assets/InfiniteCorridorTask/Configurations/<template-name>.yaml`. If not,
-  hand off to assets plugin's `/task-templates` to author it first.
+  hand off to `assets:task-templates` to author it first.
 
 ### Step 2: Create the task
 
@@ -196,7 +196,7 @@ Verify the hierarchy matches the template — cue count, segment order, trial zo
 - The scene already exists at `Assets/Scenes/<template-name>.unity` — `create_task_tool` produced
   it in step 2. For navigation between scenes, hand off to `/task-scenes`.
 - For runtime testing: hand off to `/play-mode`.
-- For per-project experiment configuration: hand off to assets plugin's `/experiment-configuration`.
+- For per-project experiment configuration: hand off to `assets:experiment-configuration`.
 
 ---
 
@@ -281,13 +281,13 @@ Use this composite flow for end-to-end task creation; each step is owned by a di
 
 | Step | Skill (owner)                      | Action                                                                                       |
 |------|------------------------------------|----------------------------------------------------------------------------------------------|
-| 1    | assets `/task-templates`           | Author `Assets/InfiniteCorridorTask/Configurations/<name>.yaml`                              |
+| 1    | assets `assets:task-templates`           | Author `Assets/InfiniteCorridorTask/Configurations/<name>.yaml`                              |
 | 2    | `/task-prefabs` (this skill)       | `create_task_tool(template_name="<name>")` — builds the task prefab AND the matching scene   |
 | 3    | `/task-prefabs` (this skill)       | `inspect_prefab_tool(prefab_path="Assets/InfiniteCorridorTask/Tasks/<name>.prefab")`         |
 | 4    | `/task-scenes`                     | `open_scene_tool(scene_path="Assets/Scenes/<name>.unity")` — the scene was created in step 2 |
 | 5    | `/scene-setup`                     | Configure Display rig and optional `SimulatedLinearTreadmill`                                |
 | 6    | `/play-mode`                       | `enter_play_mode_tool()` → exercise → `exit_play_mode_tool()`                                |
-| 7    | assets `/experiment-configuration` | (Optional) Bind the template to a per-project experiment configuration                       |
+| 7    | assets `assets:experiment-configuration` | (Optional) Bind the template to a per-project experiment configuration                       |
 
 Checkpoints between steps:
 
@@ -425,9 +425,9 @@ either visual geometry or standard Unity components every GameObject carries.
 
 | Symptom                                                                   | Cause                                                                                                                                                                                                                                                                                                                                                                      | Resolution                                                                                                                                                                                                                                                                                                                                                                                            |
 |---------------------------------------------------------------------------|----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|-------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
-| `create_task_tool` returns "Template not found"                           | Template file missing from `Configurations/`                                                                                                                                                                                                                                                                                                                               | Hand off to assets plugin's `/task-templates`                                                                                                                                                                                                                                                                                                                                                         |
+| `create_task_tool` returns "Template not found"                           | Template file missing from `Configurations/`                                                                                                                                                                                                                                                                                                                               | Hand off to `assets:task-templates`                                                                                                                                                                                                                                                                                                                                                         |
 | `create_task_tool` returns "Scene already exists at: …"                   | The target scene exists; regeneration is an explicit two-step action                                                                                                                                                                                                                                                                                                       | Call `delete_task_tool` for the existing scene, then re-run `create_task_tool`                                                                                                                                                                                                                                                                                                                        |
-| `create_task_tool` returns "Cross-template cue-texture conflict detected" | Two or more templates in `Configurations/` declare the same `(cue name, length_cm)` identity with different `texture` values — the preflight aborts before any prefab is touched                                                                                                                                                                                           | Rename or re-length the colliding cue in one of the templates, or unify the textures, then re-run. Hand off to assets plugin's `/task-templates` for the YAML edits                                                                                                                                                                                                                                   |
+| `create_task_tool` returns "Cross-template cue-texture conflict detected" | Two or more templates in `Configurations/` declare the same `(cue name, length_cm)` identity with different `texture` values — the preflight aborts before any prefab is touched                                                                                                                                                                                           | Rename or re-length the colliding cue in one of the templates, or unify the textures, then re-run. Hand off to `assets:task-templates` for the YAML edits                                                                                                                                                                                                                                   |
 | `inspect_prefab_tool` returns "Prefab not found at: …"                    | Prefab missing from `Tasks/` (deleted, or `create_task_tool` failed silently)                                                                                                                                                                                                                                                                                              | Re-run `create_task_tool` for the template; if the prefab still does not appear, check the Unity Console for `CreateTask` errors                                                                                                                                                                                                                                                                      |
 | All Unity tools return "Unity Editor is not reachable"                    | Editor or McpBridge offline                                                                                                                                                                                                                                                                                                                                                | `/unity-mcp-environment-setup` in this plugin                                                                                                                                                                                                                                                                                                                                                         |
 | Trigger type mismatch between template and prefab                         | GUID reference drift                                                                                                                                                                                                                                                                                                                                                       | Open the prefab in the Editor and re-link zone                                                                                                                                                                                                                                                                                                                                                        |
@@ -447,10 +447,10 @@ either visual geometry or standard Unity components every GameObject carries.
 | `/task-generator` (this plugin)               | Reference for the `CreateTask` pipeline this tool invokes           |
 | `/mqtt-contract` (this plugin)                | Reference for MQTT topics wired by generated zone scripts           |
 | `/gimbl-framework` (this plugin)              | Reference for `ActorObject` coordinate frame usage                  |
-| assets plugin `/task-templates`               | Upstream — owns the YAML template the prefab is built from          |
-| assets plugin `/experiment-configuration`     | Downstream — per-project instantiation of the template              |
-| assets plugin `/assets-mcp-environment-setup` | Run first — owns the slsa MCP server diagnostic                     |
-| experiment plugin `/vr-driver-interface`      | Host consumes the cues and zones in the generated prefab at runtime |
+| `assets:task-templates`               | Upstream — owns the YAML template the prefab is built from          |
+| `assets:experiment-configuration`     | Downstream — per-project instantiation of the template              |
+| `assets:assets-mcp-environment-setup` | Run first — owns the slsa MCP server diagnostic                     |
+| `experiment:vr-driver-interface`      | Host consumes the cues and zones in the generated prefab at runtime |
 
 ---
 

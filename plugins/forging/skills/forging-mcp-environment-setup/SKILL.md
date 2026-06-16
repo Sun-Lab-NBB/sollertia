@@ -23,7 +23,7 @@ Diagnoses and resolves sollertia-forgery MCP server connectivity and environment
 - Environment-specific guidance for conda, pip, and uv workflows
 
 **Does not cover:**
-- MCP tool usage for session discovery (see the assets plugin's `/session-discovery`)
+- MCP tool usage for session discovery (see `assets:session-discovery`)
 - MCP tool usage for manifest reading and generation (see `/project-manifest`)
 - MCP tool usage for checksum verification (see `/checksum-verification`)
 - MCP tool usage for session transfer and deletion (see `/session-transfer`)
@@ -71,7 +71,7 @@ The sollertia forging plugin's Claude integration is split across two distributi
 
 | Component                                                                 | Distributed via                 | What it provides                                                        |
 |---------------------------------------------------------------------------|---------------------------------|-------------------------------------------------------------------------|
-| Skills (assets plugin `/session-discovery`, `/behavior-processing`, etc.) | sollertia forging plugin        | Skill files that guide agents through workflows                         |
+| Skills (`assets:session-discovery`, `/behavior-processing`, etc.) | sollertia forging plugin        | Skill files that guide agents through workflows                         |
 | MCP server registration                                                   | sollertia forging plugin        | Plugin entry that tells the Claude assistant how to start the server    |
 | MCP server code (`sl-mcp`)                                                | sollertia-forgery pip package   | The actual CLI command and server implementation                        |
 
@@ -187,7 +187,7 @@ workflows above (the conda / mamba workflow is identical on all platforms).
 
 | Skill                                | Relationship                                                       |
 |--------------------------------------|--------------------------------------------------------------------|
-| assets plugin `/session-discovery`   | Downstream: session discovery once MCP is verified                 |
+| `assets:session-discovery`   | Downstream: session discovery once MCP is verified                 |
 | `/project-manifest`                  | Downstream: manifest reading and generation require MCP tools      |
 | `/checksum-verification`             | Downstream: checksum batch pipeline requires MCP tools             |
 | `/session-transfer`                  | Downstream: transfer and deletion pipeline requires MCP tools      |

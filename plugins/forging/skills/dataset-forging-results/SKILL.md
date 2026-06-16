@@ -33,13 +33,13 @@ verification via MCP tool, data querying, and interpretation guidance.
 **Does not cover:**
 - Batch processing workflow (see `/dataset-forging`)
 - Input data format (see `/dataset-forging-input-format`)
-- Session discovery (see the assets plugin's `/session-discovery`)
+- Session discovery (see `assets:session-discovery`)
 - MCP server connectivity (see `/forging-mcp-environment-setup`)
 - Upstream behavior feather schemas (see `/behavior-results`)
-- Upstream cindra output schemas (see `/cindra:single-recording-results` and
-  `/cindra:multi-recording-results`)
+- Upstream cindra output schemas (see `cindra@cindra:single-recording-results` and
+  `cindra@cindra:multi-recording-results`)
 
-**Note:** `/cindra:*` refers to the **cindra** plugin from the
+**Note:** `cindra@cindra:*` refers to the **cindra** plugin from the
 [cindra marketplace](https://github.com/Sun-Lab-NBB/cindra).
 
 ---
@@ -377,8 +377,8 @@ onto the corresponding `distance_cm` reference vector rather than onto `time_us`
 | `/dataset-forging`                     | Upstream: produces the outputs documented here                            |
 | `/dataset-forging-input-format`        | Reference: inputs that shape this schema                                  |
 | `/behavior-results`                    | Reference: upstream behavior feather schemas consumed at forging time     |
-| `/cindra:single-recording-results`     | Reference: upstream cindra single-recording output schemas                |
-| `/cindra:multi-recording-results`      | Reference: upstream cindra multi-day output schemas                       |
+| `cindra@cindra:single-recording-results`     | Reference: upstream cindra single-recording output schemas                |
+| `cindra@cindra:multi-recording-results`      | Reference: upstream cindra multi-day output schemas                       |
 
 ---
 

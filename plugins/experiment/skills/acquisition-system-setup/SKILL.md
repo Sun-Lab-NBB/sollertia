@@ -29,17 +29,17 @@ and must be invoked by hand-off.
 - Reporting discrepancies between discovered hardware and the active system configuration
 
 **Does not cover** (hand off to the owning plugin — named per item, since these span three plugins):
-- Setting the working directory, credentials, or task templates directory → assets plugin `/working-directory`
+- Setting the working directory, credentials, or task templates directory → `assets:working-directory`
 - Reading, writing, or validating system configuration YAML → the active acquisition system's skill
-  (`/mesoscope-vr` for the `mesoscope` system)
-- Creating projects → assets plugin `/project-hierarchy`
-- Authoring task templates → assets plugin `/task-templates`
-- Authoring per-project experiment configurations → assets plugin `/experiment-configuration`
-- Reading the `SessionData` marker file → assets plugin `/session-data`
-- Reading session descriptors → assets plugin `/session-descriptors`
-- Reading frozen runtime snapshots → this plugin `/mesoscope-vr-snapshots`
-- Reading subject metadata → assets plugin `/data-assets`
-- Reading or curating datasets → forging plugin `/datasets`
+  (`mesoscope:mesoscope-vr` for the `mesoscope` system)
+- Creating projects → `assets:project-hierarchy`
+- Authoring task templates → `assets:task-templates`
+- Authoring per-project experiment configurations → `assets:experiment-configuration`
+- Reading the `SessionData` marker file → `assets:session-data`
+- Reading session descriptors → `assets:session-descriptors`
+- Reading frozen runtime snapshots → this plugin `mesoscope:mesoscope-vr-snapshots`
+- Reading subject metadata → `assets:data-assets`
+- Reading or curating datasets → `forging:datasets`
 
 You MUST NOT call any `slsa` MCP tool that mutates state. Read-only `read_*` and `discover_*`
 tools from the assets plugin's MCP server may be called as a "natural share" only when verifying that
@@ -70,9 +70,9 @@ skill: `ataraxis@video:video-mcp-environment-setup`,
 
 | System      | Description                                 | Schema reference                                                |
 |-------------|---------------------------------------------|-----------------------------------------------------------------|
-| `mesoscope` | Two-photon mesoscope with VR behavioral rig | this plugin `/mesoscope-vr` (configuration-fields.md companion) |
+| `mesoscope` | Two-photon mesoscope with VR behavioral rig | this plugin `mesoscope:mesoscope-vr` (configuration-fields.md companion) |
 
-When working with a specific acquisition system, hand off to that system's skill (e.g. `/mesoscope-vr`)
+When working with a specific acquisition system, hand off to that system's skill (e.g. `mesoscope:mesoscope-vr`)
 to read the canonical field schema. This skill does not duplicate that schema reference.
 
 ---
@@ -183,7 +183,7 @@ Use when the user wants to confirm that the discovered hardware matches the reco
 **Verification steps:**
 
 1. Run hardware discovery (Phases 1–2 below).
-2. Hand off to the active acquisition system's skill (currently `/mesoscope-vr`, for the `mesoscope`
+2. Hand off to the active acquisition system's skill (currently `mesoscope:mesoscope-vr`, for the `mesoscope`
    system) for a read-only `read_system_configuration_tool` call to fetch the recorded values.
 3. Compare discovered values against recorded values and report any drift to the user.
 4. If drift exists, hand off to that same system skill to update the recorded values. Do not edit YAML or
@@ -261,7 +261,7 @@ GenICam node configuration and diffs it against the stored YAML (reporting `matc
 `value_mismatches`). On a mismatch, either restore the known-good configuration onto the camera
 (`ataraxis@video:camera-setup`'s `load_genicam_config`), or — if the live configuration is the new desired
 baseline — dump it to the stored path (`dump_genicam_config`). The stored paths belong to the active system's
-configuration; read them via that system's skill (for `mesoscope`, `/mesoscope-vr` →
+configuration; read them via that system's skill (for `mesoscope`, `mesoscope:mesoscope-vr` →
 `cameras.<role>_camera_configuration_path`). Cameras with no path declared are skipped.
 
 **Device path convention:**
@@ -278,18 +278,18 @@ After discovery completes, report the discovered hardware to the user as a struc
 
 **If the user is performing initial bringup**, hand off in this order (owning plugin named per step):
 
-1. assets plugin `/working-directory` — set the working directory and the task templates directory.
+1. `assets:working-directory` — set the working directory and the task templates directory.
    Also configure the `google` category credentials, but only if the system reads animal metadata from
    Google Sheets.
-2. the active acquisition system's skill (this plugin's `/mesoscope-vr` for the `mesoscope` system) —
+2. the active acquisition system's skill (this plugin's `mesoscope:mesoscope-vr` for the `mesoscope` system) —
    author the host machine's system configuration YAML against the discovered hardware values.
-3. assets plugin `/project-hierarchy` — create the project (or projects) the host will record under.
-4. assets plugin `/task-templates` — author or import the task templates the project will use.
-5. assets plugin `/experiment-configuration` — author the per-project experiment configuration that
+3. `assets:project-hierarchy` — create the project (or projects) the host will record under.
+4. `assets:task-templates` — author or import the task templates the project will use.
+5. `assets:experiment-configuration` — author the per-project experiment configuration that
    wires a template to a project.
 
 **If the user is performing verification**, hand off to the active acquisition system's skill
-(`/mesoscope-vr` for the `mesoscope` system) for a read-only fetch of the recorded values, then report
+(`mesoscope:mesoscope-vr` for the `mesoscope` system) for a read-only fetch of the recorded values, then report
 the diff between discovered and recorded.
 
 **If the user is troubleshooting**, use the troubleshooting table below.
@@ -313,7 +313,7 @@ You MUST NOT call `set_working_directory_tool`, `set_credentials_tool`,
 | GPU not detected                       | NVIDIA driver missing                  | Install NVIDIA driver and restart                                               |
 | CTI file not configured                | GenTL producer not registered          | Hand off to `ataraxis@video:camera-setup` to register the CTI file              |
 | Live camera config differs from stored | Camera drifted or reconfigured         | Restore via `load_genicam_config`, or re-baseline via `dump_genicam_config`     |
-| Stored camera config file not found    | Declared path points at a missing file | Dump a baseline with `dump_genicam_config`, or fix the path via `/mesoscope-vr` |
+| Stored camera config file not found    | Declared path points at a missing file | Dump a baseline with `dump_genicam_config`, or fix the path via `mesoscope:mesoscope-vr` |
 
 For configuration-file-level errors (working directory not set, schema validation failures, missing projects),
 hand off to the assets plugin skill that owns the affected asset.
@@ -335,8 +335,8 @@ hand off to the assets plugin skill that owns the affected asset.
 - [ ] get_zaber_devices_tool() returned the expected motor groups
 - [ ] Discovered hardware reported to user as a structured table
 - [ ] Did NOT call any slsa setter tool from this skill
-- [ ] Handed off to /working-directory, /mesoscope-vr, /server-configuration, /project-hierarchy,
-      /task-templates, or /experiment-configuration for any state mutation
+- [ ] Handed off to assets:working-directory, mesoscope:mesoscope-vr, forging:server-configuration, assets:project-hierarchy,
+      assets:task-templates, or assets:experiment-configuration for any state mutation
 ```
 
 ---
@@ -345,12 +345,12 @@ hand off to the assets plugin skill that owns the affected asset.
 
 | Skill                                          | Relationship                                                            |
 |------------------------------------------------|-------------------------------------------------------------------------|
-| assets plugin `/working-directory`             | Owns bootstrap state (working dir, credentials, templates dir)          |
-| this plugin `/mesoscope-vr`                    | Owns `MesoscopeSystemConfiguration` authoring and validation            |
-| forging plugin `/server-configuration`         | Owns `ServerConfiguration` authoring and validation                     |
-| assets plugin `/project-hierarchy`             | Owns project creation (`create_project_tool`)                           |
-| assets plugin `/task-templates`                | Owns task template authoring                                            |
-| assets plugin `/experiment-configuration`      | Owns per-project experiment configuration authoring                     |
+| `assets:working-directory`             | Owns bootstrap state (working dir, credentials, templates dir)          |
+| this plugin `mesoscope:mesoscope-vr`                    | Owns `MesoscopeSystemConfiguration` authoring and validation            |
+| `forging:server-configuration`         | Owns `ServerConfiguration` authoring and validation                     |
+| `assets:project-hierarchy`             | Owns project creation (`create_project_tool`)                           |
+| `assets:task-templates`                | Owns task template authoring                                            |
+| `assets:experiment-configuration`      | Owns per-project experiment configuration authoring                     |
 | this plugin `/system-health-check`             | Lighter-weight pre-session verification sweep                           |
 | this plugin `/pipeline`                        | Phase 3 (Hardware bringup) is owned by this skill                       |
 | `ataraxis@video:camera-setup`                  | Canonical home for CTI configuration and runtime requirement deep-dives |

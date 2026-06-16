@@ -25,7 +25,7 @@ skill in the marketplace may call `read_server_configuration_tool` or `write_ser
 
 **Does not cover:**
 - `MesoscopeSystemConfiguration` authoring (see `/system-configuration`)
-- Working directory or credentials setup (see `/working-directory`)
+- Working directory or credentials setup (see `assets:working-directory`)
 - Diagnosing MCP server connectivity (see `/forging-mcp-environment-setup`)
 
 ---
@@ -63,7 +63,7 @@ whole thing back.
 ### Step 1: Verify prerequisites
 
 - The `sollertia-forgery` `sl-mcp` server is connected (else hand off to `/forging-mcp-environment-setup`).
-- The working directory is set (else hand off to the assets plugin's `/working-directory`).
+- The working directory is set (else hand off to `assets:working-directory`).
 
 ### Step 2: Determine whether to create or modify
 
@@ -105,7 +105,7 @@ Call `read_server_configuration_tool` and confirm the returned configuration mat
 ## Verification checklist
 
 ```text
-- [ ] /working-directory has been run on this host (assets plugin)
+- [ ] assets:working-directory has been run on this host (assets plugin)
 - [ ] sollertia-forgery sl-mcp server is connected
 - [ ] read_server_configuration_tool returned the expected configuration before any write
 - [ ] write_server_configuration_tool succeeded without schema errors
@@ -120,7 +120,7 @@ Call `read_server_configuration_tool` and confirm the returned configuration mat
 
 | Skill                                    | Relationship                                                            |
 |------------------------------------------|-------------------------------------------------------------------------|
-| `/working-directory` (config plugin)     | Required prerequisite — owned by the assets plugin               |
+| `assets:working-directory`               | Required prerequisite — owned by the assets plugin                      |
 | `/forging-mcp-environment-setup`         | Run first if the sl-mcp server is not connected                         |
 | `/system-configuration` (config plugin)  | Sibling — both configurations live in the same working directory        |
-| experiment plugin `/data-management`     | Triggers remote transfers using the values authored by this skill       |
+| `experiment:data-management`             | Triggers remote transfers using the values authored by this skill       |

@@ -47,10 +47,10 @@ verification checklist before reporting an extension complete.
   `/session-data`, `/session-descriptors`, `/session-hardware-state`,
   `/experiment-configuration`, `/task-templates`)
 - System-level acquisition runtime configuration (lives in `sollertia-experiment` — see the
-  experiment plugin's `/acquisition-system-design`)
+  `experiment:acquisition-system-design`)
 - Server-side processing configuration (lives in `sollertia-forgery` — see the forging plugin's
-  `/server-configuration`)
-- Unity prefab and scene authoring (see the unity plugin's `/task-prefabs` and `/task-scenes`)
+  `forging:server-configuration`)
+- Unity prefab and scene authoring (see `unity:task-prefabs` and `unity:task-scenes`)
 
 ---
 
@@ -185,11 +185,11 @@ member:
 
 **Downstream coordination:**
 - `sollertia-experiment` actually creates sessions of the new type during acquisition. Hand off to
-  the experiment plugin's `/acquisition-system-runtime` (and its `/mesoscope-vr-runtime` instance)
-  for the session-running runtime, and `/data-management` for the post-acquisition session lifecycle.
+  `experiment:acquisition-system-runtime` (and its `mesoscope:mesoscope-vr-runtime` instance)
+  for the session-running runtime, and `experiment:data-management` for the post-acquisition session lifecycle.
 - `sollertia-forgery` per-session pipelines (behavior, manifest, dataset forging) may need to
-  decide whether the new type is eligible. Hand off to the forging plugin's `/behavior-input-format`,
-  `/project-manifest`, and `/dataset-forging-input-format`.
+  decide whether the new type is eligible. Hand off to `forging:behavior-input-format`,
+  `forging:project-manifest`, and `forging:dataset-forging-input-format`.
 
 ### Adding a new `AcquisitionSystems` member
 
@@ -219,7 +219,7 @@ framing reflects the new member:
 
 | Skill                       | What to update                                                                                                                                                                                                                                                                                                           |
 |-----------------------------|--------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
-| `/session-data`             | The `instance.system_raw_data` bullet under "Path-resolution sub-dataclasses on `SessionData`" — add the new `<System>RawData` field list; the `Mesoscope-VR` mention in "Does not cover" if the experiment plugin's `/mesoscope-vr-snapshots` becomes one of several owners of system-specific snapshots                |
+| `/session-data`             | The `instance.system_raw_data` bullet under "Path-resolution sub-dataclasses on `SessionData`" — add the new `<System>RawData` field list; the `Mesoscope-VR` mention in "Does not cover" if `mesoscope:mesoscope-vr-snapshots` becomes one of several owners of system-specific snapshots                |
 | `/session-hardware-state`   | The frontmatter description, the "currently the only concrete subclass is `MesoscopeHardwareState`" prose, and the "Per-session-type field population (Mesoscope-VR example)" framing — clone the table format for the new system                                                                                        |
 | `/experiment-configuration` | The frontmatter description, the "currently only `MesoscopeExperimentConfiguration`" prose, and any per-trial-class assumptions specific to the Mesoscope-VR rig. The new system reuses `create_experiment_from_vr_template_tool` once its `<System>ExperimentConfiguration` implements the `from_task_template` builder |
 | `/task-templates`           | The "currently only `MesoscopeExperimentConfiguration`" mention                                                                                                                                                                                                                                                          |
@@ -227,13 +227,13 @@ framing reflects the new member:
 **Downstream coordination:**
 - `sollertia-experiment` owns the system-level hardware/software configuration classes and the
   acquisition runtime for the new system. Hand off to the experiment plugin's
-  `/acquisition-system-design` for the configuration and binding-class design, and
-  `/acquisition-system-runtime` for the runtime behavior; the runtime work itself is out of scope
+  `experiment:acquisition-system-design` for the configuration and binding-class design, and
+  `experiment:acquisition-system-runtime` for the runtime behavior; the runtime work itself is out of scope
   for this skill.
 - A new acquisition system **optionally benefits from dedicated agentic assets** in the experiment
-  plugin: a per-system instance skill (modeled on `experiment:mesoscope-vr`) and, when the system
+  plugin: a per-system instance skill (modeled on `mesoscope:mesoscope-vr`) and, when the system
   has non-trivial runtime modes, a per-system runtime skill (modeled on
-  `experiment:mesoscope-vr-runtime`). These are authored through `/acquisition-system-design`'s
+  `mesoscope:mesoscope-vr-runtime`). These are authored through `experiment:acquisition-system-design`'s
   "Building a new acquisition system from scratch" workflow (steps 9–10). They are not required for
   the system to run, but omitting them leaves the system driveable yet undocumented for agents.
 - `sollertia-forgery` may need new behavior-processing or video-processing branches per system.
@@ -260,7 +260,7 @@ framing reflects the new member:
 |------------------------------------------|---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
 | `/experiment-configuration`              | The "Templates vs experiment configurations" framing, the trigger → trial-class pairing convention, the `trial_structures` schema description, and the "Common patterns" table                                                                                                              |
 | `/task-templates`                        | The trial-class enumeration in the template vocabulary section                                                                                                                                                                                                                              |
-| experiment plugin `/vr-driver-interface` | The `DecomposedTrials.trigger_types` semantics table (e.g. `INTERACTION` = reward, `OCCUPANCY_DISARM` = aversive; the `COLLISION` / `OCCUPANCY_ARM` / `OCCUPANCY_TRIGGER` members exist in the enum but Mesoscope-VR leaves them unmapped) and the orchestrator's per-trigger dispatch note |
+| `experiment:vr-driver-interface` | The `DecomposedTrials.trigger_types` semantics table (e.g. `INTERACTION` = reward, `OCCUPANCY_DISARM` = aversive; the `COLLISION` / `OCCUPANCY_ARM` / `OCCUPANCY_TRIGGER` members exist in the enum but Mesoscope-VR leaves them unmapped) and the orchestrator's per-trigger dispatch note |
 
 ### Adding a new `TriggerType` member
 
@@ -270,8 +270,8 @@ split three ways and each skill owns its slice — apply all three:
 | Slice                                                                                             | Owning skill                             |
 |---------------------------------------------------------------------------------------------------|------------------------------------------|
 | Python `TriggerType` enum + per-supporting-system `from_task_template` branch (this skill, below) | `/library-extension` (this skill)        |
-| Hand-authored zone prefab manufacturing                                                           | unity plugin `/zone-prefabs` (Steps 1–6) |
-| `CreateTask` pipeline edits + `DeleteProtectedPaths`                                              | unity plugin `/task-generator`           |
+| Hand-authored zone prefab manufacturing                                                           | `unity:zone-prefabs` (Steps 1–6) |
+| `CreateTask` pipeline edits + `DeleteProtectedPaths`                                              | `unity:task-generator`           |
 
 The platform `TriggerType` enum carries the full taxonomy — currently five members: `INTERACTION`,
 `COLLISION`, `OCCUPANCY_DISARM`, `OCCUPANCY_ARM`, and `OCCUPANCY_TRIGGER` (the C# `ConfigLoader`
@@ -325,12 +325,12 @@ sollertia-shared-assets maintainers rather than a routine extension.
 | Skill                                         | What to update                                                                                                                                          |
 |-----------------------------------------------|---------------------------------------------------------------------------------------------------------------------------------------------------------|
 | `/data-assets`                                | No new skill needed — the generic data-asset tools serve the new asset automatically once registered; add it to that skill's worked examples if notable |
-| experiment plugin `/google-sheets-processing` | Add the new asset's reader/translation and the registered dataclass it produces                                                                         |
+| `experiment:google-sheets-processing` | Add the new asset's reader/translation and the registered dataclass it produces                                                                         |
 
 **Downstream coordination:**
 - `sollertia-experiment` owns the reader that translates the external source into the new dataclass and
-  caches it on disk. Hand off to the experiment plugin's `/google-sheets-processing`. This skill owns the
-  sollertia-shared-assets dataclass and registry entry; `/google-sheets-processing` owns the reader.
+  caches it on disk. Hand off to `experiment:google-sheets-processing`. This skill owns the
+  sollertia-shared-assets dataclass and registry entry; `experiment:google-sheets-processing` owns the reader.
 - `sollertia-forgery` consumes the cached on-disk dataclass during dataset assembly.
 
 ---
@@ -356,8 +356,8 @@ the dispatch-registry side, but required-asset branches need explicit test cover
 For each entry in the relevant touch list, open the named SKILL.md and update the specified
 content. Do **not** rewrite framing that says "currently only X" into "currently only X and Y" —
 prefer enumerating the new member alongside the existing one explicitly so the prose stays
-honest. The `assets:experiment-configuration`, `assets:session-data`,
-`assets:session-descriptors`, `assets:session-hardware-state`, and `assets:task-templates`
+honest. The `/experiment-configuration`, `/session-data`,
+`/session-descriptors`, `/session-hardware-state`, and `/task-templates`
 skills are the most likely targets; check the others only if your scenario crosses their scope.
 
 ### Step 4: Coordinate with downstream libraries
@@ -398,17 +398,17 @@ required-asset branches, and the skill content.
 | `/session-hardware-state`                       | Receives skill touch-ups for new `SessionTypes` and new `AcquisitionSystems`                                                                            |
 | `/experiment-configuration`                     | Receives skill touch-ups for new `AcquisitionSystems`, runtime trial classes, and `TriggerType` members                                                 |
 | `/task-templates`                               | Receives skill touch-ups for new `TriggerType` and runtime trial classes                                                                                |
-| experiment plugin `/acquisition-system-design`  | Owns the runtime-side configuration and binding-class design for any new acquisition system; authors the system's dedicated agentic assets (steps 9–10) |
-| experiment plugin `/acquisition-system-runtime` | Owns the runtime that creates and runs sessions of any new session type during acquisition                                                              |
-| experiment plugin `/data-management`            | Manages the post-acquisition lifecycle (preprocess, migrate, delete) for sessions of any type                                                           |
-| experiment plugin `/google-sheets-processing`   | Owns the reader that translates an external source into a read asset's on-disk dataclass                                                                |
-| forging plugin `/behavior-input-format`         | Decides eligibility of new session types for behavior processing                                                                                        |
-| forging plugin `/project-manifest`              | Tabulates new session types in the project manifest                                                                                                     |
-| forging plugin `/dataset-forging-input-format`  | Decides eligibility of new session types for dataset forging                                                                                            |
-| unity plugin `/task-prefabs`                    | Generates Unity prefabs for new `TriggerType` members                                                                                                   |
-| unity plugin `/task-scenes`                     | Authors Unity scenes for new acquisition systems                                                                                                        |
-| `/commit`                                       | Should be invoked after the cross-cutting changes land                                                                                                  |
-| experiment plugin `/vr-driver-interface`        | Consumes the `TriggerType` enum via `DecomposedTrials.trigger_types`                                                                                    |
+| `experiment:acquisition-system-design`  | Owns the runtime-side configuration and binding-class design for any new acquisition system; authors the system's dedicated agentic assets (steps 9–10) |
+| `experiment:acquisition-system-runtime` | Owns the runtime that creates and runs sessions of any new session type during acquisition                                                              |
+| `experiment:data-management`            | Manages the post-acquisition lifecycle (preprocess, migrate, delete) for sessions of any type                                                           |
+| `experiment:google-sheets-processing`   | Owns the reader that translates an external source into a read asset's on-disk dataclass                                                                |
+| `forging:behavior-input-format`         | Decides eligibility of new session types for behavior processing                                                                                        |
+| `forging:project-manifest`              | Tabulates new session types in the project manifest                                                                                                     |
+| `forging:dataset-forging-input-format`  | Decides eligibility of new session types for dataset forging                                                                                            |
+| `unity:task-prefabs`                    | Generates Unity prefabs for new `TriggerType` members                                                                                                   |
+| `unity:task-scenes`                     | Authors Unity scenes for new acquisition systems                                                                                                        |
+| `ataraxis@automation:commit`                                       | Should be invoked after the cross-cutting changes land                                                                                                  |
+| `experiment:vr-driver-interface`        | Consumes the `TriggerType` enum via `DecomposedTrials.trigger_types`                                                                                    |
 
 ---
 

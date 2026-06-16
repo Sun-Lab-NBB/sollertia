@@ -14,7 +14,7 @@ user-invocable: false
 Discovers and filters Sollertia sessions via the sollertia-shared-assets MCP tools. This skill is
 domain-agnostic — it provides the raw discover → filter surface that any downstream batch skill
 can chain from. For behavior-processing eligibility rules, see the sollertia-forgery plugin's
-`/behavior-input-format`.
+`forging:behavior-input-format`.
 
 ---
 
@@ -32,10 +32,10 @@ can chain from. For behavior-processing eligibility rules, see the sollertia-for
   `/project-hierarchy`, which owns `get_data_root_overview_tool`
 - Reading individual `SessionData` markers or full session health reports — see `/session-data`
 - Reading or generating project manifest files — see the sollertia-forgery plugin's
-  `/project-manifest`
-- Checksum verification or regeneration — see the sollertia-forgery plugin's `/checksum-verification`
-- Session transfer or deletion — see the sollertia-forgery plugin's `/session-transfer`
-- Behavior-processing eligibility rules — see the sollertia-forgery plugin's `/behavior-input-format`
+  `forging:project-manifest`
+- Checksum verification or regeneration — see the sollertia-forgery plugin's `forging:checksum-verification`
+- Session transfer or deletion — see the sollertia-forgery plugin's `forging:session-transfer`
+- Behavior-processing eligibility rules — see the sollertia-forgery plugin's `forging:behavior-input-format`
 - MCP server connectivity issues — see `/assets-mcp-environment-setup`
 
 ---
@@ -191,12 +191,12 @@ from step 3) and the requested criteria.
 
 Present the final `session_paths` list to the user. Once confirmed, hand off to the appropriate
 downstream skill:
-- Sollertia-forgery plugin's `/checksum-verification` for data integrity operations
-- Sollertia-forgery plugin's `/session-transfer` for transfer or deletion
-- Sollertia-forgery plugin's `/project-manifest` for manifest generation
-- Sollertia-forgery plugin's `/behavior-processing` for behavior extraction (filter by eligible
+- Sollertia-forgery plugin's `forging:checksum-verification` for data integrity operations
+- Sollertia-forgery plugin's `forging:session-transfer` for transfer or deletion
+- Sollertia-forgery plugin's `forging:project-manifest` for manifest generation
+- Sollertia-forgery plugin's `forging:behavior-processing` for behavior extraction (filter by eligible
   session types first)
-- Sollertia-forgery plugin's `/dataset-forging` for dataset assembly
+- Sollertia-forgery plugin's `forging:dataset-forging` for dataset assembly
 
 ---
 
@@ -240,9 +240,9 @@ Session discovery:
 | `/project-hierarchy`                    | Owns `get_data_root_overview_tool` as the tree walk                              |
 | `/session-data`                         | Reference: SessionData marker and `inspect_sessions_tool` for per-session health |
 | `/session-descriptors`                  | Reference: per-session descriptor repair                                         |
-| forging plugin `/project-manifest`      | Downstream: manifest reading and generation                                      |
-| forging plugin `/checksum-verification` | Downstream: consumes confirmed session_paths                                     |
-| forging plugin `/session-transfer`      | Downstream: consumes confirmed session_paths                                     |
-| forging plugin `/behavior-processing`   | Downstream: consumes confirmed session_paths                                     |
-| forging plugin `/dataset-forging`       | Downstream: consumes confirmed session names                                     |
-| forging plugin `/behavior-input-format` | Reference: behavior-processing eligibility rules                                 |
+| `forging:project-manifest`      | Downstream: manifest reading and generation                                      |
+| `forging:checksum-verification` | Downstream: consumes confirmed session_paths                                     |
+| `forging:session-transfer`      | Downstream: consumes confirmed session_paths                                     |
+| `forging:behavior-processing`   | Downstream: consumes confirmed session_paths                                     |
+| `forging:dataset-forging`       | Downstream: consumes confirmed session names                                     |
+| `forging:behavior-input-format` | Reference: behavior-processing eligibility rules                                 |

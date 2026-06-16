@@ -25,8 +25,8 @@ and sharing. Uses the `sl-mcp` MCP server (sollertia-forgery).
 
 **Does not cover:**
 - Authoring system or experiment configuration (see `/system-configuration`,
-  `/experiment-configuration`)
-- Authoring per-session metadata (see `/session-data`)
+  `assets:experiment-configuration`)
+- Authoring per-session metadata (see `assets:session-data`)
 - Post-acquisition processing of dataset contents (deferred to the processing plugin)
 
 ---
@@ -82,8 +82,8 @@ describe_dataset_schema_tool()
 
 ### Step 4: Identify member sessions
 
-Use `get_data_root_overview_tool` (owned by the assets plugin's `/project-hierarchy` on the same `sl-mcp` server) to enumerate
-candidate sessions, then chain through `filter_sessions_tool` via `/session-discovery` for date-range,
+Use `get_data_root_overview_tool` (owned by `assets:project-hierarchy` on the same `sl-mcp` server) to enumerate
+candidate sessions, then chain through `filter_sessions_tool` via `assets:session-discovery` for date-range,
 animal, and session-name filtering. Client-side filtering handles project, animal, and session-type
 narrowing. Confirm the membership list with the user before writing.
 
@@ -138,5 +138,5 @@ downstream tooling and analysis notebooks may have references that break silentl
 | Skill                                | Relationship                                                          |
 |--------------------------------------|-----------------------------------------------------------------------|
 | `/forging-mcp-environment-setup`     | Run first if the sl-mcp server is not connected                       |
-| assets plugin `/session-discovery`   | Provides `get_data_root_overview_tool` + `filter_sessions_tool` for dataset membership lookup |
-| `/session-data`                      | Sibling — sessions are the membership unit of datasets                |
+| `assets:session-discovery`   | Provides `get_data_root_overview_tool` + `filter_sessions_tool` for dataset membership lookup |
+| `assets:session-data`                      | Sibling — sessions are the membership unit of datasets                |

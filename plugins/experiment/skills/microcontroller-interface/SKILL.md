@@ -25,9 +25,9 @@ This skill is the canonical registry of paired modules currently available to an
 system and the source of truth for the slmc/sle conventions layered on top of the ataraxis base templates.
 Binding-class composition (assembling `MicroControllerInterface` instances, configuration dataclasses,
 system configurations) is **system-specific** and lives in per-system skills (currently
-`experiment:mesoscope-vr` for hardware composition and `experiment:mesoscope-vr-runtime` for
+`mesoscope:mesoscope-vr` for hardware composition and `mesoscope:mesoscope-vr-runtime` for
 runtime behavior), not here. The platform-general pattern those skills follow lives in
-`experiment:acquisition-system-design`.
+`/acquisition-system-design`.
 
 ---
 
@@ -49,13 +49,13 @@ runtime behavior), not here. The platform-general pattern those skills follow li
   see `ataraxis@microcontroller:firmware-module` and `ataraxis@communication:microcontroller-interface`.
 - Microcontroller discovery, manifest management via MCP tools — see `ataraxis@communication:microcontroller-setup`.
 - C++ style, Python style, header guards conventions enforcement —
-  see `automation:cpp-style`, `automation:python-style`.
+  see `ataraxis@automation:cpp-style`, `ataraxis@automation:python-style`.
 - **Binding-class composition** (per-system `MicroControllerInterfaces`, configuration dataclasses,
-  system configuration YAML, runtime orchestration) — covered by `experiment:acquisition-system-design`
-  for the platform-general pattern and `experiment:mesoscope-vr` for the current Mesoscope-VR
+  system configuration YAML, runtime orchestration) — covered by `/acquisition-system-design`
+  for the platform-general pattern and `mesoscope:mesoscope-vr` for the current Mesoscope-VR
   instance. This skill ends at the Python wrapper layer; everything that composes
   those wrappers into a runnable acquisition system is owned downstream.
-- Hardware discovery / post-flash verification — see `experiment:acquisition-system-setup`.
+- Hardware discovery / post-flash verification — see `/acquisition-system-setup`.
 
 ---
 
@@ -206,9 +206,9 @@ firmware reflash on every consumer of that module; adding a Python wrapper is a 
 
 7. **Hand off to per-system skills**: Binding-class integration (composing this module into a
    `MicroControllerInterface` instance, surfacing calibration knobs into a system-specific dataclass,
-   updating the system configuration YAML schema) is owned by `experiment:mesoscope-vr` for the
+   updating the system configuration YAML schema) is owned by `mesoscope:mesoscope-vr` for the
    current Mesoscope-VR system. The pattern those steps follow is documented in
-   `experiment:acquisition-system-design`.
+   `/acquisition-system-design`.
 
 ### Workflow: adding a wrapper for an existing firmware module
 
@@ -350,7 +350,7 @@ are what this skill prescribes.
    The README and CLAUDE.md are platform-general and SHOULD list every supported target, not only
    the Mesoscope-VR three.
 
-6. **Hand off to `experiment:mesoscope-vr`** (for the current Mesoscope-VR consumer): The host-PC
+6. **Hand off to `mesoscope:mesoscope-vr`** (for the current Mesoscope-VR consumer): The host-PC
    binding class must add a new `MicroControllerInterface` instance for the new board, with the new
    controller ID and the appropriate `ModuleInterface` instances. This skill does not cover that step.
 
@@ -397,12 +397,12 @@ files (`slmc/src/*_module.h`, `sle/.../module_interfaces.py`, `slmc/src/main.cpp
 | `ataraxis@microcontroller:firmware-module`         | Authoritative base for C++ `Module` mechanics; this skill defers all base patterns and only adds the slmc layer. |
 | `ataraxis@communication:microcontroller-interface` | Authoritative base for Python `ModuleInterface` mechanics; this skill defers and adds the sle layer.             |
 | `ataraxis@communication:microcontroller-setup`     | Post-flash discovery / MQTT verification; called after adding a board or module to confirm the hardware.         |
-| `automation:cpp-style`                             | Authoritative for slmc Doxygen file headers, formatting, naming.                                                 |
-| `automation:python-style`                          | Authoritative for sle docstrings, type annotations, formatting.                                                  |
-| `experiment:acquisition-system-setup`              | Post-flash hardware enumeration / verification at the acquisition-system level.                                  |
-| `experiment:acquisition-system-design`             | Platform-general pattern for composing wrappers into binding classes and a system configuration.                 |
-| `experiment:mesoscope-vr`                          | Current Mesoscope-VR worked instance — composes the wrappers documented here into `MicroControllerInterfaces`.   |
-| `experiment:mesoscope-vr-runtime`                  | Mesoscope-VR runtime behavior (state machine, training modes, CLI). Consumes wrapper APIs documented here.       |
+| `ataraxis@automation:cpp-style`                             | Authoritative for slmc Doxygen file headers, formatting, naming.                                                 |
+| `ataraxis@automation:python-style`                          | Authoritative for sle docstrings, type annotations, formatting.                                                  |
+| `/acquisition-system-setup`              | Post-flash hardware enumeration / verification at the acquisition-system level.                                  |
+| `/acquisition-system-design`             | Platform-general pattern for composing wrappers into binding classes and a system configuration.                 |
+| `mesoscope:mesoscope-vr`                          | Current Mesoscope-VR worked instance — composes the wrappers documented here into `MicroControllerInterfaces`.   |
+| `mesoscope:mesoscope-vr-runtime`                  | Mesoscope-VR runtime behavior (state machine, training modes, CLI). Consumes wrapper APIs documented here.       |
 
 ---
 
@@ -457,6 +457,6 @@ Catalog (`references/module-catalog.md`):
 
 Verification:
 - [ ] pio run succeeds for every affected target
-- [ ] After flash, the new module is visible via /microcontroller-setup discovery
+- [ ] After flash, the new module is visible via ataraxis@communication:microcontroller-setup discovery
 - [ ] A Python REPL can instantiate the wrapper without error and round-trip a set_parameters / send_command call
 ```

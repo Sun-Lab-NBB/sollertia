@@ -13,12 +13,12 @@ user-invocable: false
 
 Documents the platform-general **runtime behavior** pattern for a Sollertia data acquisition system —
 how the host-PC stack drives the binding classes through a session once they are composed. It is the
-dynamic-behavior counterpart to `experiment:acquisition-system-design`, which covers the static
+dynamic-behavior counterpart to `/acquisition-system-design`, which covers the static
 composition (configuration YAML → configuration dataclasses → binding classes → orchestrator construction).
 
 This is a **pattern skill** — it documents the conventions and contracts every Sollertia acquisition
 runtime shares, not any single system's specific states or modes. For the concrete worked instance,
-see `experiment:mesoscope-vr-runtime`.
+see `mesoscope:mesoscope-vr-runtime`.
 
 ---
 
@@ -39,12 +39,12 @@ see `experiment:mesoscope-vr-runtime`.
 
 **Does not cover** (delegated):
 - Static composition (configuration YAML, configuration dataclasses, binding-class construction/shutdown
-  order) — see `experiment:acquisition-system-design`
-- Concrete Mesoscope-VR runtime behavior (its states, modes, CLI, visualizer) — see `experiment:mesoscope-vr-runtime`
-- Per-firmware-module wrapper APIs the orchestrator consumes — see `experiment:microcontroller-interface`
-- The Unity VR task driver event source — see `experiment:vr-driver-interface`
+  order) — see `/acquisition-system-design`
+- Concrete Mesoscope-VR runtime behavior (its states, modes, CLI, visualizer) — see `mesoscope:mesoscope-vr-runtime`
+- Per-firmware-module wrapper APIs the orchestrator consumes — see `/microcontroller-interface`
+- The Unity VR task driver event source — see `/vr-driver-interface`
 - Session descriptors / `SessionTypes` authoring — owned by `assets:session-descriptors`
-- Session-data lifecycle after acquisition (preprocess, transfer, delete) — see `experiment:data-management`
+- Session-data lifecycle after acquisition (preprocess, transfer, delete) — see `/data-management`
 
 ---
 
@@ -90,7 +90,7 @@ A runtime layer therefore has two consumers:
 ```
 
 The orchestrator's *construction* and *shutdown ordering* are governed by
-`experiment:acquisition-system-design` (Layer 3). This skill governs what it *does* between start and
+`/acquisition-system-design` (Layer 3). This skill governs what it *does* between start and
 stop.
 
 ---
@@ -105,7 +105,7 @@ session of that mode. Every such function follows the same shape:
 2. Build the session descriptor: instantiate it with defaults, inherit parameters from the animal's
    previous session of this mode (if one exists on disk), and apply the per-flag overrides forwarded
    by the CLI.
-3. Construct the runtime orchestrator (Layer 3 of `experiment:acquisition-system-design`), passing the
+3. Construct the runtime orchestrator (Layer 3 of `/acquisition-system-design`), passing the
    in-memory descriptor. For recording modes the orchestrator owns and starts the `DataLogger`;
    maintenance modes start a standalone `DataLogger` first.
 4. Drive the state transitions and the per-cycle runtime loop for the session's lifetime.
@@ -164,7 +164,7 @@ out to one bounded step per concern, so no single concern can starve the others:
 
 Keeping each step bounded per cycle is the core latency contract: the loop must return promptly so the
 keepalive to every microcontroller subsystem stays within its interval (see
-`experiment:acquisition-system-design`'s keepalive enforcement).
+`/acquisition-system-design`'s keepalive enforcement).
 
 ### Typed-event dispatch from hardware subsystems
 
@@ -174,21 +174,21 @@ typed value (an event kind plus any payload fields); the orchestrator switches o
 its own hardware (deliver a reward, pulse a brake, enter an emergency pause). This keeps transport
 parsing inside the subsystem and hardware policy inside the orchestrator. The Unity VR task driver is a standard
 subsystem of every acquisition system and its `VRTaskEvent` is the async event source every runtime dispatches —
-see `experiment:vr-driver-interface`.
+see `/vr-driver-interface`.
 
 ### Lifecycle
 
 `start()` brings the session up (semi-interactive hardware preparation), the cycle loop runs the
 session, and `stop()` tears it down. Pause/resume implement an idle state that produces no valid data;
 terminate handles end-of-session shutdown. Construction/teardown ordering is owned by
-`experiment:acquisition-system-design`.
+`/acquisition-system-design`.
 
 ---
 
 ## Session-descriptor consumption
 
 The session descriptor holds the runtime parameters for one session, authored as a dataclass owned by
-`sollertia-shared-assets` (see assets plugin `/session-descriptors`):
+`sollertia-shared-assets` (see `assets:session-descriptors`):
 
 - The per-mode logic function instantiates the descriptor with defaults, inherits parameters from the
   animal's previous session of the same mode (if one exists on disk), and applies the per-flag
@@ -211,7 +211,7 @@ Two operator-facing surfaces are standard:
 
 - **A real-time visualizer** that renders behavior data, reading from the binding classes'
   `SharedMemoryArray`-backed property accessors (safe to read from the main process; see
-  `experiment:microcontroller-interface`). Its display mode is selected per runtime mode.
+  `/microcontroller-interface`). Its display mode is selected per runtime mode.
 - **An interactive control UI** for operator actions during a session (pause/resume, threshold
   modifiers, manual commands).
 
@@ -243,7 +243,7 @@ descriptor). The CLI is the only public surface for starting a session.
 
 ## Workflow: adding a runtime mode
 
-1. **Author the descriptor** (assets plugin `/session-descriptors`): add the `SessionTypes` member and
+1. **Author the descriptor** (`assets:session-descriptors`): add the `SessionTypes` member and
    the descriptor dataclass; bump `sollertia-shared-assets`.
 2. **Extend the state machine** if the mode needs a new hardware configuration: add a state enum member
    and a state-driving method that logs the transition.
@@ -251,13 +251,13 @@ descriptor). The CLI is the only public surface for starting a session.
 4. **Author the per-mode logic function** following the standard shape above.
 5. **Add the CLI subcommand** that builds the descriptor and calls the logic function.
 6. **Export and version-bump** the new function/descriptor; pin the new shared-assets minimum.
-7. **Update the per-system runtime skill** (for Mesoscope-VR, `experiment:mesoscope-vr-runtime`).
+7. **Update the per-system runtime skill** (for Mesoscope-VR, `mesoscope:mesoscope-vr-runtime`).
 
 ---
 
 ## Workflow: building a runtime for a new acquisition system
 
-1. Compose the system statically first (see `experiment:acquisition-system-design`).
+1. Compose the system statically first (see `/acquisition-system-design`).
 2. Define the system-state enumeration (one member per hardware mode) and the runtime-state stage codes.
 3. Define the log message code enumeration (one per state axis, plus domain events).
 4. Implement the orchestrator's per-cycle loop with one bounded step per hardware subsystem present.
@@ -273,7 +273,7 @@ template; apply the ones that fit the system's hardware.
 
 ## Mesoscope-VR as a worked example
 
-`experiment:mesoscope-vr-runtime` is the current concrete instance of every pattern here:
+`mesoscope:mesoscope-vr-runtime` is the current concrete instance of every pattern here:
 `MesoscopeVRStates` (the system-state enum), `MesoscopeVRSystem` (the orchestrator with its
 `runtime_cycle()` fanning out to `_data_cycle` / `_unity_cycle` / `_ui_cycle` / `_mesoscope_cycle`),
 the per-mode logic functions in `data_acquisition.py`, the `BehaviorVisualizer` + `RuntimeControlUI`,
@@ -288,7 +288,7 @@ Update this skill when a **platform-general** runtime convention changes (the cy
 two-state-axis model, the descriptor parameter/summary lifecycle, the typed-event dispatch pattern, the CLI
 pattern). Do NOT update it for changes to any single system's concrete states, modes, visualizer
 modes, or CLI commands — those belong in the per-system runtime skill
-(`experiment:mesoscope-vr-runtime`). When a new acquisition system's runtime reveals a genuinely shared
+(`mesoscope:mesoscope-vr-runtime`). When a new acquisition system's runtime reveals a genuinely shared
 pattern not captured here, add it.
 
 ---
@@ -297,14 +297,14 @@ pattern not captured here, add it.
 
 | Skill                                  | Relationship                                                                                 |
 |----------------------------------------|----------------------------------------------------------------------------------------------|
-| `experiment:acquisition-system-design` | Static composition counterpart (configuration, binding classes, construction/shutdown order) |
-| `experiment:mesoscope-vr-runtime`      | The current worked instance of this pattern                                                  |
-| `experiment:mesoscope-vr`              | The current worked instance of the static design pattern                                     |
-| `experiment:microcontroller-interface` | Per-module wrapper APIs and the SharedMemoryArray accessors the loop reads                   |
-| `experiment:vr-driver-interface`       | The typed-event asset-subsystem source (`VRTaskEvent`) the loop dispatches                   |
-| assets plugin `/session-descriptors`   | Authors the descriptors and `SessionTypes` the runtime consumes                              |
-| `experiment:data-management`           | Post-acquisition session-data lifecycle                                                      |
-| `experiment:pipeline`                  | Where the runtime phase sits in the end-to-end lifecycle                                     |
+| `/acquisition-system-design` | Static composition counterpart (configuration, binding classes, construction/shutdown order) |
+| `mesoscope:mesoscope-vr-runtime`      | The current worked instance of this pattern                                                  |
+| `mesoscope:mesoscope-vr`              | The current worked instance of the static design pattern                                     |
+| `/microcontroller-interface` | Per-module wrapper APIs and the SharedMemoryArray accessors the loop reads                   |
+| `/vr-driver-interface`       | The typed-event asset-subsystem source (`VRTaskEvent`) the loop dispatches                   |
+| `assets:session-descriptors`   | Authors the descriptors and `SessionTypes` the runtime consumes                              |
+| `/data-management`           | Post-acquisition session-data lifecycle                                                      |
+| `/pipeline`                  | Where the runtime phase sits in the end-to-end lifecycle                                     |
 
 ---
 

@@ -366,5 +366,5 @@ configuration can be saved and reused.
 | `/play-mode` (this plugin)                | Consumer — entered after scene setup passes the pre-Play Mode checklist         |
 | `/gimbl-framework` (this plugin)          | Reference for `MainWindow` invariants, `ActorObject`, `DisplayObject`, etc.     |
 | `/mqtt-contract` (this plugin)            | Topics consumed by `UI-lick-reward` and published by `Simulated Linear`         |
-| assets plugin `/task-templates`           | Upstream — owns the YAML that drove the prefab via `/task-prefabs`              |
-| assets plugin `/experiment-configuration` | Upstream — per-project instantiation of the template (drives `Task.configPath`) |
+| `assets:task-templates`           | Upstream — owns the YAML that drove the prefab via `/task-prefabs`              |
+| `assets:experiment-configuration` | Upstream — per-project instantiation of the template (drives `Task.configPath`) |

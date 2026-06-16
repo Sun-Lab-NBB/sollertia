@@ -33,8 +33,8 @@ Unity's serialization layer, and returns the resulting hierarchy for validation.
 - Task prefab generation from YAML templates (see `/task-prefabs`)
 - Modifications to the `CreateTask` pipeline that consumes zone prefabs (see `/task-generator`)
 - Adding a new `TriggerType` member to the shared-assets registry (see assets plugin's
-  `/library-extension`)
-- Authoring the new MonoBehaviour script itself (see `/csharp-style` in the automation plugin)
+  `assets:library-extension`)
+- Authoring the new MonoBehaviour script itself (see `ataraxis@automation:csharp-style` in the automation plugin)
 - Editing protected hand-authored assets — `/task-generator` "Required shared assets" enumerates
   the full set (zone base prefabs, shared materials, scene base template). They are source
   templates and shared assets that `CreateTask` and the generated prefabs reference, and they
@@ -122,7 +122,7 @@ You MUST verify all the following before manufacturing a new zone prefab:
 2. **The new script lives in the `SL.Tasks` namespace** (or a subnamespace), inherits from
    `MonoBehaviour`, and implements `IResettable` if it carries per-lap state. Follow the existing
    `OccupancyZone` / `GuidanceZone` pattern in `Assets/InfiniteCorridorTask/Scripts/`.
-3. **Style compliance.** Invoke `/csharp-style` (automation plugin) before writing the new script,
+3. **Style compliance.** Invoke `ataraxis@automation:csharp-style` before writing the new script,
    and run CSharpier on the modified C# files before committing.
 4. **Unity Editor running** with `McpBridge` reachable. The validation step relies on
    `inspect_prefab_tool`, which fails without the bridge. Invoke `/unity-mcp-environment-setup`
@@ -208,7 +208,7 @@ The new prefab is unreferenced once it is validated. The full cross-cutting reci
 
 | Slice                                                | Owning skill                                                    |
 |------------------------------------------------------|-----------------------------------------------------------------|
-| Python `TriggerType` enum + registry parity          | assets plugin `/library-extension` (Adding a new `TriggerType`) |
+| Python `TriggerType` enum + registry parity          | `assets:library-extension` (Adding a new `TriggerType`) |
 | `CreateTask` pipeline edits + `DeleteProtectedPaths` | `/task-generator` (Adding a new zone trigger type)              |
 | Prefab authoring (this skill)                        | `clone_zone_prefab_tool`, or the manual reference above         |
 
@@ -221,7 +221,7 @@ modifier script's class identity) is:
   standalone `IResettable` needs an explicit `FindObjectsByType<NewZone>` line added to
   `ResetZone.cs`, or per-lap state for the new zone is never reset.
 
-Once `/library-extension`, `/task-generator`, and this skill's bullets have all landed, the new
+Once `assets:library-extension`, `/task-generator`, and this skill's bullets have all landed, the new
 prefab is usable by any YAML template that declares the new `trigger_type`.
 
 ---
@@ -301,10 +301,10 @@ above handles routine variants in one call.
 | `/play-mode` (this plugin)                   | Consumer — exercises the new zone at runtime                               |
 | `/mqtt-contract` (this plugin)               | Reference if the new modifier publishes or subscribes to MQTT topics       |
 | `/unity-mcp-environment-setup` (this plugin) | Run first if the Unity Editor bridge is unreachable                        |
-| assets plugin `/library-extension`           | Required for new `TriggerType` member and registry parity check            |
-| automation plugin `/csharp-style`            | Required when authoring the new modifier script and editing C# wiring      |
-| automation plugin `/commit`                  | Run after the prefab, script, and wiring changes are ready to commit       |
-| experiment plugin `/vr-driver-interface`     | Host pairs `DecomposedTrials.trigger_types` with these trigger zones       |
+| `assets:library-extension`           | Required for new `TriggerType` member and registry parity check            |
+| `ataraxis@automation:csharp-style`            | Required when authoring the new modifier script and editing C# wiring      |
+| `ataraxis@automation:commit`                  | Run after the prefab, script, and wiring changes are ready to commit       |
+| `experiment:vr-driver-interface`     | Host pairs `DecomposedTrials.trigger_types` with these trigger zones       |
 
 ---
 
@@ -337,7 +337,7 @@ Zone Prefabs Compliance:
 - [ ] ConfigLoader.ValidateTemplate accepts the new trigger_type literal
 - [ ] ResetZone.Start finds the new IResettable (subclasses of the three known types are covered
       polymorphically; a standalone class needs an explicit FindObjectsByType registration)
-- [ ] /library-extension was invoked on the assets-plugin side to register the new TriggerType
+- [ ] assets:library-extension was invoked on the assets-plugin side to register the new TriggerType
       member and run the import-time parity check
 - [ ] CSharpier ran cleanly on the modified C# files (the new script, McpBridge.cs, ConfigLoader.cs,
       CreateTask.cs)

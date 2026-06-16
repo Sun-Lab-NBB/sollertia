@@ -44,13 +44,13 @@ sits in the acquisition-system architecture, see `/acquisition-system-design`
 
 **Does not cover:**
 - The system-configuration field that stores the sheet identifiers (`surgery_sheet_id`,
-  `water_log_sheet_id`) — owned by the per-system instance skill (`/mesoscope-vr`) and the
+  `water_log_sheet_id`) — owned by the per-system instance skill (`mesoscope:mesoscope-vr`) and the
   external-services auxiliary section in `/acquisition-system-design`
-- Setting the credentials-file path on the host — owned by the assets plugin `/working-directory`
+- Setting the credentials-file path on the host — owned by `assets:working-directory`
 - Reading or amending the `surgery_metadata.yaml` snapshot produced by `SurgeryLog` — owned by the
-  assets plugin `/data-assets`
+  `assets:data-assets`
 - The `SurgeryData` / `SubjectData` / `ProcedureData` / `DrugData` / `ImplantData` / `InjectionData`
-  dataclasses themselves (owned by `sollertia-shared-assets`; extend via assets `/library-extension`)
+  dataclasses themselves (owned by `sollertia-shared-assets`; extend via assets `assets:library-extension`)
 - The session-lifecycle tools that invoke preprocessing (`/data-management`)
 - The `googleapiclient` / `google.oauth2` library internals (third-party; consult their own docs)
 
@@ -73,7 +73,7 @@ A processor needs three things before it can connect:
 
 | Prerequisite             | Where it comes from                                                                                              |
 |--------------------------|------------------------------------------------------------------------------------------------------------------|
-| Credentials file path    | A Google Cloud **service-account** JSON key. The host path is set via assets `/working-directory` and resolved at call time by `get_credentials(credentials=CredentialsTypes.GOOGLE)`. |
+| Credentials file path    | A Google Cloud **service-account** JSON key. The host path is set via assets `assets:working-directory` and resolved at call time by `get_credentials(credentials=CredentialsTypes.GOOGLE)`. |
 | Sheet identifier         | The long alphanumeric segment of the sheet URL, stored in the system configuration's external-services section (`surgery_sheet_id` / `water_log_sheet_id` for Mesoscope-VR). |
 | Sheet shared with the SA | The target Google Sheet MUST be shared with the service account's email (as a viewer for read-only, as an editor for any processor that writes). Google service accounts have no access until the document is shared with them. |
 
@@ -197,8 +197,8 @@ means **any acquisition system can consume them**, not that they adapt to any sh
     read asset). This standardizes the downstream (slf) interface: forging reads the on-disk dataclass
     and never touches the external source. If the processor emits a *new* record type rather than
     `SurgeryData`, add the dataclass + its `ReadAssets` member + `READ_ASSET_REGISTRY` entry through the
-    assets plugin `/library-extension`'s "Adding a new read asset" scenario, and its read/amend surface
-    through `/data-assets`.
+    `assets:library-extension`'s "Adding a new read asset" scenario, and its read/amend surface
+    through `assets:data-assets`.
   - A **write processor** (like `WaterLog`) consumes runtime-discovered values and writes them into a
     pre-existing row/record.
 
@@ -236,11 +236,11 @@ and re-run. See `/data-management` for the lifecycle-level handling.
 | Skill                                       | Relationship                                                                                     |
 |---------------------------------------------|--------------------------------------------------------------------------------------------------|
 | `/acquisition-system-design`                | Platform-general home of the "External data-service processors" category and the authoring workflow. |
-| `/mesoscope-vr`                             | Current consumer — defines the `MesoscopeGoogleSheets` identifiers these processors read.        |
+| `mesoscope:mesoscope-vr`                             | Current consumer — defines the `MesoscopeGoogleSheets` identifiers these processors read.        |
 | `/data-management`                          | Owns preprocessing, which constructs the processors and updates the sheets.                       |
-| assets plugin `/working-directory`          | Sets and resolves the service-account credentials path the processors require.                   |
-| assets plugin `/data-assets`           | Reads/amends the on-disk read asset (e.g., the surgery snapshot `SurgeryLog` produces).           |
-| assets plugin `/library-extension`          | Owns the read-asset registry; register a read processor's emitted dataclass via its "Adding a new read asset" scenario. |
+| `assets:working-directory`          | Sets and resolves the service-account credentials path the processors require.                   |
+| `assets:data-assets`           | Reads/amends the on-disk read asset (e.g., the surgery snapshot `SurgeryLog` produces).           |
+| `assets:library-extension`          | Owns the read-asset registry; register a read processor's emitted dataclass via its "Adding a new read asset" scenario. |
 | `/experiment-mcp-environment-setup`         | Run first if the `sle mcp` server is not connected.                                              |
 | `references/sheet-schema-contract.md`       | The full required-header sets, structural assumptions, and field mappings.                        |
 
@@ -250,7 +250,7 @@ and re-run. See `/data-management` for the lifecycle-level handling.
 
 ```text
 Before relying on or authoring a Google Sheets processor:
-- [ ] Service-account credentials path is set on the host (assets /working-directory)
+- [ ] Service-account credentials path is set on the host (assets assets:working-directory)
 - [ ] The target sheet is shared with the service-account email (editor access if the processor writes)
 - [ ] The sheet identifier(s) are set in the system configuration's external-services section
 - [ ] The sheet matches the schema contract (required headers, header-row position, identity model)
@@ -259,7 +259,7 @@ Before relying on or authoring a Google Sheets processor:
 When authoring a custom processor:
 - [ ] Constructor authenticates, builds the header→column map, and validates required headers + record presence
 - [ ] Direction is explicit (read → typed dataclass snapshot, and/or write → existing row)
-- [ ] A new emitted record type is coordinated via assets /library-extension and /data-assets
+- [ ] A new emitted record type is coordinated via assets assets:library-extension and assets:data-assets
 - [ ] Every API call passes num_retries; __del__ closes the connection
 - [ ] Placed in cross_system/ if system-agnostic, or the system package if system-specific
 - [ ] Wired into the system's preprocessing with the unset-identifier skip / credentials-required gating

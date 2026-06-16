@@ -32,7 +32,7 @@ helpers — no other skill in the marketplace may call these.
 **Does not cover:**
 - Per-project `MesoscopeExperimentConfiguration` authoring (see `/experiment-configuration`)
 - Setting the task templates directory path (see `/working-directory`)
-- Generating a Unity task from a template (see unity plugin's `/task-prefabs` —
+- Generating a Unity task from a template (see `unity:task-prefabs` —
   `create_task_tool` builds both the task prefab and the matching scene in one call)
 
 ---
@@ -78,14 +78,14 @@ all sharing the same name by convention:
 ```text
 Configurations/<name>.yaml          template (authored here)
         │
-        ▼  unity plugin /task-prefabs (create_task_tool)
+        ▼  unity:task-prefabs (create_task_tool)
 InfiniteCorridorTask/Tasks/<name>.prefab    task prefab
         │
-        ▼  unity plugin /task-scenes (create_task_tool)
+        ▼  unity:task-scenes (create_task_tool)
 Scenes/<name>.unity                 scene (instantiates the task prefab)
 ```
 
-The canonical reference for this hierarchy is unity plugin's `/task-prefabs`. When you rename a
+The canonical reference for this hierarchy is `unity:task-prefabs`. When you rename a
 template, the regenerated task prefab and the next scene created from it inherit the new name; the
 old `.prefab` and `.unity` files remain on disk until deleted via `delete_asset_tool`.
 
@@ -123,7 +123,7 @@ and trigger-type enum values, use `list_supported_trial_types_tool` and
 A template has two consumers: **Unity** generates the VR environment from it, and the
 **acquisition runtime** decomposes the resulting cue sequence back into a trial timeline. The
 schema is shaped by what those two consumers need. Unity-side prefab generation, scene loading,
-and runtime corridor mechanics are owned by the unity plugin's `/task-prefabs` and `/task-scenes`
+and runtime corridor mechanics are owned by `unity:task-prefabs` and `unity:task-scenes`
 skills; trial decomposition and runtime trial state are owned by the experiment library and
 documented at the conceptual level in `/experiment-configuration`. The overview below is the
 slsa-side conceptual model — defer to those skills for implementation specifics.
@@ -207,7 +207,7 @@ capability ceiling but the absence of a deterministic recipe, so the work must b
 | Field                                 | Consumer-side role                                                                                                                                                                                                                                                                                               |
 |---------------------------------------|------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
 | **`cues`**                            | Unity bakes wall textures from each cue's `texture` asset; the uint8 `code` is the on-the-wire identifier the runtime uses for analysis.                                                                                                                                                                         |
-| **`vr_environment`**                  | Parameterizes corridor geometry: how many segments are visible at once, how parallel corridor instances are spaced, the centimeter↔Unity-unit conversion, the padding prefab, and the cue offset that shifts the cue sequence origin relative to each corridor's spawn point. See `/task-prefabs` for specifics. |
+| **`vr_environment`**                  | Parameterizes corridor geometry: how many segments are visible at once, how parallel corridor instances are spaced, the centimeter↔Unity-unit conversion, the padding prefab, and the cue offset that shifts the cue sequence origin relative to each corridor's spawn point. See `unity:task-prefabs` for specifics. |
 | **`trial_structures`**                | Spatial config per trial type — cue sequence, stimulus trigger zone bounds, stimulus location, visible-boundary flag, trigger type, and optional transitions. The trigger type tells Unity which zone prefab to bake.                                                                                            |
 | **`trial_structures[].cue_sequence`** | Drives Unity's segment-prefab geometry: each trial generates a single segment prefab whose cue ordering matches this sequence. Cue prefab lengths sum to the segment length used by zone validation.                                                                                                             |
 | **`trial_structures[].transitions`**  | Drives Unity's segment-sequence resolver at session init. Sampled to materialize the deterministic trial chain; null/empty falls back to uniform-random successor selection.                                                                                                                                     |
@@ -408,12 +408,12 @@ returns an `issues` list. Fix any reported issues and re-write before handing of
 
 ### Step 6: Hand off for Unity task creation
 
-When the template targets a Unity scene, hand off to the **unity plugin's `/task-prefabs`** and
+When the template targets a Unity scene, hand off to the **`unity:task-prefabs`** and
 run `create_task_tool(template_name="<name>")`. The tool builds the task prefab and the matching
 scene in one call from the same template basename — both artifacts then live at
 `Assets/InfiniteCorridorTask/Tasks/<name>.prefab` and `Assets/Scenes/<name>.unity`. If the Unity
 Editor, McpBridge, or `slsa mcp` is unreachable, restore connectivity via
-`/unity-mcp-environment-setup` or `/assets-mcp-environment-setup` before proceeding.
+`unity:unity-mcp-environment-setup` or `/assets-mcp-environment-setup` before proceeding.
 
 ### Step 7: Hand off for experiment configuration
 
@@ -444,7 +444,7 @@ for instantiating templates into experiment configurations.
    cm-per-unity-unit) to match the new scene's geometry. The Unity scene name itself is bound by
    per-project experiment configurations, not by the template.
 3. Run `validate_template_tool` to catch structural regressions.
-4. Hand off to unity plugin's `/task-prefabs` to regenerate the prefab and re-verify segment zones
+4. Hand off to `unity:task-prefabs` to regenerate the prefab and re-verify segment zones
    against the new prefab state.
 
 ### Audit which projects use a template
@@ -466,12 +466,12 @@ for instantiating templates into experiment configurations.
 - [ ] write_template_tool succeeded without schema errors
 - [ ] validate_template_tool returned valid=True with no issues
 - [ ] read_template_tool returned the expected content after the write
-- [ ] If the template targets a Unity scene, unity plugin's /task-prefabs was invoked for prefab
+- [ ] If the template targets a Unity scene, unity:task-prefabs was invoked for prefab
       generation and validation
 - [ ] If a NEW schema field was added (not just a new value), confirmed it is a two-repo mirror change — the Python
       dataclass in sollertia-shared-assets AND the matching C# [Serializable] field in sollertia-unity-tasks (the
       camelCase counterpart of the underscored YAML key, with matching optionality/default); see unity plugin's
-      /task-generator "Adding a new template-driven field"
+      unity:task-generator "Adding a new template-driven field"
 ```
 
 ---
@@ -484,6 +484,6 @@ for instantiating templates into experiment configurations.
 | `/assets-mcp-environment-setup`          | Run first if the MCP server is not connected                                                             |
 | `/experiment-configuration`              | Consumer — instantiates templates into per-project experiments                                           |
 | `/library-extension`                     | Cross-cutting recipe to add a new `TriggerType` or runtime trial class                                   |
-| unity plugin `/task-prefabs`             | Downstream — generates and validates the Unity prefab                                                    |
-| unity plugin `/task-scenes`              | Downstream — places the generated prefab into a Unity scene                                              |
-| experiment plugin `/vr-driver-interface` | Consumer — decomposes the cue sequence into trials using these motifs and trigger types                  |
+| `unity:task-prefabs`             | Downstream — generates and validates the Unity prefab                                                    |
+| `unity:task-scenes`              | Downstream — places the generated prefab into a Unity scene                                              |
+| `experiment:vr-driver-interface` | Consumer — decomposes the cue sequence into trials using these motifs and trigger types                  |

@@ -50,11 +50,11 @@ validate the file.
 - Reading or writing the per-session `MesoscopeHardwareState` snapshot (see
   `/session-hardware-state`)
 - Reading the frozen `ZaberPositions` and `MesoscopePositions` snapshots (see the experiment
-  plugin's `/mesoscope-vr-snapshots`)
+  plugin's `mesoscope:mesoscope-vr-snapshots`)
 - Reading subject metadata (see `/data-assets`)
 - Discovering sessions (see `/project-hierarchy` for `get_data_root_overview_tool`)
 - Dataset assembly and dataset-level descriptor path resolution (see the forging plugin's
-  `/datasets` skill)
+  `forging:datasets` skill)
 
 ---
 
@@ -182,7 +182,7 @@ right path.
 | Location                                                    | Populated by                                                                   | Discovery path                                                                                                                        |
 |-------------------------------------------------------------|--------------------------------------------------------------------------------|---------------------------------------------------------------------------------------------------------------------------------------|
 | `<session>/raw_data/session_descriptor.yaml`                | Acquisition runtime at session end (primary on-disk copy)                      | Session root from `/session-discovery`; `inspect_sessions_tool` (`/session-data`) confirms presence in its `raw_data_files` inventory |
-| `<project_root>/<animal>/<session>/session_descriptor.yaml` | Forging pipeline (copy alongside `data.feather` at dataset assembly)           | Forging plugin's `/datasets` resolves the forged-session layout under a dataset's `project_root`                                      |
+| `<project_root>/<animal>/<session>/session_descriptor.yaml` | Forging pipeline (copy alongside `data.feather` at dataset assembly)           | Forging plugin's `forging:datasets` resolves the forged-session layout under a dataset's `project_root`                                      |
 | `<persistent_data>/<animal>/session_descriptor.yaml`        | Acquisition runtime (per-animal cache used to seed the next same-type session) | `/project-hierarchy`                                                                                                                  |
 
 Other locations are possible — the tools take any absolute path — but the three above are the
@@ -214,7 +214,7 @@ locations** above for the canonical paths and which neighboring skill owns each.
 Path-resolution hand-offs:
 - Raw session snapshot → `/project-hierarchy` + `/session-discovery` for session roots;
   `/session-data` (`inspect_sessions_tool`) to confirm the file is present.
-- Forged dataset per-session copy → the forging plugin's `/datasets` skill, which resolves
+- Forged dataset per-session copy → `forging:datasets` skill, which resolves
   the dataset-hierarchy layout.
 - Per-animal persistent cache → `/project-hierarchy`.
 - Ad-hoc location → the user supplies the path directly.
@@ -224,7 +224,7 @@ to `/session-data`. Call `inspect_sessions_tool` on the session root and read
 `identity.session_type` from the report, or read the marker directly with
 `read_session_data_tool(file_path="<session>/raw_data/session_data.yaml")`. For forged dataset
 copies (or ad-hoc paths) where no sibling `session_data.yaml` is reachable, the caller must
-supply `session_type` directly; the forging plugin's `/datasets` skill can surface the
+supply `session_type` directly; `forging:datasets` skill can surface the
 session-type mapping stored in the dataset marker.
 
 `write_session_descriptor_tool` also accepts `descriptor_payload: dict[str, Any]` (the full
@@ -253,7 +253,7 @@ everywhere.
      `/session-discovery`; optionally confirm the file is present via
      `inspect_sessions_tool` (`/session-data`). Path is
      `<session>/raw_data/session_descriptor.yaml`.
-   - **Forged dataset copy** → hand off to the forging plugin's `/datasets` skill for the
+   - **Forged dataset copy** → hand off to `forging:datasets` skill for the
      per-session path inside the dataset's `project_root`. Path shape is
      `<project_root>/<animal>/<session>/session_descriptor.yaml`.
    - **Per-animal persistent cache** → hand off to `/project-hierarchy`.
@@ -342,7 +342,7 @@ target(s) that match the durability the user actually wants:
 ```text
 - [ ] sollertia-shared-assets MCP server is connected
 - [ ] file_path was resolved via the right owner: /session-discovery or /session-data for raw
-      session snapshots, forging plugin's /datasets for forged dataset copies,
+      session snapshots, forging:datasets for forged dataset copies,
       /project-hierarchy for per-animal persistent cache, or the user directly for ad-hoc paths
 - [ ] session_type was resolved from /session-data (raw snapshot) or supplied directly
       (dataset copy, ad-hoc), and passed to every tool call
@@ -371,6 +371,6 @@ target(s) that match the durability the user actually wants:
 | `/session-hardware-state`                   | Sibling — owns the per-session hardware-state snapshot                                                                   |
 | `/data-assets`                              | Sibling — owns read assets (e.g., subject/surgery records)                                                               |
 | `/project-hierarchy`                        | Provides `get_data_root_overview_tool` and per-animal persistent-cache paths                                             |
-| experiment plugin `/mesoscope-vr-snapshots` | Owns the frozen Zaber and mesoscope-objective position snapshots                                                         |
+| `mesoscope:mesoscope-vr-snapshots` | Owns the frozen Zaber and mesoscope-objective position snapshots                                                         |
 | `/library-extension`                        | Cross-cutting recipe to add a new `SessionTypes` member; lists the descriptor mapping table here that needs updating     |
-| forging plugin `/datasets`                  | Resolves forged dataset per-session `session_descriptor.yaml` paths                                                      |
+| `forging:datasets`                  | Resolves forged dataset per-session `session_descriptor.yaml` paths                                                      |

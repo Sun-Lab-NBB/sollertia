@@ -13,8 +13,8 @@ user-invocable: false
 
 Authoritative reference for the **forging-pipeline-specific** input artifacts: the
 behavior-processing feathers (upstream `/behavior-processing`), the cindra
-single-recording outputs (upstream `/cindra:single-recording-processing`), and the
-cindra multi-day outputs (upstream `/cindra:multi-recording-processing`). Covers
+single-recording outputs (upstream `cindra@cindra:single-recording-processing`), and the
+cindra multi-day outputs (upstream `cindra@cindra:multi-recording-processing`). Covers
 session eligibility, the on-disk dataset hierarchy, the required raw-data YAMLs, and
 the cross-library handoff contract. Delegates session layout, hardware state, and
 experiment configuration authoring to the assets plugin.
@@ -43,17 +43,17 @@ experiment configuration authoring to the assets plugin.
 
 **Does not cover:**
 - Session directory layout and `raw_data/` / `processed_data/` hierarchy (see
-  assets plugin's `/session-discovery` and related skills)
+  `assets:session-discovery` and related skills)
 - Hardware state authoring and validation (see the assets plugin)
 - Experiment configuration authoring and validation (see the assets plugin)
 - Batch orchestration workflow (see `/dataset-forging`)
 - Output schemas and interpretation (see `/dataset-forging-results`)
 - Upstream behavior processing workflow (see `/behavior-processing` /
   `/behavior-input-format` / `/behavior-results`)
-- Upstream cindra processing workflow (see `/cindra:single-recording-processing` and
-  `/cindra:multi-recording-processing` and their results skills)
+- Upstream cindra processing workflow (see `cindra@cindra:single-recording-processing` and
+  `cindra@cindra:multi-recording-processing` and their results skills)
 
-**Note:** `/cindra:*` refers to the **cindra** plugin from the
+**Note:** `cindra@cindra:*` refers to the **cindra** plugin from the
 [cindra marketplace](https://github.com/Sun-Lab-NBB/cindra).
 
 ---
@@ -79,7 +79,7 @@ calling `prepare_forging_batch_tool`.
 | `RUN_TRAINING`         | no                   | Behavior processing runs, but forging refuses               |
 | Anything else          | no                   | Refused at dataset creation                                 |
 
-Use the assets plugin's `/session-discovery` with `session_types=["mesoscope experiment"]` to discover
+Use `assets:session-discovery` with `session_types=["mesoscope experiment"]` to discover
 forgeable sessions.
 
 Eligibility is re-validated on every prepare call that hits a fresh dataset (existing
@@ -97,7 +97,7 @@ The forging pipeline expects the canonical sollertia project layout:
 ├── {animal_name_A}/
 │   ├── {session_name_1}/
 │   │   ├── raw_data/
-│   │   │   ├── session_data.yaml            ← session marker (see the assets plugin's /session-discovery)
+│   │   │   ├── session_data.yaml            ← session marker (see assets:session-discovery)
 │   │   │   ├── hardware_state.yaml          ← required here
 │   │   │   ├── experiment_configuration.yaml ← required here
 │   │   │   ├── session_descriptor.yaml   ← required here (copied to output)
@@ -188,7 +188,7 @@ Exactly one `single_recording_tracker.yaml` must exist under `processed_data/` �
 or multiple hits raise `FileNotFoundError` / `RuntimeError` respectively.
 
 The following files are read from the cindra directory at assembly time. All are
-produced by `/cindra:single-recording-processing`:
+produced by `cindra@cindra:single-recording-processing`:
 
 | File                          | Loaded via               | Use                                                                      |
 |-------------------------------|--------------------------|--------------------------------------------------------------------------|
@@ -218,7 +218,7 @@ The forging pipeline derives the multi-day directory as
 cindra pipeline was run — the two are joined blindly without fallback discovery.
 
 The following files are read from the multi-day directory. All are produced by
-`/cindra:multi-recording-processing`:
+`cindra@cindra:multi-recording-processing`:
 
 | File                          | Use                                                                      |
 |-------------------------------|--------------------------------------------------------------------------|
@@ -235,7 +235,7 @@ Polars `Array(Float32)` columns.
 name than the one passed to `prepare_forging_batch_tool`. The
 `{cindra_parent}/multiday/{dataset_name}/` join then points at a non-existent
 directory, and the assembly raises `FileNotFoundError` on `cell_fluorescence.npy`.
-Fix by rerunning `/cindra:multi-recording-processing` with the matching dataset name,
+Fix by rerunning `cindra@cindra:multi-recording-processing` with the matching dataset name,
 or by pointing the forging run at the name that was used upstream.
 
 ---
@@ -318,8 +318,8 @@ The forging pipeline is a pure consumer of upstream outputs:
 | Upstream producer                | Required skill                        | Artifact location                                                                                                                                                                 | Gates forging |
 |----------------------------------|---------------------------------------|-----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|---------------|
 | Behavior processing pipeline     | `/behavior-processing`                | `{processed_data}/.../behavior_processing_tracker.yaml` + feathers                                                                                                                | yes           |
-| Cindra single-recording pipeline | `/cindra:single-recording-processing` | `{processed_data}/.../single_recording_tracker.yaml` + `*.npy` / `*.npz`                                                                                                          | yes           |
-| Cindra multi-recording pipeline  | `/cindra:multi-recording-processing`  | `{cindra_parent}/multiday/{dataset_name}/*.npy` (dataset name must match)                                                                                                         | yes           |
+| Cindra single-recording pipeline | `cindra@cindra:single-recording-processing` | `{processed_data}/.../single_recording_tracker.yaml` + `*.npy` / `*.npz`                                                                                                          | yes           |
+| Cindra multi-recording pipeline  | `cindra@cindra:multi-recording-processing`  | `{cindra_parent}/multiday/{dataset_name}/*.npy` (dataset name must match)                                                                                                         | yes           |
 | Mesoscope-VR acquisition runtime | (acquisition-side; no skill)          | `{raw_data}/hardware_state.yaml`, `{raw_data}/experiment_configuration.yaml`, `{raw_data}/session_descriptor.yaml`, `{raw_data}/surgery_metadata.yaml` (latest session per animal) | yes           |
 
 **Ordering constraint:** all four upstream producers MUST complete for every session
@@ -352,10 +352,10 @@ Dataset Forging Prerequisites:
 -   [ ] system_state_data.feather, lick_data.feather, valve_data.feather
 -   [ ] encoder_data.feather
 -   [ ] vr_trigger_zone_data.feather, vr_cue_data.feather, trial_data.feather, runtime_state_data.feather
-- [ ] /cindra:single-recording-processing completed — single_recording_tracker.yaml + outputs present
+- [ ] cindra@cindra:single-recording-processing completed — single_recording_tracker.yaml + outputs present
 -   [ ] cell_fluorescence.npy, combined_metadata.npz, cell_classification.npy
 -   [ ] neuropil_fluorescence.npy, subtracted_fluorescence.npy, spikes.npy
-- [ ] /cindra:multi-recording-processing completed with matching dataset name
+- [ ] cindra@cindra:multi-recording-processing completed with matching dataset name
 -   [ ] multiday/{dataset_name}/cell_fluorescence.npy and companions present
 ```
 
@@ -366,13 +366,13 @@ Dataset Forging Prerequisites:
 | Skill                                    | Relationship                                                                  |
 |------------------------------------------|-------------------------------------------------------------------------------|
 | `/forging-mcp-environment-setup`         | Prerequisite: MCP server connectivity                                         |
-| assets plugin `/session-discovery`       | Upstream: session discovery and filtering                                     |
+| `assets:session-discovery`       | Upstream: session discovery and filtering                                     |
 | `/dataset-forging`                       | Downstream: consumes the inputs documented here                               |
 | `/dataset-forging-results`               | Downstream: documents the output derived from these inputs                    |
 | `/behavior-processing`                   | Upstream producer of behavior feathers                                        |
 | `/behavior-input-format`                 | Reference: upstream-of-upstream input format for behavior feathers            |
 | `/behavior-results`                      | Reference: schema of the behavior feathers consumed here                      |
-| `/cindra:single-recording-processing`    | Upstream producer of cindra single-recording outputs                          |
-| `/cindra:multi-recording-processing`     | Upstream producer of cindra multi-day outputs                                 |
-| `/cindra:single-recording-results`       | Reference: schemas of the cindra single-recording outputs                     |
-| `/cindra:multi-recording-results`        | Reference: schemas of the cindra multi-day outputs                            |
+| `cindra@cindra:single-recording-processing`    | Upstream producer of cindra single-recording outputs                          |
+| `cindra@cindra:multi-recording-processing`     | Upstream producer of cindra multi-day outputs                                 |
+| `cindra@cindra:single-recording-results`       | Reference: schemas of the cindra single-recording outputs                     |
+| `cindra@cindra:multi-recording-results`        | Reference: schemas of the cindra multi-day outputs                            |

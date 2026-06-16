@@ -21,7 +21,7 @@ querying, and interpretation guidance.
 **Covers:**
 - Output directory structure and `behavior_data/` layout
 - Runtime output schemas (system state, runtime state, guidance, cue, trial, trigger zone)
-- Camera output schema (hardlinked from `/video:log-processing` output)
+- Camera output schema (hardlinked from `ataraxis@video:log-processing` output)
 - Microcontroller output schemas (per-module feather contents)
 - `verify_behavior_processing_output_tool` usage
 - `query_behavior_data_tool` usage and sample-row interpretation
@@ -30,7 +30,7 @@ querying, and interpretation guidance.
 **Does not cover:**
 - Input data format (see `/behavior-input-format`)
 - Batch processing workflow (see `/behavior-processing`)
-- Session discovery (see the assets plugin's `/session-discovery`)
+- Session discovery (see `assets:session-discovery`)
 - MCP server connectivity (see `/forging-mcp-environment-setup`)
 
 **Note:** `/video:*` and `/communication:*` refer to the **video** and **communication** plugins
@@ -407,7 +407,7 @@ be compared directly to any `time_us` column in this output.
 | Skill                                | Relationship                                                 |
 |--------------------------------------|--------------------------------------------------------------|
 | `/forging-mcp-environment-setup`     | Prerequisite: MCP server connectivity                        |
-| assets plugin `/session-discovery`   | Upstream: session discovery produces confirmed session paths |
+| `assets:session-discovery`   | Upstream: session discovery produces confirmed session paths |
 | `/behavior-input-format`             | Reference: upstream inputs that became these outputs         |
 | `/behavior-processing`               | Upstream: produces the data described here                   |
 

@@ -346,8 +346,8 @@ Use `get_play_state_tool` (`/play-mode`) to check `state == "edit"` before issui
 | `/task-prefabs` (this plugin)                 | Upstream — generates the task prefab whose `Task` component this skill mutates                |
 | `/mqtt-contract` (this plugin)                | Reference for the `RequireInteraction` / `RequireWait` runtime alternative to `task` writes   |
 | `/gimbl-framework` (this plugin)              | Reference for `ActorObject`, `DisplayObject`, `MQTTClient`, and `ControllerOutput` semantics  |
-| assets plugin `/assets-mcp-environment-setup` | Upstream — owns the slsa MCP server diagnostic                                                |
-| experiment plugin `/vr-driver-interface`      | Host sets `RequireInteraction` / `RequireWait` at runtime via `set_*_guidance`                |
+| `assets:assets-mcp-environment-setup` | Upstream — owns the slsa MCP server diagnostic                                                |
+| `experiment:vr-driver-interface`      | Host sets `RequireInteraction` / `RequireWait` at runtime via `set_*_guidance`                |
 
 ---
 

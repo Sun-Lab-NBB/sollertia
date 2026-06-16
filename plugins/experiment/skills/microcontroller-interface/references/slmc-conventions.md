@@ -12,7 +12,7 @@ allocation rules, and workflows that govern this layer.
   permits `#pragma once`; slmc uses traditional guards with the `AXMC_` prefix for consistency with the
   upstream ataraxis-micro-controller library.
 - **File-header Doxygen**: Every header starts with `/** @file @brief ... */` and uses `@warning`,
-  `@note`, `@tparam`, `@param` tags. `automation:cpp-style` is the authoritative reference for the
+  `@note`, `@tparam`, `@param` tags. `ataraxis@automation:cpp-style` is the authoritative reference for the
   format; this skill notes only that file headers are mandatory.
 - **Header-only modules**: All `Module` subclasses live entirely in `.h` files. No `.cpp` files exist
   under `src/` for module classes; everything is template-instantiated from `main.cpp`. New modules

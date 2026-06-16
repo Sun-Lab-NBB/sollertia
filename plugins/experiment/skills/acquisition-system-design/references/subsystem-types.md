@@ -48,7 +48,7 @@ If any step fails, the wrapper's runtime state is unsafe and `start()` MUST rais
 half-started subsystem. `stop()` tears down each controller (which also resets the wrapped hardware).
 
 **Current instance:** Mesoscope-VR's `MicroControllerInterfaces` (ACTOR / SENSOR / ENCODER boards).
-For the per-wrapper mechanics and the firmware-side contract, see `experiment:microcontroller-interface`.
+For the per-wrapper mechanics and the firmware-side contract, see `/microcontroller-interface`.
 
 ---
 
@@ -89,12 +89,12 @@ Wrap N × third-party SDK connection (e.g., `ZaberConnection`).
 
 These subsystems expose `connect` / `disconnect` plus position/state methods for their lifecycle,
 because a third-party SDK manages its own session. Their state is typically captured as per-session
-position snapshots (read/written by `experiment:mesoscope-vr-snapshots`), so the binding class may take no
+position snapshots (read/written by `mesoscope:mesoscope-vr-snapshots`), so the binding class may take no
 `data_logger`.
 
 **Current instance:** Mesoscope-VR's `ZaberMotors` (HeadBar / Wheel / LickPort groups), which connects
 to all ports in `__init__` and restores positions from the previous session's snapshot. For motor
-mechanics (park/unpark safety, position management, MCP discovery), see `experiment:zaber-interface`.
+mechanics (park/unpark safety, position management, MCP discovery), see `/zaber-interface`.
 
 ---
 
@@ -105,8 +105,8 @@ such subsystem, and a standard subsystem of every acquisition system. The orches
 drives these directly (they sit outside the Layer-2b `start`/`stop` binding-class surface): they open an
 MQTT (or similar) connection via `connect` / `disconnect` and surface per-cycle messages as typed events
 through a `cycle()` pump, which the runtime loop dispatches. They follow the runtime skill's event
-pattern. See `experiment:vr-driver-interface` for the driver surface and
-`experiment:acquisition-system-runtime` for how the orchestrator pumps and dispatches their events.
+pattern. See `/vr-driver-interface` for the driver surface and
+`/acquisition-system-runtime` for how the orchestrator pumps and dispatches their events.
 
 ---
 
@@ -134,5 +134,5 @@ The lifecycle surface is request/response, not start/stop:
 Unlike hardware subsystems, these are **gated on configuration**: when their identifier is unset the
 system skips them entirely (a system that uses no external service needs no credentials). For the
 processor API, the schema contract, the auth model, and the procedure for authoring a custom one, see
-`experiment:google-sheets-processing` and the "Authoring a custom data-service processor" workflow in
+`/google-sheets-processing` and the "Authoring a custom data-service processor" workflow in
 [workflows.md](workflows.md).

@@ -15,7 +15,7 @@ Documents the `CreateTask.cs` editor pipeline and the prefab anatomy it assumes 
 
 **Reference-only skill.** No upstream — agents arrive here on demand from `/task-prefabs` (the
 pipeline `create_task_tool` invokes), `/zone-prefabs` (Step 7 wiring), and assets plugin's
-`/library-extension` (when extending the `TriggerType` enum).
+`assets:library-extension` (when extending the `TriggerType` enum).
 
 ---
 
@@ -31,7 +31,7 @@ pipeline `create_task_tool` invokes), `/zone-prefabs` (Step 7 wiring), and asset
 
 **Does not cover:**
 - Invoking prefab generation from MCP (see `/task-prefabs`)
-- YAML template schema (see assets plugin `/task-templates`)
+- YAML template schema (see `assets:task-templates`)
 - MQTT topic wiring inside zones (see `/mqtt-contract`)
 - GIMBL actor / display / controller systems (see `/gimbl-framework`)
 - Runtime behavior of generated prefabs (see `Task.cs`; no dedicated skill)
@@ -436,7 +436,7 @@ recipe is split three ways:
 
 | Slice                                        | Owning skill                                  |
 |----------------------------------------------|-----------------------------------------------|
-| Python registry + `TriggerType` enum         | assets plugin `/library-extension`            |
+| Python registry + `TriggerType` enum         | `assets:library-extension`            |
 | Hand-authored zone prefab manufacturing      | `/zone-prefabs`                               |
 | `CreateTask` pipeline edits                  | this skill (steps 1–3 below)                  |
 
@@ -458,7 +458,7 @@ Apply your three skills' bullets in order. The pipeline-side touches owned here:
    generation runs.
 
 Coordinate the prefab manufacturing through `/zone-prefabs` Step 7 and the Python registry parity
-through assets `/library-extension` "Adding a new `TriggerType` member" so each skill bullets only
+through assets `assets:library-extension` "Adding a new `TriggerType` member" so each skill bullets only
 its own substeps.
 
 The platform `TriggerType` enum carries all five members (`INTERACTION`, `COLLISION`, `OCCUPANCY_DISARM`,
@@ -534,9 +534,9 @@ manual, verify-before-done step.
 | `/task-prefabs` (this plugin)            | Consumer — invokes `create_task_tool` and validates output         |
 | `/mqtt-contract` (this plugin)           | Zone scripts (authored here) own MQTT topics described there       |
 | `/gimbl-framework` (this plugin)         | Segment prefabs place GIMBL-derived `Actor` coordinate frame usage |
-| assets plugin `/task-templates`          | Upstream — owns YAML authoring and schema evolution                |
-| `/csharp-style` (automation plugin)      | Enforced when editing `CreateTask.cs` or adding new generator code |
-| experiment plugin `/vr-driver-interface` | Host decomposes the cue sequence these generated prefabs render    |
+| `assets:task-templates`          | Upstream — owns YAML authoring and schema evolution                |
+| `ataraxis@automation:csharp-style`      | Enforced when editing `CreateTask.cs` or adding new generator code |
+| `experiment:vr-driver-interface` | Host decomposes the cue sequence these generated prefabs render    |
 
 ---
 

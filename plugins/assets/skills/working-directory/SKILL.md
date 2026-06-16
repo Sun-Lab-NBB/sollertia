@@ -27,14 +27,14 @@ invoke on any host that will run Sollertia configuration or runtime tooling.
 - Explaining what each configurable asset is, why it exists, and when it is needed
 
 **Does not cover:**
-- Authoring system configuration (see the experiment plugin's `/acquisition-system-design`)
-- Authoring server configuration (see forging plugin's `/server-configuration`)
+- Authoring system configuration (see `experiment:acquisition-system-design`)
+- Authoring server configuration (see `forging:server-configuration`)
 - Authoring task templates (see `/task-templates`)
 - Authoring experiment configurations (see `/experiment-configuration`)
 - Creating projects (see `/project-hierarchy`)
 - Reading session-level data (see `/session-data`, `/session-descriptors`, `/session-hardware-state`,
-  `/data-assets`, and experiment plugin's `/mesoscope-vr-snapshots`)
-- Reading datasets (see forging plugin's `/datasets`)
+  `/data-assets`, and `mesoscope:mesoscope-vr-snapshots`)
+- Reading datasets (see `forging:datasets`)
 - Diagnosing MCP server connectivity (see `/assets-mcp-environment-setup`)
 
 ---
@@ -63,9 +63,9 @@ This skill initializes the `configuration/` subdirectory but never reads or writ
 YAMLs inside are owned by downstream plugins:
 
 - `mesoscope_system_configuration.yaml` — backed by `MesoscopeSystemConfiguration` in
-  `sollertia-experiment`; its authoring follows the experiment plugin's `/acquisition-system-design` pattern.
+  `sollertia-experiment`; its authoring follows `experiment:acquisition-system-design` pattern.
 - `server_configuration.yaml` — backed by `ServerConfiguration` in `sollertia-forgery`. Authored by
-  the forging plugin's `/server-configuration` skill.
+  `forging:server-configuration` skill.
 
 Defer to each owning skill for the schema, the authoring workflow, and the rotation cadence.
 
@@ -269,8 +269,8 @@ content from this skill; that is owned by `/task-templates`.
 - **New host:** Always — no other configuration skill can run until the working directory is set.
 - **Relocating the working directory:** Step 2 to point at the new location. Note that relocating
   the working directory does **not** migrate the configuration files inside it. The user must either
-  move those files manually or re-author them via the experiment plugin's `/acquisition-system-design`
-  and the forging plugin's `/server-configuration`.
+  move those files manually or re-author them via `experiment:acquisition-system-design`
+  and `forging:server-configuration`.
 - **MCP tools fail with "working directory not set" or "no working directory":** Steps 1–2 to
   reinitialize. This typically happens after a fresh OS install or if the `platformdirs` persisted path
   was cleared.
@@ -329,14 +329,14 @@ below summarize where each downstream skill picks up after the working directory
 | Downstream skill                               | What it needs from this skill                            |
 |------------------------------------------------|----------------------------------------------------------|
 | `/assets-mcp-environment-setup`                | (sibling — run first if the MCP server is not connected) |
-| experiment plugin `/acquisition-system-design` | Working directory                                        |
-| forging plugin `/server-configuration`         | Working directory                                        |
+| `experiment:acquisition-system-design` | Working directory                                        |
+| `forging:server-configuration`         | Working directory                                        |
 | `/task-templates`                              | Working directory + task templates directory             |
 | `/experiment-configuration`                    | Working directory                                        |
 | `/project-hierarchy`                           | Working directory; optionally the persisted data root    |
 | `/session-data`                                | Working directory                                        |
 | `/session-descriptors`                         | Working directory                                        |
 | `/session-hardware-state`                      | Working directory                                        |
-| experiment plugin `/mesoscope-vr-snapshots`    | Working directory                                        |
+| `mesoscope:mesoscope-vr-snapshots`    | Working directory                                        |
 | `/data-assets`                                 | Working directory + Google credentials                   |
-| forging plugin `/datasets`                     | Working directory                                        |
+| `forging:datasets`                     | Working directory                                        |

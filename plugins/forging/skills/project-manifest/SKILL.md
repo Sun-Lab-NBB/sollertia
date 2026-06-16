@@ -28,7 +28,7 @@ about project state.
 - Common user query patterns and how to resolve them
 
 **Does not cover:**
-- Session discovery and filtering (see the assets plugin's `/session-discovery`)
+- Session discovery and filtering (see `assets:session-discovery`)
 - Checksum verification or regeneration (see `/checksum-verification`)
 - Session transfer or deletion (see `/session-transfer`)
 - Behavior processing (see `/behavior-processing`)
@@ -288,11 +288,11 @@ The manifest is a snapshot — it does not update automatically. Regenerate afte
 | Skill                                | Relationship                                                      |
 |--------------------------------------|-------------------------------------------------------------------|
 | `/forging-mcp-environment-setup`     | Prerequisite: MCP server connectivity                             |
-| assets plugin `/session-discovery`   | Upstream: discover sessions before generating a manifest          |
+| `assets:session-discovery`   | Upstream: discover sessions before generating a manifest          |
 | `/checksum-verification`             | Upstream: integrity column reflects checksum status               |
 | `/session-transfer`                  | Upstream: regenerate manifest after transfer or deletion          |
 | `/behavior-processing`               | Upstream: behavior column reflects extraction pipeline status     |
-| `/configuration:project-hierarchy`   | Reference: project directory layout                               |
+| `assets:project-hierarchy`   | Reference: project directory layout                               |
 
 ---
 

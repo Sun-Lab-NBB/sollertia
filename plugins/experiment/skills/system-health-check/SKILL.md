@@ -28,7 +28,7 @@ by `/acquisition-system-setup`.
 **Does not cover:**
 - Full system bringup and hardware-discovery deep-dives (see `/acquisition-system-setup`)
 - Writing or repairing configuration (read-only verification; fixes are owned by assets plugin
-  `/working-directory` and the active system's skill)
+  `assets:working-directory` and the active system's skill)
 - Per-system hardware mappings or expected device values (owned by `/acquisition-system-setup`)
 
 ---
@@ -43,7 +43,7 @@ by `/acquisition-system-setup`.
 | `ataraxis-communication-interface` | `axci mcp`  | Microcontroller discovery and MQTT broker check (via `/acquisition-system-setup`)       |
 
 If a required server is unavailable, hand off to the owning plugin's MCP environment setup skill
-(`/experiment-mcp-environment-setup`, assets plugin `/assets-mcp-environment-setup`,
+(`/experiment-mcp-environment-setup`, `assets:assets-mcp-environment-setup`,
 `ataraxis@video:video-mcp-environment-setup`, `ataraxis@communication:communication-mcp-environment-setup`).
 
 ---
@@ -71,7 +71,7 @@ list_supported_acquisition_systems_tool() # slsa — the AcquisitionSystems voca
 
 1. Call `read_system_configuration_tool()`. If it returns no configuration, no system is set up on this
    host: stop the health check and hand off to `/acquisition-system-setup` (bringup) and assets plugin
-   `/working-directory`.
+   `assets:working-directory`.
 2. Determine the active system's **type** from the returned `file_path`: the configuration filename is
    `<system>_system_configuration.yaml` (for the `mesoscope` system, `mesoscope_system_configuration.yaml`),
    whose `<system>` segment is the `AcquisitionSystems` value, confirmable against
@@ -81,7 +81,7 @@ list_supported_acquisition_systems_tool() # slsa — the AcquisitionSystems voca
    even at its default value is not a reliable type discriminator.
 3. Resolve that type to its owning skill via `/acquisition-system-setup`'s **Supported acquisition
    systems** registry (this skill does not duplicate that table). The skill name is not derivable from
-   the type — `mesoscope` resolves to `/mesoscope-vr`, not `/mesoscope`. The phases below refer to the
+   the type — `mesoscope` resolves to `mesoscope:mesoscope-vr`, not `/mesoscope`. The phases below refer to the
    resolved skill as "the active system's skill."
 
 ### Phase 1: Platform configuration prerequisites
@@ -100,7 +100,7 @@ optional and gate only the workflows that use them, so the tool's `overall_ok` r
 components only. System-configuration validity is NOT reported here — that is verified in Phase 4.
 If every required component reports healthy, advance to Phase 2. When a component reports unhealthy, hand
 off to the owning assets-plugin skill to fix it — working directory / data root / credentials / templates
-are all set by assets plugin `/working-directory`; this skill never writes configuration.
+are all set by `assets:working-directory`; this skill never writes configuration.
 
 ### Phase 2: Network storage mounts
 
@@ -113,7 +113,7 @@ shares and each configured `filesystem.storage_directories` destination. A syste
 run entirely on local storage, in which case this phase has nothing to verify. The set of locations is
 read from the active configuration automatically; for the canonical list of a system's shares and
 storage destinations, hand off to the active system's skill resolved in Phase 0 (for the `mesoscope`
-system, `/mesoscope-vr`).
+system, `mesoscope:mesoscope-vr`).
 
 For a path that fails, drill in with `check_mount_accessibility_tool(path=...)`:
 
@@ -152,7 +152,7 @@ the bridge contract.
 If the active system drives a system-specific instrument control interface beyond the domain-general stack and
 the shared Unity bridge, additionally confirm that interface is reachable. Its check tool, expected state, and
 remediation are owned by the active system's skill — do NOT assume a tool here; hand off. (For the `mesoscope`
-system: the ScanImage control bridge that arms and commands the Mesoscope over MQTT; see `/mesoscope-vr`.)
+system: the ScanImage control bridge that arms and commands the Mesoscope over MQTT; see `mesoscope:mesoscope-vr`.)
 
 ### Phase 4: Configuration validity
 
@@ -176,7 +176,7 @@ off to `/acquisition-system-setup` to restore or re-baseline, and to `ataraxis@v
 GenICam dump/restore mechanics.
 
 Project existence (for a session about to be recorded) is verified through the assets plugin
-`/project-hierarchy`; there is no project-listing tool on `sle mcp`.
+`assets:project-hierarchy`; there is no project-listing tool on `sle mcp`.
 
 ---
 
@@ -192,7 +192,7 @@ For a rapid pre-session check:
 5. For a session that runs the corridor task, `check_unity_bridge_tool()` — the Unity Editor is open and its
    MCP bridge is reachable (training and window-checking sessions run no task and skip it).
 6. For a session that drives a system-specific instrument control interface, confirm it through the active
-   system's skill (for the `mesoscope` system, the ScanImage control bridge — see `/mesoscope-vr`).
+   system's skill (for the `mesoscope` system, the ScanImage control bridge — see `mesoscope:mesoscope-vr`).
 
 If all pass, the system is ready for acquisition.
 
@@ -224,15 +224,15 @@ the camera/microcontroller/Zaber/MQTT failure modes.
 ## Post-check actions
 
 1. **All checks pass** — the system is ready for session execution.
-2. **Configuration prerequisite unhealthy** — hand off to assets plugin `/working-directory`.
+2. **Configuration prerequisite unhealthy** — hand off to `assets:working-directory`.
 3. **Mount failures** — resolve OS-level mount issues before proceeding.
 4. **Hardware missing** — hand off to `/acquisition-system-setup`.
 5. **Configuration invalid** — hand off to the active acquisition system's skill (currently
-   `/mesoscope-vr`, for the `mesoscope` system) to correct the system configuration.
+   `mesoscope:mesoscope-vr`, for the `mesoscope` system) to correct the system configuration.
 6. **Unity bridge unreachable** (sessions that run the corridor task) — open the Unity project in the editor so
    its MCP bridge auto-starts (confirm with `sle get unity`); hand off to `/vr-driver-interface`.
 7. **System-specific control interface unreachable** — hand off to the active system's skill to bring it up
-   (for the `mesoscope` system, the ScanImage control bridge; see `/mesoscope-vr`).
+   (for the `mesoscope` system, the ScanImage control bridge; see `mesoscope:mesoscope-vr`).
 
 ---
 
@@ -241,12 +241,12 @@ the camera/microcontroller/Zaber/MQTT failure modes.
 | Skill                                          | Relationship                                                                                        |
 |------------------------------------------------|-----------------------------------------------------------------------------------------------------|
 | `/acquisition-system-setup`                    | Owns the full hardware-discovery sweep this skill hands off to                                      |
-| `/mesoscope-vr`                                | Active acquisition system's skill (`mesoscope`); owns config/validation and the ScanImage bridge    |
+| `mesoscope:mesoscope-vr`                                | Active acquisition system's skill (`mesoscope`); owns config/validation and the ScanImage bridge    |
 | `/vr-driver-interface`                         | Owns the shared Unity editor bridge check (`check_unity_bridge_tool`) for corridor-task sessions    |
 | `/experiment-mcp-environment-setup`            | Run first if the `sle mcp` server is not connected                                                  |
 | `/pipeline`                                    | Phase 5 (pre-session health check) is owned by this skill                                           |
-| assets plugin `/working-directory`             | Fixes data-root / credentials / templates prerequisites                                             |
-| assets plugin `/project-hierarchy`             | Confirms the recording project exists                                                               |
+| `assets:working-directory`             | Fixes data-root / credentials / templates prerequisites                                             |
+| `assets:project-hierarchy`             | Confirms the recording project exists                                                               |
 | `ataraxis@video:camera-setup`                  | CTI / video runtime requirement deep-dives                                                          |
 | `ataraxis@communication:microcontroller-setup` | Microcontroller manifest / discovery deep-dives                                                     |
 
@@ -267,6 +267,6 @@ the camera/microcontroller/Zaber/MQTT failure modes.
 - [ ] For a session that runs the corridor task, check_unity_bridge_tool reported the shared Unity editor
       bridge reachable (training and window-checking sessions run no task and skip it)
 - [ ] For a session that drives a system-specific instrument control interface, confirmed reachable via the
-      active system's skill (for mesoscope, the ScanImage bridge via /mesoscope-vr) — skip if none
+      active system's skill (for mesoscope, the ScanImage bridge via mesoscope:mesoscope-vr) — skip if none
 - [ ] Did NOT write any configuration from this skill (read-only verification only)
 ```

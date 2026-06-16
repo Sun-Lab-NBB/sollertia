@@ -49,10 +49,10 @@ acquisition system contributes its **own** subclass (by extending `sollertia-sha
 
 **Does not cover:**
 - Authoring task templates themselves (see `/task-templates`)
-- Authoring system-level configuration (see the experiment plugin's `/acquisition-system-design`)
-- Authoring server configuration (see forging plugin's `/server-configuration`)
+- Authoring system-level configuration (see `experiment:acquisition-system-design`)
+- Authoring server configuration (see `forging:server-configuration`)
 - Creating projects (see `/project-hierarchy`)
-- Verifying that template values match the Unity prefab state (see unity plugin's `/task-prefabs`)
+- Verifying that template values match the Unity prefab state (see `unity:task-prefabs`)
 - Initial working directory setup (see `/working-directory`)
 
 ---
@@ -372,7 +372,7 @@ read_experiment_configuration_tool(
 ```
 
 This is a read-only operation. Do not attempt to write to the frozen file — modifying historical
-session metadata is the responsibility of `/mesoscope-vr-snapshots` (which deals with position
+session metadata is the responsibility of `mesoscope:mesoscope-vr-snapshots` (which deals with position
 snapshots, not the experiment config). If a frozen experiment config needs to be amended for some
 reason, that is currently not supported by the sollertia-shared-assets MCP layer.
 
@@ -428,9 +428,9 @@ reason, that is currently not supported by the sollertia-shared-assets MCP layer
 | `/assets-mcp-environment-setup`                | Run first if the MCP server is not connected                                                                                                                                                                                                                                |
 | `/task-templates`                              | Required dependency — owns corridor template authoring and exposes `discover_templates_tool` for absolute template paths                                                                                                                                                    |
 | `/project-hierarchy`                           | Discovers the project tree; owns project creation (`create_project_tool` / `slsa configure project`)                                                                                                                                                                        |
-| experiment plugin `/acquisition-system-design` | Documents the per-system system-configuration pattern (Mesoscope-VR instance: `MesoscopeSystemConfiguration`)                                                                                                                                                               |
-| experiment plugin `/data-management`           | Downstream consumer — `SessionData.create` copies the authored `experiment_configuration.yaml` into every new experiment session at acquisition time                                                                                                                        |
-| unity plugin `/task-prefabs`                   | Validates template values against the Unity prefab state                                                                                                                                                                                                                    |
-| experiment plugin `/pipeline`                  | Phase 4 of the experiment lifecycle (experiment authoring) hands off to this skill                                                                                                                                                                                          |
+| `experiment:acquisition-system-design` | Documents the per-system system-configuration pattern (Mesoscope-VR instance: `MesoscopeSystemConfiguration`)                                                                                                                                                               |
+| `experiment:data-management`           | Downstream consumer — `SessionData.create` copies the authored `experiment_configuration.yaml` into every new experiment session at acquisition time                                                                                                                        |
+| `unity:task-prefabs`                   | Validates template values against the Unity prefab state                                                                                                                                                                                                                    |
+| `experiment:pipeline`                  | Phase 4 of the experiment lifecycle (experiment authoring) hands off to this skill                                                                                                                                                                                          |
 | `/library-extension`                           | Cross-cutting recipe to add a new `AcquisitionSystems`, runtime trial class, or `TriggerType` member (a new `TriggerType` member does **not** require a `from_task_template` branch — a system may leave it unmapped); lists the prose here that needs updating in lockstep |
-| experiment plugin `/vr-driver-interface`       | Verifies `unity_scene_name` against the live scene; consumes the per-trial parameters at runtime                                                                                                                                                                            |
+| `experiment:vr-driver-interface`       | Verifies `unity_scene_name` against the live scene; consumes the per-trial parameters at runtime                                                                                                                                                                            |

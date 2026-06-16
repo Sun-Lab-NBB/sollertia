@@ -32,7 +32,7 @@ only microcontrollers gains a camera), follow these steps:
    [layer-patterns.md](layer-patterns.md#construction-and-bring-up-order)) and the teardown in the reverse order.
 
 6. **Update the per-system instance skill.** Add a section documenting the new subsystem's configuration
-   surface and binding-class composition (for Mesoscope-VR, this is `experiment:mesoscope-vr`).
+   surface and binding-class composition (for Mesoscope-VR, this is `mesoscope:mesoscope-vr`).
 
 7. **Regenerate the system configuration YAML.** Use the system's configuration tooling (e.g., the
    `write_system_configuration_tool` MCP tool, or the `sle mesoscope configure` CLI for Mesoscope-VR)
@@ -54,7 +54,7 @@ only microcontrollers gains a camera), follow these steps:
    `from_task_template` builder on the experiment-configuration dataclass (enforced by
    `_assert_experiment_configuration_contract`), all guarded by the import-time
    `_assert_registry_coverage()` parity check. Hand the entire slsa-side recipe off to the assets
-   plugin's `/library-extension` ("Adding a new `AcquisitionSystems` member") and bump that package's
+   plugin's `assets:library-extension` ("Adding a new `AcquisitionSystems` member") and bump that package's
    version. Do not stop at the enum value — a half-wired registry fails the parity check and the package
    will not import.
 
@@ -89,13 +89,13 @@ only microcontrollers gains a camera), follow these steps:
 10. **(Optional but recommended) Author dedicated agentic assets for the new system.** A new
     acquisition system optionally benefits from its own per-system instance skill in this plugin,
     documenting the system's hardware subsystems, configuration field surface, binding-class composition, and
-    lifecycle. Follow the structure of `experiment:mesoscope-vr`. The system runs without it, but
+    lifecycle. Follow the structure of `mesoscope:mesoscope-vr`. The system runs without it, but
     omitting it leaves the system driveable yet undocumented for agents (and the pattern skills above
     keep pointing at Mesoscope-VR as the sole worked instance).
 
 11. **(Optional but recommended) Author a per-system runtime skill** when the system has non-trivial
     runtime modes / state machines / training behaviors. Follow the structure of
-    `experiment:mesoscope-vr-runtime`.
+    `mesoscope:mesoscope-vr-runtime`.
 
 **Per-package deliverables.** A complete acquisition-system package mirrors the Mesoscope-VR layout:
 
@@ -111,8 +111,8 @@ only microcontrollers gains a camera), follow these steps:
 
 The shared `cross_system` package supplies the reusable building blocks these compose: the
 `SystemConfiguration` create / resolve / load lifecycle, the microcontroller `ModuleInterface` wrappers (see
-`experiment:microcontroller-interface`), the Zaber stack (see `experiment:zaber-interface`), and the
-session-preprocessing primitives (see `experiment:data-management`).
+`/microcontroller-interface`), the Zaber stack (see `/zaber-interface`), and the
+session-preprocessing primitives (see `/data-management`).
 
 ---
 
@@ -135,7 +135,7 @@ microcontroller-driven sensor to `MesoscopeMicroControllers`.
 
 5. **Regenerate the system configuration YAML** on every deployment.
 
-For microcontroller-module additions, also follow `experiment:microcontroller-interface`'s
+For microcontroller-module additions, also follow `/microcontroller-interface`'s
 "Adding a paired Module + Interface" workflow first — the firmware-and-wrapper pair must exist
 before the binding class can compose it.
 
@@ -151,7 +151,7 @@ to the Sollertia sheet schema, so reuse-vs-author is the first decision.
 
 1. **Decide reuse vs. author.** If the external source already matches the Sollertia schema (same
    required headers, tab layout, and identity model — see
-   `experiment:google-sheets-processing` → references/sheet-schema-contract.md), reuse `SurgeryLog` /
+   `/google-sheets-processing` → references/sheet-schema-contract.md), reuse `SurgeryLog` /
    `WaterLog` as-is: set the sheet identifiers in the system configuration's external-services section
    and share the document with the service account. No code. Author a new processor **only** when the
    schema or the service itself differs.
@@ -169,7 +169,7 @@ to the Sollertia sheet schema, so reuse-vs-author is the first decision.
    sheet_id-or-endpoint)`, authenticates (service account where applicable), builds the
    `header → location` map, validates, and caches the connection. Expose `extract_*` / `update_*`
    methods. Retry every API call. Close the connection in `__del__`. (See the processing-asset
-   contract in `experiment:google-sheets-processing`.)
+   contract in `/google-sheets-processing`.)
 
 5. **Place it by reuse scope.** A processor that any acquisition system could consume goes in
    `cross_system/` (like `google_sheet_tools.py`) and is exported from `cross_system/__init__.py`; a
@@ -178,8 +178,8 @@ to the Sollertia sheet schema, so reuse-vs-author is the first decision.
 6. **Register a new read asset.** If a read processor emits a record type that is not an existing
    `sollertia-shared-assets` dataclass, register it as a read asset. Add the dataclass, its
    `ReadAssets` member, and its `READ_ASSET_REGISTRY` entry through the assets plugin's
-   `/library-extension` ("Adding a new read asset"), and its read/amend surface through
-   `/data-assets` before wiring the processor. A *write* processor produces no on-disk dataclass
+   `assets:library-extension` ("Adding a new read asset"), and its read/amend surface through
+   `assets:data-assets` before wiring the processor. A *write* processor produces no on-disk dataclass
    and needs no registry entry — it writes runtime values directly to the external source.
 
 7. **Wire it into preprocessing / per-session setup.** Construct the processor from the configured
@@ -187,5 +187,5 @@ to the Sollertia sheet schema, so reuse-vs-author is the first decision.
    require no credentials) when every identifier is unset; require credentials when any is set; skip an
    individually-unset identifier with a warning.
 
-8. **Document it.** Update `experiment:google-sheets-processing` (or author a sibling skill for a
+8. **Document it.** Update `/google-sheets-processing` (or author a sibling skill for a
    non-Sheets service) and the consuming system's instance skill with the new processor's surface.

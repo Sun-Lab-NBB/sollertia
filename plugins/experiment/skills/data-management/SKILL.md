@@ -34,10 +34,10 @@ mesoscope-frame compression. The shared primitives a system's orchestrators comp
 - Deleting sessions, with mandatory confirmation, via `delete_session_tool`
 
 **Does not cover:**
-- Project and session discovery, and project creation (assets plugin `/project-hierarchy` and
-  `/session-discovery`; project creation via `create_project_tool` or the `slsa configure project` CLI)
+- Project and session discovery, and project creation (`assets:project-hierarchy` and
+  `assets:session-discovery`; project creation via `create_project_tool` or the `slsa configure project` CLI)
 - Session creation and data acquisition (acquisition-runtime skills)
-- System and hardware configuration (`/mesoscope-vr`)
+- System and hardware configuration (`mesoscope:mesoscope-vr`)
 
 ---
 
@@ -91,9 +91,9 @@ the assets plugin (see [Discovering sessions](#discovering-sessions)).
 This server has no discovery tools. To build a list of session paths, hand off to the assets plugin,
 which owns project and session discovery against the data root:
 
-- assets plugin `/project-hierarchy` — walks the data root (`get_data_root_overview_tool`) to
+- `assets:project-hierarchy` — walks the data root (`get_data_root_overview_tool`) to
   enumerate projects, animals, and sessions.
-- assets plugin `/session-discovery` — filters sessions by project, animal, date range, or name and
+- `assets:session-discovery` — filters sessions by project, animal, date range, or name and
   returns confirmed absolute session paths.
 
 Use the session paths those skills return as the `session_path` arguments here. The data root layout
@@ -124,14 +124,14 @@ preprocess_session_tool(session_path=...)  # absolute path to a session director
 
 ### Multiple sessions (by project, animal, or all)
 
-1. **Discover sessions** via the assets plugin's `/project-hierarchy` or `/session-discovery`.
+1. **Discover sessions** via `assets:project-hierarchy` or `assets:session-discovery`.
 2. **Present the list** of discovered session paths to the user for confirmation.
 3. **Preprocess each session** sequentially with `preprocess_session_tool`.
 4. **Report results**, including any failures.
 
 ```text
 Bulk preprocessing progress:
-- [ ] Discovered sessions via assets plugin /project-hierarchy or /session-discovery
+- [ ] Discovered sessions via assets:project-hierarchy or assets:session-discovery
 - [ ] Presented discovered sessions to the user for confirmation
 - [ ] Preprocessed each session sequentially
 - [ ] Reported results (success count, failures)
@@ -157,7 +157,7 @@ strategy depends on whether the host has any long-term storage destinations conf
 In both modes the **target project must already exist**, or `migrate_animal_tool` aborts. Project
 directories are created with the `create_project_tool` MCP tool or the `slsa configure project` CLI
 command (`slsa configure project -p <name> -r <root>`) — `SessionData.create` raises `FileNotFoundError`
-when the project is missing. Use the assets plugin `/project-hierarchy` to verify whether the
+when the project is missing. Use `assets:project-hierarchy` to verify whether the
 destination project exists or to create it.
 
 Migration **fails with an error if any session cannot be preprocessed or migrated** (for example, when
@@ -168,7 +168,7 @@ reprocessed.
 
 ```text
 Animal migration progress:
-- [ ] Destination project exists (verify via /project-hierarchy); create via create_project_tool or `slsa configure project` if missing
+- [ ] Destination project exists (verify via assets:project-hierarchy); create via create_project_tool or `slsa configure project` if missing
 - [ ] Confirmed migration with the user (source, destination, animal_id)
 - [ ] Executed migrate_animal_tool
 - [ ] On failure, resolved the reported error and re-ran migrate_animal_tool to resume
@@ -235,12 +235,12 @@ warning, confirm via AskUserQuestion, delete only if confirmed, and report befor
 | Skill                                  | Relationship                                                                                                               |
 |----------------------------------------|----------------------------------------------------------------------------------------------------------------------------|
 | `/experiment-mcp-environment-setup`    | Run first if the `sle mcp` server is not connected                                                                         |
-| assets plugin `/project-hierarchy`     | Enumerates projects/animals/sessions (read-only)                                                                           |
-| assets plugin `/session-discovery`     | Filters sessions and returns confirmed session paths to feed these tools                                                   |
-| assets plugin `/session-data`          | Owns the `SessionData` marker that defines each session                                                                    |
-| `/mesoscope-vr`                        | Defines `filesystem.storage_directories`, the transfer destinations                                                        |
+| `assets:project-hierarchy`     | Enumerates projects/animals/sessions (read-only)                                                                           |
+| `assets:session-discovery`     | Filters sessions and returns confirmed session paths to feed these tools                                                   |
+| `assets:session-data`          | Owns the `SessionData` marker that defines each session                                                                    |
+| `mesoscope:mesoscope-vr`                        | Defines `filesystem.storage_directories`, the transfer destinations                                                        |
 | `/google-sheets-processing`            | Owns the `SurgeryLog` / `WaterLog` processors that preprocessing invokes to snapshot surgery data and update the water log |
-| forging plugin `/server-configuration` | Remote storage transfer configuration consumed downstream                                                                  |
+| `forging:server-configuration` | Remote storage transfer configuration consumed downstream                                                                  |
 | `/pipeline`                            | Phase 7 (post-process and manage) is owned by this skill                                                                   |
 
 ---

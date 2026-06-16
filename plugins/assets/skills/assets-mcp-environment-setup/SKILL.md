@@ -23,11 +23,11 @@ Diagnoses and resolves sollertia-shared-assets MCP server connectivity and envir
 
 **Does not cover:**
 - MCP tool usage for any specific configuration task (see other assets plugin skills)
-- sollertia-experiment MCP servers (see the experiment plugin's `/experiment-mcp-environment-setup`)
-- sollertia-forgery MCP server (see the forging plugin's `/forging-mcp-environment-setup`)
+- sollertia-experiment MCP servers (see `experiment:experiment-mcp-environment-setup`)
+- sollertia-forgery MCP server (see `forging:forging-mcp-environment-setup`)
 - Unity Editor or sollertia-unity-tasks installation (see the sollertia-unity-tasks README)
 - Unity Editor relay (`McpBridge`) connectivity diagnostics (see the unity plugin's
-  `/unity-mcp-environment-setup`)
+  `unity:unity-mcp-environment-setup`)
 
 ---
 
@@ -80,7 +80,7 @@ Installing the plugin alone registers the MCP server but the server will fail to
 
 The `slsa mcp` server also serves a family of Unity-relay tools (prefab, scene, play-mode,
 task-parameters). Those tools depend on the Unity Editor running with the `McpBridge` plugin loaded.
-**That diagnostic is owned by the unity plugin's `/unity-mcp-environment-setup`** — this skill only
+**That diagnostic is owned by `unity:unity-mcp-environment-setup`** — this skill only
 covers the slsa CLI / Python environment side of the stack.
 
 ---
@@ -151,7 +151,7 @@ the next session.
 
 If the slsa server itself is healthy but a Unity-relay tool (prefab / scene / play-mode /
 task-parameters) returns "Unity Editor is not reachable", hand off to the unity plugin's
-`/unity-mcp-environment-setup` — that skill owns the McpBridge / localhost:8090 diagnostic.
+`unity:unity-mcp-environment-setup` — that skill owns the McpBridge / localhost:8090 diagnostic.
 
 ---
 
@@ -165,7 +165,7 @@ task-parameters) returns "Unity Editor is not reachable", hand off to the unity 
 | `"working directory ... not set"` | Working directory not initialized | Run `/working-directory` to set it              |
 | `"task templates ... not set"`    | Task templates path not set       | Run `/working-directory`                        |
 | Write tools fail after connect    | Invalid YAML from a previous edit | Use `discover_*` / `read_*` tools               |
-| "Unity Editor is not reachable"   | McpBridge / Editor offline        | See unity plugin `/unity-mcp-environment-setup` |
+| "Unity Editor is not reachable"   | McpBridge / Editor offline        | See `unity:unity-mcp-environment-setup` |
 
 ---
 
@@ -178,9 +178,9 @@ relationships that are not already captured by that blanket prerequisite.
 
 | Skill                                                 | Relationship                                                         |
 |-------------------------------------------------------|----------------------------------------------------------------------|
-| unity plugin `/unity-mcp-environment-setup`           | Sibling — owns the McpBridge HTTP-relay diagnostic (Unity side)      |
-| experiment plugin `/experiment-mcp-environment-setup` | Peer — equivalent diagnostic for the experiment plugin's MCP servers |
-| forging plugin `/forging-mcp-environment-setup`       | Peer — equivalent diagnostic for the forging plugin's MCP server     |
+| `unity:unity-mcp-environment-setup`           | Sibling — owns the McpBridge HTTP-relay diagnostic (Unity side)      |
+| `experiment:experiment-mcp-environment-setup` | Peer — equivalent diagnostic for the experiment plugin's MCP servers |
+| `forging:forging-mcp-environment-setup`       | Peer — equivalent diagnostic for the forging plugin's MCP server     |
 
 ---
 
@@ -192,7 +192,7 @@ You SHOULD proactively invoke this skill when:
 - Any slsa MCP tool call fails with a connection or server error
 - The user mentions issues with sollertia-shared-assets MCP server connectivity
 - A Unity-relay tool fails and the slsa server itself is suspected (otherwise hand off to the
-  unity plugin's `/unity-mcp-environment-setup`)
+  `unity:unity-mcp-environment-setup`)
 
 ---
 
@@ -206,5 +206,5 @@ sollertia-shared-assets MCP environment setup:
 - [ ] Identified environment type (conda, venv, system)
 - [ ] Provided environment-specific resolution steps
 - [ ] Informed user that the assistant must be restarted after environment changes
-- [ ] Handed off to unity plugin's /unity-mcp-environment-setup if the issue is Unity-specific
+- [ ] Handed off to unity:unity-mcp-environment-setup if the issue is Unity-specific
 ```

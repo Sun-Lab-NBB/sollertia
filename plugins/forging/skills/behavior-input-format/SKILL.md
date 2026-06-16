@@ -28,17 +28,17 @@ experiment configuration are owned by the assets plugin and are referenced, not 
 - Cross-library handoff contract (ordering between axvs / axci / forgery)
 
 **Does not cover:**
-- Session directory layout, `raw_data/` / `processed_data/` hierarchy (see `/configuration:session-data` and
-  `/configuration:project-hierarchy`)
-- Session marker (`session_data.yaml`), `SessionData`, and `SessionTypes` (see `/configuration:session-data`)
-- Hardware state YAML (`MesoscopeHardwareState`) authoring and validation (see the assets plugin's `/session-hardware-state`)
+- Session directory layout, `raw_data/` / `processed_data/` hierarchy (see `assets:session-data` and
+  `assets:project-hierarchy`)
+- Session marker (`session_data.yaml`), `SessionData`, and `SessionTypes` (see `assets:session-data`)
+- Hardware state YAML (`MesoscopeHardwareState`) authoring and validation (see `assets:session-hardware-state`)
 - Experiment configuration YAML (`MesoscopeExperimentConfiguration`) authoring and validation
-  (see `/configuration:experiment-configuration`)
-- Session descriptor YAMLs (see `/configuration:session-descriptors`)
-- Session discovery and filtering (see the assets plugin's `/session-discovery`)
+  (see `assets:experiment-configuration`)
+- Session descriptor YAMLs (see `assets:session-descriptors`)
+- Session discovery and filtering (see `assets:session-discovery`)
 - Output formats, verification, and data querying (see `/behavior-results`)
 - Batch orchestration workflow (see `/behavior-processing`)
-- Upstream axvs / axci processing (see `/video:log-processing` and `/communication:log-processing`)
+- Upstream axvs / axci processing (see `ataraxis@video:log-processing` and `ataraxis@communication:log-processing`)
 
 **Note:** `/video:*` and `/communication:*` refer to the **video** and **communication** plugins
 from the [ataraxis marketplace](https://github.com/Sun-Lab-NBB/ataraxis).
@@ -57,7 +57,7 @@ A session is eligible for behavior processing only if its `session_type` is in
 | `MESOSCOPE_EXPERIMENT` | yes      | Same as training plus experiment-specific runtime outputs |
 | (anything else)        | no       | Returned with `eligible=False` and no error               |
 
-Use the assets plugin's `/session-discovery` with
+Use `assets:session-discovery` with
 `session_types=["lick_training", "run_training", "mesoscope_experiment"]` to discover eligible
 sessions. Eligibility is re-validated at prepare time by `prepare_behavior_processing_batch_tool`,
 which re-loads `SessionData`, checks the type against `PROCESSABLE_SESSION_TYPES`, requires a
@@ -75,15 +75,15 @@ any eligible microcontroller and camera outputs.
 ## Where behavior inputs live
 
 Behavior processing reads three distinct artifact classes from a session directory. The directory
-hierarchy itself is documented in `/configuration:session-data` and `/configuration:project-hierarchy`; this skill only captures
+hierarchy itself is documented in `assets:session-data` and `assets:project-hierarchy`; this skill only captures
 the subset the behavior pipeline touches:
 
 ```text
 {session_root}/
 ├── raw_data/
-│   ├── session_data.yaml                          ← see /session-data (not consumed here)
-│   ├── *hardware_state*.yaml                      ← see /session-hardware-state (gates module jobs)
-│   ├── *experiment_configuration*.yaml            ← see /experiment-configuration (experiments only)
+│   ├── session_data.yaml                          ← see assets:session-data (not consumed here)
+│   ├── *hardware_state*.yaml                      ← see assets:session-hardware-state (gates module jobs)
+│   ├── *experiment_configuration*.yaml            ← see assets:experiment-configuration (experiments only)
 │   └── <nested>/
 │       └── 1_log.npz                              ← runtime NPZ archive (this skill)
 └── processed_data/
@@ -317,7 +317,7 @@ any additional alignment step.
 ### Producer
 
 The `ataraxis-video-system` (axvs) log-processing pipeline. Each camera's frame timestamps are
-extracted from the camera's log archive via `/video:log-processing` and written to an uncompressed
+extracted from the camera's log archive via `ataraxis@video:log-processing` and written to an uncompressed
 Arrow IPC (`.feather`) file. The behavior pipeline consumes those files directly and hardlinks
 them into `{session.processed_data_path}/behavior_data/` under a legacy per-camera name — it does
 NOT re-decode the source NPZ archives.
@@ -415,7 +415,7 @@ Eligibility rule: a module feather produces a job only if its `(type, id)` pair 
 `True`). Ineligible modules are silently skipped — they do not produce an error, because a session
 may have feather files for hardware that was not configured for that run.
 
-The `MesoscopeHardwareState` YAML itself is authored and validated via `/session-hardware-state` in the
+The `MesoscopeHardwareState` YAML itself is authored and validated via `assets:session-hardware-state` in the
 assets' plugin. This skill only documents how the behavior pipeline consults specific fields
 for module eligibility.
 
@@ -432,7 +432,7 @@ Ineligible modules contribute zero jobs even if the feather file exists.
 defines the trial structures (`MesoscopeWaterRewardTrial`, `MesoscopeGasPuffTrial`) used to decompose
 VR wall cue sequences into trials. Without it, the runtime processing job cannot emit `vr_cue_data.feather`,
 `vr_trigger_zone_data.feather`, or `trial_data.feather` for experiment sessions. Authoring and
-schema reference live in `/configuration:experiment-configuration`.
+schema reference live in `assets:experiment-configuration`.
 
 ---
 
@@ -443,10 +443,10 @@ The behavior pipeline is a pure consumer of upstream outputs:
 | Upstream producer                  | Required upstream skill         | Artifact                                                              | Gates behavior job           |
 |------------------------------------|---------------------------------|-----------------------------------------------------------------------|------------------------------|
 | Mesoscope-VR acquisition runtime   | (acquisition-side; no skill)    | `{raw_data}/<nested>/1_log.npz`                                       | `runtime_processing`         |
-| `ataraxis-video-system`            | `/video:log-processing`         | `{processed_data}/camera_timestamps/camera_*_timestamps.feather`      | `camera_processing`          |
-| `ataraxis-communication-interface` | `/communication:log-processing` | `{processed_data}/microcontroller_data/controller_*_module_*.feather` | `microcontroller_processing` |
+| `ataraxis-video-system`            | `ataraxis@video:log-processing`         | `{processed_data}/camera_timestamps/camera_*_timestamps.feather`      | `camera_processing`          |
+| `ataraxis-communication-interface` | `ataraxis@communication:log-processing` | `{processed_data}/microcontroller_data/controller_*_module_*.feather` | `microcontroller_processing` |
 
-**Ordering constraint:** `/video:log-processing` and `/communication:log-processing` MUST complete successfully BEFORE
+**Ordering constraint:** `ataraxis@video:log-processing` and `ataraxis@communication:log-processing` MUST complete successfully BEFORE
 `/behavior-processing` can discover the session. If you run the behavior pipeline against a session
 that has not been through the upstream pipelines, `prepare_behavior_processing_batch_tool` will
 return `"No processable behavior jobs discovered for this session."` even though the raw NPZ
@@ -462,11 +462,11 @@ Before handing a session off to `/behavior-processing`:
 Behavior Input Prerequisites:
 - [ ] Session is eligible per PROCESSABLE_SESSION_TYPES (see Session eligibility above)
 - [ ] 1_log.npz runtime archive present in raw_data/ (if a runtime job is expected)
-- [ ] Hardware state YAML valid per /session-hardware-state
+- [ ] Hardware state YAML valid per assets:session-hardware-state
 - [ ] Hardware state fields populated for every module you expect to process
-- [ ] Experiment configuration YAML valid per /experiment-configuration (MESOSCOPE_EXPERIMENT only)
-- [ ] /video:log-processing completed — camera_*_timestamps.feather files present
-- [ ] /communication:log-processing completed — controller_*_module_*.feather files present
+- [ ] Experiment configuration YAML valid per assets:experiment-configuration (MESOSCOPE_EXPERIMENT only)
+- [ ] ataraxis@video:log-processing completed — camera_*_timestamps.feather files present
+- [ ] ataraxis@communication:log-processing completed — controller_*_module_*.feather files present
 ```
 
 ---
@@ -476,13 +476,13 @@ Behavior Input Prerequisites:
 | Skill                                       | Relationship                                                   |
 |---------------------------------------------|----------------------------------------------------------------|
 | `/forging-mcp-environment-setup`            | Prerequisite: MCP server connectivity                          |
-| assets plugin `/session-discovery`          | Upstream: session discovery and filtering                      |
-| `/configuration:session-data`               | Reference: session marker and layout                           |
-| `/configuration:project-hierarchy`          | Reference: project / animal / session hierarchy                |
-| `/session-hardware-state`                   | Reference: MesoscopeHardwareState YAML                         |
-| `/configuration:session-descriptors`        | Reference: per-session descriptor YAML                         |
-| `/configuration:experiment-configuration`   | Reference: MesoscopeExperimentConfiguration YAML               |
+| `assets:session-discovery`          | Upstream: session discovery and filtering                      |
+| `assets:session-data`               | Reference: session marker and layout                           |
+| `assets:project-hierarchy`          | Reference: project / animal / session hierarchy                |
+| `assets:session-hardware-state`                   | Reference: MesoscopeHardwareState YAML                         |
+| `assets:session-descriptors`        | Reference: per-session descriptor YAML                         |
+| `assets:experiment-configuration`   | Reference: MesoscopeExperimentConfiguration YAML               |
 | `/behavior-processing`                      | Downstream: consumes the inputs documented here                |
 | `/behavior-results`                         | Downstream: documents outputs derived from these inputs        |
-| `/video:log-processing`                     | Upstream producer of camera timestamp feathers                 |
-| `/communication:log-processing`             | Upstream producer of microcontroller module feathers           |
+| `ataraxis@video:log-processing`                     | Upstream producer of camera timestamp feathers                 |
+| `ataraxis@communication:log-processing`             | Upstream producer of microcontroller module feathers           |

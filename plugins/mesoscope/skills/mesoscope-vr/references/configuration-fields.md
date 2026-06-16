@@ -213,7 +213,7 @@ Converted to microseconds and passed as `polling_frequency` to `MesoscopeFrameTT
 normalizes from `dict` on YAML load. `WaterValveInterface` fits a power-law model
 (`a * pulse_duration ** b`) to this calibration data using `scipy.optimize.curve_fit`.
 
-**Recalibration**: Use the `experiment:mesoscope-vr-runtime` skill (or `WaterValveInterface.calibrate_valve()`
+**Recalibration**: Use the `/mesoscope-vr-runtime` skill (or `WaterValveInterface.calibrate_valve()`
 directly) to gather new calibration points. Replace the entire tuple; do NOT mix old and new
 measurements.
 
@@ -305,7 +305,7 @@ NOT stored here — they are resolved at experiment start from the matching `Tas
 
 All configuration fields follow `<device-or-module>_<parameter>_<unit>` per
 `experiment:acquisition-system-design`'s [Configuration field naming
-convention](../../acquisition-system-design/SKILL.md#field-naming-convention):
+convention](../../../../experiment/skills/acquisition-system-design/SKILL.md#field-naming-convention):
 
 | Component            | Examples                                                    |
 |----------------------|-------------------------------------------------------------|
@@ -323,7 +323,7 @@ configuration values will need extra context to interpret the value's units.
 Any change to a field (add, remove, rename, type-change, unit-change) is a schema change and MUST
 be paired with a `sollertia-experiment` version bump in `pyproject.toml`. Per
 `experiment:acquisition-system-design`'s [Contract 2: Schema
-versioning](../../acquisition-system-design/SKILL.md#contract-2-schema-versioning):
+versioning](../../../../experiment/skills/acquisition-system-design/SKILL.md#contract-2-schema-versioning):
 
 - **Add field**: bump minor version. Older YAML files load with the new field at default.
 - **Remove field**: bump major version. Older YAML files load with the removed field silently ignored.

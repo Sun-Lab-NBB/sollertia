@@ -28,7 +28,7 @@ artifacts. Each session produces exactly one checksum resolution job.
 - Tracker cleanup after completion
 
 **Does not cover:**
-- Session discovery and filtering (see the assets plugin's `/session-discovery` — required prerequisite)
+- Session discovery and filtering (see `assets:session-discovery` — required prerequisite)
 - Manifest generation or reading (see `/project-manifest`)
 - Session transfer or deletion (see `/session-transfer`)
 - Behavior processing (see `/behavior-processing`)
@@ -41,7 +41,7 @@ artifacts. Each session produces exactly one checksum resolution job.
 You MUST use the sollertia-forgery MCP tools for all checksum operations. Do not import
 `sollertia_forgery.managing.checksum` directly.
 
-You MUST have confirmed session paths from the assets plugin's `/session-discovery` before calling
+You MUST have confirmed session paths from `assets:session-discovery` before calling
 `prepare_checksum_batch_tool`. Do not guess or derive paths manually.
 
 You MUST respect the single-execution-session constraint: only one checksum batch may run at a
@@ -62,7 +62,7 @@ time per `sl-mcp` process. Cancel any active session before starting a new batch
 
 | Parameter         | Type          | Default      | Description                                                      |
 |-------------------|---------------|--------------|------------------------------------------------------------------|
-| `session_paths`   | `list[str]`   | (required)   | Session root paths from the assets plugin's `/session-discovery` |
+| `session_paths`   | `list[str]`   | (required)   | Session root paths from `assets:session-discovery` |
 
 Each session produces exactly one job: `checksum_resolution` with the session name as the
 specifier. The tracker is created at `{session_root}/raw_data/checksum_processing_tracker.yaml`.
@@ -185,7 +185,7 @@ status. Does not require an active execution session — reads directly from on-
 ### Pre-run checklist
 
 ```text
-- [ ] Sessions discovered via the assets plugin's /session-discovery (session_paths confirmed with user)
+- [ ] Sessions discovered via assets:session-discovery (session_paths confirmed with user)
 - [ ] User confirmed which sessions to verify
 - [ ] No active checksum session (get_checksum_status_tool → active: false)
 - [ ] Resource allocation decision made with user (default -1/-1 for saturating auto)
@@ -277,7 +277,7 @@ For project-wide overview via `get_checksum_batch_status_overview_tool`:
 | `An execution session is already active`       | Wait for completion or call `cancel_checksum_tool` first            |
 | `No valid jobs to execute`                     | Verify job descriptors have required keys                           |
 | `Tracker file not found`                       | Re-prepare the batch to regenerate trackers                         |
-| `Session path does not exist`                  | Verify path exists; re-run the assets plugin's `/session-discovery` |
+| `Session path does not exist`                  | Verify path exists; re-run `assets:session-discovery` |
 | `Unable to load session`                       | Check that `session_data.yaml` exists at the session root           |
 | Clean refused (session still active)           | Wait for completion or cancel before cleaning                       |
 | Per-job failure                                | Inspect `error_message`; reset and retry                            |
@@ -290,7 +290,7 @@ For project-wide overview via `get_checksum_batch_status_overview_tool`:
 | Skill                                | Relationship                                                         |
 |--------------------------------------|----------------------------------------------------------------------|
 | `/forging-mcp-environment-setup`     | Prerequisite: MCP server connectivity                                |
-| assets plugin `/session-discovery`   | Prerequisite: provides confirmed session_paths                       |
+| `assets:session-discovery`   | Prerequisite: provides confirmed session_paths                       |
 | `/project-manifest`                  | Downstream: regenerate manifest after verification completes         |
 | `/session-transfer`                  | Peer: verify integrity before transferring sessions                  |
 | `/behavior-processing`               | Peer: behavior processing depends on verified integrity              |
@@ -302,7 +302,7 @@ For project-wide overview via `get_checksum_batch_status_overview_tool`:
 ```text
 Checksum Verification:
 - [ ] Verified MCP server connectivity (invoked /forging-mcp-environment-setup if unavailable)
-- [ ] Received confirmed session_paths from the assets plugin's /session-discovery
+- [ ] Received confirmed session_paths from assets:session-discovery
 - [ ] Prepared batch and reviewed manifest
 - [ ] Confirmed resource allocation with user (workers_per_job / max_parallel_jobs)
 - [ ] Verified no active checksum session before dispatch

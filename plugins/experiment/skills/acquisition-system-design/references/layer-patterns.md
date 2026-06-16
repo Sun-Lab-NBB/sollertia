@@ -393,7 +393,7 @@ machine and governed by two principles:
    next.
 
 The precise staging (which asset starts in which runtime state) is the runtime skill's domain — see
-`experiment:acquisition-system-runtime` and the per-system runtime skill. The design contract here is
+`/acquisition-system-runtime` and the per-system runtime skill. The design contract here is
 only that the orchestrator (a) honors construction and runtime dependencies and (b) defers
 resource-heavy assets until interactive setup needs them.
 
@@ -422,7 +422,7 @@ code 10, after the microcontroller performs its emergency reset).
 The orchestrator/binding-class responsibility is **configuration**: pass each `MicroControllerInterface`
 its `keepalive_interval` (from the configuration's `keepalive_interval_ms` field; `0` disables
 keepalive) at construction. AXCI owns detection and aborting. See
-`experiment:microcontroller-interface` for the per-interface keepalive surface.
+`/microcontroller-interface` for the per-interface keepalive surface.
 
 ### Cross-subsystem synchronization
 

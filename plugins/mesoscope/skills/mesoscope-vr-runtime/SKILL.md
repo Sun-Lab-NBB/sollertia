@@ -12,7 +12,7 @@ user-invocable: false
 
 Documents the Mesoscope-VR runtime behavior layer — the state machine, the orchestrator class, the
 per-mode runtime logic functions, the visualizer and control GUI, and the CLI surface. This skill is
-the counterpart to `experiment:mesoscope-vr` (hardware composition); together they cover the full
+the counterpart to `/mesoscope-vr` (hardware composition); together they cover the full
 Mesoscope-VR system.
 
 For the platform-general acquisition-system runtime pattern, see `experiment:acquisition-system-runtime`.
@@ -35,13 +35,13 @@ Unity VR task driver the orchestrator uses to couple to the game engine, see
 - Workflow for adding a new training mode (cross-repo: sollertia-shared-assets + sollertia-experiment)
 
 **Does not cover** (delegated):
-- Mesoscope-VR hardware composition (binding classes, configuration dataclasses, system YAML) — see `experiment:mesoscope-vr`
+- Mesoscope-VR hardware composition (binding classes, configuration dataclasses, system YAML) — see `/mesoscope-vr`
 - The platform-general runtime pattern — see `experiment:acquisition-system-runtime`
 - The Unity VR task driver, its MQTT topic vocabulary, and trial decomposition — see `experiment:vr-driver-interface`
 - Per-firmware-module wrappers and slmc Module classes — see `experiment:microcontroller-interface`
-- Session descriptors and `SessionTypes` enum — owned by the assets plugin's `/session-descriptors`
-- Task template and trial-structure authoring — owned by the assets plugin's `/task-templates`
-- Per-experiment configuration — owned by the assets plugin's `/experiment-configuration`
+- Session descriptors and `SessionTypes` enum — owned by `assets:session-descriptors`
+- Task template and trial-structure authoring — owned by `assets:task-templates`
+- Per-experiment configuration — owned by `assets:experiment-configuration`
 - Session-data lifecycle (preprocessing, transfer, deletion) — owned by `experiment:data-management`
 
 ---
@@ -89,13 +89,13 @@ Unity VR task driver the orchestrator uses to couple to the game engine, see
 | Concern                                           | Authority                                              |
 |---------------------------------------------------|--------------------------------------------------------|
 | Platform-general runtime pattern                  | `experiment:acquisition-system-runtime`                |
-| Mesoscope-VR hardware composition                 | `experiment:mesoscope-vr`                              |
+| Mesoscope-VR hardware composition                 | `/mesoscope-vr`                              |
 | Unity VR task driver + MQTT contract              | `experiment:vr-driver-interface`                       |
 | Per-firmware-module wrapper API                   | `experiment:microcontroller-interface`                 |
-| `SessionTypes` enum                               | assets plugin `/session-descriptors`                   |
-| Session descriptor dataclass authoring            | assets plugin `/session-descriptors`                   |
-| Task template authoring (trial structure)         | assets plugin `/task-templates`                        |
-| Experiment configuration authoring                | assets plugin `/experiment-configuration`              |
+| `SessionTypes` enum                               | `assets:session-descriptors`                   |
+| Session descriptor dataclass authoring            | `assets:session-descriptors`                   |
+| Task template authoring (trial structure)         | `assets:task-templates`                        |
+| Experiment configuration authoring                | `assets:experiment-configuration`              |
 | Session-data lifecycle                            | `experiment:data-management`                           |
 
 This skill documents how the runtime *consumes* descriptors, session data, and task templates. It
@@ -157,7 +157,7 @@ order:
    via `load_vr_task_template()`. See `experiment:vr-driver-interface`.
 7. `self._mesoscope: MesoscopeDriver`, built with `configuration=...assets.vr_task` and
    `acquisition=...acquisition` — the MQTT control surface for the ScanImage software running on the
-   ScanImagePC. See `experiment:mesoscope-vr`.
+   ScanImagePC. See `/mesoscope-vr`.
 8. `self._ui: RuntimeControlUI` — the runtime control GUI (reads the valve/gas-puff trackers).
 9. `self._visualizer: BehaviorVisualizer`.
 
@@ -445,7 +445,7 @@ This skill is updated when:
 This skill is NOT updated when:
 
 - A descriptor's field surface or the `SessionTypes` enum changes (owned by `assets:session-descriptors`).
-- Hardware composition changes (owned by `experiment:mesoscope-vr`).
+- Hardware composition changes (owned by `/mesoscope-vr`).
 - Per-firmware-module wrapper APIs change (owned by `experiment:microcontroller-interface`).
 - The Unity VR driver, MQTT topics, or trial decomposition change (owned by `experiment:vr-driver-interface`).
 
@@ -461,15 +461,15 @@ reconcile this skill against ground truth.
 | Skill                                     | Relationship                                                                             |
 |-------------------------------------------|------------------------------------------------------------------------------------------|
 | `experiment:acquisition-system-runtime`   | Platform-general runtime pattern this system instantiates.                               |
-| `experiment:mesoscope-vr`                 | Hardware composition for the binding classes the runtime composes.                       |
+| `/mesoscope-vr`                 | Hardware composition for the binding classes the runtime composes.                       |
 | `experiment:acquisition-system-design`    | Platform-general static composition pattern.                                             |
 | `experiment:vr-driver-interface`          | The `VRTaskDriver` the orchestrator uses for Unity coupling; MQTT + trial decomposition. |
 | `experiment:microcontroller-interface`    | Per-module wrapper API the orchestrator and visualizer consume.                          |
-| assets plugin `/session-descriptors`      | Authors descriptors and the `SessionTypes` enum the runtime consumes.                    |
-| assets plugin `/task-templates`           | Authors task templates the experiment runtime loads.                                     |
-| assets plugin `/experiment-configuration` | Authors experiment configurations the runtime loads.                                     |
+| `assets:session-descriptors`      | Authors descriptors and the `SessionTypes` enum the runtime consumes.                    |
+| `assets:task-templates`           | Authors task templates the experiment runtime loads.                                     |
+| `assets:experiment-configuration` | Authors experiment configurations the runtime loads.                                     |
 | `experiment:data-management`              | Downstream session-data lifecycle (preprocess, transfer, delete).                        |
-| `experiment:mesoscope-vr-snapshots`       | Zaber/mesoscope position snapshots captured at session start.                            |
+| `/mesoscope-vr-snapshots`       | Zaber/mesoscope position snapshots captured at session start.                            |
 | `unity:gimbl-framework`                   | Unity-side framework for the VR game engine.                                             |
 | `unity:mqtt-contract`                     | Unity-side MQTT topic registration.                                                      |
 | `unity:task-prefabs`                      | Unity-side task prefab generation from task templates.                                   |
@@ -482,8 +482,8 @@ reconcile this skill against ground truth.
 When adding a new runtime mode:
 
 Cross-repo handoffs:
-- [ ] Session descriptor authored via assets plugin /session-descriptors
-- [ ] SessionTypes enum extended via assets plugin /session-descriptors
+- [ ] Session descriptor authored via assets:session-descriptors
+- [ ] SessionTypes enum extended via assets:session-descriptors
 - [ ] sollertia-shared-assets version bumped
 
 This repo (sollertia-experiment):
@@ -507,5 +507,5 @@ Documentation:
 Testing:
 - [ ] Hardware verified via experiment:acquisition-system-setup before running session
 - [ ] At least one dry-run executed with the new CLI command
-- [ ] Session-data layout matches expectations (assets plugin /session-data verification)
+- [ ] Session-data layout matches expectations (assets:session-data verification)
 ```

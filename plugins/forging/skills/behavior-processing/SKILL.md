@@ -29,14 +29,14 @@ analysis.
 - Resource allocation and the worker budget model
 
 **Does not cover:**
-- Session discovery and filtering (see the assets plugin's `/session-discovery`)
+- Session discovery and filtering (see `assets:session-discovery`)
 - Input file formats or cross-library handoff (see `/behavior-input-format`)
 - Output verification, schemas, or interpretation (see `/behavior-results`)
 - MCP server connectivity (see `/forging-mcp-environment-setup`)
-- Upstream axvs/axci processing (see `/video:log-processing` and `/communication:log-processing`)
+- Upstream axvs/axci processing (see `ataraxis@video:log-processing` and `ataraxis@communication:log-processing`)
 
 **Handoff rules:** If MCP tools are unavailable, invoke `/forging-mcp-environment-setup`. If the user has not
-yet run session discovery, invoke the assets plugin's `/session-discovery` first. After all jobs complete successfully, hand
+yet run session discovery, invoke `assets:session-discovery` first. After all jobs complete successfully, hand
 off to `/behavior-results` to verify and analyze outputs.
 
 **Note:** `/video:*` and `/communication:*` refer to the **video** and **communication** plugins
@@ -50,7 +50,7 @@ You MUST use the sollertia-forgery MCP tools for all processing operations. Do n
 `sollertia_forgery.processing.pipeline` directly or invoke the `sl-process` CLI — those bypass the
 background execution manager and the progress/timing monitoring surface.
 
-You MUST have confirmed session paths from the assets plugin's `/session-discovery` before calling
+You MUST have confirmed session paths from `assets:session-discovery` before calling
 `prepare_behavior_processing_batch_tool`. Do not guess, infer, or discover paths from within this
 skill.
 
@@ -76,7 +76,7 @@ You MUST respect the single-execution-session constraint: only one batch may run
 
 | Parameter         | Type          | Default      | Description                                                                                |
 |-------------------|---------------|--------------|--------------------------------------------------------------------------------------------|
-| `session_paths`   | `list[str]`   | (required)   | Absolute paths to session root directories (from the assets plugin's `/session-discovery`) |
+| `session_paths`   | `list[str]`   | (required)   | Absolute paths to session root directories (from `assets:session-discovery`) |
 
 Each session's `behavior_data/` subdirectory is created under its
 `{session.processed_data_path}/behavior_data/`, containing the processing tracker
@@ -181,9 +181,9 @@ The workflow uses a **prepare-then-execute** model:
 ### Pre-processing checklist
 
 ```text
-- [ ] Confirmed session paths from the assets plugin's /session-discovery
-- [ ] Upstream /video:log-processing outputs present in processed_data/ (if camera jobs expected)
-- [ ] Upstream /communication:log-processing outputs present in processed_data/ (if microcontroller jobs expected)
+- [ ] Confirmed session paths from assets:session-discovery
+- [ ] Upstream ataraxis@video:log-processing outputs present in processed_data/ (if camera jobs expected)
+- [ ] Upstream ataraxis@communication:log-processing outputs present in processed_data/ (if microcontroller jobs expected)
 - [ ] Hardware state YAML present in raw_data/ for every session in the batch
 - [ ] Experiment configuration YAML present for MESOSCOPE_EXPERIMENT sessions
 - [ ] Worker budget decision made with user (default -1 for auto-resolution)
@@ -195,7 +195,7 @@ The workflow uses a **prepare-then-execute** model:
 
 ### Workflow steps
 
-1. **Receive confirmed inputs** — Get the `session_paths` list from the assets plugin's `/session-discovery`. Do
+1. **Receive confirmed inputs** — Get the `session_paths` list from `assets:session-discovery`. Do
    not re-derive.
 
 2. **Prepare batch** — Call `prepare_behavior_processing_batch_tool` with the confirmed session
@@ -204,7 +204,7 @@ The workflow uses a **prepare-then-execute** model:
    - Per-session `error: "Discovery failed: ..."` → session-specific problem (likely missing
      hardware state or malformed inputs). Surface to user; continue with remaining sessions.
    - Per-session `error: "No processable behavior jobs discovered..."` → upstream prerequisites
-     missing. Surface to user and recommend running `/video:log-processing` and `/communication:log-processing` first.
+     missing. Surface to user and recommend running `ataraxis@video:log-processing` and `ataraxis@communication:log-processing` first.
    - `invalid_paths` list populated → session paths that did not exist. Surface to user.
 
 3. **Present discovered jobs** — For each session in the manifest, show the job count broken down
@@ -346,7 +346,7 @@ updating `_MODULE_REGISTRY` or `_CAMERA_OUTPUT_NAMES`).
 | Module `(type, id)` does not match registry          | Unsupported module — skip or extend `_MODULE_REGISTRY`               |
 | Camera source ID has no registered output name       | Extend `_CAMERA_OUTPUT_NAMES` to register the camera                 |
 | Cue sequence decomposition failure                   | Malformed cue sequence in runtime archive; inspect payload           |
-| Polars / Arrow read errors on module feather         | Corrupt axci output; re-run `/communication:log-processing` upstream |
+| Polars / Arrow read errors on module feather         | Corrupt axci output; re-run `ataraxis@communication:log-processing` upstream |
 | MCP tools unavailable                                | Invoke `/forging-mcp-environment-setup`                              |
 | Out of memory                                        | Reduce `worker_budget`                                               |
 | Corrupt tracker                                      | `clean_behavior_processing_output_tool` → re-prepare                 |
@@ -358,12 +358,12 @@ updating `_MODULE_REGISTRY` or `_CAMERA_OUTPUT_NAMES`).
 | Skill                                | Relationship                                                         |
 |--------------------------------------|----------------------------------------------------------------------|
 | `/forging-mcp-environment-setup`     | Prerequisite: MCP server connectivity                                |
-| assets plugin `/session-discovery`   | Upstream: session discovery and filtering                            |
+| `assets:session-discovery`   | Upstream: session discovery and filtering                            |
 | `/behavior-input-format`             | Reference: input file layout and cross-library handoff               |
 | `/behavior-results`                  | Downstream: output discovery, verification, and interpretation       |
 | `/project-manifest`                  | Downstream: regenerate manifest to update behavior status            |
-| `/video:log-processing`              | Upstream: produces camera timestamp feathers consumed here           |
-| `/communication:log-processing`      | Upstream: produces microcontroller module feathers consumed here     |
+| `ataraxis@video:log-processing`              | Upstream: produces camera timestamp feathers consumed here           |
+| `ataraxis@communication:log-processing`      | Upstream: produces microcontroller module feathers consumed here     |
 
 ---
 
@@ -372,7 +372,7 @@ updating `_MODULE_REGISTRY` or `_CAMERA_OUTPUT_NAMES`).
 ```text
 Behavior Processing Workflow:
 - [ ] Verified MCP server connectivity (invoked /forging-mcp-environment-setup if unavailable)
-- [ ] Received confirmed session paths from the assets plugin's /session-discovery
+- [ ] Received confirmed session paths from assets:session-discovery
 - [ ] Prepared batch via prepare_behavior_processing_batch_tool
 - [ ] Presented discovered job counts per session and per type
 - [ ] Confirmed worker budget with user
