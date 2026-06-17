@@ -187,9 +187,9 @@ seeds its configuration from a corridor task template.
   recorded many in a row, so advance to forging only once there are no more sessions to record —
   otherwise loop back to Phase 6 for the next session.
 - **Actions:** Once a session is preprocessed and transferred to long-term storage, hand off to the
-  forging plugin's behavior processing subsystem — session discovery / transfer
-  (`forging:session-transfer`), batch behavior processing (`forging:behavior-processing`), output verification
-  (`forging:behavior-results`), and dataset curation (`forging:datasets`).
+  forging plugin's behavior processing subsystem — batch behavior processing
+  (`forging:behavior-processing`), output verification (`forging:behavior-results`), and dataset
+  curation (`forging:datasets`).
 - **Handoff condition:** The preprocessed session is present on the storage destination the forging
   plugin reads from.
 

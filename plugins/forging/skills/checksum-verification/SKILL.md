@@ -30,7 +30,6 @@ artifacts. Each session produces exactly one checksum resolution job.
 **Does not cover:**
 - Session discovery and filtering (see `assets:session-discovery` — required prerequisite)
 - Manifest generation or reading (see `/project-manifest`)
-- Session transfer or deletion (see `/session-transfer`)
 - Behavior processing (see `/behavior-processing`)
 - MCP server connectivity (see `/forging-mcp-environment-setup`)
 
@@ -292,7 +291,6 @@ For project-wide overview via `get_checksum_batch_status_overview_tool`:
 | `/forging-mcp-environment-setup`     | Prerequisite: MCP server connectivity                                |
 | `assets:session-discovery`   | Prerequisite: provides confirmed session_paths                       |
 | `/project-manifest`                  | Downstream: regenerate manifest after verification completes         |
-| `/session-transfer`                  | Peer: verify integrity before transferring sessions                  |
 | `/behavior-processing`               | Peer: behavior processing depends on verified integrity              |
 
 ---

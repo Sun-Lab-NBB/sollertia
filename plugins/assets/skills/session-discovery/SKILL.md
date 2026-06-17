@@ -34,7 +34,6 @@ can chain from. For behavior-processing eligibility rules, see the sollertia-for
 - Reading or generating project manifest files — see the sollertia-forgery plugin's
   `forging:project-manifest`
 - Checksum verification or regeneration — see the sollertia-forgery plugin's `forging:checksum-verification`
-- Session transfer or deletion — see the sollertia-forgery plugin's `forging:session-transfer`
 - Behavior-processing eligibility rules — see the sollertia-forgery plugin's `forging:behavior-input-format`
 - MCP server connectivity issues — see `/assets-mcp-environment-setup`
 
@@ -192,7 +191,6 @@ from step 3) and the requested criteria.
 Present the final `session_paths` list to the user. Once confirmed, hand off to the appropriate
 downstream skill:
 - Sollertia-forgery plugin's `forging:checksum-verification` for data integrity operations
-- Sollertia-forgery plugin's `forging:session-transfer` for transfer or deletion
 - Sollertia-forgery plugin's `forging:project-manifest` for manifest generation
 - Sollertia-forgery plugin's `forging:behavior-processing` for behavior extraction (filter by eligible
   session types first)
@@ -242,7 +240,6 @@ Session discovery:
 | `/session-descriptors`                  | Reference: per-session descriptor repair                                         |
 | `forging:project-manifest`      | Downstream: manifest reading and generation                                      |
 | `forging:checksum-verification` | Downstream: consumes confirmed session_paths                                     |
-| `forging:session-transfer`      | Downstream: consumes confirmed session_paths                                     |
 | `forging:behavior-processing`   | Downstream: consumes confirmed session_paths                                     |
 | `forging:dataset-forging`       | Downstream: consumes confirmed session names                                     |
 | `forging:behavior-input-format` | Reference: behavior-processing eligibility rules                                 |
