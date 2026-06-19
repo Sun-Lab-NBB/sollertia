@@ -19,23 +19,28 @@ verification via MCP tool, data querying, and interpretation guidance.
 ## Scope
 
 **Covers:**
-- Per-session output files (`{session_root}/data.feather` plus a copy of
-  `session_descriptor.yaml`) and the dataset-level hierarchy
-  (`{project_root}/{dataset_name}/dataset.yaml`, `forging_tracker.yaml`, and
+- Per-session output files (`{dataset_root}/{animal}/{session}/data.feather` plus
+  copies of `session_descriptor.yaml` and `trial_geometry.yaml`) and the dataset-level
+  hierarchy (`{project_root}/{dataset_name}/dataset.yaml`, `forging_tracker.yaml`, and
   per-animal `{animal}/surgery_metadata.yaml` copies)
-- Full column schema: cindra fluorescence + behavior + runtime / experiment
-- Column masking rules (`_mask_non_run_experiment_data`) and conditional columns
+- Full column schema (the output roster): cindra fluorescence + behavior + runtime / experiment, including which
+  columns are sentinel-masked and which are conditional
 - Fluorescence array interpretation (shape, dtype, cell filtering)
-- Frame alignment: `frame`, `time_us`, `elapsed_minutes` derivation
 - `verify_forging_output_tool` usage
 - `query_forging_data_tool` usage and sample-row interpretation
 
 **Does not cover:**
-- Batch processing workflow (see `/dataset-forging`)
-- Input data format (see `/dataset-forging-input-format`)
+- Batch processing workflow (see `forging:dataset-forging`)
+- The processing doctrine — prepare-then-execute, trackers, worker budgets (see `forging:data-processing-design`)
+- The assembly algorithm — interpolation rules, sentinel masking, and per-column special cases that produce these
+  values (see `mesoscope:mesoscope-vr-dataset-assembly`)
+- The fluorescence frame-alignment algorithm — TTL duration-window filtering and the frame reference vector (see
+  `mesoscope:mesoscope-vr-fluorescence-alignment`)
+- The `DatasetColumn` roster enum definition (see `mesoscope:mesoscope-vr-processing-schema`)
+- Input data format (see `forging:dataset-forging-input-format`)
 - Session discovery (see `assets:session-discovery`)
-- MCP server connectivity (see `/forging-mcp-environment-setup`)
-- Upstream behavior feather schemas (see `/behavior-results`)
+- MCP server connectivity (see `forging:forging-mcp-environment-setup`)
+- Upstream behavior feather schemas (see `forging:behavior-results`)
 - Upstream cindra output schemas (see `cindra@cindra:single-recording-results` and
   `cindra@cindra:multi-recording-results`)
 
@@ -57,6 +62,10 @@ verification via MCP tool, data querying, and interpretation guidance.
 | Parameter      | Type  | Default    | Description                                                                                               |
 |----------------|-------|------------|-----------------------------------------------------------------------------------------------------------|
 | `dataset_path` | `str` | (required) | Absolute path to the dataset root directory (`{project_root}/{dataset_name}/`, containing `dataset.yaml`) |
+
+> Note: the dataset marker file is `dataset.yaml` (located via `DatasetData.load`). The
+> live tool's own docstring saying "containing `dataset_data.yaml`" is a stale source-side
+> docstring, not a second file — only `dataset.yaml` exists.
 
 **Return structure:**
 
@@ -90,8 +99,10 @@ error:               Present only when dataset_path is invalid or dataset.yaml c
 
 The tool walks the dataset's session list (from `DatasetData.sessions`) and checks
 each session's `data.feather` via the shared `analyze_feather_file` helper with
-`max_sample_rows=0`, so feather verification only costs metadata reads (no full table
-materialization). A missing `data.feather` is reported as `valid: False` with
+`max_sample_rows=0`. `analyze_feather_file` fully reads the feather via `pl.read_ipc`
+regardless of `max_sample_rows`; passing `0` merely suppresses sample rows in the
+output, so verification still materializes each table in full. A missing
+`data.feather` is reported as `valid: False` with
 `error: "data.feather not found."`. The companion `session_descriptor.yaml` copied
 alongside is separately loaded via `MesoscopeExperimentDescriptor.from_yaml`, and any
 feather-only-valid entry is demoted to `valid: False` when the descriptor is missing
@@ -133,16 +144,22 @@ results[]:                    Per-file analysis:
   inter_row_timing:           mean/median/std/min/max intervals; populated only when the feather
                               has >= 2 rows AND contains one of the recognized time columns
                               (`timestamp_us`, `time_us`, or `frame_time_us`)
-  sample_rows[]:              First N rows (binary and array data are omitted for readability)
+  sample_rows[]:              First N rows (Binary columns are compacted to a `<column>_has_data`
+                              boolean; Array fluorescence columns are emitted verbatim as lists)
   error:                      Present only when the file cannot be read
 total_files:                  Number of files analyzed
 ```
 
-Sample rows are compacted for display: the shared `analyze_feather_file` helper
-omits array-typed and binary-typed column values in samples, so the fluorescence
-columns appear as placeholders. To actually inspect fluorescence values, load the
-file with Polars directly (`pl.read_ipc(path, memory_map=True)`) — the query tool is
-intended for schema and timing summaries, not for array content.
+Sample rows compact only Binary columns: the shared `analyze_feather_file` helper
+replaces each Binary column value with a boolean `<column>_has_data` flag. Array
+fluorescence columns are **not** special-cased — they are emitted verbatim as full
+per-row Python lists, so with the default `max_sample_rows=10` the query tool serializes
+complete per-ROI fluorescence vectors for every sampled row. (The `verify` tool shows
+no array values because it passes `max_sample_rows=0`, suppressing sample rows
+entirely — not because arrays are omitted.) To inspect fluorescence values
+efficiently, load the file with Polars directly
+(`pl.read_ipc(path, memory_map=True)`) — the query tool is intended for schema and
+timing summaries, not for bulk array content.
 
 ### Cross-dataset overview
 
@@ -166,42 +183,56 @@ single dataset's outputs.
 
 ## Output directory structure
 
-Each forged dataset writes into two locations:
+Each forged dataset writes into a single hierarchy rooted at
+`{project_root}/{dataset_name}/`. Every per-session output lives **inside** that
+dataset tree — there is no separate per-session tree elsewhere under
+`{project_root}/`:
 
 ```text
 {project_root}/
-├── {animal_A}/
-│   ├── {session_1}/
-│   │   ├── data.feather                ← per-session forged output
-│   │   └── session_descriptor.yaml  ← copied from raw_data/ at assembly
-│   └── {session_2}/
-│       ├── data.feather
-│       └── session_descriptor.yaml
-└── {dataset_name}/                     ← dataset hierarchy
-    ├── dataset.yaml                    ← dataset marker (DatasetData)
-    ├── forging_tracker.yaml            ← forging ProcessingTracker
+└── {dataset_name}/                          ← dataset hierarchy (the only output location)
+    ├── dataset.yaml                         ← dataset marker (DatasetData)
+    ├── forging_tracker.yaml                 ← forging ProcessingTracker
     └── {animal_A}/
-        └── surgery_metadata.yaml           ← copied once per animal at dataset creation
+        ├── surgery_metadata.yaml            ← copied once per animal at dataset creation
+        ├── {session_1}/
+        │   ├── data.feather                 ← per-session forged output
+        │   ├── session_descriptor.yaml      ← copied from raw_data/ at assembly
+        │   └── trial_geometry.yaml          ← per-session track geometry, projected from config
+        └── {session_2}/
+            ├── data.feather
+            ├── session_descriptor.yaml
+            └── trial_geometry.yaml
 ```
 
 Key facts:
 
-- **Per-session output:** `{session_path}/data.feather`. The path comes from
-  `DatasetSession.session_path.joinpath("data.feather")` inside the pipeline. This is
-  directly under the session root, not under `processed_data/`. A copy of the
-  session's `session_descriptor.yaml` is written next to it so the forged session
-  carries experimenter context (animal weight, water dispensed/consumed, completion
-  status, notes) without reaching back into the raw session.
+- **Per-session output:** `{dataset_root}/{animal}/{session}/data.feather`. The path
+  comes from `session_metadata.data_path` (the dataset session's
+  `session_path.joinpath("data.feather")`), where `session_path` is
+  `{dataset_root}/{animal}/{session}` — the session lives inside the dataset
+  hierarchy, not under a separate per-session tree and not under `processed_data/`.
+  `_assemble_session_dataset` writes solely into this location. Alongside
+  `data.feather`, two YAML artifacts are written: a copy of the session's
+  `session_descriptor.yaml` (so the forged session carries experimenter context —
+  animal weight, water dispensed/consumed, completion status, notes — without
+  reaching back into the raw session) and `trial_geometry.yaml`, which carries the
+  per-session canonical track lengths and trigger-zone boundaries projected from the
+  experiment configuration for downstream analysis.
 - **Dataset hierarchy:** `{project_root}/{dataset_name}/` stores the metadata
   (`dataset.yaml`), the processing tracker (`forging_tracker.yaml`), and one
-  `{animal}/surgery_metadata.yaml` per animal copied from each animal's latest session.
-  `clean_forging_output_tool` removes this directory but does not touch the
-  per-session `data.feather` or `session_descriptor.yaml` files.
+  `{animal}/surgery_metadata.yaml` per animal copied from each animal's latest
+  session, with each `{animal}/` directory also holding that animal's `{session}/`
+  subdirectories. `clean_forging_output_tool` deletes this entire dataset directory
+  tree — the tracker, dataset metadata, per-animal surgery copies, and every
+  per-session `data.feather` / `session_descriptor.yaml` / `trial_geometry.yaml` —
+  because they all live inside it. After cleanup the dataset can be re-prepared from
+  scratch.
 - **File format:** uncompressed Arrow IPC, memory-mappable via
   `pl.read_ipc(source, memory_map=True)`.
 - **Cross-session layout:** every session in a dataset emits exactly one
-  `data.feather` (plus the descriptor copy) with the same feather column schema
-  modulo conditional columns.
+  `data.feather` (plus the `session_descriptor.yaml` and `trial_geometry.yaml`
+  copies) with the same feather column schema modulo conditional columns.
 
 ---
 
@@ -209,9 +240,11 @@ Key facts:
 
 A single forged `data.feather` is produced per session. Columns come from three
 upstream sources that are horizontally concatenated in this order: cindra
-fluorescence → behavior → runtime/experiment. After concatenation,
-`_mask_non_run_experiment_data` rewrites `cue`, `trial`, and `trial_type` values for
-rows whose `system_state` is not `"run"`.
+fluorescence → behavior → runtime/experiment. The tables below document the output
+roster — column names, dtypes, conditional presence, and which columns are
+sentinel-masked. The assembly algorithm that produces these values (interpolation,
+sentinel masking, and per-column special cases) is owned by
+`mesoscope:mesoscope-vr-dataset-assembly`.
 
 All timestamp columns are **microseconds since UTC epoch** (`UInt64`), already
 resolved against the runtime DataLogger onset upstream — no further onset offset is
@@ -238,13 +271,13 @@ needed.
 | Column          | Dtype                        | Conditional                                              | Description                                                         |
 |-----------------|------------------------------|----------------------------------------------------------|---------------------------------------------------------------------|
 | `brake`         | `UInt8`                      | `brake_data.feather` present (mesoscope w/ brake)        | 1 when measured brake torque exceeds `minimum_brake_strength`, else 0 |
-| `screens`       | `UInt8`                      | `screen_data.feather` present (mesoscope only)           | Screen state code (0 = off, 1 = on)                                 |
+| `screens`       | `UInt8` (inherited)          | `screen_data.feather` present (mesoscope only)           | Screen state code (0 = off, 1 = on per the upstream microcontroller convention) |
 | `torque_N_cm`   | `Float32`                    | `torque_data.feather` present (non-run-training only)    | Torque in N·cm; forced to 0 when `system_state == "run"`            |
-| `distance_cm`   | `Float32`                    | `encoder_data.feather` present (encoder-equipped)        | Cumulative distance; forward-filled outside run, clamped to 0 before the first run |
+| `distance_cm`   | `Float64`                    | `encoder_data.feather` present (encoder-equipped)        | Cumulative distance; forward-filled outside run, clamped to 0 before the first run |
 | `speed_cm_s`    | `Float32`                    | `encoder_data.feather` present                           | Running speed; forced to 0 when `system_state != "run"`             |
-| `lick`          | `UInt8`                      | always                                                   | Lick state (0 / 1)                                                  |
+| `lick`          | `UInt8` (inherited)          | always                                                   | Lick state (0 / 1)                                                  |
 | `water_uL`      | `Float32`                    | always                                                   | Dispensed water volume in microliters (discrete-interpolated)       |
-| `reward`        | `Enum["no","tone","yes"]`    | always                                                   | Reward classification (see masking rules)                           |
+| `reward`        | `Enum["no","tone","yes"]`    | always                                                   | Reward classification (`no` / `tone` / `yes`; algorithm in `mesoscope:mesoscope-vr-dataset-assembly`) |
 | `system_state`  | `Enum[hardware_state_codes]` | always                                                   | System state name resolved via `MesoscopeHardwareState.system_state_codes` |
 
 ### Runtime / experiment block
@@ -253,33 +286,37 @@ needed.
 |-----------------------|------------------------------------------|--------------------------------------------|-----------------------------------------------------------------|
 | `trial`               | `UInt16`                                 | always                                     | Sequential trial ID (1-indexed); masked to `65535` outside run  |
 | `trial_type`          | `Enum[trial_types + "undefined"]`        | always                                     | Trial type; masked to `"undefined"` outside run                 |
-| `cue`                 | `UInt8`                                  | always                                     | VR wall cue code; masked to `255` outside run                   |
+| `cue`                 | `UInt8` (inherited)                      | always                                     | VR wall cue code; masked to `255` outside run                   |
 | `in_trigger_zone`     | `UInt8`                                  | always                                     | 1 when the reference distance is inside a trigger zone, else 0  |
 | `runtime_state`       | `Enum[experiment_states + "idle"]`       | always                                     | Runtime state; `0 → "idle"` hardcoded default                   |
 | `reinforcing_guided`  | `UInt8`                                  | reinforcing guidance toggled during session | 1 when reinforcing guidance is active, else 0                  |
 | `aversive_guided`     | `UInt8`                                  | aversive guidance toggled during session   | 1 when aversive guidance is active, else 0                      |
 
-### Masking rules
+Dtypes marked **(inherited)** — `screens`, `lick`, and `cue` — are produced by discrete
+interpolation, which preserves the source behavior feather's column dtype rather than
+casting. Their `UInt8`-ness (and the `screens` 0/1 value semantics) therefore comes from
+the upstream behavior feather contract documented in `forging:behavior-results`, not from
+anything in the forging-stage assembly code.
 
-`_mask_non_run_experiment_data` rewrites specific columns wherever `system_state` is
-not `"run"` (covers `idle` and `rest` states):
+### Sentinel-masked columns
 
-| Column       | Masked value    | Dtype   |
-|--------------|-----------------|---------|
-| `cue`        | `255`           | `UInt8` |
-| `trial`      | `65535`         | `UInt16` |
+Three columns are sentinel-masked wherever `system_state` is not `"run"` (covers `idle` and `rest` states). These
+sentinels are the values to filter on when reading the output:
+
+| Column       | Masked value    | Dtype       |
+|--------------|-----------------|-------------|
+| `cue`        | `255`           | `UInt8`     |
+| `trial`      | `65535`         | `UInt16`    |
 | `trial_type` | `"undefined"`   | Enum member |
 
-These sentinels sit outside the legitimate cue-code and trial-id ranges, so sessions
-with many hundreds of trials can still be masked unambiguously. Downstream consumers
-should filter on `system_state == "run"` before using `cue`, `trial`, or `trial_type`.
+Each sentinel sits outside its column's legitimate value range, so downstream consumers should filter on
+`system_state == "run"` before using `cue`, `trial`, or `trial_type`. Several behavior columns (`torque_N_cm`,
+`distance_cm`, `speed_cm_s`) are also post-processed by state — they are not raw sensor values.
 
-Additionally:
-- `torque_N_cm` is forced to `0.0` wherever `system_state == "run"`, because the
-  torque sensor is disabled in the run state.
-- `distance_cm` is forward-filled across non-run regions and clamped to `0.0` before
-  the first run transition.
-- `speed_cm_s` is forced to `0.0` wherever `system_state != "run"`.
+The masking and post-processing **algorithm** (when each sentinel is applied, the torque-zeroed-during-run rule, the
+distance forward-fill and clamp, the running-speed window, and reward classification) is owned by
+`mesoscope:mesoscope-vr-dataset-assembly`. This skill documents only which columns carry which sentinels in the
+output.
 
 ---
 
@@ -314,27 +351,21 @@ single_day_cells = df["single_day_cell_fluorescence"].to_numpy()  # (frames, roi
 
 ---
 
-## Frame alignment
+## Frame alignment (reference vector)
 
-The forging pipeline aligns cindra fluorescence frames to mesoscope TTL rising
-edges, recorded by the microcontroller during acquisition and available in
-`mesoscope_frame_data.feather`:
+The fluorescence block is the spine of the output: its `frame` / `time_us` / `elapsed_minutes` columns form the
+frame-aligned reference time vector that every other stream is interpolated onto. In the output,
+`frame` is a 1-indexed `UInt32`, `time_us` is the microsecond UTC timestamp of a mesoscope frame, and
+`elapsed_minutes` is minutes elapsed since the first frame's `time_us` (`Float32`, two decimals). Behavior and
+runtime/experiment columns are interpolated onto this vector — trial, trial type, cue, and trigger-zone columns onto
+a distance reference vector derived from the encoder traveled-distance (not the post-processed `distance_cm` output
+column) rather than onto `time_us`. That distance reference can differ from the published `distance_cm` column outside
+run, since `distance_cm` undergoes additional run-state clamping and forward-fill in behavior assembly.
 
-1. Rising and falling edges are extracted from `ttl_state` diffs and joined per pulse.
-2. Pulses whose duration falls outside
-   `1000 / sampling_rate ± 20 ms` are filtered out. The sampling rate comes from
-   `combined_metadata.npz["sampling_rate"][0]`.
-3. If the count of valid pulses exceeds the cindra frame count, only the last
-   `frame_count` pulses are kept (aberrant frames are assumed to come from before the
-   main experiment runtime).
-4. Frame IDs are reassigned from 1 as `UInt32`. `time_us` is the microsecond UTC
-   timestamp of the pulse rising edge. `elapsed_minutes` is
-   `(time_us - time_us.min()) / 60_000_000`, rounded to two decimals as `Float32`.
-
-Every other data source (behavior columns from feathers sampled on microcontroller
-time, runtime state from the log archive) is interpolated onto this frame-aligned
-`time_us` vector. Trial, trial type, cue, and trigger-zone columns are interpolated
-onto the corresponding `distance_cm` reference vector rather than onto `time_us`.
+The alignment **algorithm** that produces this vector (pairing mesoscope TTL rising and falling edges, the
+duration-window pulse filter, the ScanImage metadata fallback, and frame-ID reassignment) is owned by
+`mesoscope:mesoscope-vr-fluorescence-alignment`. The distance-indexed interpolation of the runtime columns is owned
+by `mesoscope:mesoscope-vr-dataset-assembly`.
 
 ---
 
@@ -354,14 +385,15 @@ onto the corresponding `distance_cm` reference vector rather than onto `time_us`
 ### Gotchas
 
 - Fluorescence columns are `Array(Float32)` — use `.to_numpy()` to materialize them.
-  `query_forging_data_tool` samples omit array values for readability; use Polars
-  directly for array inspection.
+  `query_forging_data_tool` samples emit array values verbatim as per-row lists (only
+  Binary columns are compacted), so with the default `max_sample_rows=10` it can return
+  large per-ROI vectors; use Polars directly for efficient array inspection.
 - `trial`, `trial_type`, and `cue` are sentinel-masked outside `system_state == "run"`
   — always filter on `system_state` before aggregating these columns.
 - The single-day and multi-day fluorescence ROI counts can differ. Do not assume
   column shapes are identical across `single_day_*` and `multi_day_*` families.
-- `torque_N_cm`, `distance_cm`, and `speed_cm_s` are post-processed (see "Masking
-  rules"). Do not reuse them expecting raw sensor values.
+- `torque_N_cm`, `distance_cm`, and `speed_cm_s` are post-processed by system state (see
+  `mesoscope:mesoscope-vr-dataset-assembly` for the rules). Do not reuse them expecting raw sensor values.
 - Conditional columns (`brake`, `screens`, `torque_N_cm`, `distance_cm`, `speed_cm_s`,
   `reinforcing_guided`, `aversive_guided`) may be absent for sessions whose hardware
   or runtime state did not populate them. Inspect the columns list via
@@ -371,14 +403,18 @@ onto the corresponding `distance_cm` reference vector rather than onto `time_us`
 
 ## Related skills
 
-| Skill                                  | Relationship                                                              |
-|----------------------------------------|---------------------------------------------------------------------------|
-| `/forging-mcp-environment-setup`       | Prerequisite: MCP server connectivity                                     |
-| `/dataset-forging`                     | Upstream: produces the outputs documented here                            |
-| `/dataset-forging-input-format`        | Reference: inputs that shape this schema                                  |
-| `/behavior-results`                    | Reference: upstream behavior feather schemas consumed at forging time     |
-| `cindra@cindra:single-recording-results`     | Reference: upstream cindra single-recording output schemas                |
-| `cindra@cindra:multi-recording-results`      | Reference: upstream cindra multi-day output schemas                       |
+| Skill                                       | Relationship                                                                  |
+|---------------------------------------------|------------------------------------------------------------------------------|
+| `forging:forging-mcp-environment-setup`     | Prerequisite: MCP server connectivity                                        |
+| `forging:dataset-forging`                   | Upstream: produces the outputs documented here                              |
+| `forging:data-processing-design`            | Owns the agnostic processing doctrine this stage's orchestration follows     |
+| `forging:dataset-forging-input-format`      | Reference: inputs that shape this schema                                     |
+| `forging:behavior-results`                  | Reference: upstream behavior feather schemas consumed at forging time        |
+| `mesoscope:mesoscope-vr-dataset-assembly`   | Owns the assembly algorithm — interpolation, sentinel masking, special cases |
+| `mesoscope:mesoscope-vr-fluorescence-alignment` | Owns the TTL frame-alignment algorithm that builds the reference vector  |
+| `mesoscope:mesoscope-vr-processing-schema`  | Owns the `DatasetColumn` roster enum definition this schema instantiates      |
+| `cindra@cindra:single-recording-results`    | Reference: upstream cindra single-recording output schemas                   |
+| `cindra@cindra:multi-recording-results`     | Reference: upstream cindra multi-day output schemas                          |
 
 ---
 
@@ -388,7 +424,7 @@ onto the corresponding `distance_cm` reference vector rather than onto `time_us`
 Dataset Forging Results Audit:
 - [ ] Verified MCP server connectivity (invoked /forging-mcp-environment-setup if unavailable)
 - [ ] Ran get_forging_batch_status_overview_tool to locate completed datasets
-- [ ] Ran verify_forging_output_tool per dataset; confirmed every data.feather, companion session_descriptor.yaml, and per-animal surgery_metadata.yaml is valid
+- [ ] Ran verify_forging_output_tool per dataset; confirmed every data.feather, companion session_descriptor.yaml, and per-animal surgery_metadata.yaml is valid (each session directory also holds a trial_geometry.yaml)
 - [ ] Cross-checked forging_tracker.yaml tracker state — no FAILED or lingering SCHEDULED jobs
 - [ ] Queried at least one representative session via query_forging_data_tool to confirm schema
 - [ ] Verified expected conditional columns are present (brake / torque / guidance as applicable)

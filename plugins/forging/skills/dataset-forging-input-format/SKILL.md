@@ -12,7 +12,7 @@ user-invocable: false
 # Dataset forging input format
 
 Authoritative reference for the **forging-pipeline-specific** input artifacts: the
-behavior-processing feathers (upstream `/behavior-processing`), the cindra
+behavior-processing feathers (upstream `forging:behavior-processing`), the cindra
 single-recording outputs (upstream `cindra@cindra:single-recording-processing`), and the
 cindra multi-day outputs (upstream `cindra@cindra:multi-recording-processing`). Covers
 session eligibility, the on-disk dataset hierarchy, the required raw-data YAMLs, and
@@ -25,15 +25,15 @@ experiment configuration authoring to the assets plugin.
 
 **Covers:**
 - Session eligibility: only `MESOSCOPE_EXPERIMENT` sessions are forgeable
-- The forged dataset hierarchy (dataset directory, `dataset.yaml`,
-  `forging_tracker.yaml`, per-animal `surgery_metadata.yaml`)
-- The per-session `data.feather` output path and the copied
-  `session_descriptor.yaml`
-- Behavior feather inputs (which files, which columns) read from the
-  `/behavior-processing` output directory
-- Cindra single-recording outputs (fluorescence arrays, classification, metadata)
-  discovered via `single_recording_tracker.yaml`
-- Cindra multi-day outputs discovered at `{cindra_parent}/multiday/{dataset_name}/`
+- The self-contained forged dataset hierarchy (dataset directory, `dataset.yaml`,
+  `forging_tracker.yaml`, per-animal `surgery_metadata.yaml`, per-session output subdirectories)
+- The per-session forged outputs (`data.feather`, the copied `session_descriptor.yaml`, and the
+  `trial_geometry.yaml` data file)
+- Behavior feather inputs (which files, which columns) read from the canonical
+  `processed_data/behavior_data/` directory produced by `forging:behavior-processing`
+- Cindra single-recording outputs (fluorescence arrays, classification, metadata) read from the
+  canonical `processed_data/cindra/` directory
+- Cindra multi-day outputs read from `processed_data/cindra/multi_recording/{animal}_{dataset_name}/`
 - `hardware_state.yaml` fields required at assembly time
 - `experiment_configuration.yaml` fields required at assembly time
 - `session_descriptor.yaml` presence required at assembly time (copied to output)
@@ -46,10 +46,12 @@ experiment configuration authoring to the assets plugin.
   `assets:session-discovery` and related skills)
 - Hardware state authoring and validation (see the assets plugin)
 - Experiment configuration authoring and validation (see the assets plugin)
-- Batch orchestration workflow (see `/dataset-forging`)
-- Output schemas and interpretation (see `/dataset-forging-results`)
-- Upstream behavior processing workflow (see `/behavior-processing` /
-  `/behavior-input-format` / `/behavior-results`)
+- Batch orchestration workflow (see `forging:dataset-forging`)
+- Output schemas and interpretation (see `forging:dataset-forging-results`)
+- How the consumed feathers and arrays are interpolated and aligned into the forged columns (see
+  `mesoscope:mesoscope-vr-dataset-assembly` and `mesoscope:mesoscope-vr-fluorescence-alignment`)
+- Upstream behavior processing workflow (see `forging:behavior-processing` /
+  `forging:behavior-input-format` / `forging:behavior-results`)
 - Upstream cindra processing workflow (see `cindra@cindra:single-recording-processing` and
   `cindra@cindra:multi-recording-processing` and their results skills)
 
@@ -61,26 +63,29 @@ experiment configuration authoring to the assets plugin.
 ## Session eligibility
 
 The forging pipeline only accepts sessions whose `session_type` is
-`MESOSCOPE_EXPERIMENT`. The gate is enforced inside `_create_dataset`: the first
+`MESOSCOPE_EXPERIMENT`. The gate is enforced at dataset creation time: the first
 resolved session's type is inspected, and a `ValueError` is raised if it is anything
 else. The user-facing error message is
-`"Unable to define dataset '{name}'. Dataset creation is currently supported only for
-mesoscope experiment sessions..."`.
+`"Unable to define dataset '{name}'. Dataset creation for this acquisition system is
+supported only for '{required_session_type}' sessions, but the first session's type
+resolved to '{session_type}'."`.
 
 Every subsequent session in the batch must additionally share the first session's
 `session_type` and `acquisition_system`. A mismatch raises a `ValueError` at dataset
 creation time. Split the batch by acquisition system and session type before
 calling `prepare_forging_batch_tool`.
 
-| Session type           | Eligible for forging | Notes                                                       |
-|------------------------|----------------------|-------------------------------------------------------------|
-| `MESOSCOPE_EXPERIMENT` | yes                  | The only currently supported type                           |
-| `LICK_TRAINING`        | no                   | Behavior processing runs, but forging refuses               |
-| `RUN_TRAINING`         | no                   | Behavior processing runs, but forging refuses               |
-| Anything else          | no                   | Refused at dataset creation                                 |
+| Session type           | Eligible for forging | Notes                                  |
+|------------------------|----------------------|----------------------------------------|
+| `MESOSCOPE_EXPERIMENT` | yes                  | The only currently supported type      |
+| `LICK_TRAINING`        | no                   | Refused at dataset creation            |
+| `RUN_TRAINING`         | no                   | Refused at dataset creation            |
+| `WINDOW_CHECKING`      | no                   | Refused at dataset creation            |
+| Anything else          | no                   | Refused at dataset creation            |
 
-Use `assets:session-discovery` with `session_types=["mesoscope experiment"]` to discover
-forgeable sessions.
+Use `assets:session-discovery` to enumerate sessions, then filter client-side to
+`session_type == "mesoscope experiment"` (the `SessionTypes` value for
+`MESOSCOPE_EXPERIMENT`) before passing names to `prepare_forging_batch_tool`.
 
 Eligibility is re-validated on every prepare call that hits a fresh dataset (existing
 datasets are assumed already validated). A batch that mixes eligible and ineligible
@@ -90,59 +95,70 @@ sessions cannot be forged as a single dataset — split it first.
 
 ## Project and dataset hierarchy
 
-The forging pipeline expects the canonical sollertia project layout:
+The forging pipeline reads from the canonical sollertia project layout and writes a fully
+self-contained dataset hierarchy under the same `project_root`. The source sessions are
+read-only; no forged artifact is written back into them.
 
 ```text
 {project_root}/
-├── {animal_name_A}/
+├── {animal_name_A}/                          ← SOURCE (read-only inputs)
 │   ├── {session_name_1}/
 │   │   ├── raw_data/
-│   │   │   ├── session_data.yaml            ← session marker (see assets:session-discovery)
-│   │   │   ├── hardware_state.yaml          ← required here
+│   │   │   ├── session_data.yaml             ← session marker (see assets:session-discovery)
+│   │   │   ├── hardware_state.yaml           ← required here
 │   │   │   ├── experiment_configuration.yaml ← required here
-│   │   │   ├── session_descriptor.yaml   ← required here (copied to output)
-│   │   │   └── surgery_metadata.yaml            ← required on each animal's latest session
-│   │   ├── processed_data/
-│   │   │   ├── .../behavior_processing_tracker.yaml  ← discovered by rglob
-│   │   │   └── .../single_recording_tracker.yaml     ← discovered by rglob
-│   │   ├── data.feather                     ← FORGED OUTPUT (this pipeline)
-│   │   └── session_descriptor.yaml       ← FORGED COPY (this pipeline)
+│   │   │   ├── session_descriptor.yaml       ← required here (copied to output)
+│   │   │   ├── surgery_metadata.yaml         ← required on each animal's latest session
+│   │   │   └── mesoscope_data/
+│   │   │       └── frame_variant_metadata.npz ← ScanImage fallback alignment input
+│   │   └── processed_data/
+│   │       ├── behavior_data/                ← canonical behavior feather directory
+│   │       └── cindra/                       ← canonical cindra single-recording directory
+│   │           └── multi_recording/
+│   │               └── {animal}_{dataset_name}/  ← canonical cindra multi-day directory
 │   └── {session_name_2}/...
-└── {dataset_name}/                          ← FORGED DATASET HIERARCHY
-    ├── dataset.yaml                         ← dataset marker
-    ├── forging_tracker.yaml                 ← processing tracker
+└── {dataset_name}/                           ← FORGED DATASET HIERARCHY (this pipeline)
+    ├── dataset.yaml                          ← dataset marker
+    ├── forging_tracker.yaml                  ← processing tracker
     └── {animal_name_A}/
-        └── surgery_metadata.yaml                ← FORGED COPY (one per animal)
+        ├── surgery_metadata.yaml             ← FORGED COPY (one per animal)
+        └── {session_name_1}/
+            ├── data.feather                  ← FORGED OUTPUT
+            ├── session_descriptor.yaml       ← FORGED COPY
+            └── trial_geometry.yaml           ← FORGED OUTPUT (canonical trial geometry)
 ```
 
 Key facts:
 
 - **Dataset directory name:** the dataset name passed to `prepare_forging_batch_tool`
   becomes the directory name directly under `project_root`.
-- **Session resolution:** each session name is resolved by `rglob(session_name)`
-  against `project_root`. Zero or multiple matches is a fatal error.
-- **Animal assignment:** the owning animal is derived from the session directory's
-  parent name (`session_path.parent.name`).
-- **Output path:** per-session forged data lives at `{session_path}/data.feather` —
-  alongside `raw_data/` and `processed_data/`, not under them.
-- **Dataset metadata vs output:** `clean_forging_output_tool` removes the dataset
-  directory (tracker + `dataset.yaml` + per-animal `surgery_metadata.yaml` copies) but
-  never touches per-session `data.feather` or `session_descriptor.yaml` files.
+- **Session resolution:** each session name is resolved by discovering `session_data.yaml`
+  markers under `project_root` (shared-assets session discovery) and requiring exactly one
+  match. Zero matches raises `FileNotFoundError`; multiple matches (a name colliding across
+  animals) raises `RuntimeError`.
+- **Animal assignment:** the owning animal is derived from the source session directory's
+  parent name.
+- **Output location:** forged per-session data is self-contained inside the dataset
+  hierarchy at `{project_root}/{dataset_name}/{animal}/{session}/`, NOT next to the source
+  session's `raw_data/` and `processed_data/`.
+- **Cleanup semantics:** `clean_forging_output_tool` deletes the entire dataset directory
+  tree — the tracker, `dataset.yaml`, per-animal `surgery_metadata.yaml` copies, AND every
+  per-session `data.feather`, `session_descriptor.yaml`, and `trial_geometry.yaml`. Because
+  the forged outputs live inside the dataset hierarchy, cleaning a dataset removes them all;
+  the read-only source sessions are never touched.
 
 ---
 
 ## Upstream prerequisite: behavior-processing output
 
-The forging pipeline discovers the behavior data directory by locating its tracker via
-`rglob("behavior_processing_tracker.yaml")` against `session.processed_data_path`. The
-tracker parent is the behavior data directory (conventionally
-`{processed_data_path}/behavior_data/`).
-
-Exactly one `behavior_processing_tracker.yaml` must exist under `processed_data/` —
-zero or multiple hits raise `FileNotFoundError` / `RuntimeError` respectively.
+The forging pipeline resolves the behavior data directory to the canonical
+`{processed_data}/behavior_data/` location via the loaded session's path-resolution
+properties — it does not search for the tracker at arbitrary depth. The directory must
+exist; a missing directory raises `FileNotFoundError` naming the expected
+`behavior_processing_tracker.yaml` it is expected to contain.
 
 The pipeline then reads the following feathers from the behavior data directory. All
-are uncompressed Arrow IPC produced by `/behavior-processing`:
+are uncompressed Arrow IPC (`.feather`) produced by `forging:behavior-processing`:
 
 ### Always required
 
@@ -172,20 +188,20 @@ state feathers, which is why lick-training and run-training sessions are not for
 | `reinforcing_guidance_state_data.feather`     | Reinforcing guidance toggled during the session           | `reinforcing_guided`           |
 | `aversive_guidance_state_data.feather`        | Aversive guidance toggled during the session              | `aversive_guided`              |
 
-See `/behavior-input-format` for upstream module eligibility rules and
-`/behavior-results` for the column-level schema of each feather.
+See `forging:behavior-input-format` for upstream module eligibility rules and
+`forging:behavior-results` for the column-level schema of each feather. See
+`mesoscope:mesoscope-vr-dataset-assembly` for how these feathers are interpolated onto the
+fluorescence frame reference vector to build the assembled session columns.
 
 ---
 
 ## Upstream prerequisite: cindra single-recording output
 
-The forging pipeline discovers the cindra single-recording directory by locating its
-tracker via `rglob("single_recording_tracker.yaml")` against
-`session.processed_data_path`. The tracker parent is the cindra output directory
-(conventionally `{processed_data_path}/mesoscope_data/<recording>/`).
-
-Exactly one `single_recording_tracker.yaml` must exist under `processed_data/` — zero
-or multiple hits raise `FileNotFoundError` / `RuntimeError` respectively.
+The forging pipeline resolves the cindra single-recording directory to the canonical
+`{processed_data}/cindra/` location via the loaded session's path-resolution properties —
+it does not search for the tracker at arbitrary depth. The directory must exist; a missing
+directory raises `FileNotFoundError` naming the expected `single_recording_tracker.yaml` it
+is expected to contain.
 
 The following files are read from the cindra directory at assembly time. All are
 produced by `cindra@cindra:single-recording-processing`:
@@ -200,22 +216,30 @@ produced by `cindra@cindra:single-recording-processing`:
 | `spikes.npy`                  | `np.load(mmap_mode="r")` | Single-day spike inference (filtered)                                    |
 
 The frame count comes from the column dimension of `cell_fluorescence.npy` (its shape
-is `(rois, frames)`). If the mesoscope frame log contains more TTL pulses than cindra
-produced frames, the pipeline keeps only the **last** `frames` pulses, since aberrant
-frames are assumed to come from pre-experiment triggering.
+is `(rois, frames)`). The primary alignment path keeps only the in-window TTL pulses whose
+duration matches the scanning frequency. If the log yields more in-window pulses than cindra
+frames, the pipeline keeps the **last** `frames` pulses (aberrant frames are assumed to come
+from pre-experiment triggering); if it yields fewer, the pipeline falls back to matching
+logged TTL rising edges against the ScanImage per-frame timestamps in
+`raw_data/mesoscope_data/frame_variant_metadata.npz`. The fallback raises `ValueError` when
+that archive is missing, its frame count disagrees with cindra, or the match cannot recover
+exactly `frames` pulses.
 
 The ROI axis is filtered once by the classification mask before the
 array is transposed to `(frames, rois)` and stored as a Polars `Array(Float32)`
-column.
+column. See `mesoscope:mesoscope-vr-fluorescence-alignment` for the full alignment logic,
+tolerances, and anchor-search behavior.
 
 ---
 
 ## Upstream prerequisite: cindra multi-day output
 
 The forging pipeline derives the multi-day directory as
-`{cindra_data_path.parent}/multiday/{dataset_name}/`. The dataset name passed to
-`prepare_forging_batch_tool` MUST match the dataset name under which the multi-day
-cindra pipeline was run — the two are joined blindly without fallback discovery.
+`{processed_data}/cindra/multi_recording/{animal}_{dataset_name}/`. The directory name is
+the owning animal identifier joined to the dataset name with an underscore, matching cindra's
+on-disk qualification convention for collision-free multi-animal batches. The dataset name
+passed to `prepare_forging_batch_tool` MUST match the dataset name under which the multi-day
+cindra pipeline was run — the path is joined directly without fallback discovery.
 
 The following files are read from the multi-day directory. All are produced by
 `cindra@cindra:multi-recording-processing`:
@@ -233,10 +257,10 @@ Polars `Array(Float32)` columns.
 
 **Common failure mode:** The multi-day pipeline was run under a different dataset
 name than the one passed to `prepare_forging_batch_tool`. The
-`{cindra_parent}/multiday/{dataset_name}/` join then points at a non-existent
-directory, and the assembly raises `FileNotFoundError` on `cell_fluorescence.npy`.
-Fix by rerunning `cindra@cindra:multi-recording-processing` with the matching dataset name,
-or by pointing the forging run at the name that was used upstream.
+`{processed_data}/cindra/multi_recording/{animal}_{dataset_name}/` join then points at a
+non-existent directory, and the assembly raises `FileNotFoundError` on
+`cell_fluorescence.npy`. Fix by rerunning `cindra@cindra:multi-recording-processing` with the
+matching dataset name, or by pointing the forging run at the name that was used upstream.
 
 ---
 
@@ -277,19 +301,21 @@ assets plugin.
 ## Raw-data prerequisite: experiment descriptor YAML
 
 `raw_data/session_descriptor.yaml` is required per session and is copied alongside
-`data.feather` at the end of each session assembly (the copy is placed directly under
-the session root, next to `data.feather`). The file is parsed as
-`MesoscopeExperimentDescriptor` and carries experimenter-authored runtime context —
-`experimenter`, `animal_weight_g`, dispensed / consumed water volumes, the `incomplete`
-completion flag, and `experimenter_notes`.
+`data.feather` at the end of each session assembly (the copy is placed in the forged
+session subdirectory under the dataset hierarchy, next to `data.feather` and
+`trial_geometry.yaml`). The forging pipeline only checks that the file exists and copies
+it — it never parses the file at assembly time. The descriptor carries experimenter-authored
+runtime context (`experimenter`, `animal_weight_g`, dispensed / consumed water volumes, the
+`incomplete` completion flag, and `experimenter_notes`); `MesoscopeExperimentDescriptor` is
+the schema that the separate verification tool (`verify_forging_output_tool`) and downstream
+analysis parse the copied file as, not a schema applied during assembly.
 
 Presence is verified up front inside `_assemble_session_dataset`, before any cindra or
 behavior work is performed: a missing file raises `FileNotFoundError` with
 `"Unable to assemble session '{name}'. The session's raw data directory does not
 contain a 'session_descriptor.yaml' file at '{path}'. The experiment descriptor is
 required for every session in a forged dataset."`. Content is not validated by the
-forging pipeline itself (the file is only copied, not read), so authoring and
-validation belong to the assets plugin.
+forging pipeline itself, so authoring and validation belong to the assets plugin.
 
 ---
 
@@ -315,21 +341,21 @@ allowed to omit the file; only the newest session per animal is consulted.
 
 The forging pipeline is a pure consumer of upstream outputs:
 
-| Upstream producer                | Required skill                        | Artifact location                                                                                                                                                                 | Gates forging |
-|----------------------------------|---------------------------------------|-----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|---------------|
-| Behavior processing pipeline     | `/behavior-processing`                | `{processed_data}/.../behavior_processing_tracker.yaml` + feathers                                                                                                                | yes           |
-| Cindra single-recording pipeline | `cindra@cindra:single-recording-processing` | `{processed_data}/.../single_recording_tracker.yaml` + `*.npy` / `*.npz`                                                                                                          | yes           |
-| Cindra multi-recording pipeline  | `cindra@cindra:multi-recording-processing`  | `{cindra_parent}/multiday/{dataset_name}/*.npy` (dataset name must match)                                                                                                         | yes           |
-| Mesoscope-VR acquisition runtime | (acquisition-side; no skill)          | `{raw_data}/hardware_state.yaml`, `{raw_data}/experiment_configuration.yaml`, `{raw_data}/session_descriptor.yaml`, `{raw_data}/surgery_metadata.yaml` (latest session per animal) | yes           |
+| Upstream producer                | Required skill                              | Artifact location (under the session)                  | Gates forging |
+|----------------------------------|---------------------------------------------|--------------------------------------------------------|---------------|
+| Behavior processing pipeline     | `forging:behavior-processing`               | `behavior_data/` tracker + feathers                    | yes           |
+| Cindra single-recording pipeline | `cindra@cindra:single-recording-processing` | `cindra/` tracker + `*.npy` / `*.npz`                  | yes           |
+| Cindra multi-recording pipeline  | `cindra@cindra:multi-recording-processing`  | `cindra/multi_recording/{animal}_{dataset_name}/*.npy` | yes           |
+| Mesoscope-VR acquisition runtime | (acquisition-side; no skill)                | the four `raw_data/` YAMLs (see prerequisites above)   | yes           |
 
 **Ordering constraint:** all four upstream producers MUST complete for every session
-in a dataset BEFORE `/dataset-forging` can assemble. Running the forging pipeline
+in a dataset BEFORE `forging:dataset-forging` can assemble. Running the forging pipeline
 against a partially-processed session raises during dataset assembly — the
-`prepare_forging_batch_tool` call itself will mostly succeed (it only resolves the
-dataset hierarchy and initializes the tracker), but dataset creation will fail up
-front if any animal's latest session is missing `surgery_metadata.yaml`, and per-session
-jobs will fail during execution with a `FileNotFoundError` on a missing tracker,
-missing `.npy`, or missing `session_descriptor.yaml`.
+`prepare_forging_batch_tool` call itself will mostly succeed (it resolves the dataset
+hierarchy and initializes the tracker), but dataset creation will fail up front if any
+animal's latest session is missing `surgery_metadata.yaml`, and per-session jobs will
+fail during execution with a `FileNotFoundError` on a missing canonical `behavior_data/`
+or `cindra/` directory, a missing `.npy`, or a missing `session_descriptor.yaml`.
 
 ---
 
@@ -347,7 +373,7 @@ Dataset Forging Prerequisites:
 -   [ ] experiment_states defined with experiment_state_code values
 - [ ] raw_data/session_descriptor.yaml present on every session
 - [ ] raw_data/surgery_metadata.yaml present on each animal's latest (natural-sorted) session
-- [ ] /behavior-processing completed — behavior_processing_tracker.yaml + feathers present
+- [ ] forging:behavior-processing completed — behavior_processing_tracker.yaml + feathers present
 -   [ ] mesoscope_frame_data.feather
 -   [ ] system_state_data.feather, lick_data.feather, valve_data.feather
 -   [ ] encoder_data.feather
@@ -356,23 +382,29 @@ Dataset Forging Prerequisites:
 -   [ ] cell_fluorescence.npy, combined_metadata.npz, cell_classification.npy
 -   [ ] neuropil_fluorescence.npy, subtracted_fluorescence.npy, spikes.npy
 - [ ] cindra@cindra:multi-recording-processing completed with matching dataset name
--   [ ] multiday/{dataset_name}/cell_fluorescence.npy and companions present
+-   [ ] cindra/multi_recording/{animal}_{dataset_name}/cell_fluorescence.npy and companions present
 ```
 
 ---
 
 ## Related skills
 
-| Skill                                    | Relationship                                                                  |
-|------------------------------------------|-------------------------------------------------------------------------------|
-| `/forging-mcp-environment-setup`         | Prerequisite: MCP server connectivity                                         |
-| `assets:session-discovery`       | Upstream: session discovery and filtering                                     |
-| `/dataset-forging`                       | Downstream: consumes the inputs documented here                               |
-| `/dataset-forging-results`               | Downstream: documents the output derived from these inputs                    |
-| `/behavior-processing`                   | Upstream producer of behavior feathers                                        |
-| `/behavior-input-format`                 | Reference: upstream-of-upstream input format for behavior feathers            |
-| `/behavior-results`                      | Reference: schema of the behavior feathers consumed here                      |
-| `cindra@cindra:single-recording-processing`    | Upstream producer of cindra single-recording outputs                          |
-| `cindra@cindra:multi-recording-processing`     | Upstream producer of cindra multi-day outputs                                 |
-| `cindra@cindra:single-recording-results`       | Reference: schemas of the cindra single-recording outputs                     |
-| `cindra@cindra:multi-recording-results`        | Reference: schemas of the cindra multi-day outputs                            |
+| Skill                                           | Relationship                                                          |
+|-------------------------------------------------|----------------------------------------------------------------------|
+| `forging:forging-mcp-environment-setup`                | Prerequisite: MCP server connectivity                                |
+| `assets:session-discovery`                      | Upstream: session discovery and filtering                            |
+| `forging:dataset-forging`                              | Downstream: consumes the inputs documented here                      |
+| `forging:dataset-forging-results`                      | Downstream: documents the output derived from these inputs           |
+| `forging:data-processing-design`                       | Reference: the cross_system versus per-system forging design pattern |
+| `forging:microcontroller-primitives`                   | Reference: agnostic microcontroller module-feather parsing helpers   |
+| `forging:camera-timestamp-extraction`                  | Reference: agnostic camera timestamp extraction stage                |
+| `forging:behavior-processing`                          | Upstream producer of behavior feathers                               |
+| `forging:behavior-input-format`                        | Reference: upstream-of-upstream input format for behavior feathers   |
+| `forging:behavior-results`                             | Reference: schema of the behavior feathers consumed here             |
+| `mesoscope:mesoscope-vr-module-parsing`         | Reference: Mesoscope-VR per-module feather outputs feeding behavior  |
+| `mesoscope:mesoscope-vr-dataset-assembly`       | Reference: how consumed feathers become forged session columns       |
+| `mesoscope:mesoscope-vr-fluorescence-alignment` | Reference: TTL and ScanImage fluorescence frame alignment logic      |
+| `cindra@cindra:single-recording-processing`     | Upstream producer of cindra single-recording outputs                 |
+| `cindra@cindra:multi-recording-processing`      | Upstream producer of cindra multi-day outputs                        |
+| `cindra@cindra:single-recording-results`        | Reference: schemas of the cindra single-recording outputs            |
+| `cindra@cindra:multi-recording-results`         | Reference: schemas of the cindra multi-day outputs                   |

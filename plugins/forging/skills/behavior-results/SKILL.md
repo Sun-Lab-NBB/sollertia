@@ -21,20 +21,28 @@ querying, and interpretation guidance.
 **Covers:**
 - Output directory structure and `behavior_data/` layout
 - Runtime output schemas (system state, runtime state, guidance, cue, trial, trigger zone)
-- Camera output schema (hardlinked from `ataraxis@video:log-processing` output)
-- Microcontroller output schemas (per-module feather contents)
+- Camera output roster (per-camera timestamp feathers produced by the separate video pipeline but
+  co-located in `behavior_data/`)
+- Microcontroller output roster (per-module feather files present after processing)
 - `verify_behavior_processing_output_tool` usage
 - `query_behavior_data_tool` usage and sample-row interpretation
 - Interpretation guidance for state feathers, timing feathers, trial feathers
 
 **Does not cover:**
-- Input data format (see `/behavior-input-format`)
-- Batch processing workflow (see `/behavior-processing`)
+- Input data format (see `forging:behavior-input-format`)
+- Batch processing workflow (see `forging:behavior-processing`)
+- Processing-pipeline doctrine: prepare-then-execute, trackers, worker budget (see `forging:data-processing-design`)
+- The separate video pipeline that extracts the camera timestamp feathers (see `forging:camera-timestamp-extraction`)
+- The agnostic module-feather parsing primitives (see `forging:microcontroller-primitives`)
+- Per-module `(module_type, module_id)` conversions, event codes, and calibration fields (see
+  `mesoscope:mesoscope-vr-module-parsing`)
 - Session discovery (see `assets:session-discovery`)
-- MCP server connectivity (see `/forging-mcp-environment-setup`)
+- MCP server connectivity (see `forging:forging-mcp-environment-setup`)
 
-**Note:** `/video:*` and `/communication:*` refer to the **video** and **communication** plugins
-from the [ataraxis marketplace](https://github.com/Sun-Lab-NBB/ataraxis).
+**Note:** `ataraxis@video:log-processing` and `ataraxis@communication:log-processing` refer to skills in the
+**video** and **communication** plugins from the [ataraxis marketplace](https://github.com/Sun-Lab-NBB/ataraxis).
+They own, respectively, the upstream camera-log production that the video pipeline turns into camera timestamp
+feathers and the upstream module-feather production that the microcontroller jobs parse.
 
 ---
 
@@ -70,11 +78,10 @@ tracker:             Dict with `jobs[]` (per-job fields below) and `summary` (ag
                      {} if no tracker file is present; {"error": "..."} if unreadable
 ```
 
-The tool loads the session's :class:`SessionData` marker, walks
-`{session.processed_data_path}/behavior_data/` recursively with `rglob("*.feather")`, and loads each
-file via the shared `analyze_feather_file` helper with `max_sample_rows=0`, so verification only
-costs metadata reads (no full table materialization). The output location is not configurable —
-behavior outputs always live under the session's processed data hierarchy.
+The tool loads the session's SessionData marker, lists `{session.processed_data_path}/behavior_data/`
+non-recursively with `glob("*.feather")`, and loads each file via the shared `analyze_feather_file` helper with
+`max_sample_rows=0`, so verification only costs metadata reads (no full table materialization). The output
+location is not configurable — behavior outputs always live under the session's processed data hierarchy.
 
 ### Query tool
 
@@ -111,18 +118,20 @@ total_files:                 Number of files analyzed
 
 `query_behavior_data_tool` delegates to the same `analyze_feather_file` helper as the verification
 tool but requests the configured number of sample rows. Use it whenever you need to eyeball actual
-row values or summarize inter-row timing.
+row values or summarize inter-row timing. Note that behavior outputs use `time_us` (and camera feathers
+`frame_time_us`), not `timestamp_us`, so the timing statistics are driven by the `time_us` / `frame_time_us`
+candidates for this output set.
 
-### Overview tool (referenced from `/behavior-processing`)
+### Overview tool (referenced from `forging:behavior-processing`)
 
-`get_batch_status_overview_tool` is documented in `/behavior-processing`. Use it here when you need a
+`get_batch_status_overview_tool` is documented in `forging:behavior-processing`. Use it here when you need a
 cross-session summary of tracker state before drilling into any single session's outputs.
 
 ---
 
 ## Recommended query order
 
-1. **`get_batch_status_overview_tool`** (from `/behavior-processing`) — aggregate status across all
+1. **`get_batch_status_overview_tool`** (from `forging:behavior-processing`) — aggregate status across all
    sessions under a root directory, so you know which sessions have finished processing.
 2. **`verify_behavior_processing_output_tool`** — per-session verification against the expected
    feather set and the tracker (takes a session path).
@@ -133,8 +142,10 @@ cross-session summary of tracker state before drilling into any single session's
 ## Output directory structure
 
 Behavior processing writes all output under a `behavior_data/` subdirectory that always lives under
-the session's `processed_data_path`, co-located with the upstream `camera_timestamps/` and
-`microcontroller_data/` produced by axvs and axci. This location is static and cannot be overridden:
+the session's `processed_data_path`, alongside the `microcontroller_data/` module feathers produced by axci.
+The camera `{name}_timestamps.feather` files in this directory are NOT behavior-processing outputs: they are
+written into `behavior_data/` by the separate video pipeline (see the camera-feathers note below). This location
+is static and cannot be overridden:
 
 ```text
 {session_root}/
@@ -148,8 +159,7 @@ the session's `processed_data_path`, co-located with the upstream `camera_timest
         ├── vr_cue_data.feather                       # runtime job — experiments only
         ├── vr_trigger_zone_data.feather              # runtime job — experiments only
         ├── trial_data.feather                        # runtime job — experiments only
-        ├── face_camera_timestamps.feather            # camera job — if source 51 present
-        ├── body_camera_timestamps.feather            # camera job — if source 62 present
+        ├── {name}_timestamps.feather                 # written by the separate video pipeline (camera_timestamp_extraction)
         ├── encoder_data.feather                      # microcontroller (2,1)
         ├── mesoscope_frame_data.feather              # microcontroller (1,1)
         ├── brake_data.feather                        # microcontroller (3,1)
@@ -161,9 +171,13 @@ the session's `processed_data_path`, co-located with the upstream `camera_timest
 ```
 
 All feather files are uncompressed Arrow IPC, so they are memory-mappable and directly loadable via
-`pl.read_ipc(source, memory_map=True)`. Which files are present depends on the session type, the
+`pl.read_ipc(source, memory_map=True)`. Which behavior feather files are present depends on the session type, the
 presence of upstream inputs, and which modules were eligible under the session's hardware state
-(see `/behavior-input-format`).
+(see `forging:behavior-input-format`). The `{name}_timestamps.feather` files are produced by the separate video
+pipeline (job `camera_timestamp_extraction`, owned by `forging:camera-timestamp-extraction`) and merely written
+into `behavior_data/`; each is named from the colloquial source name registered in the acquisition-time camera
+manifest (for example, a `face_camera` source produces `face_camera_timestamps.feather`), so the exact roster of
+camera files is session-specific — see `forging:camera-timestamp-extraction`.
 
 ---
 
@@ -229,75 +243,63 @@ needed.
 The runtime pipeline decomposes VR wall cue sequences into trials using the
 `MesoscopeExperimentConfiguration.trial_structures` mapping. If decomposition fails, the runtime
 job fails with a `RuntimeError` identifying the offending sequence position — see
-`/behavior-processing` error routing.
+`forging:behavior-processing` error routing. The decomposition algorithm itself (cue-sequence motif
+matching, trial geometry) is owned by `mesoscope:mesoscope-vr-trial-decomposition`.
 
 ### Camera feathers
 
-Camera outputs are **hardlinks** to the upstream axvs `camera_{source_id}_timestamps.feather` files.
-The schema is whatever axvs produces (typically a `frame_time_us` column), and the file contents are
-identical to the upstream feather — no byte duplication on disk.
+The camera `{name}_timestamps.feather` files are produced by the SEPARATE video pipeline
+(`run_video_processing_pipeline`, job `camera_timestamp_extraction`, CLI `mesoscope process video`), NOT by the
+behavior pipeline. That pipeline extracts frame acquisition timestamps from each raw VideoSystem log archive and
+writes a fresh feather into `behavior_data/` (its sink is `session.processed_data.behavior_data_path`), so the files
+are co-located with the behavior outputs even though their job state lives in the SEPARATE camera tracker
+(`session.processed_data.camera_tracker_path`, which resolves to `camera_timestamps/camera_processing_tracker.yaml`),
+not the behavior tracker. The behavior verify and query tools list these feathers because they glob
+`behavior_data/*.feather`, but a camera feather is never a behavior-tracker job. Each output is NOT a hardlink to any
+upstream axvs output, and there is no hardcoded source-ID-to-name registry: the output filename for each source comes
+from the colloquial name registered in the acquisition-time camera manifest, so a `face_camera` source yields
+`face_camera_timestamps.feather`. See `forging:camera-timestamp-extraction` (and upstream
+`ataraxis@video:log-processing`) for how source IDs become named feathers, where the inputs live, and the manifest
+contract.
 
-| Source ID | Output filename                    |
-|-----------|------------------------------------|
-| 51        | `face_camera_timestamps.feather`   |
-| 62        | `body_camera_timestamps.feather`   |
+| Column          | Dtype    | Description                                                       |
+|-----------------|----------|-------------------------------------------------------------------|
+| `frame_time_us` | `UInt64` | Per-frame acquisition timestamp (microseconds since the UTC epoch) |
 
-Because the camera feathers are raw axvs output, treat them as an axvs-owned artifact — the schema
-evolves with axvs releases, not with sollertia-forgery. Inspect the actual column set via
-`query_behavior_data_tool` before relying on specific column names. Hardlinking means that if the
-user deletes the upstream axvs feather before behavior processing re-runs, the behavior output
-inode remains valid as long as the filesystem hasn't reclaimed the blocks.
+The `frame_time_us` column is already in UTC microseconds, so it can be compared directly to any `time_us` column in
+the rest of this output set.
 
 ### Microcontroller feathers
 
-Each microcontroller job transforms a single axci module feather into a domain-specific output. The
-column schemas below reflect the current `_MODULE_REGISTRY` parse functions.
+Each microcontroller job transforms a single axci module feather into one domain-specific output feather, keyed by
+the module's `(module_type, module_id)` pair. For verification, this skill carries only the **output-file roster**:
+the filename to expect on disk for each module key, and which hardware-state field gates the module's presence. The
+per-module output column schemas, event codes, unit conversions, and calibration fields are owned by
+`mesoscope:mesoscope-vr-module-parsing` — consult that skill (or `query_behavior_data_tool`) for column-level detail.
 
-**`encoder_data.feather`** — module `(2, 1)` — converts CCW/CW pulse events to cumulative distance
+| Module key | Output filename               | Presence gated by                                          |
+|------------|-------------------------------|------------------------------------------------------------|
+| `(2, 1)`   | `encoder_data.feather`        | `cm_per_pulse`                                             |
+| `(1, 1)`   | `mesoscope_frame_data.feather`| `recorded_mesoscope_ttl`                                   |
+| `(3, 1)`   | `brake_data.feather`          | `maximum_brake_strength`, `minimum_brake_strength`        |
+| `(5, 1)`   | `valve_data.feather`          | `valve_scale_coefficient`, `valve_nonlinearity_exponent`  |
+| `(5, 2)`   | `gas_puff_data.feather`       | `delivered_gas_puffs`                                      |
+| `(4, 1)`   | `lick_data.feather`           | `lick_threshold`                                          |
+| `(6, 1)`   | `torque_data.feather`         | `torque_per_adc_unit`                                     |
+| `(7, 1)`   | `screen_data.feather`         | `screens_initially_on`                                    |
 
-| Column                 | Dtype     | Description                  |
-|------------------------|-----------|------------------------------|
-| `time_us`              | `UInt64`  | Event timestamp              |
-| `traveled_distance_cm` | `Float64` | Cumulative traveled distance |
+The module registry that drives this roster lives in `mesoscope_vr/microcontrollers.py`; the agnostic discovery,
+filename-parsing, and event-partitioning primitives every parser builds on (`find_module_feathers`,
+`parse_module_feather_name`, `partition_events`, `get_event_data`, `merge_event_streams`) live in
+`cross_system/microcontroller.py` (see `forging:microcontroller-primitives`). The module feathers these jobs parse
+are themselves produced upstream by axci (see `ataraxis@communication:log-processing`). A module whose gating
+hardware-state field is unset is skipped during processing, so its feather is legitimately absent.
 
-CCW rotation is treated as positive displacement, CW as negative. Calibrated via
-`hardware_state.cm_per_pulse`.
-
-**`mesoscope_frame_data.feather`** — module `(1, 1)` — Mesoscope TTL frame timestamps
-
-Presence gated by `hardware_state.recorded_mesoscope_ttl == True`. Schema is determined by
-`_parse_ttl_data` in `sollertia_forgery.processing.microcontrollers`. Inspect via
-`query_behavior_data_tool` if the column list is unknown at query time.
-
-**`brake_data.feather`** — module `(3, 1)` — brake strength events
-
-Calibrated via `hardware_state.maximum_brake_strength` / `minimum_brake_strength`.
-
-**`valve_data.feather`** — module `(5, 1)` — water valve events
-
-Calibrated via `hardware_state.valve_scale_coefficient` and `valve_nonlinearity_exponent`.
-
-**`gas_puff_data.feather`** — module `(5, 2)` — gas puff delivery events
-
-Presence gated by `hardware_state.delivered_gas_puffs == True`.
-
-**`lick_data.feather`** — module `(4, 1)` — lick sensor events
-
-Calibrated via `hardware_state.lick_threshold`.
-
-**`torque_data.feather`** — module `(6, 1)` — torque sensor events
-
-Calibrated via `hardware_state.torque_per_adc_unit`.
-
-**`screen_data.feather`** — module `(7, 1)` — screen on/off state transitions
-
-Initial state defined by `hardware_state.screens_initially_on`.
-
-> **Schema note:** Column names for modules other than the encoder are defined inside their parse
-> functions in `sollertia_forgery.processing.microcontrollers` and are not captured in this skill
-> because they evolve with the firmware. Always confirm the actual schema via
+> **Schema note:** Per-module output column names are defined by the parse functions in
+> `mesoscope_vr/microcontrollers.py` and may evolve with the firmware. Always confirm the actual schema via
 > `query_behavior_data_tool` (or `verify_behavior_processing_output_tool.files[*].columns`) before
-> relying on specific column names in downstream analysis.
+> relying on specific column names in downstream analysis. The authoritative per-module schema reference is
+> `mesoscope:mesoscope-vr-module-parsing`.
 
 ---
 
@@ -310,8 +312,8 @@ fields inside its `jobs[]` list:
 | Field           | Meaning                                                                             |
 |-----------------|-------------------------------------------------------------------------------------|
 | `job_id`        | xxHash64 hex digest of `job_name` (or `job_name:specifier` when a specifier is set) |
-| `job_name`      | One of `runtime_processing`, `camera_processing`, `microcontroller_processing`      |
-| `specifier`     | Job-specific identifier (source ID or `{cid}-{type}-{id}`)                          |
+| `job_name`      | One of `runtime_processing` or `microcontroller_processing`                         |
+| `specifier`     | `1` for runtime, `{cid}-{type}-{id}` for microcontroller                            |
 | `status`        | `SCHEDULED`, `RUNNING`, `SUCCEEDED`, or `FAILED`                                    |
 | `error_message` | Populated only when `status == FAILED`                                              |
 
@@ -322,7 +324,7 @@ data. Alongside `jobs[]`, the tracker dict also returns a `summary` block with a
 
 Use the tracker to cross-reference which jobs produced which feather files. A missing feather file
 with a `SUCCEEDED` tracker entry indicates a silent write failure (rare) — invoke
-`/behavior-processing` to clean and re-run that session.
+`forging:behavior-processing` to clean and re-run that session.
 
 ---
 
@@ -377,14 +379,21 @@ Sign flips in `step_cm` indicate direction reversals. CCW is positive by convent
 ### Trial feathers
 
 `trial_data.feather` is trial-start-indexed; use `traveled_distance_cm` to join against
-`encoder_data.feather` when mapping trial onsets to time. `vr_trigger_zone_data.feather` is aligned
-one-to-one with `trial_data.feather`, so you can zip the two without a key join.
+`encoder_data.feather` when mapping trial onsets to time. A `vr_trigger_zone_data.feather` row is emitted only for
+trials that reached their trigger-zone start (the runtime appends a trigger-zone row only when
+`trigger_start_absolute <= trial_distances[index]`), so the trigger-zone feather has at most one row per trial. The
+two feathers are one-to-one ONLY when every trial reached its trigger zone (no early truncation); a trial truncated
+before its trigger-zone start produces a `trial_data` row but NO `vr_trigger_zone_data` row, leaving the feathers at
+different lengths. Verify the row counts are equal before zipping the two, or align by `traveled_distance_cm` rather
+than a positional zip.
 
 ### Camera timestamps
 
-The camera feathers are byte-identical to the upstream axvs outputs. Use them to align behavior
-events with imaging frames; the `frame_time_us` column is already in UTC microseconds so it can
-be compared directly to any `time_us` column in this output.
+The camera feathers are written into `behavior_data/` by the separate video pipeline (job
+`camera_timestamp_extraction`, tracked under the camera tracker, not the behavior tracker), freshly extracted from
+the raw VideoSystem logs rather than hardlinked from upstream axvs output. Use them to align behavior events with
+imaging frames; the `frame_time_us` column is already in UTC microseconds so it can be compared directly to any
+`time_us` column in this output.
 
 ---
 
@@ -392,24 +401,29 @@ be compared directly to any `time_us` column in this output.
 
 | Symptom                                                   | Diagnosis                                                                    | Action                                                 |
 |-----------------------------------------------------------|------------------------------------------------------------------------------|--------------------------------------------------------|
-| `verified: false` with `total_files: 0`                   | Behavior processing never ran or was cleaned                                 | Run `/behavior-processing`                             |
+| `verified: false` with `total_files: 0`                   | Behavior processing never ran or was cleaned                                 | Run `forging:behavior-processing`                             |
 | `verified: false` with file `error: ...`                  | Corrupt feather output                                                       | Clean session output and re-run                        |
-| Tracker has `FAILED` jobs                                 | Job failures during execution                                                | See `/behavior-processing` error routing               |
+| Tracker has `FAILED` jobs                                 | Job failures during execution                                                | See `forging:behavior-processing` error routing               |
 | Tracker has `SUCCEEDED` but file missing                  | Rare: post-write deletion or filesystem eviction                             | Clean and re-run the affected session                  |
-| Expected camera feather missing                           | Source ID not in `_CAMERA_OUTPUT_NAMES`, or upstream axvs did not produce it | Check upstream axvs outputs, extend registry if needed |
-| Expected module feather missing                           | Module ineligible (hardware state field unset) or unknown `(type, id)`       | Check hardware state YAML and `_MODULE_REGISTRY`       |
+| Expected camera feather missing                           | Source not registered in the camera manifest, or no raw `{source_id}_log.npz` archive present; diagnosed against the camera tracker, NOT the behavior tracker | Check the camera manifest, raw camera logs, and `camera_timestamps/camera_processing_tracker.yaml` (see `forging:camera-timestamp-extraction`) |
+| Expected module feather missing                           | Module ineligible (gating hardware-state field unset) or unregistered `(module_type, module_id)` | Check the hardware state YAML and the module roster (see `mesoscope:mesoscope-vr-module-parsing`) |
 | Runtime experiment feathers missing on experiment session | Missing `experiment_configuration.yaml` or cue decomposition failure         | Fix experiment config or inspect runtime failure       |
 
 ---
 
 ## Related skills
 
-| Skill                                | Relationship                                                 |
-|--------------------------------------|--------------------------------------------------------------|
-| `/forging-mcp-environment-setup`     | Prerequisite: MCP server connectivity                        |
-| `assets:session-discovery`   | Upstream: session discovery produces confirmed session paths |
-| `/behavior-input-format`             | Reference: upstream inputs that became these outputs         |
-| `/behavior-processing`               | Upstream: produces the data described here                   |
+| Skill                                   | Relationship                                                              |
+|-----------------------------------------|--------------------------------------------------------------------------|
+| `forging:forging-mcp-environment-setup` | Prerequisite: MCP server connectivity                                    |
+| `assets:session-discovery`              | Upstream: session discovery produces confirmed session paths             |
+| `forging:behavior-input-format`         | Reference: upstream inputs that became these outputs                      |
+| `forging:behavior-processing`           | Upstream: produces the data described here                               |
+| `forging:data-processing-design`        | Doctrine: prepare-then-execute, trackers, and worker-budget concurrency  |
+| `forging:camera-timestamp-extraction`   | Owner of the separate video pipeline that writes camera feathers into `behavior_data/` |
+| `forging:microcontroller-primitives`    | Owner of the agnostic module-feather discovery and partitioning helpers  |
+| `mesoscope:mesoscope-vr-module-parsing` | Owner of per-module column schemas, event codes, and calibration fields  |
+| `mesoscope:mesoscope-vr-trial-decomposition` | Owner of the cue-sequence-to-trial decomposition algorithm          |
 
 ---
 
@@ -422,8 +436,9 @@ Processing Results:
 - [ ] Tracker reports SUCCEEDED for every expected (job_name, specifier) pair
 - [ ] Runtime state feathers present for all sessions
 - [ ] Experiment feathers present for MESOSCOPE_EXPERIMENT sessions only
-- [ ] Camera feathers present for every camera source ID expected
-- [ ] Microcontroller feathers present for every eligible module
+- [ ] Camera `{name}_timestamps.feather` present for every camera source in the manifest (produced by the separate
+      video pipeline and co-located here; their job state lives in the camera tracker, not the behavior tracker)
+- [ ] Microcontroller feathers present for every eligible module key in the roster
 - [ ] Sample rows and timing statistics spot-checked via query_behavior_data_tool
 - [ ] Any missing files cross-referenced against hardware state / experiment config / upstream outputs
 ```
