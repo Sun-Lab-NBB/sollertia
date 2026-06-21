@@ -1,7 +1,7 @@
 ---
 name: task-scenes
 description: >-
-  Manages Unity task scenes and asset enumeration for sollertia-unity-tasks via the
+  Manages Unity task scenes and asset enumeration for sollertia-virtual-reality via the
   sollertia-shared-assets MCP server's Unity relay. Owns list_scenes_tool, open_scene_tool,
   inspect_scene_tool, and list_assets_tool. Use when listing, switching, or inspecting task
   scenes, or when enumerating project assets.
@@ -10,7 +10,7 @@ user-invocable: false
 
 # Sollertia Unity task scenes
 
-Lists, opens, inspects, and enumerates Unity scenes and assets for the `sollertia-unity-tasks`
+Lists, opens, inspects, and enumerates Unity scenes and assets for the `sollertia-virtual-reality`
 project through the Unity relay exposed by `slsa mcp` — the **exclusive** owner of
 `list_scenes_tool`, `open_scene_tool`, `inspect_scene_tool`, and `list_assets_tool`, which no
 other skill in the marketplace may call.

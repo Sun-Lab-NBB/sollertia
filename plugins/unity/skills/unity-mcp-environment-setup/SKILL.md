@@ -1,7 +1,7 @@
 ---
 name: unity-mcp-environment-setup
 description: >-
-  Diagnoses and resolves Unity Editor relay connectivity issues for the sollertia-unity-tasks
+  Diagnoses and resolves Unity Editor relay connectivity issues for the sollertia-virtual-reality
   `McpBridge` (HTTP listener on 127.0.0.1:8090, [::1]:8090, and localhost:8090; Editor running;
   script compiled). Use when Unity relay tools fail with "Unity Editor is not reachable" or when
   starting a session that needs the Unity tools.
@@ -19,7 +19,7 @@ Unity-family tool exposed by `sollertia-shared-assets` — the `slsa mcp` server
 ## Scope
 
 **Covers:**
-- Verifying the Unity Editor is running with the `sollertia-unity-tasks` project open
+- Verifying the Unity Editor is running with the `sollertia-virtual-reality` project open
 - Verifying the `McpBridge` HTTP listener is active on `127.0.0.1:8090`, `[::1]:8090`, and
   `localhost:8090`
 - Testing the relay from the command line
@@ -28,7 +28,7 @@ Unity-family tool exposed by `sollertia-shared-assets` — the `slsa mcp` server
 **Does not cover:**
 - Diagnosing `slsa` CLI / `slsa mcp` availability (see `assets:assets-mcp-environment-setup`)
 - Sollertia working directory setup (see `assets:working-directory`)
-- Unity Editor installation or project setup (see the `sollertia-unity-tasks` README)
+- Unity Editor installation or project setup (see the `sollertia-virtual-reality` README)
 - Prefab, scene, Task Parameters, or Play Mode workflows (see `/task-prefabs`, `/task-scenes`,
   `/task-parameters`, `/play-mode`)
 
@@ -43,7 +43,7 @@ server delegates Unity operations over HTTP to an editor-side plugin called `Mcp
 Claude ↔ slsa mcp (stdio) ↔ HTTP POST to {127.0.0.1, [::1], localhost}:8090 ↔ Unity Editor McpBridge
 ```
 
-The `McpBridge` editor plugin ships with `sollertia-unity-tasks`. It starts the HTTP listener on
+The `McpBridge` editor plugin ships with `sollertia-virtual-reality`. It starts the HTTP listener on
 three loopback prefixes automatically when the Editor loads the project — registering all three
 because `HttpListener` performs exact host-header matching. A client requesting `localhost` is
 rejected by a `127.0.0.1` prefix even though they resolve to the same socket. The shipped Python
@@ -69,7 +69,7 @@ be reachable for the relay to work. The 13 relayed tools are:
 | `write_task_parameters_tool` | `/task-parameters` |
 
 All 13 tools require **both** the `slsa mcp` MCP server to be connected **and** the Unity Editor
-to be running with `sollertia-unity-tasks` open.
+to be running with `sollertia-virtual-reality` open.
 
 ---
 
@@ -84,7 +84,7 @@ bridge. Hand off to `assets:assets-mcp-environment-setup` first.
 
 ### Step 2: Confirm the Unity Editor is running
 
-Ask the user to confirm the Unity Editor is open with the `sollertia-unity-tasks` project loaded.
+Ask the user to confirm the Unity Editor is open with the `sollertia-virtual-reality` project loaded.
 If not, instruct them to open it and wait for the project to finish loading.
 
 ### Step 3: Confirm the McpBridge initialized
@@ -130,7 +130,7 @@ that exercises the relay. If it returns a structured response, Unity-dependent t
 
 | Symptom                                        | Cause                                                                                        | Resolution                                        |
 |------------------------------------------------|----------------------------------------------------------------------------------------------|---------------------------------------------------|
-| "Unity Editor is not reachable"                | Editor not running                                                                           | Open the Editor with `sollertia-unity-tasks`      |
+| "Unity Editor is not reachable"                | Editor not running                                                                           | Open the Editor with `sollertia-virtual-reality`      |
 | "Unity Editor is not reachable"                | McpBridge not loaded                                                                         | Wait for compile, verify Console for listener log |
 | "Unity Editor is not reachable"                | Port 8090 taken by another process                                                           | Free the port, restart the Editor                 |
 | "Unity Editor is not reachable" after ~30s     | Hard timeout on Python wrapper's `urllib.urlopen(timeout=30)`; Editor busy or hanging        | Retry after the Editor finishes compiling         |
@@ -221,7 +221,7 @@ downstream Unity-tool skill.
 ```text
 Unity MCP Environment Compliance:
 - [ ] slsa mcp server is connected (assets:assets-mcp-environment-setup)
-- [ ] Unity Editor is running with sollertia-unity-tasks open
+- [ ] Unity Editor is running with sollertia-virtual-reality open
 - [ ] Unity Console shows "McpBridge: Listening on http://127.0.0.1:8090/, http://[::1]:8090/, and http://localhost:8090/"
 - [ ] curl POST to localhost:8090 returns a JSON success response
 - [ ] get_play_state_tool returns a structured response from Claude

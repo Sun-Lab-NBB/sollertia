@@ -1,7 +1,7 @@
 ---
 name: zone-prefabs
 description: >-
-  Manufactures new trigger zone prefabs for sollertia-unity-tasks with the `clone_zone_prefab_tool` MCP
+  Manufactures new trigger zone prefabs for sollertia-virtual-reality with the `clone_zone_prefab_tool` MCP
   tool, which copies one of the two canonical base prefabs (`StimulusTriggerZone.prefab` for the interaction
   and collision modes, `OccupancyTriggerZone.prefab` for the occupancy modes) and swaps the modifier scripts,
   region names, and field defaults through Unity's serialization layer. Use when adding a new `TriggerType`
@@ -11,7 +11,7 @@ user-invocable: false
 
 # Sollertia Unity zone prefabs
 
-Authors new trigger zone prefabs for `sollertia-unity-tasks` with the `clone_zone_prefab_tool` MCP tool:
+Authors new trigger zone prefabs for `sollertia-virtual-reality` with the `clone_zone_prefab_tool` MCP tool:
 it copies one of the two committed base prefabs, swaps the modifier scripts and field defaults through
 Unity's serialization layer, and returns the resulting hierarchy for validation.
 

@@ -12,7 +12,7 @@
     {
       "name": "unity",
       "source": "./plugins/unity",
-      "description": "Provides Unity Editor integration skills for the sollertia-unity-tasks project. Authors task prefabs, manages VR scenes, drives Play Mode, validates task templates against prefab state, and documents the MQTT contract with sollertia-experiment, the CreateTask generation pipeline, the inlined GIMBL VR framework, and Editor-time scene setup. Uses the Unity relay served by the assets plugin's slsa MCP server and the McpBridge editor plugin."
+      "description": "Provides Unity Editor integration skills for the sollertia-virtual-reality project. Authors task prefabs, manages VR scenes, drives Play Mode, validates task templates against prefab state, and documents the MQTT contract with sollertia-experiment, the CreateTask generation pipeline, the inlined GIMBL VR framework, and Editor-time scene setup. Uses the Unity relay served by the assets plugin's slsa MCP server and the McpBridge editor plugin."
     },
     {
       "name": "experiment",

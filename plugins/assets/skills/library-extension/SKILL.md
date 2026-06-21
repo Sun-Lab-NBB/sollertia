@@ -244,7 +244,7 @@ framing reflects the new member:
   "Building a new acquisition system from scratch" workflow (steps 9–10). They are not required for
   the system to run, but omitting them leaves the system driveable yet undocumented for agents.
 - `sollertia-forgery` may need new behavior-processing or video-processing branches per system.
-- `sollertia-unity-tasks` may need new scene scaffolding if the new system uses Unity.
+- `sollertia-virtual-reality` may need new scene scaffolding if the new system uses Unity.
 
 ### Adding a new runtime trial class
 
@@ -459,7 +459,7 @@ Skill side:
 
 Downstream side:
 - [ ] Downstream-library hand-offs listed in the per-scenario table are documented in the PR
-      description (sollertia-experiment, sollertia-forgery, sollertia-unity-tasks as applicable)
+      description (sollertia-experiment, sollertia-forgery, sollertia-virtual-reality as applicable)
 - [ ] If the README does not yet carry a recipe for the chosen scenario (new trial, new trigger),
       proposed a README update in the same PR
 ```

@@ -1,7 +1,7 @@
 ---
 name: task-prefabs
 description: >-
-  Creates, deletes, and inspects Unity tasks for sollertia-unity-tasks from YAML task templates.
+  Creates, deletes, and inspects Unity tasks for sollertia-virtual-reality from YAML task templates.
   Owns create_task_tool (single-step template → prefab + scene), delete_task_tool (single-step
   removal of every generated artifact for a task), inspect_prefab_tool, and delete_asset_tool
   (individual cue / material cleanup). Use when a template needs a matching task built or removed,
@@ -11,7 +11,7 @@ user-invocable: false
 
 # Sollertia Unity task prefabs
 
-Creates, deletes, and inspects Unity tasks for the `sollertia-unity-tasks` project through the
+Creates, deletes, and inspects Unity tasks for the `sollertia-virtual-reality` project through the
 Unity relay exposed by `slsa mcp` — the **exclusive** owner of `create_task_tool`,
 `delete_task_tool`, `inspect_prefab_tool`, and `delete_asset_tool`, which no other skill in the
 marketplace may call.

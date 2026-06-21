@@ -128,7 +128,7 @@ set `supports_trials` to match (`False`) so the forging/analysis side reads the 
 
 The experiment configuration **never enumerates or schedules trials** — it contributes only the
 **per-trial-type parameters** (the system-specific runtime fields on each trial class). The trial
-sequence is owned by Unity (`sollertia-unity-tasks`): at session init the acquisition runtime requests a cue
+sequence is owned by Unity (`sollertia-virtual-reality`): at session init the acquisition runtime requests a cue
 sequence materialized from the template's per-trial `transitions` (see `/task-templates`), then identifies trial
 boundaries by motif matching against each `TrialStructure`. Relative frequencies are encoded in the template's
 transition probabilities. The runtime joins each decomposed trial name back to this configuration's

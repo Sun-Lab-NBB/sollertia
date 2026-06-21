@@ -1,7 +1,7 @@
 ---
 name: scene-setup
 description: >-
-  Guides Editor-side scene configuration for sollertia-unity-tasks: the consolidated Task
+  Guides Editor-side scene configuration for sollertia-virtual-reality: the consolidated Task
   Parameters window, the three-monitor Display rig, swapping the LinearTreadmill and
   SimulatedLinearTreadmill controllers from the Actor section, and the optional UI lick-reward
   feedback canvas. Use when preparing a new scene for Play Mode, swapping hardware for the

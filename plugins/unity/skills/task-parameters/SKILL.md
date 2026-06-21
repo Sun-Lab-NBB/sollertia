@@ -1,7 +1,7 @@
 ---
 name: task-parameters
 description: >-
-  Reads and writes the consolidated Task Parameters editor window in sollertia-unity-tasks via the
+  Reads and writes the consolidated Task Parameters editor window in sollertia-virtual-reality via the
   sollertia-shared-assets MCP server's Unity relay. Owns read_task_parameters_tool and
   write_task_parameters_tool, which mirror the Actor, MQTT, Display, Camera Mapping, and Task
   sections of `Window → Task Parameters`. Use when inspecting or programmatically changing per-scene
@@ -12,7 +12,7 @@ user-invocable: false
 # Sollertia Unity task parameters
 
 Programmatically reads and writes the consolidated **Task Parameters** Unity Editor window for
-`sollertia-unity-tasks` through the Unity relay exposed by `slsa mcp` — the **exclusive** owner of
+`sollertia-virtual-reality` through the Unity relay exposed by `slsa mcp` — the **exclusive** owner of
 `read_task_parameters_tool` and `write_task_parameters_tool`, which no other skill in the
 marketplace may call.
 

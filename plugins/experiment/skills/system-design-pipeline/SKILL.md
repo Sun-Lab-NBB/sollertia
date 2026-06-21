@@ -54,7 +54,7 @@ configuration-time / runtime split applies (runtime acquisition is deterministic
 | Shared-assets contract | `sollertia-shared-assets`                              | `assets:library-extension`                                   |
 | Hardware interfaces    | `sollertia-micro-controllers` + `sollertia-experiment` | `/microcontroller-interface` (+ ataraxis)                    |
 | Acquisition runtime    | `sollertia-experiment`                                 | `/acquisition-system-design` → `/acquisition-system-runtime` |
-| Corridor task          | `sollertia-unity-tasks`                                | `assets:task-templates` → `unity:task-prefabs`               |
+| Corridor task          | `sollertia-virtual-reality`                                | `assets:task-templates` → `unity:task-prefabs`               |
 
 ### Phase ordering is load-bearing
 

@@ -113,7 +113,7 @@ The task templates directory is a standalone directory (separate from the workin
 reusable `TaskTemplate` YAML files. Each template describes a complete behavioral paradigm: the VR
 environment, the cue catalog, and the trial structures (each of which carries its own cue sequence, zone
 geometry, and trigger type — there is no separate segment catalog at the template level). This is
-typically the path to the local sollertia-unity-tasks repository's template directory:
+typically the path to the local sollertia-virtual-reality repository's template directory:
 `<local-repo>/Assets/InfiniteCorridorTask/Configurations/`. The MCP `create_task_tool` refuses
 templates outside that directory (see `unity_tools.py`), and the Unity-side `CreateFromTemplate`
 generator scans the same directory (see the unity plugin's skills), so this directory is the

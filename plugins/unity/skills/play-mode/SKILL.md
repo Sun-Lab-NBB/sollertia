@@ -1,7 +1,7 @@
 ---
 name: play-mode
 description: >-
-  Controls Unity Editor Play Mode for sollertia-unity-tasks via the sollertia-shared-assets
+  Controls Unity Editor Play Mode for sollertia-virtual-reality via the sollertia-shared-assets
   MCP server's Unity relay. Owns enter_play_mode_tool, exit_play_mode_tool, and
   get_play_state_tool. Use when manually exercising a task prefab, checking play state, or
   gating Unity operations on it.
@@ -10,7 +10,7 @@ user-invocable: false
 
 # Sollertia Unity Play Mode
 
-Drives the Unity Editor's Play Mode for the `sollertia-unity-tasks` project using the Unity relay
+Drives the Unity Editor's Play Mode for the `sollertia-virtual-reality` project using the Unity relay
 exposed by `slsa mcp`. This skill is the **exclusive** owner of `enter_play_mode_tool`,
 `exit_play_mode_tool`, and `get_play_state_tool` — no other skill in the marketplace may call
 these.

@@ -12,7 +12,7 @@ user-invocable: false
 # VR task driver interface
 
 Documents the Virtual Reality task driver — the host-side hardware subsystem that couples a Sollertia
-acquisition runtime to the Unity game engine implemented in `sollertia-unity-tasks`. This is the
+acquisition runtime to the Unity game engine implemented in `sollertia-virtual-reality`. This is the
 platform-general VR subsystem, parallel to `/microcontroller-interface` (microcontrollers) and
 `/zaber-interface` (motors): the `VRTaskDriver` in
 `sollertia_experiment/vr_task/driver.py` is hardware-agnostic and composed by an acquisition
@@ -96,7 +96,7 @@ must run on the same machine as the Unity Editor.
 ## MQTT topic contract
 
 `_VRTaskMQTTTopics` (`StrEnum` in `driver.py`) mirrors the flat PascalCase `MQTTTopics` constant set
-published by `sollertia-unity-tasks` (see `unity:mqtt-contract`). Both sides MUST agree on these
+published by `sollertia-virtual-reality` (see `unity:mqtt-contract`). Both sides MUST agree on these
 strings exactly.
 
 | Topic enum             | Wire string          | Direction       | Payload                                                                 |
@@ -279,7 +279,7 @@ The runtime orchestrator owns the driver lifecycle (see `mesoscope:mesoscope-vr-
 
 ## Workflow: adding an MQTT topic
 
-Adding a topic is a coordinated change with the Unity project (`sollertia-unity-tasks`).
+Adding a topic is a coordinated change with the Unity project (`sollertia-virtual-reality`).
 
 1. Add the topic to `_VRTaskMQTTTopics` in `driver.py`, mirroring the exact wire string Unity uses.
 2. If inbound and surfaced to the runtime, add it to the `monitored_topics` tuple in `VRTaskDriver.__init__`.

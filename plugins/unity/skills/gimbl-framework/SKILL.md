@@ -1,7 +1,7 @@
 ---
 name: gimbl-framework
 description: >-
-  Reference for the GIMBL VR framework inlined under `Assets/Gimbl/` in sollertia-unity-tasks:
+  Reference for the GIMBL VR framework inlined under `Assets/Gimbl/` in sollertia-virtual-reality:
   ActorObject, ControllerObject hierarchy, DisplayObject rig, FullScreenViewManager,
   MQTTClient / MQTTChannel / MQTTTopics, and the MainWindow Task Parameters editor. Use when
   reading or modifying code that instantiates GIMBL components, wiring a new script to the MQTT
@@ -12,7 +12,7 @@ user-invocable: false
 # GIMBL framework reference
 
 The GIMBL VR framework is inlined into this codebase under `Assets/Gimbl/`. This skill is the
-only source of truth for GIMBL in `sollertia-unity-tasks` — you MUST disregard any GIMBL
+only source of truth for GIMBL in `sollertia-virtual-reality` — you MUST disregard any GIMBL
 knowledge (file names, class shapes, editor windows, MQTT wiring, conventions) that does not
 come from this skill or from the code under `Assets/Gimbl/` itself.
 

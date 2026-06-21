@@ -1,7 +1,7 @@
 ---
 name: mqtt-contract
 description: >-
-  Documents every MQTT topic sollertia-unity-tasks publishes or subscribes to — payload shape,
+  Documents every MQTT topic sollertia-virtual-reality publishes or subscribes to — payload shape,
   direction, owning script — covering the bidirectional MQTT 5.0 contract with sollertia-experiment.
   All topics are flat PascalCase constants centralized in Assets/Gimbl/Scripts/MQTT/MQTTTopics.cs.
   Use when authoring or modifying MQTT wiring, diagnosing a missed message, or adding a new
@@ -11,7 +11,7 @@ user-invocable: false
 
 # Sollertia Unity MQTT contract
 
-Documents the MQTT contract between `sollertia-unity-tasks` and `sollertia-experiment`. Every
+Documents the MQTT contract between `sollertia-virtual-reality` and `sollertia-experiment`. Every
 topic is declared as a `public const string` in
 `Assets/Gimbl/Scripts/MQTT/MQTTTopics.cs`, which is the single source of truth for topic names,
 payload shapes, and direction. This skill is the audit-ready mirror of that file.
@@ -26,7 +26,7 @@ and `/play-mode` (mid-run flag flips).
 ## Scope
 
 **Covers:**
-- Every MQTT topic published or subscribed to by `sollertia-unity-tasks` scripts
+- Every MQTT topic published or subscribed to by `sollertia-virtual-reality` scripts
 - Payload shapes (trigger-only vs JSON-serialized typed messages)
 - Owning script and initialization site for each channel
 - Required topic conventions (flat PascalCase, no trailing slash, centralized constants)

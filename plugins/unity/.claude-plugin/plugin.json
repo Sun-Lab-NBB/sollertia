@@ -1,7 +1,7 @@
 {
   "name": "unity",
   "version": "1.1.1",
-  "description": "Agentic access to the sollertia-unity-tasks Unity Editor project. Authors, validates, and regenerates the VR task prefabs and scenes that form the behavioral task surface of the Sollertia ecosystem, and owns Play Mode control plus reference for the MQTT contract, CreateTask pipeline, and inlined GIMBL framework. Backed by the sollertia-shared-assets MCP server (slsa) via the Editor's McpBridge relay; requires the assets plugin.",
+  "description": "Agentic access to the sollertia-virtual-reality Unity Editor project. Authors, validates, and regenerates the VR task prefabs and scenes that form the behavioral task surface of the Sollertia ecosystem, and owns Play Mode control plus reference for the MQTT contract, CreateTask pipeline, and inlined GIMBL framework. Backed by the sollertia-shared-assets MCP server (slsa) via the Editor's McpBridge relay; requires the assets plugin.",
   "repository": "https://github.com/Sun-Lab-NBB/sollertia",
   "license": "Apache-2.0",
   "skills": "./skills/"

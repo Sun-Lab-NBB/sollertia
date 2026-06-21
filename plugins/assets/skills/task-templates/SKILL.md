@@ -286,7 +286,7 @@ For the current Mesoscope-VR reference system's concrete mapping, see
   class is the experiment config's contract with the runtime's stimulus delivery code.
 - **`cue_offset_cm` lives on `vr_environment`** because the cue-origin shift is an attribute of
   the corridor geometry itself — every Unity-spawned corridor instance sees the same value. On
-  the Unity side (`sollertia-unity-tasks`) it also drives the per-segment ResetZone placement so
+  the Unity side (`sollertia-virtual-reality`) it also drives the per-segment ResetZone placement so
   the animal's spawn point falls inside the reset zone on every lap restart — see the unity
   plugin's skills for the prefab-generation specifics.
 
@@ -471,7 +471,7 @@ for instantiating templates into experiment configurations.
 - [ ] If the template targets a Unity scene, unity:task-prefabs was invoked for prefab
       generation and validation
 - [ ] If a NEW schema field was added (not just a new value), confirmed it is a two-repo mirror change — the Python
-      dataclass in sollertia-shared-assets AND the matching C# [Serializable] field in sollertia-unity-tasks (the
+      dataclass in sollertia-shared-assets AND the matching C# [Serializable] field in sollertia-virtual-reality (the
       camelCase counterpart of the underscored YAML key, with matching optionality/default); see unity plugin's
       unity:task-generator "Adding a new template-driven field"
 ```
