@@ -427,7 +427,7 @@ affects both flows. Test through both the menu and the MCP tools after any pipel
 `/zone-prefabs` worked examples cover a speed-gated interaction reward and a cumulative-occupancy variant end to end.
 The recipe holds as long as the new mode is a zone modifier (subclass an existing zone, or a standalone `IResettable`
 registered in `ResetZone`) on a copied zone prefab whose root subclasses `StimulusTriggerZone` and publishes the
-standard `Stimulus{trialName}` event. Escalate to the human supervisor only when the behavior needs a new MQTT topic,
+standard `Stimulus` event. Escalate to the human supervisor only when the behavior needs a new MQTT topic,
 new `Task.cs` runtime mechanics, or geometry outside a single corridor segment — those are paradigm-level and have no
 author-derived recipe.
 
@@ -469,7 +469,7 @@ acquisition system maps only the subset it supports and may leave a member unmap
 (→ `MesoscopeGasPuffTrial`), and does not map `collision`, `occupancy_arm`, or `occupancy_trigger`, so a
 Mesoscope-VR config that uses one of those raises a clear "not mapped to a runtime trial class" error.
 All five modes share one MQTT/wire contract:
-every mode publishes the same `Stimulus{trialName}` event, adds no topics, and does not change
+every mode publishes the same `Stimulus` event, adds no topics, and does not change
 `require_interaction` / `require_wait`. `list_supported_trigger_types_tool` returns all five values.
 
 ### Adding a new cue or segment

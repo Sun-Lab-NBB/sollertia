@@ -318,7 +318,7 @@ three occupancy modes share the `OccupancyTriggerZone.prefab` source and the occ
 (`OccupancyGuidanceZone` publishing `Delay`); `CreateTask` only varies the occupancy sub-mode.
 `collision` reuses `StimulusTriggerZone.prefab` with its `GuidanceRegion` child stripped and the
 root collider set as a thin boundary wall at `stimulus_location`. No mode has its own prefab file,
-and every mode publishes the same `Stimulus{trialName}` event.
+and every mode publishes the same `Stimulus` event.
 
 ### Interaction mode (trigger_type == "interaction")
 

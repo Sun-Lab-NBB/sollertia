@@ -99,20 +99,20 @@ must run on the same machine as the Unity Editor.
 published by `sollertia-unity-tasks` (see `unity:mqtt-contract`). Both sides MUST agree on these
 strings exactly.
 
-| Topic enum             | Wire string          | Direction       | Payload                                                         |
-|------------------------|----------------------|-----------------|-----------------------------------------------------------------|
-| `SESSION_START`        | `SessionStart`       | Unity → runtime | empty trigger (Unity MQTT client started)                       |
-| `SESSION_STOP`         | `SessionStop`        | Unity → runtime | empty trigger (Unity application quit)                          |
-| `MOTION`               | `Motion`             | runtime → Unity | `TreadmillMessage` `{movement: float}` (Unity-unit delta)       |
-| `INTERACTION`          | `Interaction`        | runtime → Unity | empty trigger                                                   |
-| `STIMULUS`             | `Stimulus`           | Unity → runtime | `StimulusMessage` `{trialName: string}` (id = trial name)       |
-| `DELAY`                | `Delay`              | Unity → runtime | `TriggerDelayMessage` `{delayMilliseconds: uint}`               |
-| `CUE_SEQUENCE_TRIGGER` | `CueSequenceTrigger` | runtime → Unity | empty trigger (request flattened cue sequence)                  |
-| `CUE_SEQUENCE`         | `CueSequence`        | Unity → runtime | `SequenceMessage` `{cueSequence: byte[]}`                       |
-| `SCENE_NAME_TRIGGER`   | `SceneNameTrigger`   | runtime → Unity | empty trigger (request active scene name)                       |
-| `SCENE_NAME`           | `SceneName`          | Unity → runtime | `SceneNameMessage` `{name: string}`                             |
-| `REQUIRE_INTERACTION`  | `RequireInteraction` | runtime → Unity | `BoolMessage` `{value: bool}` (inverse of reinforcing guidance) |
-| `REQUIRE_WAIT`         | `RequireWait`        | runtime → Unity | `BoolMessage` `{value: bool}` (inverse of aversive guidance)    |
+| Topic enum             | Wire string          | Direction       | Payload                                                                 |
+|------------------------|----------------------|-----------------|-------------------------------------------------------------------------|
+| `SESSION_START`        | `SessionStart`       | Unity → runtime | empty trigger (Unity MQTT client started)                               |
+| `SESSION_STOP`         | `SessionStop`        | Unity → runtime | empty trigger (Unity application quit)                                  |
+| `MOTION`               | `Motion`             | runtime → Unity | `TreadmillMessage` `{movement: float}` (Unity-unit delta)               |
+| `INTERACTION`          | `Interaction`        | runtime → Unity | empty trigger                                                           |
+| `STIMULUS`             | `Stimulus`           | Unity → runtime | `StimulusMessage` `{trialName: string, delivered: bool, cause: string}` |
+| `DELAY`                | `Delay`              | Unity → runtime | `TriggerDelayMessage` `{delayMilliseconds: uint}`                       |
+| `CUE_SEQUENCE_TRIGGER` | `CueSequenceTrigger` | runtime → Unity | empty trigger (request flattened cue sequence)                          |
+| `CUE_SEQUENCE`         | `CueSequence`        | Unity → runtime | `SequenceMessage` `{cueSequence: byte[]}`                               |
+| `SCENE_NAME_TRIGGER`   | `SceneNameTrigger`   | runtime → Unity | empty trigger (request active scene name)                               |
+| `SCENE_NAME`           | `SceneName`          | Unity → runtime | `SceneNameMessage` `{name: string}`                                     |
+| `REQUIRE_INTERACTION`  | `RequireInteraction` | runtime → Unity | `BoolMessage` `{value: bool}` (inverse of reinforcing guidance)         |
+| `REQUIRE_WAIT`         | `RequireWait`        | runtime → Unity | `BoolMessage` `{value: bool}` (inverse of aversive guidance)            |
 
 The driver subscribes to the inbound subset it surfaces or resolves internally
 (`CUE_SEQUENCE`, `SESSION_STOP`, `SESSION_START`, `SCENE_NAME`, `STIMULUS`, `DELAY`) when constructing
@@ -158,18 +158,19 @@ dedicated reachability check is surfaced to pre-flight via the `sle get unity` C
 `cycle()` consumes **at most one** MQTT message per call and returns a typed `VRTaskEvent`. The
 asynchronous Unity messages it surfaces are enumerated by `VRTaskEventKind` (`IntEnum`):
 
-| Kind                      | Value | Source topic                        | Meaning / caller action                                                |
-|---------------------------|-------|-------------------------------------|------------------------------------------------------------------------|
-| `NONE`                    | 0     | (buffer empty or a handshake topic) | No dispatchable event this cycle                                       |
-| `STIMULUS_TRIGGERED`      | 1     | `STIMULUS`                          | The animal triggered the current trial's stimulus; deliver reward/puff |
-| `TRIGGER_DELAY_REQUESTED` | 2     | `DELAY`                             | Unity requests a brake pulse of `delay_ms` milliseconds                |
-| `UNITY_TERMINATED`        | 3     | `SESSION_STOP`                      | Unity runtime ended; the system must enter an emergency pause          |
+| Kind                      | Value | Source topic                        | Meaning / caller action                                              |
+|---------------------------|-------|-------------------------------------|----------------------------------------------------------------------|
+| `NONE`                    | 0     | (buffer empty or a handshake topic) | No dispatchable event this cycle                                     |
+| `STIMULUS_TRIGGERED`      | 1     | `STIMULUS`                          | Trial resolved; `delivered` drives reward/puff, `cause` marks guided |
+| `TRIGGER_DELAY_REQUESTED` | 2     | `DELAY`                             | Unity requests a brake pulse of `delay_ms` milliseconds              |
+| `UNITY_TERMINATED`        | 3     | `SESSION_STOP`                      | Unity runtime ended; the system must enter an emergency pause        |
 
-`VRTaskEvent` (frozen dataclass) carries `kind: VRTaskEventKind`, `delay_ms: int = 0` (populated
-only for `TRIGGER_DELAY_REQUESTED`), and `trial_name` (populated only for `STIMULUS_TRIGGERED`, parsed
-from the `Stimulus` payload so the runtime can resolve the per-trial outcome). Handshake topics consumed
-during `cycle()` (`SESSION_START`, `SCENE_NAME`, `CUE_SEQUENCE`) resolve to `NONE` — they are handled by
-the setup sequence, not dispatched.
+`VRTaskEvent` (frozen dataclass) carries `kind: VRTaskEventKind`, `delay_ms: int = 0` (populated only for
+`TRIGGER_DELAY_REQUESTED`), and — populated only for `STIMULUS_TRIGGERED` and parsed from the `Stimulus` payload —
+`trial_name: str`, `delivered: bool = True`, and `cause: StimulusCause = BEHAVIOR` (a `StrEnum` of `BEHAVIOR`/`GUIDANCE`
+exported from the `vr_task` package). The runtime resolves the per-trial outcome from `delivered` and `cause`. Handshake
+topics consumed during `cycle()` (`SESSION_START`, `SCENE_NAME`, `CUE_SEQUENCE`) resolve to `NONE` — they are handled
+by the setup sequence, not dispatched.
 
 `VRTaskState` (dataclass, the driver's `state` property) is the single source of truth shared between
 the setup handshake and per-cycle events:
@@ -252,7 +253,7 @@ mapping see `mesoscope:mesoscope-vr-experiment-schema`.
 The orchestrator reads the driver's `trial_names` — joining them against its experiment configuration's trial
 structures to build the per-trial outcome arrays (e.g. Mesoscope-VR's reward/puff arrays — see
 `mesoscope:mesoscope-vr-experiment-schema`) — along with `cue_sequence_distances` and `state.cue_sequence`.
-All trial modes share one MQTT/wire contract: every mode publishes the same `Stimulus{trialName}` event and
+All trial modes share one MQTT/wire contract: every mode publishes the same `Stimulus` event and
 adds no topics (see the [MQTT topic contract](#mqtt-topic-contract)); the Unity-side dispatch, prefab reuse,
 and mode-aware template geometry are owned by `unity:zone-prefabs`, `unity:task-generator`, and
 `assets:task-templates`.

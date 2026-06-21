@@ -223,7 +223,7 @@ trial subclass in the per-project experiment configuration via `/experiment-conf
 ### The five trigger modes
 
 `TriggerType` carries five modes. Each tells Unity which zone prefab to bake and which firing rule the
-`StimulusTriggerZone` applies; every mode publishes the same `Stimulus{trialName}` event, so the
+`StimulusTriggerZone` applies; every mode publishes the same `Stimulus` event, so the
 MQTT/wire contract is identical across modes (no new topics, no change to
 `require_interaction` / `require_wait`).
 

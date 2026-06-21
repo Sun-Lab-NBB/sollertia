@@ -81,10 +81,10 @@ to Unity, the channel type, the payload shape, and the script(s) that publish or
 
 ### Session lifecycle (owned by `Gimbl.MQTTClient`)
 
-| Constant       | Direction          | Channel type  | Payload | Publisher                                          | Subscriber           |
-|----------------|--------------------|---------------|---------|----------------------------------------------------|----------------------|
-| `SessionStart` | Unity → experiment | `MQTTChannel` | empty   | `MQTTClient.StartSessionAsync` (1 s after `Start`) | sollertia-experiment |
-| `SessionStop`  | Unity → experiment | `MQTTChannel` | empty   | `MQTTClient.OnApplicationQuit`                     | sollertia-experiment |
+| Constant      | Direction          | Channel type                                       | Payload                                                       | Publisher(s)                                                                   | Subscriber(s)                                                                            |
+|---------------|--------------------|----------------------------------------------------|---------------------------------------------------------------|--------------------------------------------------------------------------------|------------------------------------------------------------------------------------------|
+| `Interaction` | bidirectional      | `MQTTChannel`                                      | empty                                                         | sollertia-experiment hardware lickport; `SimulatedLinearTreadmill` Jump action | `SL.Tasks.StimulusTriggerZone.OnInteractionDetected`; `SL.UI.LickStimulusSpawner.OnLick` |
+| `Stimulus`    | Unity → experiment | `MQTTChannel<StimulusTriggerZone.StimulusMessage>` | `{ "trialName": string, "delivered": bool, "cause": string }` | `SL.Tasks.StimulusTriggerZone.TriggerStimulus`                                 | sollertia-experiment; `SL.UI.LickStimulusSpawner.OnStimulus` (intra-Unity)               |
 
 Both are fire-and-forget lifecycle markers — no payload, no acknowledgement contract on the Unity
 side. `sollertia-experiment` uses them to bracket per-session data acquisition.
@@ -103,17 +103,19 @@ note.
 
 ### Interaction / stimulus (owned by `SL.Tasks.StimulusTriggerZone` and `Gimbl.SimulatedLinearTreadmill`)
 
-| Constant      | Direction          | Channel type                                       | Payload                   | Publisher(s)                                                                   | Subscriber(s)                                                                            |
-|---------------|--------------------|----------------------------------------------------|---------------------------|--------------------------------------------------------------------------------|------------------------------------------------------------------------------------------|
-| `Interaction` | bidirectional      | `MQTTChannel`                                      | empty                     | sollertia-experiment hardware lickport; `SimulatedLinearTreadmill` Jump action | `SL.Tasks.StimulusTriggerZone.OnInteractionDetected`; `SL.UI.LickStimulusSpawner.OnLick` |
-| `Stimulus`    | Unity → experiment | `MQTTChannel<StimulusTriggerZone.StimulusMessage>` | `{ "trialName": string }` | `SL.Tasks.StimulusTriggerZone.TriggerStimulus`                                 | sollertia-experiment; `SL.UI.LickStimulusSpawner.OnStimulus` (intra-Unity)               |
+| Constant      | Direction          | Channel type                                       | Payload                                                       | Publisher(s)                                                                   | Subscriber(s)                                                                            |
+|---------------|--------------------|----------------------------------------------------|---------------------------------------------------------------|--------------------------------------------------------------------------------|------------------------------------------------------------------------------------------|
+| `Interaction` | bidirectional      | `MQTTChannel`                                      | empty                                                         | sollertia-experiment hardware lickport; `SimulatedLinearTreadmill` Jump action | `SL.Tasks.StimulusTriggerZone.OnInteractionDetected`; `SL.UI.LickStimulusSpawner.OnLick` |
+| `Stimulus`    | Unity → experiment | `MQTTChannel<StimulusTriggerZone.StimulusMessage>` | `{ "trialName": string, "delivered": bool, "cause": string }` | `SL.Tasks.StimulusTriggerZone.TriggerStimulus`                                 | sollertia-experiment; `SL.UI.LickStimulusSpawner.OnStimulus` (intra-Unity)               |
 
 Both topics are multi-subscriber — see [Multi-consumer topics](#multi-consumer-topics) for the
 full subscriber map. `Interaction` is bidirectional because the simulated treadmill publishes
-synthetic licks during keyboard-only runs while hardware publishes them in production. The
-`Stimulus` payload carries the firing zone's owning trial name (set on `StimulusTriggerZone.trialName`
-by `CreateTask` at generation), so the stimulus identifier is the trial name; `sollertia-experiment`
-parses it into `VRTaskEvent.trial_name` and resolves the per-trial outcome from it.
+synthetic licks during keyboard-only runs while hardware publishes them in production. The `Stimulus`
+payload carries the resolving trial's name (`trialName`, set on `StimulusTriggerZone.trialName` by
+`CreateTask` at generation, so the stimulus identifier is the trial name), a `delivered` flag (whether the
+physical stimulus fired or was omitted), and a `cause` string (`behavior` for the animal's own action or
+`guidance` for the fallback). `sollertia-experiment` parses these into `VRTaskEvent` and resolves the
+per-trial outcome from them.
 
 ### Occupancy guidance brake (owned by `SL.Tasks.OccupancyGuidanceZone`)
 
@@ -201,16 +203,17 @@ Publishers:
 ### `Stimulus`
 
 Subscriber inside Unity:
-- `SL.UI.LickStimulusSpawner.OnStimulus` — spawns a UI indicator.
+- `SL.UI.LickStimulusSpawner.OnStimulus` — spawns a UI indicator when the stimulus was delivered.
 
 Publisher:
-- `SL.Tasks.StimulusTriggerZone.TriggerStimulus` — fires once per zone activation. All five trigger
-  modes (`interaction`, `collision`, `occupancy_disarm`, `occupancy_arm`, `occupancy_trigger`) publish
-  this same `Stimulus` event; only the firing condition differs (an interaction event, a boundary-wall
-  collision, or occupancy met), and the wire payload is identical across modes.
+- `SL.Tasks.StimulusTriggerZone.TriggerStimulus` — publishes exactly once per trial at its resolution
+  (delivered or omitted). All five trigger modes (`interaction`, `collision`, `occupancy_disarm`,
+  `occupancy_arm`, `occupancy_trigger`) publish this same `Stimulus` event; only the resolution condition
+  differs (an interaction, a boundary-wall collision, occupancy met or not, or leaving an interaction zone
+  without interacting), and the wire payload shape is identical across modes.
 
 External:
-- sollertia-experiment subscribes to log the stimulus event against the session timeline.
+- sollertia-experiment subscribes to resolve the per-trial outcome and command the stimulus hardware.
 
 ---
 

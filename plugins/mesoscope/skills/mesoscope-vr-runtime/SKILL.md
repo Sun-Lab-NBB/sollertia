@@ -192,7 +192,9 @@ advances the within-session runtime stage. State transitions are idempotent.
 
 - `_data_cycle()` — drains microcontroller data, updates trackers, pushes motion/lick to the VR
   driver and the visualizer.
-- `_unity_cycle()` — consumes at most one `VRTaskEvent` from the `VRTaskDriver` and dispatches it.
+- `_unity_cycle()` — consumes at most one `VRTaskEvent` from the `VRTaskDriver` and dispatches it; for
+  `STIMULUS_TRIGGERED` it resolves the trial outcome (success / guided / failure) from the event's `delivered` and
+  `cause` and reports it to the visualizer, labeling a trial guided only when guidance actually fired.
 - `_ui_cycle()` — services the `RuntimeControlUI` (pause/resume, threshold modifiers, manual reward).
 - `_mesoscope_cycle()` — services mesoscope frame-acquisition bookkeeping.
 

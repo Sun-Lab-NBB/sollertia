@@ -304,7 +304,7 @@ above handles routine variants in one call.
 | `assets:library-extension`                   | Required for new `TriggerType` member and registry parity check                                            |
 | `ataraxis@automation:csharp-style`           | Required when authoring the new modifier script and editing C# wiring                                      |
 | `ataraxis@automation:commit`                 | Run after the prefab, script, and wiring changes are ready to commit                                       |
-| `experiment:vr-driver-interface`             | Host consumes the `Stimulus{trialName}` events these zones emit, joined via `DecomposedTrials.trial_names` |
+| `experiment:vr-driver-interface`             | Host consumes the `Stimulus` events these zones emit, joined via `DecomposedTrials.trial_names`            |
 
 ---
 
