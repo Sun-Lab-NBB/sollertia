@@ -111,7 +111,7 @@ pip list 2>/dev/null | grep sollertia-experiment
 ```
 
 Based on the output, guide the user through the appropriate resolution. The pattern is identical to
-the ataraxis MCP environment setup workflow — see `ataraxis@communication:mcp-environment-setup` for
+the ataraxis MCP environment setup workflow — see `ataraxis@communication:communication-mcp-environment-setup` for
 the full conda / venv / uv decision tree. The only substitution is the package name:
 
 ```bash

@@ -157,10 +157,10 @@ from `filesystem.storage_directories` — see `mesoscope:mesoscope-vr`):
   relocates each locally stored session directory to the target project and reassigns it entirely
   on-premises.
 
-In both modes the **target project must already exist**, or `migrate_animal_tool` aborts. Project
-directories are created with the `create_project_tool` MCP tool or the `slsa configure project` CLI
-command (`slsa configure project -p <name> -r <root>`) — `SessionData.create` raises `FileNotFoundError`
-when the project is missing. Use `assets:project-hierarchy` to verify whether the
+In both modes the **target project must already exist**, or `migrate_animal_tool` aborts with
+`FileNotFoundError` (raised by `migrate_animal_between_projects` when the target project is missing).
+Project directories are created with the `create_project_tool` MCP tool or the `slsa configure project`
+CLI command (`slsa configure project -p <name>`). Use `assets:project-hierarchy` to verify whether the
 destination project exists or to create it.
 
 Migration **fails with an error if any session cannot be preprocessed or migrated** (for example, when

@@ -76,13 +76,15 @@ reads validated configuration files written during the AI-assisted phases.
 ### Phase 1: Working directory and credentials
 
 - **Plugin / Skill:** assets plugin → `assets:working-directory`
-- **Actions:** Set the local Sollertia working directory (always required) and the task templates directory
-  (required for every system, since every experiment seeds its configuration from a corridor task template).
-  Optionally configure platform credentials by category — needed only for systems that integrate with the
-  corresponding external service (e.g. the `mesoscope` system uses `google` credentials for Google Sheets
-  animal metadata).
-- **Handoff condition:** `get_platform_environment_status_tool` reports the data root and templates directory
-  healthy (and, for systems that use them, credentials).
+- **Actions:** Set the local Sollertia working directory (always required). Set the task templates directory
+  for systems that run experiment sessions (every experiment seeds its configuration from a corridor task
+  template; training and window-checking sessions need no template). Optionally configure platform credentials
+  by category — needed only for systems that integrate with the corresponding external service (e.g. the
+  `mesoscope` system uses `google` credentials for Google Sheets animal metadata).
+- **Handoff condition:** `get_platform_environment_status_tool` reports `overall_ok` — the working directory
+  is the only required component that gates it. The data root, the task templates directory, and credentials
+  are reported as separate optional components; configure the data root (and, for experiment systems, the
+  templates directory) here too so the host can record and run sessions.
 - **Skip condition:** The platform data root is already initialized for this host.
 
 ### Phase 2: System configuration
@@ -173,8 +175,9 @@ seeds its configuration from a corridor task template.
   action (driven by the Mesoscope-VR system class); window-checking preprocesses automatically in its
   runtime function. Reach for this phase only when the experimenter chose `skip preprocessing` (or the
   runtime ended before the prompt), or to migrate an animal between projects or delete a session.
-- **Actions:** Run `preprocess_session_tool` to aggregate raw data, validate session contents, optionally
-  migrate the animal between projects or delete the session.
+- **Actions:** Run `preprocess_session_tool` to aggregate raw data and validate session contents.
+  Optionally, run `migrate_animal_tool` to migrate the animal between projects or `delete_session_tool`
+  to delete the session — these are separate tools, not part of preprocessing.
 - **Handoff condition:** Preprocessed session lives at the canonical storage tier; `processed_data` is
   populated.
 

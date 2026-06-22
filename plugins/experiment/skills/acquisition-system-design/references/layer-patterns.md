@@ -303,7 +303,7 @@ constructor and ownership rules below but differ in their method surface (see
   configuration dataclass, then any optional supplementary inputs (output directory, previous-session
   state snapshot, etc.). Order matters: `data_logger` is the most-shared dependency. SDK-connection
   subsystems (e.g., Zaber motors) may omit `data_logger` entirely.
-- **Per-device wrappers are public attributes** (`self.brake`, `self.lick`, `self._face_camera`).
+- **Per-device wrappers are public attributes** (`self.brake`, `self.lick`).
   The convention is public attributes for wrappers the lifecycle orchestrator may directly access
   (e.g., to issue commands at runtime), private (`_underscore`) for internal-only wrappers.
 - **Underlying low-level controllers are private** (`self._actor`, `self._face_camera`'s

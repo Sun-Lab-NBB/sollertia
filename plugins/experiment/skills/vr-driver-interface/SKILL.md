@@ -99,24 +99,28 @@ must run on the same machine as the Unity Editor.
 published by `sollertia-virtual-reality` (see `unity:mqtt-contract`). Both sides MUST agree on these
 strings exactly.
 
-| Topic enum             | Wire string          | Direction       | Payload                                                                 |
-|------------------------|----------------------|-----------------|-------------------------------------------------------------------------|
-| `SESSION_START`        | `SessionStart`       | Unity → runtime | empty trigger (Unity MQTT client started)                               |
-| `SESSION_STOP`         | `SessionStop`        | Unity → runtime | empty trigger (Unity application quit)                                  |
-| `MOTION`               | `Motion`             | runtime → Unity | `TreadmillMessage` `{movement: float}` (Unity-unit delta)               |
-| `INTERACTION`          | `Interaction`        | runtime → Unity | empty trigger                                                           |
-| `STIMULUS`             | `Stimulus`           | Unity → runtime | `StimulusMessage` `{trialName: string, delivered: bool, cause: string}` |
-| `DELAY`                | `Delay`              | Unity → runtime | `TriggerDelayMessage` `{delayMilliseconds: uint}`                       |
-| `CUE_SEQUENCE_TRIGGER` | `CueSequenceTrigger` | runtime → Unity | empty trigger (request flattened cue sequence)                          |
-| `CUE_SEQUENCE`         | `CueSequence`        | Unity → runtime | `SequenceMessage` `{cueSequence: byte[]}`                               |
-| `SCENE_NAME_TRIGGER`   | `SceneNameTrigger`   | runtime → Unity | empty trigger (request active scene name)                               |
-| `SCENE_NAME`           | `SceneName`          | Unity → runtime | `SceneNameMessage` `{name: string}`                                     |
-| `REQUIRE_INTERACTION`  | `RequireInteraction` | runtime → Unity | `BoolMessage` `{value: bool}` (inverse of reinforcing guidance)         |
-| `REQUIRE_WAIT`         | `RequireWait`        | runtime → Unity | `BoolMessage` `{value: bool}` (inverse of aversive guidance)            |
+| Topic enum             | Wire string          | Direction       | Payload                                                         |
+|------------------------|----------------------|-----------------|-----------------------------------------------------------------|
+| `SESSION_START`        | `SessionStart`       | Unity → runtime | empty trigger (Unity MQTT client started)                       |
+| `SESSION_STOP`         | `SessionStop`        | Unity → runtime | empty trigger (Unity application quit)                          |
+| `MOTION`               | `Motion`             | runtime → Unity | `TreadmillMessage` `{movement: float}` (Unity-unit delta)       |
+| `INTERACTION`          | `Interaction`        | runtime → Unity | empty trigger                                                   |
+| `STIMULUS`             | `Stimulus`           | Unity → runtime | `StimulusMessage` `{trialName: string}`                         |
+| `DELAY`                | `Delay`              | Unity → runtime | `TriggerDelayMessage` `{delayMilliseconds: uint}`               |
+| `CUE_SEQUENCE_TRIGGER` | `CueSequenceTrigger` | runtime → Unity | empty trigger (request flattened cue sequence)                  |
+| `CUE_SEQUENCE`         | `CueSequence`        | Unity → runtime | `SequenceMessage` `{cueSequence: byte[]}`                       |
+| `SCENE_NAME_TRIGGER`   | `SceneNameTrigger`   | runtime → Unity | empty trigger (request active scene name)                       |
+| `SCENE_NAME`           | `SceneName`          | Unity → runtime | `SceneNameMessage` `{name: string}`                             |
+| `REQUIRE_INTERACTION`  | `RequireInteraction` | runtime → Unity | `BoolMessage` `{value: bool}` (inverse of reinforcing guidance) |
+| `REQUIRE_WAIT`         | `RequireWait`        | runtime → Unity | `BoolMessage` `{value: bool}` (inverse of aversive guidance)    |
 
 The driver subscribes to the inbound subset it surfaces or resolves internally
 (`CUE_SEQUENCE`, `SESSION_STOP`, `SESSION_START`, `SCENE_NAME`, `STIMULUS`, `DELAY`) when constructing
 its `MQTTCommunication`.
+
+The Unity-side `StimulusMessage` currently emits only `trialName` on the wire; the host driver also
+parses optional `delivered` (bool) and `cause` (string) fields, defaulting them (`delivered=True`,
+`cause=BEHAVIOR`) for payloads that predate those fields.
 
 ---
 
@@ -198,19 +202,19 @@ VRTaskDriver(
 )
 ```
 
-| Method / property                      | Purpose                                                                           |
-|----------------------------------------|-----------------------------------------------------------------------------------|
-| `connect()` / `disconnect()`           | Open / close the MQTT connection (`disconnect()` also closes the bridge client)   |
-| `setup()`                              | Bridge-driven start-of-session handshake; see the Setup handshake note below.     |
-| `push_position(absolute_position)`     | Forward the animal's position to Unity as a movement delta (only emits on change) |
-| `push_lick_event()`                    | Notify Unity that the animal licked                                               |
-| `set_reinforcing_guidance(*, enabled)` | Toggle reinforcing guidance (publishes `RequireInteraction` = `not enabled`)      |
-| `set_aversive_guidance(*, enabled)`    | Toggle aversive guidance (publishes `RequireWait` = `not enabled`)                |
-| `cycle() -> VRTaskEvent`               | Consume the next pending Unity message and return it as a typed event             |
-| `resume_after_unity_restart()`         | Re-arm Unity via the bridge, re-fetch the cue sequence, and clear `terminated`    |
-| `state` (property)                     | The current `VRTaskState`                                                         |
-| `cue_sequence_distances` (property)    | Cumulative distance (cm) to complete each decomposed trial                        |
-| `trial_names` (property)               | The name of each decomposed trial, in sequence order                              |
+| Method / property                      | Purpose                                                                                                                         |
+|----------------------------------------|---------------------------------------------------------------------------------------------------------------------------------|
+| `connect()` / `disconnect()`           | Open / close the MQTT and bridge connections; `disconnect()` first exits Play Mode to stop the active Unity scene (best-effort) |
+| `setup()`                              | Bridge-driven start-of-session handshake; see the Setup handshake note below.                                                   |
+| `push_position(absolute_position)`     | Forward the animal's position to Unity as a movement delta (only emits on change)                                               |
+| `push_lick_event()`                    | Notify Unity that the animal licked                                                                                             |
+| `set_reinforcing_guidance(*, enabled)` | Toggle reinforcing guidance (publishes `RequireInteraction` = `not enabled`)                                                    |
+| `set_aversive_guidance(*, enabled)`    | Toggle aversive guidance (publishes `RequireWait` = `not enabled`)                                                              |
+| `cycle() -> VRTaskEvent`               | Consume the next pending Unity message and return it as a typed event                                                           |
+| `resume_after_unity_restart()`         | Re-arm Unity via the bridge, re-fetch the cue sequence, and clear `terminated`                                                  |
+| `state` (property)                     | The current `VRTaskState`                                                                                                       |
+| `cue_sequence_distances` (property)    | Cumulative distance (cm) to complete each decomposed trial                                                                      |
+| `trial_names` (property)               | The name of each decomposed trial, in sequence order                                                                            |
 
 > **Setup handshake.** `setup()` is bridge-driven: require bridge reachable → open the expected scene →
 > arm Unity (`enter_play_mode` + wait for MQTT `SessionStart`) → cross-check the active scene name over

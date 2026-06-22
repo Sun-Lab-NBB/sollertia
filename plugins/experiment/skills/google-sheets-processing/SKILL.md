@@ -34,7 +34,7 @@ sits in the acquisition-system architecture, see `/acquisition-system-design`
 
 **Covers:**
 - The `SurgeryLog` and `WaterLog` processor API (constructors, extract / update methods, teardown)
-- The service-account authentication and connection model (scopes, retries, `__del__` cleanup)
+- The service-account authentication and connection model (scopes, retries, `close()` / `__del__` teardown)
 - The sheet schema contract each processor validates at construction (required headers, tab layout,
   identity model) — see [references/sheet-schema-contract.md](references/sheet-schema-contract.md)
 - How an acquisition system wires sheet identifiers and gates processing on them
@@ -86,7 +86,8 @@ updates the session row.
 
 Both classes are constructed with `(identity…, credentials_path, sheet_id)`, validate the sheet's
 shape in `__init__` (raising `ValueError` via `console.error` on any mismatch), expose
-extract / update methods, and close the HTTP connection in `__del__`.
+extract / update methods, and release the HTTP connection via a public `close()` method (with
+`__del__` as a garbage-collection backstop).
 
 ### SurgeryLog — read the surgery record, write the quality score
 
@@ -98,7 +99,8 @@ SurgeryLog(project_name: str, animal_id: int, credentials_path: Path, sheet_id: 
 |----------------------------------------|-----------------------------------------------------------------------------------------------------------------------------------------------------------------------|
 | `extract_animal_data()`                | Parses the animal's row into a `SurgeryData` instance (subject, procedure, drugs[], implants[], injections[]).                                                        |
 | `update_surgery_quality(quality: int)` | Writes the surgery-quality score into the animal's row and applies center/middle cell alignment. The 0–3 scale is advisory; the value is written exactly as provided. |
-| `__del__`                              | Closes the HTTP service.                                                                                                                                              |
+| `close()`                              | Closes the HTTP service. Callers should invoke this from a `try`/`finally` as soon as they finish with the instance.                                                  |
+| `__del__`                              | Garbage-collection backstop that delegates to `close()`.                                                                                                              |
 
 **Identity model:** one **tab per project** (tab name = `project_name`); header row = **row 1**;
 animals are rows 2+, keyed by a zero-padded five-digit value in the **`id` column**. Construction
@@ -117,7 +119,8 @@ and used to locate the pre-filled date row for this session.
 | Member                                                              | Purpose                                                                                                                       |
 |---------------------------------------------------------------------|-------------------------------------------------------------------------------------------------------------------------------|
 | `update_water_log(weight, water_ml, experimenter_id, session_type)` | Writes the five session cells (weight, given-by, water given, behavior, time) into the resolved session row, with formatting. |
-| `__del__`                                                           | Closes the HTTP service.                                                                                                      |
+| `close()`                                                           | Closes the HTTP service. Callers should invoke this from a `try`/`finally` as soon as they finish with the instance.          |
+| `__del__`                                                           | Garbage-collection backstop that delegates to `close()`.                                                                      |
 
 **Identity model:** one **tab per animal** (tab name = the numeric animal ID); header row = **row
 2** (the surgery log uses row 1); data rows are 3+, with the **date column
@@ -145,10 +148,12 @@ the category recognizable and what a custom processor must reproduce:
    the installed client and only emits a spurious warning).
 3. **Every API call is retried.** All `.execute()` calls pass `num_retries=_GOOGLE_API_MAX_RETRIES`
    (5) so transient 5xx/429 errors self-heal.
-4. **The connection is owned and released.** The service handle is a private attribute; `__del__`
-   closes it. A processor handle may be returned to the caller so a follow-up write reuses the open
+4. **The connection is owned and released.** The service handle is a private attribute, released by
+   the public `close()` method, which callers should invoke from a `try`/`finally` as soon as they
+   finish with the instance (`__del__` is only a garbage-collection backstop that delegates to
+   `close()`). A processor handle may be returned to the caller so a follow-up write reuses the open
    connection (e.g., `snapshot_surgery_data` returns the `SurgeryLog` so the runtime can later call
-   `update_surgery_quality`).
+   `update_surgery_quality`, then `close()`).
 5. **The processor is invoked directly.** Preprocessing / per-session setup constructs it on demand,
    standing outside DataLogger orchestration, the `start`/`stop` surface, the processor registry, and
    import-time parity checks. (The read-asset *dataclass* it produces is separately registered in
@@ -260,7 +265,7 @@ When authoring a custom processor:
 - [ ] Constructor authenticates, builds the header→column map, and validates required headers + record presence
 - [ ] Direction is explicit (read → typed dataclass snapshot, and/or write → existing row)
 - [ ] A new emitted record type is coordinated via assets assets:library-extension and assets:data-assets
-- [ ] Every API call passes num_retries; __del__ closes the connection
+- [ ] Every API call passes num_retries; a public close() releases the connection (with a __del__ backstop)
 - [ ] Placed in cross_system/ if system-agnostic, or the system package if system-specific
 - [ ] Wired into the system's preprocessing with the unset-identifier skip / credentials-required gating
 - [ ] Documented here (or a sibling skill) and in the consuming system's instance skill

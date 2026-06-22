@@ -204,10 +204,10 @@ instantiates the DataLogger first (so each `MicroControllerInterface.__init__` c
 manifest entry), constructs the binding classes in a fixed order, starts the DataLogger before any
 binding class, and tears everything down in reverse so the DataLogger outlives every consumer. It also
 owns all cross-subsystem synchronization — individual binding classes stay oblivious to one another.
-The VR task driver is a standard subsystem of every acquisition system: the orchestrator constructs it
-unconditionally, then gates its use per session type — it runs the corridor task for experiment sessions
-and stays idle for training and window-checking sessions (see `/acquisition-system-runtime` and
-`/vr-driver-interface`).
+The VR task driver is a standard subsystem of every acquisition system, but the orchestrator constructs it
+only for the session types that run the corridor task (experiment sessions); for training and
+window-checking sessions the driver is not constructed and `self._vr_task` is `None` (see
+`/acquisition-system-runtime` and `/vr-driver-interface`).
 (For microcontroller keepalive, the orchestrator passes each `MicroControllerInterface` a
 `keepalive_interval` at construction; AXCI sends the keepalive messages and raises on timeout.)
 

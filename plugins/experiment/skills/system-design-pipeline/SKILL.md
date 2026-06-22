@@ -125,7 +125,9 @@ verify each phase's handoff condition before starting the next.
   per-package deliverables manifest in `/acquisition-system-design`'s `references/workflows.md`.
 - **Actions:** Author the system package: the per-subsystem configuration dataclasses, the
   `<System>SystemConfiguration` subclass with its `register_system_configuration` call and typed
-  `get_system_configuration` accessor, the binding classes, the lifecycle orchestrator, the per-mode
+  `get_system_configuration` accessor, the binding classes, the lifecycle orchestrator (which composes
+  the platform-general VR task driver subsystem that couples the runtime to the Unity scene — see
+  `/vr-driver-interface`, parallel to `/microcontroller-interface` and `/zaber-interface`), the per-mode
   logic functions, the visualizer / UIs / instrument driver the system needs, the `sle <system>` CLI
   command group (registered in `interfaces/entry_points.py`), and the `interfaces/<system>_tools.py`
   MCP tool module. Bump the `sollertia-experiment` version.
@@ -261,6 +263,7 @@ through these same skills.
 | `/zaber-interface`                                 | Owns the Zaber motor subsystem in Phase 2                                                    |
 | `/acquisition-system-design`                       | Owns Phase 3 static composition and the per-package deliverables manifest                    |
 | `/acquisition-system-runtime`                      | Owns Phase 3 runtime loop, modes, CLI, and MCP tool module                                   |
+| `/vr-driver-interface`                             | Owns the host-side VR task driver that couples the runtime to the Unity scene (Phase 3)      |
 | `assets:task-templates`                            | Owns the corridor task template in Phase 4                                                   |
 | `unity:task-prefabs`                               | Owns Unity prefab and scene generation in Phase 4                                            |
 | `/google-sheets-processing`                        | Owns the external data-service processors in Phase 5                                         |

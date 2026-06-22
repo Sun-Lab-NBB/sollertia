@@ -125,14 +125,14 @@ For a path that fails, drill in with `check_mount_accessibility_tool(path=...)`:
 
 ### Phase 3: Hardware connectivity
 
-| Check                     | Tool                         | Server | Expected result                      |
-|---------------------------|------------------------------|--------|--------------------------------------|
-| Cameras detected          | `list_cameras`               | `axvs` | Expected camera indices              |
-| Video runtime ready       | `check_runtime_requirements` | `axvs` | FFMPEG available, GPU detected       |
-| CTI file (Harvesters)     | `get_cti_status`             | `axvs` | CTI configured (if using GenICam)    |
-| Microcontrollers detected | `list_microcontrollers`      | `axci` | Expected microcontroller IDs / roles |
-| MQTT broker reachable     | `check_mqtt_broker`          | `axci` | Connection successful                |
-| Zaber devices detected    | `get_zaber_devices_tool`     | `sle`  | Expected Zaber devices (if any)      |
+| Check                     | Tool                              | Server | Expected result                      |
+|---------------------------|-----------------------------------|--------|--------------------------------------|
+| Cameras detected          | `list_cameras_tool`               | `axvs` | Expected camera indices              |
+| Video runtime ready       | `check_runtime_requirements_tool` | `axvs` | FFMPEG available, GPU detected       |
+| CTI file (Harvesters)     | `get_cti_status_tool`             | `axvs` | CTI configured (if using GenICam)    |
+| Microcontrollers detected | `list_microcontrollers_tool`      | `axci` | Expected microcontroller IDs / roles |
+| MQTT broker reachable     | `check_mqtt_broker_tool`          | `axci` | Connection successful                |
+| Zaber devices detected    | `get_zaber_devices_tool`          | `sle`  | Expected Zaber devices (if any)      |
 
 The tools above are domain-general discovery utilities, system-agnostic across Sollertia acquisition systems
 (cameras and microcontrollers come from the `axvs` / `axci` dependency servers; Zaber discovery is a general
