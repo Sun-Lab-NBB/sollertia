@@ -2,11 +2,10 @@
 name: google-sheets-processing
 description: >-
   Guides implementation of Google Sheets processing assets — the SurgeryLog / WaterLog classes that
-  read animal and session records from a Google Sheet into typed platform data and write results
-  back. Covers the processor API, the service-account auth model, the sheet schema contract, how an
-  acquisition system wires sheets, and how to author a custom processor for a novel sheet layout or
-  acquisition system. Use when reading or writing Google Sheets data, adapting a processor to a new
-  sheet schema, or adding sheet integration to an acquisition system.
+  read animal and session records into typed platform data and write results back. Covers the
+  processor API, service-account auth, the sheet schema contract, how an acquisition system wires
+  sheets, and authoring a custom processor. Use when reading or writing Google Sheets data,
+  adapting a processor to a new sheet schema, or wiring sheets into an acquisition system.
 user-invocable: false
 ---
 
@@ -21,10 +20,10 @@ system's preprocessing layer. Mesoscope-VR is the current consumer — its
 `_preprocess_google_sheet_data` (in `mesoscope_vr/data_preprocessing.py`) and the shared
 `snapshot_surgery_data` (in `cross_system/data_preprocessing.py`) instantiate these processors.
 
-A **processing asset** is an external-service client, not a hardware binding class: it is constructed
-directly by preprocessing / per-session setup code, not composed into the Layer-2b
-`start`/`stop` surface, and the processor itself is not registry-backed (though the read-asset
-dataclass a read processor produces IS a registered slsa asset — see below). For where this category
+A **processing asset** is an external-service client. It is constructed
+directly by preprocessing / per-session setup code on demand, standing outside the Layer-2b
+`start`/`stop` surface and the slsa registry (the read-asset dataclass a read processor produces
+IS a registered slsa asset — see below). For where this category
 sits in the acquisition-system architecture, see `/acquisition-system-design`
 ([references/subsystem-types.md](../acquisition-system-design/references/subsystem-types.md),
 "External data-service processors").
@@ -71,10 +70,10 @@ sits in the acquisition-system architecture, see `/acquisition-system-design`
 
 A processor needs three things before it can connect:
 
-| Prerequisite             | Where it comes from                                                                                              |
-|--------------------------|------------------------------------------------------------------------------------------------------------------|
-| Credentials file path    | A Google Cloud **service-account** JSON key. The host path is set via assets `assets:working-directory` and resolved at call time by `get_credentials(credentials=CredentialsTypes.GOOGLE)`. |
-| Sheet identifier         | The long alphanumeric segment of the sheet URL, stored in the system configuration's external-services section (`surgery_sheet_id` / `water_log_sheet_id` for Mesoscope-VR). |
+| Prerequisite             | Where it comes from                                                                                                                                                                                                             |
+|--------------------------|---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| Credentials file path    | A Google Cloud **service-account** JSON key. The host path is set via assets `assets:working-directory` and resolved at call time by `get_credentials(credentials=CredentialsTypes.GOOGLE)`.                                    |
+| Sheet identifier         | The long alphanumeric segment of the sheet URL, stored in the system configuration's external-services section (`surgery_sheet_id` / `water_log_sheet_id` for Mesoscope-VR).                                                    |
 | Sheet shared with the SA | The target Google Sheet MUST be shared with the service account's email (as a viewer for read-only, as an editor for any processor that writes). Google service accounts have no access until the document is shared with them. |
 
 Both processors request the full `https://www.googleapis.com/auth/spreadsheets` scope (read **and**
@@ -95,11 +94,11 @@ extract / update methods, and close the HTTP connection in `__del__`.
 SurgeryLog(project_name: str, animal_id: int, credentials_path: Path, sheet_id: str)
 ```
 
-| Member                          | Purpose                                                                                              |
-|---------------------------------|------------------------------------------------------------------------------------------------------|
-| `extract_animal_data()`         | Parses the animal's row into a `SurgeryData` instance (subject, procedure, drugs[], implants[], injections[]). |
-| `update_surgery_quality(quality: int)` | Writes the surgery-quality score into the animal's row and applies center/middle cell alignment. The 0–3 scale is advisory; the value is not range-validated. |
-| `__del__`                       | Closes the HTTP service.                                                                              |
+| Member                                 | Purpose                                                                                                                                                               |
+|----------------------------------------|-----------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| `extract_animal_data()`                | Parses the animal's row into a `SurgeryData` instance (subject, procedure, drugs[], implants[], injections[]).                                                        |
+| `update_surgery_quality(quality: int)` | Writes the surgery-quality score into the animal's row and applies center/middle cell alignment. The 0–3 scale is advisory; the value is written exactly as provided. |
+| `__del__`                              | Closes the HTTP service.                                                                                                                                              |
 
 **Identity model:** one **tab per project** (tab name = `project_name`); header row = **row 1**;
 animals are rows 2+, keyed by a zero-padded five-digit value in the **`id` column**. Construction
@@ -115,13 +114,13 @@ WaterLog(animal_id: int, session_date: str, credentials_path: Path, sheet_id: st
 `session_date` is the Sollertia session name (`YYYY-MM-DD-HH-MM-SS-US`); it is parsed to local time
 and used to locate the pre-filled date row for this session.
 
-| Member                                                              | Purpose                                                                              |
-|---------------------------------------------------------------------|--------------------------------------------------------------------------------------|
+| Member                                                              | Purpose                                                                                                                       |
+|---------------------------------------------------------------------|-------------------------------------------------------------------------------------------------------------------------------|
 | `update_water_log(weight, water_ml, experimenter_id, session_type)` | Writes the five session cells (weight, given-by, water given, behavior, time) into the resolved session row, with formatting. |
-| `__del__`                                                           | Closes the HTTP service.                                                              |
+| `__del__`                                                           | Closes the HTTP service.                                                                                                      |
 
 **Identity model:** one **tab per animal** (tab name = the numeric animal ID); header row = **row
-2** (note: differs from the surgery log's row 1); data rows are 3+, with the **date column
+2** (the surgery log uses row 1); data rows are 3+, with the **date column
 pre-filled**. Construction fails if no digit-named animal tabs exist, the target animal's tab is
 missing, a required header is absent, the session name is not a valid timestamp, or the session's
 date row is not already present in the sheet.
@@ -139,8 +138,8 @@ the category recognizable and what a custom processor must reproduce:
 
 1. **Construction validates, then caches.** The constructor authenticates, fetches the header row,
    builds a `header → column-letter` map, and asserts every required header is present and the target
-   record exists. A malformed sheet fails **at construction**, before any extract/update call — never
-   silently mis-parses.
+   record exists. A malformed sheet fails **at construction**, before any extract/update call,
+   so every parse problem surfaces as a construction error.
 2. **Authentication is service-account based.** `Credentials.from_service_account_file(scopes=…)`
    builds a `sheets`/`v4` service with `cache_discovery=False` (the discovery cache is unsupported by
    the installed client and only emits a spurious warning).
@@ -150,9 +149,9 @@ the category recognizable and what a custom processor must reproduce:
    closes it. A processor handle may be returned to the caller so a follow-up write reuses the open
    connection (e.g., `snapshot_surgery_data` returns the `SurgeryLog` so the runtime can later call
    `update_surgery_quality`).
-5. **The processor is invoked directly, not orchestrated.** No DataLogger, no `start`/`stop`, no
-   registry entry for the processor itself, no import-time parity check — preprocessing / per-session
-   setup constructs it on demand. (The read-asset *dataclass* it produces is separately registered in
+5. **The processor is invoked directly.** Preprocessing / per-session setup constructs it on demand,
+   standing outside DataLogger orchestration, the `start`/`stop` surface, the processor registry, and
+   import-time parity checks. (The read-asset *dataclass* it produces is separately registered in
    slsa's `READ_ASSET_REGISTRY`; see the authoring section below.)
 
 ---
@@ -185,7 +184,8 @@ host-level credentials path is resolved separately. Preprocessing then construct
 
 The shipped processors are hard-coded to the Sollertia sheet schema (their docstrings say
 "purpose-built to work with the specific format used by the Sollertia platform"). System-agnostic
-means **any acquisition system can consume them**, not that they adapt to any sheet layout. So:
+means **any acquisition system can consume them** while they stay bound to the single Sollertia
+sheet schema. So:
 
 - **Sheet matches the Sollertia schema** → reuse `SurgeryLog` / `WaterLog` as-is. Just set the sheet
   identifiers in the system configuration and share the document with the service account. No code.
@@ -194,8 +194,8 @@ means **any acquisition system can consume them**, not that they adapt to any sh
   schema. Decide the **direction** up front:
   - A **read processor** (like `SurgeryLog`) parses records into a typed platform dataclass that is
     snapshotted to disk — a **registered read asset** in slsa (`SurgeryData` is the `surgery_data`
-    read asset). This standardizes the downstream (slf) interface: forging reads the on-disk dataclass
-    and never touches the external source. If the processor emits a *new* record type rather than
+    read asset). This standardizes the downstream (slf) interface: forging reads only the on-disk
+    dataclass. If the processor emits a *new* record type rather than
     `SurgeryData`, add the dataclass + its `ReadAssets` member + `READ_ASSET_REGISTRY` entry through the
     `assets:library-extension`'s "Adding a new read asset" scenario, and its read/amend surface
     through `assets:data-assets`.
@@ -213,17 +213,17 @@ This skill owns the *what* (the API and contract); that workflow owns the *how* 
 ## Error model
 
 Processors report failures through `console.error(message=…, error=ValueError)`, which logs and
-raises. There is no partial-success state — a processor either constructs cleanly or aborts.
+raises. Construction is atomic: a processor either constructs cleanly or aborts.
 
-| Symptom                                              | Cause                                                                 |
-|------------------------------------------------------|-----------------------------------------------------------------------|
+| Symptom                                              | Cause                                                                       |
+|------------------------------------------------------|-----------------------------------------------------------------------------|
 | `ValueError` naming missing headers                  | The sheet's header row lacks a required column — schema drift or wrong tab. |
-| `ValueError`: animal not in the `id` column / no tab | The target animal has no surgery row / no water-log tab.              |
-| `ValueError`: empty header or ID column              | The tab is empty or points at the wrong project/animal.              |
-| `ValueError`: date row not found (`WaterLog`)        | The session's date is not pre-filled in the water log — add it and re-run. |
-| `ValueError`: invalid session timestamp              | The `session_date` passed to `WaterLog` is not a valid session name. |
-| `FileNotFoundError` during preprocessing             | A sheet identifier is set but credentials are missing or invalid.    |
-| Malformed cell on extract (`float()`/`int()`/date)   | A weight, cage, date, or time cell is empty or non-numeric.          |
+| `ValueError`: animal not in the `id` column / no tab | The target animal has no surgery row / no water-log tab.                    |
+| `ValueError`: empty header or ID column              | The tab is empty or points at the wrong project/animal.                     |
+| `ValueError`: date row not found (`WaterLog`)        | The session's date is not pre-filled in the water log — add it and re-run.  |
+| `ValueError`: invalid session timestamp              | The `session_date` passed to `WaterLog` is not a valid session name.        |
+| `FileNotFoundError` during preprocessing             | A sheet identifier is set but credentials are missing or invalid.           |
+| Malformed cell on extract (`float()`/`int()`/date)   | A weight, cage, date, or time cell is empty or non-numeric.                 |
 
 A migration or preprocessing run surfaces these as the operation's failure (e.g.,
 `migrate_animal_tool` fails "when the animal is absent from the surgery sheet"); resolve the sheet
@@ -233,16 +233,16 @@ and re-run. See `/data-management` for the lifecycle-level handling.
 
 ## Related skills
 
-| Skill                                       | Relationship                                                                                     |
-|---------------------------------------------|--------------------------------------------------------------------------------------------------|
-| `/acquisition-system-design`                | Platform-general home of the "External data-service processors" category and the authoring workflow. |
-| `mesoscope:mesoscope-vr`                             | Current consumer — defines the `MesoscopeGoogleSheets` identifiers these processors read.        |
-| `/data-management`                          | Owns preprocessing, which constructs the processors and updates the sheets.                       |
-| `assets:working-directory`          | Sets and resolves the service-account credentials path the processors require.                   |
-| `assets:data-assets`           | Reads/amends the on-disk read asset (e.g., the surgery snapshot `SurgeryLog` produces).           |
-| `assets:library-extension`          | Owns the read-asset registry; register a read processor's emitted dataclass via its "Adding a new read asset" scenario. |
-| `/experiment-mcp-environment-setup`         | Run first if the `sle mcp` server is not connected.                                              |
-| `references/sheet-schema-contract.md`       | The full required-header sets, structural assumptions, and field mappings.                        |
+| Skill                                 | Relationship                                                                                                            |
+|---------------------------------------|-------------------------------------------------------------------------------------------------------------------------|
+| `/acquisition-system-design`          | Platform-general home of the "External data-service processors" category and the authoring workflow.                    |
+| `mesoscope:mesoscope-vr`              | Current consumer — defines the `MesoscopeGoogleSheets` identifiers these processors read.                               |
+| `/data-management`                    | Owns preprocessing, which constructs the processors and updates the sheets.                                             |
+| `assets:working-directory`            | Sets and resolves the service-account credentials path the processors require.                                          |
+| `assets:data-assets`                  | Reads/amends the on-disk read asset (e.g., the surgery snapshot `SurgeryLog` produces).                                 |
+| `assets:library-extension`            | Owns the read-asset registry; register a read processor's emitted dataclass via its "Adding a new read asset" scenario. |
+| `/experiment-mcp-environment-setup`   | Run first if the `sle mcp` server is not connected.                                                                     |
+| `references/sheet-schema-contract.md` | The full required-header sets, structural assumptions, and field mappings.                                              |
 
 ---
 
