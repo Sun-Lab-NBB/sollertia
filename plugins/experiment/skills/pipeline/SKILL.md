@@ -229,36 +229,36 @@ Rows naming a Mesoscope-VR skill illustrate the active system's hand-offs; anoth
 substitutes its own system skill (resolved via `/acquisition-system-setup`'s **Supported acquisition
 systems** registry).
 
-| You need to…                                      | Use…                                                                               |
-|---------------------------------------------------|------------------------------------------------------------------------------------|
-| Set the working directory or credentials          | `assets:working-directory`                                                 |
+| You need to…                                      | Use…                                                                                        |
+|---------------------------------------------------|---------------------------------------------------------------------------------------------|
+| Set the working directory or credentials          | `assets:working-directory`                                                                  |
 | Author the active system's configuration YAML     | that system's skill (for `mesoscope`, `mesoscope:mesoscope-vr`)                             |
-| Author the server (remote transfer) configuration | `forging:server-configuration`                                             |
-| Create a project                                  | `create_project_tool` or `slsa configure project` CLI (`assets:project-hierarchy`)       |
-| Author a task template                            | `assets:task-templates`                                                    |
-| Author a per-project experiment configuration     | `assets:experiment-configuration`                                          |
-| Read a session marker / inspect session metadata  | `assets:session-data`                                                      |
-| Read or repair a session descriptor               | `assets:session-descriptors`                                               |
-| Read or patch a frozen runtime snapshot           | `mesoscope:mesoscope-vr-snapshots`                                        |
-| Look up animal surgery / implants / drugs         | `assets:data-assets`                                                       |
-| Curate or read a dataset                          | `forging:datasets`                                                         |
-| Discover GenICam cameras                          | `ataraxis@video:camera-setup`                                                      |
-| Test camera acquisition interactively             | `ataraxis@video:camera-setup`                                                      |
-| Verify a camera against its stored GenICam config | `/system-health-check` (verify) / `/acquisition-system-setup` (at bringup)         |
-| Dump or restore a camera's GenICam config         | `ataraxis@video:camera-setup` (path sourced from the system configuration)         |
-| Discover microcontrollers / verify MQTT           | `ataraxis@communication:microcontroller-setup`                                     |
+| Author the server (remote transfer) configuration | `forging:server-configuration`                                                              |
+| Create a project                                  | `create_project_tool` or `slsa configure project` CLI (`assets:project-hierarchy`)          |
+| Author a task template                            | `assets:task-templates`                                                                     |
+| Author a per-project experiment configuration     | `assets:experiment-configuration`                                                           |
+| Read a session marker / inspect session metadata  | `assets:session-data`                                                                       |
+| Read or repair a session descriptor               | `assets:session-descriptors`                                                                |
+| Read or patch a frozen runtime snapshot           | `mesoscope:mesoscope-vr-snapshots`                                                          |
+| Look up animal surgery / implants / drugs         | `assets:data-assets`                                                                        |
+| Curate or read a dataset                          | `forging:datasets`                                                                          |
+| Discover GenICam cameras                          | `ataraxis@video:camera-setup`                                                               |
+| Test camera acquisition interactively             | `ataraxis@video:camera-setup`                                                               |
+| Verify a camera against its stored GenICam config | `/system-health-check` (verify) / `/acquisition-system-setup` (at bringup)                  |
+| Dump or restore a camera's GenICam config         | `ataraxis@video:camera-setup` (path sourced from the system configuration)                  |
+| Discover microcontrollers / verify MQTT           | `ataraxis@communication:microcontroller-setup`                                              |
 | Write a new VideoSystem binding                   | `ataraxis@video:camera-interface` (general) / `mesoscope:mesoscope-vr` (Mesoscope-specific) |
-| Write a new ModuleInterface                       | `/microcontroller-interface` → `ataraxis@communication:microcontroller-interface`  |
-| Write firmware for a new module                   | `ataraxis@microcontroller:firmware-module`                                         |
-| Discover or configure Zaber motors                | `/zaber-interface`                                                                 |
+| Write a new ModuleInterface                       | `/microcontroller-interface` → `ataraxis@communication:microcontroller-interface`           |
+| Write firmware for a new module                   | `ataraxis@microcontroller:firmware-module`                                                  |
+| Discover or configure Zaber motors                | `/zaber-interface`                                                                          |
 | Modify Mesoscope-VR hardware composition          | `mesoscope:mesoscope-vr`                                                                    |
 | Modify Mesoscope-VR runtime behavior              | `mesoscope:mesoscope-vr-runtime`                                                            |
-| Drive the Unity VR task / MQTT coupling           | `/vr-driver-interface`                                                             |
-| Design a new acquisition system (static)          | `/acquisition-system-design`                                                       |
-| Implement an acquisition-system runtime loop      | `/acquisition-system-runtime`                                                      |
-| Generate / verify Unity task prefab from template | `unity:task-prefabs`                                                       |
-| Open / create a Unity scene                       | `unity:task-scenes`                                                        |
-| Enter / exit Unity Play Mode                      | `unity:play-mode`                                                          |
+| Drive the Unity VR task / MQTT coupling           | `/vr-driver-interface`                                                                      |
+| Design a new acquisition system (static)          | `/acquisition-system-design`                                                                |
+| Implement an acquisition-system runtime loop      | `/acquisition-system-runtime`                                                               |
+| Generate / verify Unity task prefab from template | `unity:task-prefabs`                                                                        |
+| Open / create a Unity scene                       | `unity:task-scenes`                                                                         |
+| Enter / exit Unity Play Mode                      | `unity:play-mode`                                                                           |
 
 ---
 

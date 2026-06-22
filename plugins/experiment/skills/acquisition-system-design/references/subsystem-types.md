@@ -4,7 +4,7 @@ The bring-up sequence and method surface of a Layer-2b binding class are specifi
 type. This file documents the lifecycle surface for each major
 subsystem type currently on the platform. Loaded on demand from `acquisition-system-design`'s
 SKILL.md; the shared class template and lifecycle-method conventions live in
-[layer-patterns.md](layer-patterns.md#layer-2b-per-subsystem-binding-classes).
+`layer-patterns.md`.
 
 ---
 
@@ -135,4 +135,4 @@ Unlike hardware subsystems, these are **gated on configuration**: when their ide
 system skips them entirely (a system that uses no external service needs no credentials). For the
 processor API, the schema contract, the auth model, and the procedure for authoring a custom one, see
 `/google-sheets-processing` and the "Authoring a custom data-service processor" workflow in
-[workflows.md](workflows.md).
+`workflows.md`.

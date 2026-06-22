@@ -397,12 +397,12 @@ files (`slmc/src/*_module.h`, `sle/.../module_interfaces.py`, `slmc/src/main.cpp
 | `ataraxis@microcontroller:firmware-module`         | Authoritative base for C++ `Module` mechanics; this skill defers all base patterns and only adds the slmc layer. |
 | `ataraxis@communication:microcontroller-interface` | Authoritative base for Python `ModuleInterface` mechanics; this skill defers and adds the sle layer.             |
 | `ataraxis@communication:microcontroller-setup`     | Post-flash discovery / MQTT verification; called after adding a board or module to confirm the hardware.         |
-| `ataraxis@automation:cpp-style`                             | Authoritative for slmc Doxygen file headers, formatting, naming.                                                 |
-| `ataraxis@automation:python-style`                          | Authoritative for sle docstrings, type annotations, formatting.                                                  |
-| `/acquisition-system-setup`              | Post-flash hardware enumeration / verification at the acquisition-system level.                                  |
-| `/acquisition-system-design`             | Platform-general pattern for composing wrappers into binding classes and a system configuration.                 |
-| `mesoscope:mesoscope-vr`                          | Current Mesoscope-VR worked instance — composes the wrappers documented here into `MicroControllerInterfaces`.   |
-| `mesoscope:mesoscope-vr-runtime`                  | Mesoscope-VR runtime behavior (state machine, training modes, CLI). Consumes wrapper APIs documented here.       |
+| `ataraxis@automation:cpp-style`                    | Authoritative for slmc Doxygen file headers, formatting, naming.                                                 |
+| `ataraxis@automation:python-style`                 | Authoritative for sle docstrings, type annotations, formatting.                                                  |
+| `/acquisition-system-setup`                        | Post-flash hardware enumeration / verification at the acquisition-system level.                                  |
+| `/acquisition-system-design`                       | Platform-general pattern for composing wrappers into binding classes and a system configuration.                 |
+| `mesoscope:mesoscope-vr`                           | Current Mesoscope-VR worked instance — composes the wrappers documented here into `MicroControllerInterfaces`.   |
+| `mesoscope:mesoscope-vr-runtime`                   | Mesoscope-VR runtime behavior (state machine, training modes, CLI). Consumes wrapper APIs documented here.       |
 
 ---
 
@@ -412,7 +412,8 @@ files (`slmc/src/*_module.h`, `sle/.../module_interfaces.py`, `slmc/src/main.cpp
 When adding or modifying a paired Module + Interface:
 
 Firmware (slmc):
-- [ ] Type code allocated from the next unused value in the registry, OR reused id chosen for an existing type with a fresh module_id
+- [ ] Type code allocated from the next unused value in the registry, OR reused id chosen for an existing type
+      with a fresh module_id
 - [ ] Header file at slmc/src/<name>_module.h with AXMC_<NAME>_MODULE_H include guards
 - [ ] Doxygen file header with @file @brief; per-template-parameter @tparam blocks
 - [ ] Class declared as `final` inheriting publicly from Module
@@ -427,8 +428,10 @@ Firmware (slmc):
 - [ ] slmc release version bumped (git tag — slmc has no manifest version file)
 
 Wrapper (sle):
-- [ ] Class in cross_system/module_interfaces.py named <FirmwareModuleName-without-Module>Interface (or <Role>Interface for a role-specific wrapper, e.g. WaterValveInterface, MesoscopeFrameTTLInterface)
-- [ ] Constructor exposes calibration as keyword-only parameters; module_type / module_id / name / data_codes / error_codes hardcoded in super().__init__()
+- [ ] Class in cross_system/module_interfaces.py named <FirmwareModuleName-without-Module>Interface
+      (or <Role>Interface for a role-specific wrapper, e.g. WaterValveInterface, MesoscopeFrameTTLInterface)
+- [ ] Constructor exposes calibration as keyword-only parameters; module_type / module_id / name /
+      data_codes / error_codes hardcoded in super().__init__()
 - [ ] Calibration math (unit conversion, curve_fit, derived factors) computed in __init__ and rounded to 8 decimals
 - [ ] SharedMemoryArray (if used) created with exists_ok=True and named f"{module_type}_{module_id}_<purpose>"
 - [ ] initialize_local_assets() implemented for shared-memory parent-process setup

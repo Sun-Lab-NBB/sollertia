@@ -341,19 +341,19 @@ per-system skills answer "only this one."
 
 | Skill                                              | Relationship                                                                                                                            |
 |----------------------------------------------------|-----------------------------------------------------------------------------------------------------------------------------------------|
-| `/microcontroller-interface`             | The per-module wrapper layer that binding classes compose. Authoritative for slmc/sle conventions.                                      |
-| `/zaber-interface`                       | Shared Zaber motor interface mechanics. Binding classes that include motors compose this.                                               |
-| `mesoscope:mesoscope-vr`                          | The current Mesoscope-VR worked instance of this pattern.                                                                               |
-| `/acquisition-system-runtime`            | The runtime-behavior counterpart to this static-composition pattern.                                                                    |
-| `mesoscope:mesoscope-vr-runtime`                  | Mesoscope-VR-specific runtime behavior (state machine, training modes, CLI). Built on this pattern.                                     |
-| `/vr-driver-interface`                   | The Unity VR task driver, a standard subsystem of every acquisition system.                                                             |
+| `/microcontroller-interface`                       | The per-module wrapper layer that binding classes compose. Authoritative for slmc/sle conventions.                                      |
+| `/zaber-interface`                                 | Shared Zaber motor interface mechanics. Binding classes that include motors compose this.                                               |
+| `mesoscope:mesoscope-vr`                           | The current Mesoscope-VR worked instance of this pattern.                                                                               |
+| `/acquisition-system-runtime`                      | The runtime-behavior counterpart to this static-composition pattern.                                                                    |
+| `mesoscope:mesoscope-vr-runtime`                   | Mesoscope-VR-specific runtime behavior (state machine, training modes, CLI). Built on this pattern.                                     |
+| `/vr-driver-interface`                             | The Unity VR task driver, a standard subsystem of every acquisition system.                                                             |
 | `ataraxis@video:camera-interface`                  | Low-level VideoSystem mechanics. Camera binding classes compose VideoSystem instances.                                                  |
 | `ataraxis@communication:microcontroller-interface` | Low-level MicroControllerInterface mechanics. Microcontroller binding classes compose these.                                            |
-| `/acquisition-system-setup`              | Post-flash hardware discovery used to populate system configuration fields.                                                             |
-| `/pipeline`                              | End-to-end acquisition-system lifecycle orchestration context.                                                                          |
+| `/acquisition-system-setup`                        | Post-flash hardware discovery used to populate system configuration fields.                                                             |
+| `/pipeline`                                        | End-to-end acquisition-system lifecycle orchestration context.                                                                          |
 | `assets:library-extension`                         | Owns the `sollertia-shared-assets` enum/registry recipe for a new system; step 2 of the build-a-new-system workflow hands off here.     |
-| `/google-sheets-processing`              | Owns the external data-service processor category — the `SurgeryLog` / `WaterLog` API, schema contract, and custom-processor authoring. |
-| `/system-design-pipeline`                | Orchestrates this static-composition phase into the full cross-repo build of a new acquisition system.                                  |
+| `/google-sheets-processing`                        | Owns the external data-service processor category — the `SurgeryLog` / `WaterLog` API, schema contract, and custom-processor authoring. |
+| `/system-design-pipeline`                          | Orchestrates this static-composition phase into the full cross-repo build of a new acquisition system.                                  |
 
 ---
 

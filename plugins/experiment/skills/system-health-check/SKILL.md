@@ -238,17 +238,18 @@ the camera/microcontroller/Zaber/MQTT failure modes.
 
 ## Related skills
 
-| Skill                                          | Relationship                                                                                        |
-|------------------------------------------------|-----------------------------------------------------------------------------------------------------|
-| `/acquisition-system-setup`                    | Owns the full hardware-discovery sweep this skill hands off to                                      |
-| `mesoscope:mesoscope-vr`                                | Active acquisition system's skill (`mesoscope`); owns config/validation and the ScanImage bridge    |
-| `/vr-driver-interface`                         | Owns the shared Unity editor bridge check (`check_unity_bridge_tool`) for corridor-task sessions    |
-| `/experiment-mcp-environment-setup`            | Run first if the `sle mcp` server is not connected                                                  |
-| `/pipeline`                                    | Phase 5 (pre-session health check) is owned by this skill                                           |
-| `assets:working-directory`             | Fixes data-root / credentials / templates prerequisites                                             |
-| `assets:project-hierarchy`             | Confirms the recording project exists                                                               |
-| `ataraxis@video:camera-setup`                  | CTI / video runtime requirement deep-dives                                                          |
-| `ataraxis@communication:microcontroller-setup` | Microcontroller manifest / discovery deep-dives                                                     |
+| Skill                                          | Relationship                                                                                     |
+|------------------------------------------------|--------------------------------------------------------------------------------------------------|
+| `/acquisition-system-setup`                    | Owns the full hardware-discovery sweep this skill hands off to                                   |
+| `mesoscope:mesoscope-vr`                       | Active acquisition system's skill (`mesoscope`); owns config/validation and the ScanImage bridge |
+| `/vr-driver-interface`                         | Owns the shared Unity editor bridge check (`check_unity_bridge_tool`) for corridor-task sessions |
+| `/experiment-mcp-environment-setup`            | Run first if the `sle mcp` server is not connected                                               |
+| `/pipeline`                                    | Phase 5 (pre-session health check) is owned by this skill                                        |
+| `assets:working-directory`                     | Fixes data-root / credentials / templates prerequisites                                          |
+| `assets:project-hierarchy`                     | Confirms the recording project exists                                                            |
+| `ataraxis@video:camera-setup`                  | CTI / video runtime requirement deep-dives                                                       |
+| `ataraxis@communication:microcontroller-setup` | Microcontroller manifest / discovery deep-dives                                                  |
+| `/zaber-interface`                             | Owns per-device Zaber discovery / validation semantics for systems that compose Zaber motors     |
 
 ---
 

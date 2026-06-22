@@ -25,7 +25,8 @@ acquisition system's binding layer (currently Mesoscope-VR's `ZaberMotors`).
 - Composing Zaber motors into an acquisition system's binding class
 
 **Does not cover:**
-- Mesoscope-VR-specific integration — modifying `MesoscopeVRAssets` or extending `ZaberMotors` (see `mesoscope:mesoscope-vr`)
+- Mesoscope-VR-specific integration — modifying `MesoscopeVRAssets` or extending `ZaberMotors`
+  (see `mesoscope:mesoscope-vr`)
 - The platform-general pattern for composing a Zaber subsystem into a binding class (see `/acquisition-system-design`)
 - Reading or writing the `ZaberPositions` session snapshot (see `mesoscope:mesoscope-vr-snapshots`)
 - The `zaber-motion` library internals (third-party; consult its own documentation)
@@ -59,7 +60,7 @@ Use the sollertia-experiment MCP server for Zaber discovery. Start the server wi
 sle mcp
 ```
 
-**MCP Tool for Verification:**
+**MCP tool for verification:**
 
 | Tool                     | Purpose                                      |
 |--------------------------|----------------------------------------------|
@@ -197,7 +198,8 @@ Positions are stored in non-volatile USER_DATA variables on each motor controlle
 
 A consuming acquisition system's binding class can restore motors to their previous-session positions from a
 position snapshot the system provides and persists. This enables consistent positioning across sessions. For the
-Mesoscope-VR implementation, see `mesoscope:mesoscope-vr` (the `ZaberMotors` consumer) and `mesoscope:mesoscope-vr-snapshots` (the snapshot).
+Mesoscope-VR implementation, see `mesoscope:mesoscope-vr` (the `ZaberMotors` consumer) and
+`mesoscope:mesoscope-vr-snapshots` (the snapshot).
 
 ---
 
@@ -225,7 +227,7 @@ Use MCP tools to read and modify Zaber motor configuration stored in non-volatil
 
 #### Modifying configuration
 
-**Safety Protocol:**
+**Safety protocol:**
 
 1. Read current value using `get_zaber_device_settings_tool()`
 2. Show user the current value and proposed change
@@ -463,7 +465,7 @@ dataclass patterns, see [references/zaber-api-reference.md](references/zaber-api
 
 ---
 
-## Implementation checklist
+## Verification checklist
 
 Before integrating Zaber motors into an acquisition system:
 

@@ -11,21 +11,25 @@ user-invocable: false
 
 # VR task driver interface
 
-Documents the Virtual Reality task driver — the host-side hardware subsystem that couples a Sollertia
-acquisition runtime to the Unity game engine implemented in `sollertia-virtual-reality`. This is the
-platform-general VR subsystem, parallel to `/microcontroller-interface` (microcontrollers) and
-`/zaber-interface` (motors): the `VRTaskDriver` in
-`sollertia_experiment/vr_task/driver.py` is hardware-agnostic and composed by an acquisition
-system's runtime orchestrator (currently Mesoscope-VR's `MesoscopeVRSystem`).
+Documents the host (Python) side of the Virtual Reality task driver subsystem — the hardware-agnostic
+`VRTaskDriver` (`sollertia_experiment/vr_task/driver.py`) that couples a Sollertia acquisition runtime to the
+Unity game engine implemented in `sollertia-virtual-reality`.
 
-The VR task driver is a standard subsystem of every acquisition system, but it is built only for the
-session types that run the linear infinite corridor task: experiment sessions. The runtime orchestrator
-constructs it only for those session types (for Mesoscope-VR's `MesoscopeVRSystem`, only
-`MESOSCOPE_EXPERIMENT` sessions); `self._vr_task` is `None` for training and window-checking sessions,
-which run no corridor task (see `/acquisition-system-runtime`).
+---
+
+## Subsystem role
+
+The VR task driver is the platform-general VR subsystem, parallel to `/microcontroller-interface`
+(microcontrollers) and `/zaber-interface` (motors): the `VRTaskDriver` is hardware-agnostic and composed by an
+acquisition system's runtime orchestrator (currently Mesoscope-VR's `MesoscopeVRSystem`).
+
+It is a standard subsystem of every acquisition system, but it is built only for the session types that run the
+linear infinite corridor task: experiment sessions. The runtime orchestrator constructs it only for those
+session types (for Mesoscope-VR's `MesoscopeVRSystem`, only `MESOSCOPE_EXPERIMENT` sessions); `self._vr_task` is
+`None` for training and window-checking sessions, which run no corridor task (see `/acquisition-system-runtime`).
 
 The Unity side of the contract — the GIMBL framework, the `MQTTTopics` constant set, and task prefab
-generation — lives in the unity plugin. This skill owns the **host (Python) side**.
+generation — lives in the unity plugin; this skill owns the host (Python) side.
 
 ---
 
@@ -124,7 +128,7 @@ parses optional `delivered` (bool) and `cause` (string) fields, defaulting them 
 
 ---
 
-## Unity Editor MCP Bridge
+## Unity editor MCP Bridge
 
 Alongside the MQTT data channel, the driver drives the Unity Editor over the **editor MCP Bridge** — the
 HTTP listener `McpBridge.cs` starts automatically inside the Unity Editor (Unity side: `unity:play-mode`,

@@ -296,7 +296,7 @@ class <System><Subsystem>Bindings:
 The skeleton above shows a microcontroller-style binding (it wraps `module_interfaces` and uses the
 `_started` / `start()` / `stop()` lifecycle); camera and third-party-SDK subsystems share the
 constructor and ownership rules below but differ in their method surface (see
-[subsystem-types.md](subsystem-types.md)).
+`subsystem-types.md`).
 
 **Rules:**
 - **Constructor takes** `data_logger` first (when the subsystem logs to DataLogger), then the per-subsystem
@@ -317,7 +317,7 @@ constructor and ownership rules below but differ in their method surface (see
 ### Bring-up sequence (subsystem-type-specific)
 
 The bring-up sequence and method surface are specific to each subsystem type. The full per-type
-sequences are documented in [subsystem-types.md](subsystem-types.md):
+sequences are documented in `subsystem-types.md`:
 
 - **Microcontroller subsystems**: start each controller → `initialize_local_assets()` on every
   `SharedMemoryArray`-backed wrapper → push runtime parameters via `set_parameters()`.

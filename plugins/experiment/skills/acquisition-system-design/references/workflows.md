@@ -2,7 +2,7 @@
 
 Step-by-step procedures for the three common changes to a Sollertia acquisition system. Loaded on
 demand from `acquisition-system-design`'s SKILL.md. The layer patterns these steps reference live in
-[layer-patterns.md](layer-patterns.md).
+`layer-patterns.md`.
 
 ---
 
@@ -16,20 +16,20 @@ only microcontrollers gains a camera), follow these steps:
    broker, a single power supply) can fold into `<System>ExternalAssets`.
 
 2. **Author the configuration dataclass.** Follow the Layer 2a pattern in
-   [layer-patterns.md](layer-patterns.md#layer-2a-per-subsystem-configuration-dataclasses). Field names
+   `layer-patterns.md`. Field names
    follow `<device>_<parameter>_<unit>`; every field has a default; every field has a docstring.
 
 3. **Add the new section to the system configuration.** Use `field(default_factory=...)`. Bump the
    consumer library's version per Contract 2 (schema versioning) in
-   [layer-patterns.md](layer-patterns.md#contract-2-schema-versioning).
+   `layer-patterns.md`.
 
 4. **Author the binding class.** Follow the Layer 2b pattern in
-   [layer-patterns.md](layer-patterns.md#layer-2b-per-subsystem-binding-classes). Constructor takes the
+   `layer-patterns.md`. Constructor takes the
    new configuration dataclass; lifecycle methods follow the conventions above.
 
 5. **Wire the binding class into the lifecycle orchestrator.** Add the construction in the correct
    order (per the construction order in
-   [layer-patterns.md](layer-patterns.md#construction-and-bring-up-order)) and the teardown in the reverse order.
+   `layer-patterns.md`) and the teardown in the reverse order.
 
 6. **Update the per-system instance skill.** Add a section documenting the new subsystem's configuration
    surface and binding-class composition (for Mesoscope-VR, this is `mesoscope:mesoscope-vr`).
@@ -131,7 +131,7 @@ microcontroller-driven sensor to `MesoscopeMicroControllers`.
    surface.
 
 4. **Bump the consumer library's version** per Contract 2 (schema versioning) in
-   [layer-patterns.md](layer-patterns.md#contract-2-schema-versioning).
+   `layer-patterns.md`.
 
 5. **Regenerate the system configuration YAML** on every deployment.
 
@@ -145,7 +145,7 @@ before the binding class can compose it.
 
 When a system reads from or writes to an external request/response data service (a Google Sheet, a
 LIMS, a REST registry), the integration is a **data-service processor**, not a binding class — see
-the "External data-service processors" category in [subsystem-types.md](subsystem-types.md). The
+the "External data-service processors" category in `subsystem-types.md`. The
 shipped processors (`SurgeryLog`, `WaterLog` in `cross_system/google_sheet_tools.py`) are hard-coded
 to the Sollertia sheet schema, so reuse-vs-author is the first decision.
 

@@ -10,7 +10,7 @@ user-invocable: false
 
 # Discovering acquisition system hardware
 
-Discovers, verifies, and reports the hardware connected to a Sollertia data acquisition PC. Focuses exclusively
+Discovers, verifies, and reports the hardware connected to a Sollertia acquisition PC. Focuses exclusively
 on hardware introspection — all configuration file authoring, working directory setup, credential management,
 and project / experiment creation are owned by sibling plugins (named per item in the hand-off list below)
 and must be invoked by hand-off.
@@ -197,9 +197,9 @@ suffix.
 | `check_mqtt_broker_tool`          | axci   | MQTT broker reachability (host, port) |
 | `check_unity_bridge_tool`         | sle    | Unity Editor MCP Bridge reachability  |
 
-`check_runtime_requirements_tool`, `get_cti_status_tool`, and `set_cti_file_tool` are owned by `ataraxis@video:camera-setup`;
-`check_mqtt_broker_tool` is owned by `ataraxis@communication:microcontroller-setup`; `check_unity_bridge_tool` is
-owned by `/vr-driver-interface`.
+`check_runtime_requirements_tool`, `get_cti_status_tool`, and `set_cti_file_tool` are owned by
+`ataraxis@video:camera-setup`; `check_mqtt_broker_tool` is owned by
+`ataraxis@communication:microcontroller-setup`; `check_unity_bridge_tool` is owned by `/vr-driver-interface`.
 
 Invoke `check_runtime_requirements_tool` first. If it reports the CTI file as unconfigured and the system uses
 Harvesters cameras, set the path with `set_cti_file_tool` — the CTI path lives in the video MCP server's state, not
@@ -294,6 +294,23 @@ hand off to the assets plugin skill that owns the affected asset.
 
 ---
 
+## Related skills
+
+| Skill                                          | Relationship                                                            |
+|------------------------------------------------|-------------------------------------------------------------------------|
+| `assets:working-directory`                     | Owns bootstrap state (working dir, credentials, templates dir)          |
+| `mesoscope:mesoscope-vr`                       | Owns `MesoscopeSystemConfiguration` authoring and validation            |
+| `forging:server-configuration`                 | Owns `ServerConfiguration` authoring and validation                     |
+| `assets:project-hierarchy`                     | Owns project creation (`create_project_tool`)                           |
+| `assets:task-templates`                        | Owns task template authoring                                            |
+| `assets:experiment-configuration`              | Owns per-project experiment configuration authoring                     |
+| `/system-health-check`                         | Lighter-weight pre-session verification sweep                           |
+| `/pipeline`                                    | Phase 3 (Hardware bringup) is owned by this skill                       |
+| `ataraxis@video:camera-setup`                  | Canonical home for CTI configuration and runtime requirement deep-dives |
+| `ataraxis@communication:microcontroller-setup` | Canonical home for microcontroller manifest and discovery deep-dives    |
+
+---
+
 ## Verification checklist
 
 ```text
@@ -312,20 +329,3 @@ hand off to the assets plugin skill that owns the affected asset.
 - [ ] Handed off to assets:working-directory, mesoscope:mesoscope-vr, forging:server-configuration, assets:project-hierarchy,
       assets:task-templates, or assets:experiment-configuration for any state mutation
 ```
-
----
-
-## Related skills
-
-| Skill                                          | Relationship                                                            |
-|------------------------------------------------|-------------------------------------------------------------------------|
-| `assets:working-directory`                     | Owns bootstrap state (working dir, credentials, templates dir)          |
-| `mesoscope:mesoscope-vr`                       | Owns `MesoscopeSystemConfiguration` authoring and validation            |
-| `forging:server-configuration`                 | Owns `ServerConfiguration` authoring and validation                     |
-| `assets:project-hierarchy`                     | Owns project creation (`create_project_tool`)                           |
-| `assets:task-templates`                        | Owns task template authoring                                            |
-| `assets:experiment-configuration`              | Owns per-project experiment configuration authoring                     |
-| `/system-health-check`                         | Lighter-weight pre-session verification sweep                           |
-| `/pipeline`                                    | Phase 3 (Hardware bringup) is owned by this skill                       |
-| `ataraxis@video:camera-setup`                  | Canonical home for CTI configuration and runtime requirement deep-dives |
-| `ataraxis@communication:microcontroller-setup` | Canonical home for microcontroller manifest and discovery deep-dives    |

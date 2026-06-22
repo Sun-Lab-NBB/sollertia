@@ -171,7 +171,8 @@ reprocessed.
 
 ```text
 Animal migration progress:
-- [ ] Destination project exists (verify via assets:project-hierarchy); create via create_project_tool or `slsa configure project` if missing
+- [ ] Destination project exists (verify via assets:project-hierarchy); create via create_project_tool
+      or `slsa configure project` if missing
 - [ ] Confirmed migration with the user (source, destination, animal_id)
 - [ ] Executed migrate_animal_tool
 - [ ] On failure, resolved the reported error and re-ran migrate_animal_tool to resume
