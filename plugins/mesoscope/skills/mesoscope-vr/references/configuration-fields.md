@@ -213,9 +213,12 @@ Converted to microseconds and passed as `polling_frequency` to `MesoscopeFrameTT
 normalizes from `dict` on YAML load. `WaterValveInterface` fits a power-law model
 (`a * pulse_duration ** b`) to this calibration data using `scipy.optimize.curve_fit`.
 
-**Recalibration**: Use the `/mesoscope-vr-runtime` skill (or `WaterValveInterface.calibrate_valve()`
-directly) to gather new calibration points. Replace the entire tuple; do NOT mix old and new
-measurements.
+**Recalibration** drives the valve hardware (it repeatedly opens the valve to measure dispensed volume), so it
+is performed by the experimenter on the rig — never by the agent. Direct the user to the maintenance runtime
+(`sle mesoscope maintain`, the `maintenance_logic` hardware-maintenance GUI documented in
+`/mesoscope-vr-runtime`) to gather new calibration points, then update `valve_calibration_data` with the
+resulting measurements. Replace the entire tuple; do NOT mix old and new measurements, and do NOT invoke
+`WaterValveInterface.calibrate_valve()` or otherwise drive the valve yourself.
 
 ---
 
