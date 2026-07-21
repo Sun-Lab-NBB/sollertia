@@ -212,7 +212,9 @@ delete_task_tool(template_name="<template-name>")
 Removes the scene at `Assets/Scenes/<template-name>.unity` (plus its
 `savedFullScreenViews.asset` companion via the same cascade `delete_task_tool` uses), the task
 prefab at `Assets/InfiniteCorridorTask/Tasks/<template-name>.prefab`, and every segment prefab
-under `Assets/InfiniteCorridorTask/Prefabs/` whose filename begins with `<template-name>_`. The
+under `Assets/InfiniteCorridorTask/Prefabs/` that `<template-name>` owns — ownership resolves by the
+longest matching template name, so a template whose name prefixes another (e.g. `SSO_Merging` vs
+`SSO_Merging_Base`) never deletes the longer template's segments. The
 template YAML and the shared cue prefabs / materials are preserved — cues live in
 `Assets/InfiniteCorridorTask/Cues/` and are referenced by sibling tasks, so individual cue
 cleanup goes through `delete_asset_tool`. The response carries `deleted_paths` (every
