@@ -27,7 +27,7 @@
     {
       "name": "forging",
       "source": "./plugins/forging",
-      "description": "Umbrella plugin for sollertia-forgery skill systems. Currently ships the behavior processing subsystem (session discovery, batch preparation and execution, output verification, and feather data querying) and is structured to accommodate future forging, managing, and analysis subsystems. Backed by the sollertia-forgery MCP server (sl-mcp)."
+      "description": "Umbrella plugin for sollertia-forgery skill systems. Currently ships the behavior processing subsystem (session discovery, batch preparation and execution, output verification, and feather data querying) and is structured to accommodate future forging, managing, and analysis subsystems. Backed by the sollertia-forgery MCP server (slf)."
     }
   ]
 }
