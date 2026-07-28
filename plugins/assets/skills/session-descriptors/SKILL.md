@@ -3,7 +3,7 @@ name: session-descriptors
 description: >-
   Reads, writes, and validates per-system session descriptor YAMLs via the sollertia-shared-assets
   MCP server. Descriptors are keyed on SessionTypes via DESCRIPTOR_REGISTRY; the parsing class
-  varies by session type while the filename, contract, and tools stay generic. Owns
+  varies by session type while the file-path contract and tools stay generic. Owns
   write_session_descriptor_tool and describe_session_descriptor_schema_tool; tools are file-path
   based, accepting raw session snapshots or forged dataset copies. Use when repairing, amending, or
   inspecting a descriptor for any session type. For Mesoscope-VR's concrete descriptor schema, see
@@ -67,10 +67,10 @@ Mesoscope-VR, `mesoscope:mesoscope-vr-session-schema`).
 
 ## Session types and descriptor classes
 
-The descriptor file always uses the same filename (`session_descriptor.yaml`) regardless of
-session type. The YAML parses into a session-type-specific descriptor dataclass, and the library's
-`DESCRIPTOR_REGISTRY` maps each `SessionTypes` value → its descriptor class. **Only the parsing
-class varies by session type** — the filename, the file-path contract, the full-record-replacement
+The raw session copy and the forged dataset copy both use the filename `session_descriptor.yaml`
+regardless of session type. The YAML parses into a session-type-specific descriptor dataclass, and
+the library's `DESCRIPTOR_REGISTRY` maps each `SessionTypes` value → its descriptor class. **Only
+the parsing class varies by session type.** The file-path contract, the full-record-replacement
 semantics, and the MCP tool surface are all generic across systems and session types.
 
 Each descriptor captures the **per-session** metadata that varies between sessions of the same type
@@ -162,21 +162,30 @@ not an input to numerical processing.
 
 ### Known file locations
 
-`session_descriptor.yaml` (`RawDataFiles.SESSION_DESCRIPTOR`) is written by different pipelines
-into several canonical locations. All of them hold the same schema and are read/written by the
-same tools; this skill does not distinguish between them beyond helping the caller resolve the
-right path.
+The descriptor is written by different pipelines into several canonical locations. The raw session
+snapshot and the forged dataset copy both carry the filename `session_descriptor.yaml`
+(`RawDataFiles.SESSION_DESCRIPTOR`), while the per-animal persistent cache names its file after the
+session type. All of them hold the same schema and are read and written by the same tools, and this
+skill does not distinguish between them beyond helping the caller resolve the right path.
 
 | Location                                                    | Populated by                                                                   | Discovery path                                                                                                                        |
 |-------------------------------------------------------------|--------------------------------------------------------------------------------|---------------------------------------------------------------------------------------------------------------------------------------|
-| `<session>/raw_data/session_descriptor.yaml`                | Acquisition runtime at session end (primary on-disk copy)                      | Session root from `/session-discovery`; `inspect_sessions_tool` (`/session-data`) confirms presence in its `raw_data_files` inventory |
-| `<project_root>/<animal>/<session>/session_descriptor.yaml` | Forging pipeline (copy alongside `data.feather` at dataset assembly)           | Forging plugin's `forging:datasets` resolves the forged-session layout under a dataset's `project_root`                               |
-| `<persistent_data>/<animal>/session_descriptor.yaml`        | Acquisition runtime (per-animal cache used to seed the next same-type session) | `/project-hierarchy`                                                                                                                  |
+| `<session>/raw_data/session_descriptor.yaml`                | Acquisition runtime at session end (primary on-disk copy)                      | Session root from `/session-discovery`. `inspect_sessions_tool` (`/session-data`) confirms presence in its `raw_data_files` inventory |
+| `<dataset_root>/<animal>/<session>/session_descriptor.yaml` | Forging pipeline (copy alongside `data.feather` at dataset assembly)           | Forging plugin's `forging:datasets` resolves the forged-session layout under the dataset root                                         |
+| `<animal>/persistent_data/<session-type>_descriptor.yaml`   | Acquisition runtime (per-animal cache used to seed the next same-type session) | `/project-hierarchy`                                                                                                                  |
 
-Other locations are possible — the tools take any absolute path — but the three above are the
-ones populated automatically. The forged copy lives **directly under the session directory
-inside the project root**, not under a `raw_data/` subdirectory; the path shape therefore does
-**not** match `<session>/raw_data/...` for forged copies.
+Other locations are possible, because the tools take any absolute path, but the three above are the
+ones populated automatically. The dataset root is the directory that holds the dataset's
+`dataset.yaml` marker, which `DatasetData` re-derives as `dataset_data_path.parent` on every load.
+The forged copy lives **directly under the session directory inside the dataset root**, not under a
+`raw_data/` subdirectory, so the path shape does **not** match `<session>/raw_data/...` for forged
+copies. The persistent cache sits at `<root>/<project>/<animal>/persistent_data/`
+(`AnimalData.persistent_data_path`) and holds one descriptor per session type, so its filename
+encodes the session type. In `<session-type>_descriptor.yaml` the placeholder stands for a
+snake_case name the acquisition system hardcodes. Substitute the exact filename that system uses,
+because `SessionTypes` values carry spaces. For Mesoscope-VR those filenames are
+`lick_training_descriptor.yaml`, `run_training_descriptor.yaml`,
+`mesoscope_experiment_descriptor.yaml`, and `window_checking_descriptor.yaml`.
 
 All copies are **snapshots** frozen at the moment their pipeline wrote them; none is a live
 view. Copies are not strictly immutable: `write_session_descriptor_tool` can amend any one file
@@ -234,17 +243,19 @@ everywhere.
 
 ### Reading a descriptor (generic)
 
-1. **Verify prerequisites:** MCP server connected (else `/assets-mcp-environment-setup`); the
-   target `session_descriptor.yaml` exists at the path you are about to pass.
+1. **Verify prerequisites:** MCP server connected (else `/assets-mcp-environment-setup`), and the
+   target descriptor file exists at the path you are about to pass.
 2. **Resolve the `file_path`** using the hand-off that matches the container:
    - **Raw session snapshot** → session root from `/project-hierarchy` or
      `/session-discovery`; optionally confirm the file is present via
      `inspect_sessions_tool` (`/session-data`). Path is
      `<session>/raw_data/session_descriptor.yaml`.
    - **Forged dataset copy** → hand off to `forging:datasets` skill for the
-     per-session path inside the dataset's `project_root`. Path shape is
-     `<project_root>/<animal>/<session>/session_descriptor.yaml`.
-   - **Per-animal persistent cache** → hand off to `/project-hierarchy`.
+     per-session path inside the dataset root. Path shape is
+     `<dataset_root>/<animal>/<session>/session_descriptor.yaml`.
+   - **Per-animal persistent cache** → hand off to `/project-hierarchy`. Path shape is
+     `<animal>/persistent_data/<session-type>_descriptor.yaml`, with the system's hardcoded
+     snake_case filename in place of the placeholder (see **Known file locations**).
    - **Ad-hoc location** → the user supplies the path directly.
 3. **Determine `session_type`.**
    - If the file sits in a raw session snapshot, hand off to `/session-data` — either call
@@ -256,7 +267,7 @@ everywhere.
 4. **Read the descriptor:**
    ```text
    read_session_descriptor_tool(
-       file_path="<absolute path to session_descriptor.yaml>",
+       file_path="<absolute path to the descriptor file>",
        session_type="<type>",
    )
    ```
@@ -316,12 +327,12 @@ Same as **Reading a descriptor** above, stopping at step 4.
 The three on-disk copies are independent — writing to one does not touch any other. Pick the
 target(s) that match the durability the user actually wants:
 
-| Scenario                                                                              | Action                                                                                         |
-|---------------------------------------------------------------------------------------|------------------------------------------------------------------------------------------------|
-| One raw session snapshot has a data-entry error                                       | `write_session_descriptor_tool` on `<session>/raw_data/session_descriptor.yaml`                |
-| A forged dataset copy is wrong (e.g., it was copied from a bad raw snapshot)          | `write_session_descriptor_tool` on `<project_root>/<animal>/<session>/session_descriptor.yaml` |
-| Both the raw snapshot and the forged copy are wrong for the same session              | Call `write_session_descriptor_tool` against each file separately — there is no propagation    |
-| The per-animal persistent cache is seeding the wrong values into future training runs | Amend the cache copy directly (path from `/project-hierarchy`)                                 |
+| Scenario                                                                              | Action                                                                                                                                                 |
+|---------------------------------------------------------------------------------------|--------------------------------------------------------------------------------------------------------------------------------------------------------|
+| One raw session snapshot has a data-entry error                                       | `write_session_descriptor_tool` on `<session>/raw_data/session_descriptor.yaml`                                                                        |
+| A forged dataset copy is wrong (e.g., it was copied from a bad raw snapshot)          | `write_session_descriptor_tool` on `<dataset_root>/<animal>/<session>/session_descriptor.yaml`                                                         |
+| Both the raw snapshot and the forged copy are wrong for the same session              | Call `write_session_descriptor_tool` against each file separately. There is no propagation                                                             |
+| The per-animal persistent cache is seeding the wrong values into future training runs | Amend `<animal>/persistent_data/<session-type>_descriptor.yaml` directly (exact filename per **Known file locations**, path from `/project-hierarchy`) |
 
 ---
 

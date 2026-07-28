@@ -21,6 +21,7 @@ type/units/default changed.
 | `microcontrollers` | `MesoscopeMicroControllers` | `field(default_factory=...)` | Microcontroller configuration (see below)                                     |
 | `acquisition`      | `MesoscopeAcquisition`      | `field(default_factory=...)` | Mesoscope motion-estimation and z-stack acquisition configuration (see below) |
 | `assets`           | `MesoscopeVRAssets`         | `field(default_factory=...)` | Zaber motor ports + nested Unity MQTT task configuration (see below)          |
+| `video_tracking`   | `MesoscopeVideoTracking`    | `field(default_factory=...)` | DeepLabCut face-camera eye-tracking inference configuration (see below)       |
 
 ### Non-default behaviors
 
@@ -47,9 +48,13 @@ The local **data root** (the directory under which projects are stored on this m
 this section — it is the platform-shared data root, resolved with `get_data_root()` and set with
 `slsa configure data-root`.
 
-**Mount checks:** `mesoscope_directory` and every configured `storage_directories` path are
-validated by `check_system_mounts_tool` at every session start. A missing or unwritable path
-aborts the runtime.
+**Mount checks:** `check_system_mounts_tool` is an agent-invoked MCP tool that returns a diagnostic
+report covering the platform `data_root`, `mesoscope_directory`, and every `storage_directories`
+path. Each path is reported `ok` when it exists and is writable. A storage root left as an empty
+path is reported as `{"configured": False, "ok": True}`, because configuring every destination is
+optional. Call the tool yourself as a pre-flight check. The acquisition runtime resolves these paths
+without its own existence check, and it records unset storage roots under
+`unconfigured_destinations`, which produces a preprocessing warning about the skipped backup.
 
 ---
 
@@ -88,7 +93,7 @@ Captures per-camera configuration. The Mesoscope-VR system uses two cameras (fac
 
 **Source of values:**
 - Camera indices come from `experiment:acquisition-system-setup` discovery
-  (`ataraxis@video:camera-setup`'s `list_cameras` tool). Do NOT guess.
+  (`video:camera-setup`'s `list_cameras` tool, ataraxis marketplace). Do NOT guess.
 - Display frame rates, quantization, and presets are deployment defaults that have produced good
   results on the reference rig. Override only with measured / preferred values.
 - Configuration paths are **optional**. Set them only for cameras whose GenICam node configuration
@@ -118,8 +123,8 @@ Default ports use the Linux device-path form (`/dev/ttyACM*`); the value is OS-s
 Windows) and is set per host from discovery.
 
 Ports come from `experiment:acquisition-system-setup` discovery
-(`ataraxis@communication:microcontroller-setup`'s `list_microcontrollers` tool). The user must
-confirm which physical Teensy plays the ACTOR / SENSOR / ENCODER role and assign ports accordingly.
+(`communication:microcontroller-setup`'s `list_microcontrollers` tool). The user must confirm which
+physical Teensy plays the ACTOR / SENSOR / ENCODER role and assign ports accordingly.
 
 ### Brake calibration (consumes `BrakeInterface`)
 
@@ -304,11 +309,48 @@ NOT stored here — they are resolved at experiment start from the matching `Tas
 
 ---
 
+## MesoscopeVideoTracking
+
+Captures the DeepLabCut pose-inference configuration that analyzes the face-camera video during
+experiment-session preprocessing. Seven fields. See [Video tracking section in
+SKILL.md](../SKILL.md#mesoscopevideotracking) for the `conda run` subprocess boundary, the placement
+inside the preprocessing pipeline, and the transfer-abort failure mode.
+
+| Field               | Type   | Default  | Purpose                                                                                                                                                                      |
+|---------------------|--------|----------|------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| `conda_environment` | `str`  | `""`     | Name of the conda environment that provides the `slvt` command and its DeepLabCut installation. An empty string disables face-camera inference                               |
+| `dlc_project_path`  | `Path` | `Path()` | Absolute path to the DeepLabCut project's `config.yaml` whose trained model analyzes the face-camera video. An empty path disables face-camera inference                     |
+| `shuffle`           | `int`  | `1`      | Shuffle index of the trained DeepLabCut model to run                                                                                                                         |
+| `crop`              | `str`  | `""`     | The `x1,x2,y1,y2` pixel rectangle to analyze instead of the full frame, matching the region the model was trained on. An empty string analyzes the project's configured crop |
+| `batch_size`        | `int`  | `32`     | Number of frames the pose model processes per forward pass, sized for the acquisition rig's GPU                                                                              |
+| `chunks`            | `int`  | `1`      | Number of contiguous frame-range pieces the face-camera video is split into for concurrent analysis. A value of one analyzes the video as a single unbroken frame range      |
+| `compile_model`     | `bool` | `True`   | Whether the pose model is compiled with `torch.compile`. Enabled by default because the rig's GPU amortizes the one-time warm-up cost over the long face-camera video        |
+
+**Opt-in gate:** face-camera inference runs only when the host configures both `conda_environment`
+and `dlc_project_path`. An empty string or an unset path disables it, matching the empty-value idiom
+the other sections use. Inference is also skipped, with a warning, when the expected face-camera
+video is absent.
+
+**Source of values:** `conda_environment` and `dlc_project_path` name the host's DeepLabCut install
+and trained project, so ask the user for both. `shuffle`, `crop`, `batch_size`, `chunks`, and
+`compile_model` are deployment defaults tuned for the reference rig's GPU. Override them for a
+different trained model or a different GPU.
+
+**Outputs:** a successful run writes the DeepLabCut `.h5` file and its companion pickles beside the
+face-camera video in `raw_data/camera_data/`, so they are covered by the raw-data checksum and
+shipped to long-term storage as raw data.
+
+**Validation gap:** `validate_system_configuration_tool` and `check_system_mounts_tool` report on
+filesystem paths only, so a wrong `dlc_project_path` passes every pre-flight check and surfaces when
+preprocessing joins the inference subprocess.
+
+---
+
 ## Field-naming convention recap
 
 All configuration fields follow `<device-or-module>_<parameter>_<unit>` per
-`experiment:acquisition-system-design`'s [Configuration field naming
-convention](../../../../experiment/skills/acquisition-system-design/SKILL.md#field-naming-convention):
+`experiment:acquisition-system-design`'s [Configuration field naming convention
+](../../../../experiment/skills/acquisition-system-design/references/layer-patterns.md#field-naming-convention):
 
 | Component            | Examples                                                    |
 |----------------------|-------------------------------------------------------------|
@@ -325,8 +367,8 @@ configuration values will need extra context to interpret the value's units.
 
 Any change to a field (add, remove, rename, type-change, unit-change) is a schema change and MUST
 be paired with a `sollertia-experiment` version bump in `pyproject.toml`. Per
-`experiment:acquisition-system-design`'s [Contract 2: Schema
-versioning](../../../../experiment/skills/acquisition-system-design/SKILL.md#contract-2-schema-versioning):
+`experiment:acquisition-system-design`'s [Contract 2: Schema versioning
+](../../../../experiment/skills/acquisition-system-design/references/layer-patterns.md#contract-2-schema-versioning):
 
 - **Add field**: bump minor version. Older YAML files load with the new field at default.
 - **Remove field**: bump major version. Older YAML files load with the removed field silently ignored.

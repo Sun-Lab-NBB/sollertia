@@ -19,10 +19,14 @@ aborts construction with a `ValueError` naming the missing headers.
 | Animal ID format         | Zero-padded to a five-digit string for comparison (`12` → `00012`).                                          |
 | Empty-value placeholders | `""`, `n/a`, `--`, `---` (case-insensitive) are read as `None`.                                              |
 | Column-letter mapping    | 0-based column index → Excel-style letter (`A`, `B`, … `Z`, `AA`, …).                                        |
-| Supported date formats   | `%m-%d-%y`, `%m-%d-%Y`, `%m/%d/%y`, `%m/%d/%Y`. Times are `%H:%M`.                                           |
+| Surgery-log date formats | `%m-%d-%y`, `%m-%d-%Y`, `%m/%d/%y`, `%m/%d/%Y`. Times are `%H:%M`.                                           |
 | Timezone                 | Human-entered dates/times are interpreted as host **local time** and stored as UTC microseconds-since-epoch. |
 | Write formatting         | Written cells get CENTER horizontal / MIDDLE vertical alignment via a follow-up `batchUpdate`.               |
 | Retries                  | Every API call uses `num_retries=5` (`_GOOGLE_API_MAX_RETRIES`) for transient 5xx/429 errors.                |
+
+The `_SUPPORTED_DATE_FORMATS` set feeds `_convert_date_time_to_timestamp`, which parses the surgery log's date and
+time cells. The water log resolves its own `date` column by string comparison, under the format given in
+[Water restriction log](#water-restriction-log-waterlog).
 
 ---
 
@@ -87,12 +91,13 @@ empty was not administered and is excluded from `drugs[]`.
 
 ## Water restriction log (`WaterLog`)
 
-| Structural assumption | Value                                                                                                           |
-|-----------------------|-----------------------------------------------------------------------------------------------------------------|
-| Tab identity          | One tab per **animal**; tab name = the numeric animal ID (digit-only tabs only).                                |
-| Header row            | Row **2** (differs from the surgery log's row 1).                                                               |
-| Data rows             | Row 3 onward.                                                                                                   |
-| Record identity       | The session's date must already exist in the pre-filled **`date` column**; the matching row is the session row. |
+| Structural assumption | Value                                                                                                   |
+|-----------------------|---------------------------------------------------------------------------------------------------------|
+| Tab identity          | One tab per **animal**, with the tab name set to the numeric animal ID (digit-only tabs only).          |
+| Header row            | Row **2** (differs from the surgery log's row 1).                                                       |
+| Data rows             | Row 3 onward.                                                                                           |
+| Record identity       | The session's date must already exist in the pre-filled **`date` column**. That row is the session row. |
+| Date match format     | Non-zero-padded `M/D/YY` (`%-m/%-d/%y`, e.g. `5/24/26`), matched by exact string equality.              |
 
 ### Required headers
 
@@ -112,7 +117,10 @@ The `_REQUIRED_WATER_RESTRICTION_HEADERS` set: `date`, `weight (g)`, `given by:`
 | `time`             | Session start time in `HH:MM` local time (cached at construction).  |
 
 The log must be **pre-filled with session dates** — `WaterLog` writes into an existing date row and
-raises `ValueError` if the session's date is absent (it does not create rows).
+raises `ValueError` if the session's date is absent (it does not create rows). The lookup compares
+each `date` cell against `local_datetime.strftime("%-m/%-d/%y")` for exact equality, so a cell
+holding `05/24/26` or `05-24-26` fails to match the session's `5/24/26` and aborts construction.
+The surgery log tries four `strptime` patterns, and the water log matches one exact string.
 
 ---
 

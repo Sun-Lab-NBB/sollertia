@@ -74,14 +74,23 @@ sle mcp
 
 **Expected output from `get_zaber_devices_tool()`:**
 ```text
-+----------------+------------+-------+---------+-------------+---------+-------------+
-|      Port      | Device Num |  ID   |  Label  |    Name     | Axis ID | Axis Label  |
-+----------------+------------+-------+---------+-------------+---------+-------------+
-| /dev/ttyUSB0   |     1      | 30341 | HeadBar |  X-LDA025A  |    1    |      Z      |
-|                |     2      | 30341 |         |  X-LDA025A  |    1    |    Pitch    |
-|                |     3      | 30341 |         |  X-LDA025A  |    1    |    Roll     |
-+----------------+------------+-------+---------+-------------+---------+-------------+
++--------------+--------------+-------+---------+-----------+-----------+--------------+
+|     Port     |   Device Num |    ID |  Label  |   Name    |   Axis ID |  Axis Label  |
++==============+==============+=======+=========+===========+===========+==============+
+| /dev/ttyUSB0 |            1 | 30341 | HeadBar | X-LDA025A |         1 |      Z       |
++--------------+--------------+-------+---------+-----------+-----------+--------------+
+| /dev/ttyUSB0 |            2 | 30341 | HeadBar | X-LDA025A |         1 |    Pitch     |
++--------------+--------------+-------+---------+-----------+-----------+--------------+
+| /dev/ttyUSB0 |            3 | 30341 | HeadBar | X-LDA025A |         1 |     Roll     |
++--------------+--------------+-------+---------+-----------+-----------+--------------+
+|              |              |       |         |           |           |              |
++--------------+--------------+-------+---------+-----------+-----------+--------------+
 ```
+
+The port path repeats on every device row, because the tool rebuilds the port, device number, ID, label, and name
+cells for each discovered device. Cells blank out only across the additional axes of one multi-axis device, so
+single-axis controllers always carry a fully populated row. The tool also appends one blank row after each port
+section, which separates the sections when several ports report devices.
 
 > **OS note.** Serial-port paths are OS-specific. This skill shows the Linux form (`/dev/ttyUSB0`); on Windows
 > the same port appears as a `COM3`-style name, on macOS as `/dev/tty.usbserial-XXXX`. Always use the path the
@@ -285,7 +294,8 @@ Use MCP tools to read and modify Zaber motor configuration stored in non-volatil
 **axis_label:**
 - Optional and typically unused for Zaber motors. A missing axis_label is not an issue.
 - Axis labels are primarily used for third-party motors where the label reflects the specific motor name.
-- For Zaber single-axis controllers, the device_label is sufficient for identification.
+- For Zaber single-axis controllers, the device_label drives checksum validation and can repeat across a motor group,
+  because the binding library selects each device by its daisy-chain index.
 - Do not flag missing axis_label as a configuration problem.
 
 ### Initial device setup workflow
@@ -457,7 +467,7 @@ dataclass patterns, see [references/zaber-api-reference.md](references/zaber-api
 | Skill                               | Relationship                                                                   |
 |-------------------------------------|--------------------------------------------------------------------------------|
 | `/acquisition-system-design`        | Platform-general pattern for composing a Zaber subsystem into a binding class  |
-| `mesoscope:mesoscope-vr`            | Current consumer — composes `ZaberMotors` from `MesoscopeVRAssets`             |
+| `mesoscope:mesoscope-vr`            | Current consumer that composes `ZaberMotors` from `MesoscopeVRAssets`          |
 | `mesoscope:mesoscope-vr-snapshots`  | Reads/writes the `ZaberPositions` snapshot this subsystem restores from        |
 | `/acquisition-system-setup`         | Acquisition-system-level hardware discovery and verification                   |
 | `/experiment-mcp-environment-setup` | Run first if the `sle mcp` server is not connected                             |

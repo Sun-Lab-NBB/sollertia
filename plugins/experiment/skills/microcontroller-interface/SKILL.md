@@ -46,10 +46,10 @@ runtime behavior), not here. The platform-general pattern those skills follow li
 **Does not cover** (delegated):
 - Base `Module` / `ModuleInterface` API, `PACKED_STRUCT` mechanics, `SendData` patterns, event-code ranges,
   `MicroControllerInterface` lifecycle, MQTTCommunication, DataLogger topology, keepalive mechanics —
-  see `ataraxis@microcontroller:firmware-module` and `ataraxis@communication:microcontroller-interface`.
-- Microcontroller discovery, manifest management via MCP tools — see `ataraxis@communication:microcontroller-setup`.
+  see `microcontroller:firmware-module` (ataraxis marketplace) and `communication:microcontroller-interface`.
+- Microcontroller discovery, manifest management via MCP tools — see `communication:microcontroller-setup`.
 - C++ style, Python style, header guards conventions enforcement —
-  see `ataraxis@automation:cpp-style`, `ataraxis@automation:python-style`.
+  see `automation:cpp-style`, `automation:python-style`.
 - **Binding-class composition** (per-system `MicroControllerInterfaces`, configuration dataclasses,
   system configuration YAML, runtime orchestration) — covered by `/acquisition-system-design`
   for the platform-general pattern and `mesoscope:mesoscope-vr` for the current Mesoscope-VR
@@ -64,12 +64,12 @@ runtime behavior), not here. The platform-general pattern those skills follow li
 Before reading the conventions or workflows in this skill, you MUST be familiar with the ataraxis base
 templates this layer builds on:
 
-| Concern                                          | Authority                                            |
-|--------------------------------------------------|------------------------------------------------------|
-| C++ `Module` API, parameter structs, `SendData`  | `ataraxis@microcontroller:firmware-module`           |
-| Python `ModuleInterface` API, abstract methods   | `ataraxis@communication:microcontroller-interface`   |
-| Wire protocol, event-code ranges, message types  | Either ataraxis skill (mirrored sections)            |
-| Microcontroller discovery and verification       | `ataraxis@communication:microcontroller-setup`       |
+| Concern                                         | Authority                                 |
+|-------------------------------------------------|-------------------------------------------|
+| C++ `Module` API, parameter structs, `SendData` | `microcontroller:firmware-module`         |
+| Python `ModuleInterface` API, abstract methods  | `communication:microcontroller-interface` |
+| Wire protocol, event-code ranges, message types | Either ataraxis skill (mirrored sections) |
+| Microcontroller discovery and verification      | `communication:microcontroller-setup`     |
 
 The Sollertia layer **inherits all base mechanics and only documents deviations and expansions**. When a
 section below cites a base behavior, treat the ataraxis skill as the source of truth.
@@ -97,14 +97,14 @@ currently-used values.
   a freed one. Historical type codes may still appear in archived log data and reuse would conflate
   old and new modules during processing.
 - Custom event codes use the 51-250 range per the ataraxis base; see
-  `ataraxis@microcontroller:firmware-module` for the full range table.
+  `microcontroller:firmware-module` for the full range table.
 
 ---
 
 ## slmc firmware conventions (deviations from ataraxis base)
 
 The slmc firmware `Module` subclass conventions that extend or deviate from
-`ataraxis@microcontroller:firmware-module` — header guards, template-parameterized pins, the mandatory
+`microcontroller:firmware-module` — header guards, template-parameterized pins, the mandatory
 `LED_BUILTIN` static_assert, `constexpr` polarity logic, initial-state reporting from `SetupModule()`,
 stage-based commands and blocking exceptions, performance primitives, and the multi-target `main.cpp`
 pattern — live in [`references/slmc-conventions.md`](references/slmc-conventions.md). Every slmc
@@ -115,11 +115,11 @@ pattern — live in [`references/slmc-conventions.md`](references/slmc-conventio
 ## sle Python wrapper conventions (deviations from ataraxis base)
 
 The sle Python `ModuleInterface` wrapper conventions that extend or deviate from
-`ataraxis@communication:microcontroller-interface` — file location, keyword-only calibration
-constructors, calibration math in `__init__`, the four-method lifecycle, `SharedMemoryArray` naming,
-cached command codes, module-level numpy constants, the public-method patterns, and property accessors
-— live in [`references/sle-conventions.md`](references/sle-conventions.md). They apply to every
-`ModuleInterface` subclass in `src/sollertia_experiment/cross_system/module_interfaces.py`.
+`communication:microcontroller-interface` — file location, constructor signatures, calibration math in
+`__init__`, the four-method lifecycle, `SharedMemoryArray` naming, cached command codes, module-level
+numpy constants, the public-method patterns, and property accessors — live in
+[`references/sle-conventions.md`](references/sle-conventions.md). They apply to every `ModuleInterface`
+subclass in `src/sollertia_experiment/cross_system/module_interfaces.py`.
 
 ---
 
@@ -134,7 +134,7 @@ Both sides MUST agree on the following, exactly:
 | Command codes (1-255)       | Firmware `kModuleCommands` enum is authoritative; Python caches them                                                                |
 | Custom event codes (51-250) | Firmware `kCustomStatusCodes` enum is authoritative; Python `data_codes` / `error_codes` reference the same values                  |
 | Parameter-struct layout     | Firmware `CustomRuntimeParameters` struct is authoritative; Python `send_parameters` tuple must match field count, order, and types |
-| Numpy ↔ C++ type mapping    | See `ataraxis@microcontroller:firmware-module` parameter-struct table                                                               |
+| Numpy ↔ C++ type mapping    | See `microcontroller:firmware-module` parameter-struct table                                                                        |
 
 A parameter-struct mismatch (e.g., a wrapper sends `np.uint16(x)` for a `uint32_t` field) silently
 corrupts every subsequent field because `PACKED_STRUCT` lays the struct out contiguously with no
@@ -179,16 +179,17 @@ firmware reflash on every consumer of that module; adding a Python wrapper is a 
 
 2. **Write the firmware**:
    - New header in `slmc/src/<module>_module.h` following the slmc conventions above and the base
-     `ataraxis@microcontroller:firmware-module` mechanics.
+     `microcontroller:firmware-module` mechanics.
    - Update `slmc/Doxyfile` `INPUT` list and `slmc/docs/source/api.rst` to include the new header.
    - Update `slmc/src/main.cpp` — add the `#include` and instantiation under the appropriate target
      block (or add a new target — see [Controller board allocation](#controller-board-allocation-principles)).
 
 3. **Write the Python wrapper**:
    - New class in `sle/src/sollertia_experiment/cross_system/module_interfaces.py` following the
-     sle conventions above and the base `ataraxis@communication:microcontroller-interface` mechanics.
+     sle conventions above and the base `communication:microcontroller-interface` mechanics.
    - Hardcode `module_type`, `module_id`, `name`, `data_codes`, `error_codes` in `super().__init__()`.
-   - Expose calibration as keyword-only constructor arguments.
+   - Expose calibration and policy values as regular constructor parameters that call sites pass by
+     keyword. Reserve true keyword-only syntax (a `*` separator) for the binary state setters.
    - Implement `set_parameters` / `set_state` / domain-specific methods per the sle public-method
      patterns.
 
@@ -392,17 +393,17 @@ files (`slmc/src/*_module.h`, `sle/.../module_interfaces.py`, `slmc/src/main.cpp
 
 ## Related skills
 
-| Skill                                              | Relationship                                                                                                     |
-|----------------------------------------------------|------------------------------------------------------------------------------------------------------------------|
-| `ataraxis@microcontroller:firmware-module`         | Authoritative base for C++ `Module` mechanics; this skill defers all base patterns and only adds the slmc layer. |
-| `ataraxis@communication:microcontroller-interface` | Authoritative base for Python `ModuleInterface` mechanics; this skill defers and adds the sle layer.             |
-| `ataraxis@communication:microcontroller-setup`     | Post-flash discovery / MQTT verification; called after adding a board or module to confirm the hardware.         |
-| `ataraxis@automation:cpp-style`                    | Authoritative for slmc Doxygen file headers, formatting, naming.                                                 |
-| `ataraxis@automation:python-style`                 | Authoritative for sle docstrings, type annotations, formatting.                                                  |
-| `/acquisition-system-setup`                        | Post-flash hardware enumeration / verification at the acquisition-system level.                                  |
-| `/acquisition-system-design`                       | Platform-general pattern for composing wrappers into binding classes and a system configuration.                 |
-| `mesoscope:mesoscope-vr`                           | Current Mesoscope-VR worked instance — composes the wrappers documented here into `MicroControllerInterfaces`.   |
-| `mesoscope:mesoscope-vr-runtime`                   | Mesoscope-VR runtime behavior (state machine, training modes, CLI). Consumes wrapper APIs documented here.       |
+| Skill                                     | Relationship                                                                                                     |
+|-------------------------------------------|------------------------------------------------------------------------------------------------------------------|
+| `microcontroller:firmware-module`         | Authoritative base for C++ `Module` mechanics; this skill defers all base patterns and only adds the slmc layer. |
+| `communication:microcontroller-interface` | Authoritative base for Python `ModuleInterface` mechanics; this skill defers and adds the sle layer.             |
+| `communication:microcontroller-setup`     | Post-flash discovery / MQTT verification; called after adding a board or module to confirm the hardware.         |
+| `automation:cpp-style`                    | Authoritative for slmc Doxygen file headers, formatting, naming.                                                 |
+| `automation:python-style`                 | Authoritative for sle docstrings, type annotations, formatting.                                                  |
+| `/acquisition-system-setup`               | Post-flash hardware enumeration / verification at the acquisition-system level.                                  |
+| `/acquisition-system-design`              | Platform-general pattern for composing wrappers into binding classes and a system configuration.                 |
+| `mesoscope:mesoscope-vr`                  | Current Mesoscope-VR worked instance — composes the wrappers documented here into `MicroControllerInterfaces`.   |
+| `mesoscope:mesoscope-vr-runtime`          | Mesoscope-VR runtime behavior (state machine, training modes, CLI). Consumes wrapper APIs documented here.       |
 
 ---
 
@@ -430,9 +431,10 @@ Firmware (slmc):
 Wrapper (sle):
 - [ ] Class in cross_system/module_interfaces.py named <FirmwareModuleName-without-Module>Interface
       (or <Role>Interface for a role-specific wrapper, e.g. WaterValveInterface, MesoscopeFrameTTLInterface)
-- [ ] Constructor exposes calibration as keyword-only parameters; module_type / module_id / name /
-      data_codes / error_codes hardcoded in super().__init__()
-- [ ] Calibration math (unit conversion, curve_fit, derived factors) computed in __init__ and rounded to 8 decimals
+- [ ] Constructor exposes calibration as regular parameters that call sites pass by keyword
+- [ ] module_type / module_id / name / data_codes / error_codes hardcoded in super().__init__()
+- [ ] Calibration math (unit conversion, curve_fit, derived factors) computed in __init__ and cached at full
+      np.float64 precision
 - [ ] SharedMemoryArray (if used) created with exists_ok=True and named f"{module_type}_{module_id}_<purpose>"
 - [ ] initialize_local_assets() implemented for shared-memory parent-process setup
 - [ ] initialize_remote_assets() connects shared memory and initializes non-picklable assets (e.g., PrecisionTimer)
@@ -460,6 +462,6 @@ Catalog (`references/module-catalog.md`):
 
 Verification:
 - [ ] pio run succeeds for every affected target
-- [ ] After flash, the new module is visible via ataraxis@communication:microcontroller-setup discovery
+- [ ] After flash, the new module is visible via communication:microcontroller-setup discovery
 - [ ] A Python REPL can instantiate the wrapper without error and round-trip a set_parameters / send_command call
 ```

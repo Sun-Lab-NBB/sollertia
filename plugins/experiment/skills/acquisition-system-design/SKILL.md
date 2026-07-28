@@ -59,8 +59,8 @@ Detailed authoring patterns live in three reference files, loaded on demand:
 - Concrete Mesoscope-VR runtime behavior (state machine, training modes, CLI) — see
   `mesoscope:mesoscope-vr-runtime`.
 - The Unity VR task driver subsystem — see `/vr-driver-interface`.
-- Low-level VideoSystem mechanics — see `ataraxis@video:camera-interface`.
-- Low-level MicroControllerInterface mechanics — see `ataraxis@communication:microcontroller-interface`.
+- Low-level VideoSystem mechanics — see `video:camera-interface` (ataraxis marketplace).
+- Low-level MicroControllerInterface mechanics — see `communication:microcontroller-interface`.
 - Zaber motor interface mechanics — see `/zaber-interface`.
 - Per-session metadata, task templates, and experiment configuration — owned by the assets plugin
   (e.g. `assets:session-descriptors`, `assets:task-templates`, `assets:experiment-configuration`).
@@ -148,8 +148,8 @@ four properties:
 
 - an explicit, narrow type;
 - a sensible default — a reference-rig value (a measured calibration value where the parameter is a
-  calibration, otherwise a working factory setting), or `Path()` for filesystem fields the user
-  MUST set;
+  calibration, otherwise a working factory setting), or `Path()` for filesystem fields, which reads as
+  not configured until the deployment sets it;
 - a triple-quoted docstring;
 - a name following the `<device-or-module>_<parameter>_<unit>` convention (the unit suffix is
   included whenever the unit is non-obvious).
@@ -161,7 +161,7 @@ file — that records the camera's expected node configuration. The field is dec
 *where* the expected configuration lives so agents can verify the live camera against it, and dump or
 restore it on request; the acquisition runtime does not auto-apply it. By convention the YAMLs live
 in the working-directory `configuration/` folder next to the system configuration. The GenICam
-dump/restore mechanics are owned by `ataraxis@video:camera-setup`; a system's own MCP server may add
+dump/restore mechanics are owned by `video:camera-setup`; a system's own MCP server may add
 a verify tool that diffs the live configuration against the stored file (Mesoscope-VR's
 `verify_camera_configuration_tool` is the worked example).
 
@@ -220,14 +220,15 @@ see [references/layer-patterns.md](references/layer-patterns.md#layer-3-lifecycl
 
 Three contracts must hold for the architecture to function:
 
-1. **Configuration field naming agreement** — each configuration dataclass field that feeds a wrapper
+1. **Configuration field naming agreement**: each configuration dataclass field that feeds a wrapper
    constructor matches the wrapper's keyword-argument name conceptually (unit suffixes may be dropped
    at the API boundary).
-2. **Schema versioning** — any add / remove / rename / type-change of a configuration field is a schema
+2. **Schema versioning**: any add / remove / rename / type-change of a configuration field is a schema
    change and MUST be paired with a version bump on the owning package; older YAML must fail loudly
    rather than silently misconfigure.
-3. **Lifecycle ordering** — the DataLogger is running before any binding class `__init__`, `start()`
-   precedes any wrapper command, and `stop()` precedes DataLogger shutdown.
+3. **Lifecycle ordering**: the DataLogger instance exists before any binding class `__init__`, the DataLogger is
+   started before any binding class `start()`, `start()` precedes any wrapper command, and `stop()` precedes
+   DataLogger shutdown.
 
 For the field→kwarg table and the full per-contract rules, see
 [references/layer-patterns.md](references/layer-patterns.md#cross-layer-contracts).
@@ -256,18 +257,18 @@ Three common changes each have a step-by-step procedure in
 
 Beyond the per-subsystem sections, the system configuration also captures host- and system-level
 state that is not a hardware subsystem and has no binding class: filesystem paths, external-service
-identifiers, and network endpoints consumed directly by orchestrator code or by per-session setup
-steps. Exactly which of these a system needs is system-specific; the current platform (Mesoscope-VR)
-uses three:
+identifiers, network endpoints, and parameters for command-line tools the stack runs as subprocesses. Exactly which
+of these a system needs is system-specific. The current platform (Mesoscope-VR) uses four:
 
 | Auxiliary section | Holds                                                       | Concrete fields in use                                       |
 |-------------------|-------------------------------------------------------------|--------------------------------------------------------------|
 | Filesystem paths  | Local mount points for acquired data and long-term storage  | `mesoscope_directory`, `storage_directories` (NAS / Server)  |
 | External services | Identifiers for external services the runtime reads/writes  | Google Sheets IDs (`surgery_sheet_id`, `water_log_sheet_id`) |
 | Network settings  | Broker endpoint for cross-process / cross-machine messaging | MQTT broker IP + port (`vr_task.ip` / `vr_task.port`)        |
+| External tools    | Parameters for a tool the pipeline runs as a subprocess     | `video_tracking` (`conda_environment`, `dlc_project_path`)   |
 
 These follow the same dataclass pattern as hardware subsystems but have no binding class — they're
-consumed directly by orchestrator code or by per-session setup steps. The **Filesystem paths** and
+consumed directly by orchestrator code or by per-session setup and preprocessing steps. The **Filesystem paths** and
 **Network settings** rows are also where the main PC coordinates any additional PCs: an instrument PC
 running its own acquisition stack (e.g., Mesoscope-VR's microscope-control PC, whose output lands in
 `mesoscope_directory`) is reached through the mounted paths and network endpoints declared here, never
@@ -281,10 +282,29 @@ lifecycle surface see the "External data-service processors" category in
 (`SurgeryLog` / `WaterLog`), their schema contract, and authoring a custom one, see
 `/google-sheets-processing`.
 
-**Filesystem fields rule:** Every filesystem field SHOULD be checked at configuration load time via
-a `check_system_mounts_tool` (or equivalent) that verifies the path exists and is writable. The
-check is system-specific; the pattern is that the system configuration's MCP tooling exposes a
-mount-check entry point.
+The **External tools** row is the out-of-process external-tool binding category. A section in this category owns no
+binding class and instead parameterizes a command-line tool that the stack runs as a subprocess, because the tool
+needs a Python environment the acquisition process cannot import. Its fields carry the environment name, the tool's
+model or project path, and the tool's runtime knobs, and leaving those values empty disables the tool for that
+deployment. The Mesoscope-VR instance is `video_tracking` (`MesoscopeVideoTracking`), which drives the `slvt infer`
+DeepLabCut pose-inference command through `conda run` during experiment-session preprocessing. slvt pins Python 3.12
+and numpy 1.x because DeepLabCut 3.0.0 constrains both, while the rest of the Sollertia stack runs Python 3.14 and
+numpy 2, so the `conda run` boundary is load-bearing. Inference launches asynchronously right after the session videos
+are renamed and is joined immediately before the session is pushed to long-term storage, so it overlaps the CPU-bound
+and disk-bound stages on the rig's otherwise-idle GPU. It writes the DeepLabCut `.h5` file and its companion pickles
+beside the face-camera video in `raw_data/camera_data/`, so they fall under the raw-data checksum and ship as raw
+data. A non-zero exit status or zero written prediction files raises `RuntimeError`, aborts the transfer, and retains
+the local session copy for a manual retry. slvt ships no MCP server and no plugin, so the `slvt` CLI is its only
+agent-facing surface and this binding is documented on the sollertia-experiment side.
+
+**Filesystem fields rule:** Every filesystem field SHOULD be verifiable on demand through a
+`check_system_mounts_tool` (or equivalent) that reports whether the path exists and is writable. The check is
+system-specific, and the pattern is that the system configuration's MCP tooling exposes a mount-check entry point that
+an agent or operator invokes. An unset root for an optional storage destination reports as not configured with an ok
+status, so the feature that consumes it is skipped. Every other reported path is checked for existence and
+writability. Mesoscope-VR's `validate_system_configuration_tool` and `check_system_mounts_tool` report on the
+filesystem section only, so a wrong `dlc_project_path` in the `video_tracking` section passes every pre-flight check
+and surfaces when preprocessing joins the inference subprocess.
 
 ---
 
@@ -293,13 +313,13 @@ mount-check entry point.
 The Mesoscope-VR acquisition system is the current consumer of every pattern in this skill:
 
 - **System Configuration**: `MesoscopeSystemConfiguration` in
-  `sollertia_experiment/mesoscope_vr/system.py`. Composes 6 sections (filesystem, sheets,
-  cameras, microcontrollers, acquisition, assets) plus a top-level `name` field. Implements
+  `sollertia_experiment/mesoscope_vr/system.py`. Composes 7 sections (filesystem, sheets,
+  cameras, microcontrollers, acquisition, assets, video_tracking) plus a top-level `name` field. Implements
   `__post_init__` for valve calibration tuple normalization and `save()` for tuple→dict YAML
   roundtrip.
 - **Configuration dataclasses**: `MesoscopeFileSystem`, `MesoscopeGoogleSheets`, `MesoscopeCameras`,
-  `MesoscopeMicroControllers`, `MesoscopeAcquisition`, `MesoscopeVRAssets`. All use `slots=True` and
-  follow the field-naming convention.
+  `MesoscopeMicroControllers`, `MesoscopeAcquisition`, `MesoscopeVRAssets`, `MesoscopeVideoTracking`. All use
+  `slots=True` and follow the field-naming convention.
 - **Binding classes**: `MicroControllerInterfaces`, `VideoSystems`, `ZaberMotors` in
   `sollertia_experiment/mesoscope_vr/binding_classes.py`. `MicroControllerInterfaces` exposes the
   full `start` / `stop` / `__del__` lifecycle; `VideoSystems` starts per-camera via
@@ -347,8 +367,8 @@ per-system skills answer "only this one."
 | `/acquisition-system-runtime`                      | The runtime-behavior counterpart to this static-composition pattern.                                                                    |
 | `mesoscope:mesoscope-vr-runtime`                   | Mesoscope-VR-specific runtime behavior (state machine, training modes, CLI). Built on this pattern.                                     |
 | `/vr-driver-interface`                             | The Unity VR task driver, a standard subsystem of every acquisition system.                                                             |
-| `ataraxis@video:camera-interface`                  | Low-level VideoSystem mechanics. Camera binding classes compose VideoSystem instances.                                                  |
-| `ataraxis@communication:microcontroller-interface` | Low-level MicroControllerInterface mechanics. Microcontroller binding classes compose these.                                            |
+| `video:camera-interface`                           | Low-level VideoSystem mechanics. Camera binding classes compose VideoSystem instances.                                                  |
+| `communication:microcontroller-interface`          | Low-level MicroControllerInterface mechanics. Microcontroller binding classes compose these.                                            |
 | `/acquisition-system-setup`                        | Post-flash hardware discovery used to populate system configuration fields.                                                             |
 | `/pipeline`                                        | End-to-end acquisition-system lifecycle orchestration context.                                                                          |
 | `assets:library-extension`                         | Owns the `sollertia-shared-assets` enum/registry recipe for a new system; step 2 of the build-a-new-system workflow hands off here.     |
@@ -380,7 +400,7 @@ Configuration dataclasses:
 - [ ] Every field has an explicit type annotation
 - [ ] Every field has a sensible default
 - [ ] Every field has a triple-quoted docstring describing purpose + units
-- [ ] Filesystem fields default to Path() (empty); user MUST set them
+- [ ] Filesystem fields default to Path() (empty), which reads as not configured until a deployment sets it
 
 Binding classes:
 - [ ] Constructor takes the most-shared dependency first (data_logger when the subsystem logs to it),

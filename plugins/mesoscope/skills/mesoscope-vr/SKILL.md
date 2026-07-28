@@ -29,6 +29,7 @@ For Mesoscope-VR's runtime behavior (state machine, training modes, CLI), see
 - Per-subsystem binding classes (`MicroControllerInterfaces`, `VideoSystems`, `ZaberMotors`) and the
   `MesoscopeDriver` MQTT interface — composition and lifecycle wiring
 - MCP tool surface for reading, writing, and validating the configuration YAML
+- The `video_tracking` section that binds the acquisition stack to the sollertia-video-tracking (slvt) inference tool
 - Configuration authoring and modification workflows
 
 **Does not cover** (delegated):
@@ -36,9 +37,9 @@ For Mesoscope-VR's runtime behavior (state machine, training modes, CLI), see
 - Mesoscope-VR runtime behavior (state machine, training modes, visualizers, session descriptors,
   CLI commands) — see `/mesoscope-vr-runtime`
 - Per-firmware-module Python wrappers and slmc firmware Modules — see `experiment:microcontroller-interface`
-- Low-level VideoSystem API — see `ataraxis@video:camera-interface`
+- Low-level VideoSystem API — see `video:camera-interface` (ataraxis marketplace)
 - Low-level Zaber motor API — see `experiment:zaber-interface`
-- Low-level MicroControllerInterface API — see `ataraxis@communication:microcontroller-interface`
+- Low-level MicroControllerInterface API — see `communication:microcontroller-interface`
 - Per-session metadata, task templates, experiment configuration — owned by the assets plugin
 - Server transfer configuration — owned by the forging plugin
 
@@ -67,13 +68,13 @@ drives the system state machine. The orchestrator is documented in `/mesoscope-v
 
 Read these skills before reading the hardware-subsystem sections below:
 
-| Concern                                              | Authority                                              |
-|------------------------------------------------------|--------------------------------------------------------|
-| Pattern this system implements                       | `experiment:acquisition-system-design`                 |
-| Per-firmware-module wrappers (slmc + sle pair)       | `experiment:microcontroller-interface`                 |
-| Low-level VideoSystem API                            | `ataraxis@video:camera-interface`                      |
-| Low-level Zaber motor API                            | `experiment:zaber-interface`                           |
-| Low-level MicroControllerInterface API               | `ataraxis@communication:microcontroller-interface`     |
+| Concern                                        | Authority                                 |
+|------------------------------------------------|-------------------------------------------|
+| Pattern this system implements                 | `experiment:acquisition-system-design`    |
+| Per-firmware-module wrappers (slmc + sle pair) | `experiment:microcontroller-interface`    |
+| Low-level VideoSystem API                      | `video:camera-interface`                  |
+| Low-level Zaber motor API                      | `experiment:zaber-interface`              |
+| Low-level MicroControllerInterface API         | `communication:microcontroller-interface` |
 
 This skill documents only Mesoscope-VR-specific composition. All base mechanics are inherited from
 the skills above.
@@ -87,7 +88,7 @@ dataclass defined in `sollertia_experiment/mesoscope_vr/system.py`.
 
 ### Top-level structure
 
-`MesoscopeSystemConfiguration` composes six nested dataclasses plus a top-level `name` field:
+`MesoscopeSystemConfiguration` composes seven nested dataclasses plus a top-level `name` field:
 
 | Section            | Dataclass                   | What it parameterizes                                            |
 |--------------------|-----------------------------|------------------------------------------------------------------|
@@ -98,6 +99,7 @@ dataclass defined in `sollertia_experiment/mesoscope_vr/system.py`.
 | `microcontrollers` | `MesoscopeMicroControllers` | Per-board ports + per-module calibration data                    |
 | `acquisition`      | `MesoscopeAcquisition`      | Mesoscope motion-estimation and z-stack acquisition parameters   |
 | `assets`           | `MesoscopeVRAssets`         | Zaber motor ports + nested `vr_task` Unity MQTT configuration    |
+| `video_tracking`   | `MesoscopeVideoTracking`    | DeepLabCut face-camera pose-inference environment and parameters |
 
 For the full field-by-field registry (every field name, type, default, units, and meaning), see
 [`references/configuration-fields.md`](references/configuration-fields.md). That file is a state
@@ -176,7 +178,7 @@ of the platform-general allocation rules — primarily driven by interrupt isola
 - **Keepalive**: `keepalive_interval_ms` (500 ms default)
 - **Per-module calibration**: ~25 fields that parameterize the eight module wrappers running on the
   three boards (brake strength, lick thresholds, torque calibration, encoder PPR, wheel diameter,
-  cm-per-Unity-unit, screen pulse duration, sensor polling delays, valve calibration table)
+  screen pulse duration, sensor polling delays, valve calibration table)
 
 For the full per-field documentation, see [`references/configuration-fields.md`](references/configuration-fields.md)
 under the "MesoscopeMicroControllers" section.
@@ -259,14 +261,14 @@ lives, so agents do not have to be handed the path on every operation. The path 
   and returns a per-camera diff (`match`, identity match, `value_mismatches`, nodes present in only
   one side). Cameras with no path set are reported as `{"configured": false}`.
 - **Dump** the current configuration to the stored path (e.g. after tuning nodes): use
-  `ataraxis@video:camera-setup`'s `dump_genicam_config` (axvs MCP) with `output_file` set to the
-  path declared in the system configuration.
-- **Restore** a known-good configuration onto a camera: use `ataraxis@video:camera-setup`'s
+  `video:camera-setup`'s `dump_genicam_config` (axvs MCP) with `output_file` set to the path
+  declared in the system configuration.
+- **Restore** a known-good configuration onto a camera: use `video:camera-setup`'s
   `load_genicam_config` with `config_file` set to the declared path.
 
 Source the path from `read_system_configuration_tool` (`cameras.<role>_camera_configuration_path`)
 so the dump/restore targets the declared file. For the GenICam node mechanics themselves, hand off
-to `ataraxis@video:camera-setup`.
+to `video:camera-setup`.
 
 ### VideoSystems binding class
 
@@ -297,7 +299,7 @@ This split exists because acquisition is started early in the session (for live 
 but saving is started later (after the animal is mounted and the runtime begins).
 
 For VideoSystem mechanics, encoding configuration, and frame acquisition patterns, see
-`ataraxis@video:camera-interface`.
+`video:camera-interface`.
 
 ---
 
@@ -498,8 +500,12 @@ The local **data root** (the directory under which all projects are stored on th
 part of this section — it is the platform-shared data root, resolved with `get_data_root()` and set
 with the `slsa configure data-root` command (`assets:working-directory`).
 
-Both fields default to empty paths; the user MUST set them per-host. The `check_system_mounts_tool`
-MCP tool validates that every declared path exists and is writable before any session starts.
+Both fields default to empty paths. The user MUST set them per-host. `check_system_mounts_tool` is
+an agent-invoked MCP tool that reports whether the platform data root, `mesoscope_directory`, and
+every configured `storage_directories` path exists and is writable. It returns a diagnostic report,
+so call it yourself as a pre-flight check. The acquisition runtime resolves these paths directly and
+treats a storage root left as an empty path as an unconfigured destination, which produces a
+preprocessing warning about the skipped backup.
 
 ### MesoscopeGoogleSheets
 
@@ -526,6 +532,50 @@ at experiment start from the matching `TaskTemplate` YAML in the shared VR task 
 Scene activation and Play Mode are driven over the editor MCP Bridge on a fixed loopback endpoint
 (`127.0.0.1:8090`) and are deliberately NOT configured here. For the VR task driver that consumes this
 configuration and drives the bridge, see `experiment:vr-driver-interface`.
+
+### MesoscopeVideoTracking
+
+Captures the DeepLabCut pose-inference configuration that drives face-camera eye tracking during
+experiment-session preprocessing. Seven fields: `conda_environment`, `dlc_project_path`, `shuffle`,
+`crop`, `batch_size`, `chunks`, and `compile_model`. For their types, defaults, and meanings, see
+[`references/configuration-fields.md`](references/configuration-fields.md) under the
+"MesoscopeVideoTracking" section.
+
+Inference is opt-in. `_launch_face_tracking` (in
+`sollertia_experiment/mesoscope_vr/data_preprocessing.py`) skips it when `conda_environment` is an
+empty string or `dlc_project_path` is an unset path, matching the empty-value idiom the other
+sections use. It also skips it, with a warning, when the expected face-camera video is absent.
+
+The pose model runs in a separate process. `sollertia-video-tracking` (slvt) requires Python 3.12
+and numpy 1.x because DeepLabCut 3.0.0 constrains both, while the rest of the Sollertia stack runs
+Python 3.14 and numpy 2, so the acquisition process reaches slvt across a `conda run` boundary:
+
+```text
+conda run -n <conda_environment> slvt infer --config-path <dlc_project_path>
+  --videos <session>/raw_data/camera_data/<session>_face_camera.mp4
+  --shuffle <shuffle> --device cuda --gpus 0 --batch-size <batch_size> --chunks <chunks>
+  --compile-model on|off --no-progress [--crop <crop>]
+```
+
+slvt ships no MCP server and no plugin, so the `slvt` CLI is its only agent-facing surface and this
+binding is documented on the `sollertia-experiment` side.
+
+Preprocessing launches inference asynchronously right after `rename_session_videos`, and only for
+`SessionTypes.MESOSCOPE_EXPERIMENT` sessions, so it overlaps the CPU-bound and disk-bound stages on
+the rig's otherwise-idle GPU. `_join_face_tracking` waits for it immediately before
+`push_session_data`. A successful run writes the DeepLabCut `.h5` file and its companion pickles
+beside the face-camera video in `raw_data/camera_data/`, which is the `slvt infer` default when
+`--output` is omitted. They are therefore covered by the raw-data checksum and shipped to long-term
+storage as raw data, where the forging plugin's video pipeline consumes them.
+
+A non-zero exit status or zero written `.h5` prediction files raises `RuntimeError`, aborts the
+transfer to long-term storage, and retains the local session copy for a manual retry. The transient
+log lives at `<tmp>/slvt_infer_<session_name>.log`, is removed on success, and is retained on
+failure, with its last 2000 characters echoed into the error.
+
+`validate_system_configuration_tool` and `check_system_mounts_tool` report on filesystem paths only,
+so a wrong `dlc_project_path` passes every pre-flight check and surfaces when preprocessing joins
+the subprocess.
 
 For the full per-field documentation of the auxiliary sections, see
 [`references/configuration-fields.md`](references/configuration-fields.md).
@@ -556,11 +606,10 @@ do not guess field names.
 For a new host, the user-supplied values are:
 
 - **Camera indices** — must come from `experiment:acquisition-system-setup`, which uses
-  `ataraxis@video:camera-setup` for hardware discovery. Do NOT call camera discovery tools from
-  this skill.
+  `video:camera-setup` for hardware discovery. Do NOT call camera discovery tools from this skill.
 - **Microcontroller ports** — must come from `experiment:acquisition-system-setup`, which uses
-  `ataraxis@communication:microcontroller-setup`. The user must confirm which physical Teensy
-  plays the actor / sensor / encoder role.
+  `communication:microcontroller-setup`. The user must confirm which physical Teensy plays
+  the actor / sensor / encoder role.
 - **Zaber motor ports** — must come from `experiment:zaber-interface` discovery
   (`get_zaber_devices_tool`).
 - **Filesystem paths** — `mesoscope_directory` and the `storage_directories` destination paths.
@@ -570,6 +619,11 @@ For a new host, the user-supplied values are:
 - **Calibration data** — defaults in
   [`references/configuration-fields.md`](references/configuration-fields.md) are reasonable
   starting points. Only override if the user has freshly measured values.
+- **Face-camera tracking values**: `video_tracking.conda_environment` and
+  `video_tracking.dlc_project_path`, asked of the user when the host runs DeepLabCut eye-tracking
+  inference during preprocessing. Leaving both unset keeps inference disabled. The remaining
+  video-tracking fields (`shuffle`, `crop`, `batch_size`, `chunks`, `compile_model`) carry working
+  defaults, so override them only for a different trained model or a different GPU.
 
 ### Step 5: Write the configuration
 
@@ -580,13 +634,19 @@ write_system_configuration_tool(
 )
 ```
 
-The tool validates the dictionary against the schema and writes the YAML atomically.
+The tool validates the payload by round-tripping it through the dataclass, then writes the YAML in
+place at the target path.
 
 ### Step 6: Verify
 
 Call `read_system_configuration_tool` and confirm the returned configuration matches what you
 wrote. Then call `validate_system_configuration_tool` to confirm filesystem mounts and
 hardware-port assumptions hold.
+
+Neither `validate_system_configuration_tool` nor `check_system_mounts_tool` inspects the
+`video_tracking` section, so confirm `video_tracking.dlc_project_path` points at an existing
+DeepLabCut `config.yaml` yourself. A wrong path surfaces when preprocessing joins the inference
+subprocess, and it aborts the transfer to long-term storage at that point.
 
 ### Step 7: Hand off for server configuration
 
@@ -599,14 +659,15 @@ If the user is also setting up remote storage transfer, hand off to the forging 
 
 ### Reindex / re-port hardware
 
-| Change                        | Section to mutate                                                   |
-|-------------------------------|---------------------------------------------------------------------|
-| Camera reindexed              | `cameras.face_camera_index` / `body_camera_index`                   |
-| Teensy replaced / re-flashed  | `microcontrollers.actor_port` / `sensor_port` / `encoder_port`      |
-| Zaber motor group reconnected | `assets.headbar_port` / `wheel_port` / `lickport_port`              |
-| Unity broker relocated        | `assets.vr_task.ip` / `assets.vr_task.port`                         |
-| Storage volume remounted      | `filesystem.storage_directories` / `filesystem.mesoscope_directory` |
-| Google Sheet rotated          | `sheets.<sheet>_id`                                                 |
+| Change                                  | Section to mutate                                                   |
+|-----------------------------------------|---------------------------------------------------------------------|
+| Camera reindexed                        | `cameras.face_camera_index` / `body_camera_index`                   |
+| Teensy replaced / re-flashed            | `microcontrollers.actor_port` / `sensor_port` / `encoder_port`      |
+| Zaber motor group reconnected           | `assets.headbar_port` / `wheel_port` / `lickport_port`              |
+| Unity broker relocated                  | `assets.vr_task.ip` / `assets.vr_task.port`                         |
+| Storage volume remounted                | `filesystem.storage_directories` / `filesystem.mesoscope_directory` |
+| Google Sheet rotated                    | `sheets.<sheet>_id`                                                 |
+| DeepLabCut model or environment changed | `video_tracking.dlc_project_path` / `conda_environment`             |
 
 For each: read the configuration, mutate the relevant field, write back via
 `write_system_configuration_tool`. No code changes needed.
@@ -729,20 +790,20 @@ ground truth.
 
 ## Related skills
 
-| Skill                                              | Relationship                                                                         |
-|----------------------------------------------------|--------------------------------------------------------------------------------------|
-| `experiment:acquisition-system-design`             | The platform-general pattern this system implements. Required reading.               |
-| `experiment:microcontroller-interface`             | The slmc + sle wrapper layer the microcontroller binding class composes.             |
-| `/mesoscope-vr-runtime`                  | Mesoscope-VR runtime behavior (state machine, training modes, CLI).                  |
-| `experiment:zaber-interface`                       | Zaber motor mechanics consumed by `ZaberMotors`.                                     |
-| `experiment:vr-driver-interface`                   | The Unity VR task driver (`VRTaskDriver`) configured by `assets.vr_task`.            |
-| `ataraxis@video:camera-interface`                  | VideoSystem mechanics consumed by `VideoSystems`.                                    |
-| `ataraxis@communication:microcontroller-interface` | MicroControllerInterface mechanics consumed by `MicroControllerInterfaces`.          |
-| `experiment:acquisition-system-setup`              | Source of camera indices, microcontroller ports, Zaber ports via hardware discovery. |
-| `/mesoscope-vr-snapshots`                | Per-session Zaber position snapshots consumed by `ZaberMotors.restore_position()`.   |
-| `experiment:google-sheets-processing`              | Reads/writes the sheets identified by `MesoscopeGoogleSheets` (`surgery_sheet_id`, `water_log_sheet_id`). |
-| `assets:working-directory`                 | Required prerequisite for configuration authoring.                                   |
-| `forging:server-configuration`             | Sibling configuration file for remote storage transfer.                              |
+| Skill                                     | Relationship                                                                                    |
+|-------------------------------------------|-------------------------------------------------------------------------------------------------|
+| `experiment:acquisition-system-design`    | The platform-general pattern this system implements. Required reading.                          |
+| `experiment:microcontroller-interface`    | The slmc + sle wrapper layer the microcontroller binding class composes.                        |
+| `/mesoscope-vr-runtime`                   | Mesoscope-VR runtime behavior (state machine, training modes, CLI).                             |
+| `experiment:zaber-interface`              | Zaber motor mechanics consumed by `ZaberMotors`.                                                |
+| `experiment:vr-driver-interface`          | The Unity VR task driver (`VRTaskDriver`) configured by `assets.vr_task`.                       |
+| `video:camera-interface`                  | VideoSystem mechanics consumed by `VideoSystems`.                                               |
+| `communication:microcontroller-interface` | MicroControllerInterface mechanics consumed by `MicroControllerInterfaces`.                     |
+| `experiment:acquisition-system-setup`     | Source of camera indices, microcontroller ports, Zaber ports via hardware discovery.            |
+| `/mesoscope-vr-snapshots`                 | Per-session Zaber position snapshots consumed by `ZaberMotors.restore_position()`.              |
+| `experiment:google-sheets-processing`     | Reads and writes the `MesoscopeGoogleSheets` sheets (`surgery_sheet_id`, `water_log_sheet_id`). |
+| `assets:working-directory`                | Required prerequisite for configuration authoring.                                              |
+| `forging:server-configuration`            | Sibling configuration file for remote storage transfer.                                         |
 
 ---
 
@@ -764,6 +825,7 @@ Authoring:
 - [ ] write_system_configuration_tool succeeded without schema errors
 - [ ] read_system_configuration_tool returned the expected configuration after the write
 - [ ] validate_system_configuration_tool reported all mounts healthy
+- [ ] video_tracking.dlc_project_path confirmed by hand, since no validation tool inspects that section
 - [ ] Did not call write_server_configuration_tool — handed off to forging:server-configuration if needed
 
 Modifying:

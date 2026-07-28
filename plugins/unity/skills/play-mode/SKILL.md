@@ -26,8 +26,8 @@ these.
 - Gating other Unity operations on the Editor's play state
 
 **Does not cover:**
-- Runtime data acquisition outside the Editor — that is driven by the `sle run` CLI in
-  `sollertia-experiment`, not by the Editor
+- Runtime data acquisition outside the Editor. The `sle mesoscope run` CLI in
+  `sollertia-experiment` drives that path
 - Generating or inspecting prefabs (see `/task-prefabs`)
 - Opening or creating scenes (see `/task-scenes`)
 - Unity Editor bridge diagnostics (see `/unity-mcp-environment-setup`)
@@ -123,7 +123,7 @@ to `edit`.
 ## Interaction contract
 
 - **You SHOULD NOT** call `enter_play_mode_tool` while `state == "compiling"`. The bridge does
-  not gate this — `EnterPlayMode` (`McpBridge.cs:686-704`) only guards on
+  not gate this. `EnterPlayMode` (`McpBridge.cs:1186-1204`) only guards on
   `EditorApplication.isPlaying` and forwards the call to `EditorApplication.EnterPlaymode`,
   which Unity then defers until compilation finishes. The transition is queued rather than
   ambiguous, but the deterministic result is not visible until a follow-up `get_play_state_tool`
@@ -136,8 +136,9 @@ to `edit`.
   The transition tools acknowledge the request (`entering_play_mode` / `exiting_play_mode`) but
   do not block on completion, and Unity refuses Play Mode entry when the active scene has
   compile errors — in that case `get_play_state_tool` keeps reporting `edit`.
-- **Play Mode is Editor-scoped.** It does not interact with `sle run`, `sle manage`, or the
-  acquisition rig. Data generated during Play Mode is not recorded anywhere.
+- **Play Mode is Editor-scoped.** It does not interact with `sle mesoscope run`,
+  `sle mesoscope maintain`, or the acquisition rig. Data generated during Play Mode is not
+  recorded anywhere.
 - **Task Parameters re-opens on Play Mode entry.** `MainWindow.RegisterAutoOpen` registers an
   `EditorApplication.playModeStateChanged` hook that calls `EnsureWindowOpen` when the editor
   reaches `PlayModeStateChange.EnteredPlayMode`. The MQTT section, the Task section, and the
@@ -172,12 +173,12 @@ to `edit`.
 
 ## Related skills
 
-| Skill                                         | Relationship                                                                                        |
-|-----------------------------------------------|-----------------------------------------------------------------------------------------------------|
-| `/unity-mcp-environment-setup` (this plugin)  | Run first if Unity Editor is unreachable                                                            |
-| `/task-scenes` (this plugin)                  | Upstream — opens the scene to exercise in Play Mode                                                 |
-| `/scene-setup` (this plugin)                  | Upstream — must pass the pre-Play Mode checklist first                                              |
-| `/task-prefabs` (this plugin)                 | Upstream — generates the prefab under test                                                          |
-| `/task-parameters` (this plugin)              | Upstream — set Actor / Task / Display fields in edit mode before entering Play Mode                 |
-| `/mqtt-contract` (this plugin)                | Reference for topics that drive runtime behavior and runtime alternatives to Task Parameters writes |
-| `assets:assets-mcp-environment-setup` | Upstream — owns the slsa MCP server diagnostic                                                      |
+| Skill                                        | Relationship                                                                                        |
+|----------------------------------------------|-----------------------------------------------------------------------------------------------------|
+| `/unity-mcp-environment-setup` (this plugin) | Run first if Unity Editor is unreachable                                                            |
+| `/task-scenes` (this plugin)                 | Upstream — opens the scene to exercise in Play Mode                                                 |
+| `/scene-setup` (this plugin)                 | Upstream — must pass the pre-Play Mode checklist first                                              |
+| `/task-prefabs` (this plugin)                | Upstream — generates the prefab under test                                                          |
+| `/task-parameters` (this plugin)             | Upstream — set Actor / Task / Display fields in edit mode before entering Play Mode                 |
+| `/mqtt-contract` (this plugin)               | Reference for topics that drive runtime behavior and runtime alternatives to Task Parameters writes |
+| `assets:assets-mcp-environment-setup`        | Upstream — owns the slsa MCP server diagnostic                                                      |

@@ -3,8 +3,8 @@ name: unity-mcp-environment-setup
 description: >-
   Diagnoses and resolves Unity Editor relay connectivity issues for the sollertia-virtual-reality
   `McpBridge` (HTTP listener on 127.0.0.1:8090, [::1]:8090, and localhost:8090; Editor running;
-  script compiled). Use when Unity relay tools fail with "Unity Editor is not reachable" or when
-  starting a session that needs the Unity tools.
+  script compiled). Use when Unity relay tools fail with "Unable to reach the Unity Editor at ..."
+  or when starting a session that needs the Unity tools.
 user-invocable: false
 ---
 
@@ -23,14 +23,14 @@ Unity-family tool exposed by `sollertia-shared-assets` — the `slsa mcp` server
 - Verifying the `McpBridge` HTTP listener is active on `127.0.0.1:8090`, `[::1]:8090`, and
   `localhost:8090`
 - Testing the relay from the command line
-- Diagnosing why Unity relay tools return "Unity Editor is not reachable"
+- Diagnosing why Unity relay tools return "Unable to reach the Unity Editor at ..."
 
 **Does not cover:**
 - Diagnosing `slsa` CLI / `slsa mcp` availability (see `assets:assets-mcp-environment-setup`)
 - Sollertia working directory setup (see `assets:working-directory`)
 - Unity Editor installation or project setup (see the `sollertia-virtual-reality` README)
-- Prefab, scene, Task Parameters, or Play Mode workflows (see `/task-prefabs`, `/task-scenes`,
-  `/task-parameters`, `/play-mode`)
+- Prefab, zone, scene, Task Parameters, or Play Mode workflows (see `/task-prefabs`,
+  `/zone-prefabs`, `/task-scenes`, `/task-parameters`, `/play-mode`)
 
 ---
 
@@ -47,10 +47,10 @@ The `McpBridge` editor plugin ships with `sollertia-virtual-reality`. It starts 
 three loopback prefixes automatically when the Editor loads the project — registering all three
 because `HttpListener` performs exact host-header matching. A client requesting `localhost` is
 rejected by a `127.0.0.1` prefix even though they resolve to the same socket. The shipped Python
-wrapper (`sollertia-shared-assets/.../interfaces/unity_tools.py:19`) hard-codes
+wrapper (`sollertia-shared-assets/.../interfaces/unity_tools.py:21`) hard-codes
 `http://localhost:8090/` as `_UNITY_BRIDGE_URL`, so the `127.0.0.1` and `[::1]` prefixes exist as
-defensive coverage for ad-hoc `curl` callers — operationally, only the `localhost` prefix needs to
-be reachable for the relay to work. The 13 relayed tools are:
+defensive coverage for ad-hoc `curl` callers. Operationally, only the `localhost` prefix needs to
+be reachable for the relay to work. The 14 relayed tools are:
 
 | Tool                         | Owning skill       |
 |------------------------------|--------------------|
@@ -58,6 +58,7 @@ be reachable for the relay to work. The 13 relayed tools are:
 | `delete_task_tool`           | `/task-prefabs`    |
 | `inspect_prefab_tool`        | `/task-prefabs`    |
 | `delete_asset_tool`          | `/task-prefabs`    |
+| `clone_zone_prefab_tool`     | `/zone-prefabs`    |
 | `list_assets_tool`           | `/task-scenes`     |
 | `list_scenes_tool`           | `/task-scenes`     |
 | `open_scene_tool`            | `/task-scenes`     |
@@ -68,14 +69,20 @@ be reachable for the relay to work. The 13 relayed tools are:
 | `read_task_parameters_tool`  | `/task-parameters` |
 | `write_task_parameters_tool` | `/task-parameters` |
 
-All 13 tools require **both** the `slsa mcp` MCP server to be connected **and** the Unity Editor
+Three read-only tools serve as **natural shares** that skills beyond their owner may call.
+`inspect_prefab_tool` inspects a prefab hierarchy, `get_play_state_tool` confirms the Editor sits in `edit` before a
+mutating call, and `list_assets_tool` enumerates prefabs for `/task-prefabs`. Every other tool in the table is owned
+exclusively by the listed skill.
+
+All 14 tools require **both** the `slsa mcp` MCP server to be connected **and** the Unity Editor
 to be running with `sollertia-virtual-reality` open.
 
 ---
 
 ## Diagnostic workflow
 
-You MUST follow these steps in order when a Unity relay tool returns "Unity Editor is not reachable".
+You MUST follow these steps in order when a Unity relay tool returns an error message that starts
+with "Unable to reach the Unity Editor at".
 
 ### Step 1: Confirm the slsa MCP server is connected
 
@@ -96,11 +103,16 @@ McpBridge: Listening on http://127.0.0.1:8090/, http://[::1]:8090/, and http://l
 ```
 
 If it is absent:
-- The Editor may still be compiling — wait for compilation to finish.
-- The `McpBridge` script may have failed to compile — check the Console for errors and ask the user
-  to resolve them.
-- The Editor may have disabled the plugin — ask the user to re-enable it in `Edit → Preferences →
-  External Tools` (or the McpBridge settings panel, depending on the project version).
+- The Editor may still be compiling. Wait for compilation to finish.
+- The `McpBridge` script, or any other script in the project, may have failed to compile. Check the
+  Console for errors and ask the user to resolve them.
+- Another process may hold port 8090, in which case the Console carries a
+  `McpBridge: Failed to start HTTP listener:` line followed by the OS-specific exception text. Free
+  the port and reload the project.
+
+`McpBridge` is declared `[InitializeOnLoad]` and its static constructor starts the listener on every
+assembly reload, so a missing log line points at an in-progress compile, a compile failure, or a
+port conflict.
 
 ### Step 4: Test the bridge from the command line
 
@@ -128,16 +140,16 @@ that exercises the relay. If it returns a structured response, Unity-dependent t
 
 ## Common issues and resolutions
 
-| Symptom                                        | Cause                                                                                        | Resolution                                        |
-|------------------------------------------------|----------------------------------------------------------------------------------------------|---------------------------------------------------|
-| "Unity Editor is not reachable"                | Editor not running                                                                           | Open the Editor with `sollertia-virtual-reality`      |
-| "Unity Editor is not reachable"                | McpBridge not loaded                                                                         | Wait for compile, verify Console for listener log |
-| "Unity Editor is not reachable"                | Port 8090 taken by another process                                                           | Free the port, restart the Editor                 |
-| "Unity Editor is not reachable" after ~30s     | Hard timeout on Python wrapper's `urllib.urlopen(timeout=30)`; Editor busy or hanging        | Retry after the Editor finishes compiling         |
-| "Unity bridge returned invalid JSON"           | McpBridge produced a non-JSON response                                                       | Restart the Unity Editor                          |
-| "Unity bridge returned non-object payload"     | Response parsed as JSON but is not a dict (very rare; should not occur in practice)          | Restart the Unity Editor and file an issue        |
-| Slow first call, then works                    | Editor warming up after project load                                                         | Expected — retry after ~30 seconds                |
-| Tools work, but prefab/scene paths 404         | Paths are not project-relative                                                               | Use `Assets/...` paths, never absolute paths      |
+| Symptom                                              | Cause                                                                                      | Resolution                                        |
+|------------------------------------------------------|--------------------------------------------------------------------------------------------|---------------------------------------------------|
+| "Unable to reach the Unity Editor at ..."            | Editor not running                                                                         | Open the Editor with `sollertia-virtual-reality`  |
+| "Unable to reach the Unity Editor at ..."            | `McpBridge` not loaded                                                                     | Wait for compile, verify Console for listener log |
+| "Unable to reach the Unity Editor at ..."            | Port 8090 taken by another process                                                         | Free the port, restart the Editor                 |
+| "Unable to reach the Unity Editor at ..." after ~30s | Hard timeout on `urllib.urlopen(timeout=30)`, Editor busy or hanging                       | Retry after the Editor finishes compiling         |
+| "Unable to parse the Unity bridge response: ..."     | Message ends `the payload is not valid JSON.`, `McpBridge` produced a non-JSON response    | Restart the Unity Editor                          |
+| "Unable to parse the Unity bridge response: ..."     | Message ends `the payload is a valid JSON value but not an object.`, very rare in practice | Restart the Unity Editor and file an issue        |
+| Slow first call, then works                          | Editor warming up after project load                                                       | Expected, retry after ~30 seconds                 |
+| Prefab or scene tool returns `"success": false`      | Paths are not project-relative                                                             | Use `Assets/...` paths, never absolute paths      |
 
 ---
 
@@ -198,18 +210,19 @@ still work, but first-call latency can stretch to several seconds. Re-focus the 
 
 ## Related skills
 
-| Skill                                         | Relationship                                           |
-|-----------------------------------------------|--------------------------------------------------------|
-| `assets:assets-mcp-environment-setup` | Run first — owns the slsa MCP server diagnostic        |
-| `/task-prefabs` (this plugin)                 | Consumer — prefab generation / inspection / validation |
-| `/task-scenes` (this plugin)                  | Consumer — scene and asset management                  |
-| `/play-mode` (this plugin)                    | Consumer — runtime control                             |
-| `/task-parameters` (this plugin)              | Consumer — Task Parameters read / write                |
-| `/scene-setup` (this plugin)                  | Consumer — Editor-time scene configuration             |
-| `/task-generator` (this plugin)               | Reference for the `CreateTask` pipeline internals      |
-| `/mqtt-contract` (this plugin)                | Reference for MQTT topics crossing this relay's tools  |
-| `/gimbl-framework` (this plugin)              | Reference for the GIMBL VR framework                   |
-| `assets:task-templates`               | Upstream — prefabs are generated from templates        |
+| Skill                                 | Relationship                                          |
+|---------------------------------------|-------------------------------------------------------|
+| `assets:assets-mcp-environment-setup` | Run first, owns the slsa MCP server diagnostic        |
+| `/task-prefabs` (this plugin)         | Consumer, prefab generation / inspection / validation |
+| `/zone-prefabs` (this plugin)         | Consumer, zone prefab cloning and wiring              |
+| `/task-scenes` (this plugin)          | Consumer, scene and asset management                  |
+| `/play-mode` (this plugin)            | Consumer, runtime control                             |
+| `/task-parameters` (this plugin)      | Consumer, Task Parameters read / write                |
+| `/scene-setup` (this plugin)          | Consumer, Editor-time scene configuration             |
+| `/task-generator` (this plugin)       | Reference for the `CreateTask` pipeline internals     |
+| `/mqtt-contract` (this plugin)        | Reference for MQTT topics crossing this relay's tools |
+| `/gimbl-framework` (this plugin)      | Reference for the GIMBL VR framework                  |
+| `assets:task-templates`               | Upstream, prefabs are generated from templates        |
 
 ---
 

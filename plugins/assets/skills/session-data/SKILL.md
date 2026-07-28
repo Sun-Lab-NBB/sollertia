@@ -163,11 +163,14 @@ populated by `SessionData._build_sub_dataclasses()` (called from both `create` a
   `vr_configuration_path` is populated only when the session runs the corridor task (check
   `.exists()` before reading). Microcontroller raw data is bundled into the DataLogger archives
   under `behavior_data_path`, so there is no separate raw microcontroller field.
-- **`instance.processed_data` (`ProcessedData`)** — system-agnostic processed assets:
-  `behavior_data_path`, `behavior_tracker_path`, `camera_timestamps_path`, `camera_tracker_path`,
-  `video_data_path`, `video_tracker_path`, `microcontroller_data_path`,
-  `microcontroller_tracker_path`, `cindra_data_path`, `cindra_single_recording_tracker_path`,
-  `cindra_multi_recording_path`. Cindra fields live here (not under a system-specific
+- **`instance.processed_data` (`ProcessedData`)** declares nine system-agnostic processed assets:
+  `runtime_data_path`, `runtime_tracker_path`, `video_data_path`, `video_tracker_path`,
+  `microcontroller_data_path`, `microcontroller_tracker_path`, `cindra_data_path`,
+  `two_photon_tracker_path`, `cindra_multi_recording_path`. `video_data_path` covers both the
+  per-frame camera timestamps extracted from the camera log archives and the re-packaged
+  pose-estimation output, so a single field serves the whole video stage. The raw-side
+  `behavior_data_path` on `RawData` and the processed-side `runtime_data_path` here are separate
+  fields on separate sub-dataclasses. Cindra fields live here (not under a system-specific
   sub-dataclass) because cindra is reusable by any photometry-data-generating acquisition system.
 - **`instance.system_raw_data`** — acquisition-system-specific raw assets, dispatched from
   `SYSTEM_RAW_DATA_REGISTRY` keyed by `acquisition_system`. Each system registers its
@@ -201,9 +204,10 @@ its `raw_data/` subdirectory** — the resolver normalizes both forms before any
 ## Session types
 
 The canonical `SessionTypes` enum values are `lick training`, `run training`, `window checking`,
-and `mesoscope experiment`. Use `list_supported_session_types_tool` for the authoritative list
-(it also returns each type's descriptor filename and dataclass). Per-type descriptor file
-mapping and schemas are owned by `/session-descriptors`.
+and `mesoscope experiment`. Use `list_supported_session_types_tool` for the authoritative list. It
+returns `value`, `name`, and `descriptor_class` for each type. The descriptor filename is always
+`session_descriptor.yaml` for every session type, so the tool omits it. Descriptor schemas are
+owned by `/session-descriptors`.
 
 Session types are paired with acquisition systems by `SYSTEM_SESSION_TYPES`: each acquisition system
 declares the session types it can run, and `SessionData.create()` rejects a session-type /
@@ -225,7 +229,7 @@ that system can actually run; omit it only when you genuinely need the platform-
 | `describe_session_data_schema_tool` | Returns the `SessionData` dataclass schema (exclusive)                                                       |
 | `list_supported_session_types_tool` | Returns the supported `SessionTypes`, optionally scoped to one acquisition system                            |
 | `list_session_type_support_tool`    | Returns the full map of each acquisition system to the session types it can run                              |
-| `list_processing_trackers_tool`     | Enumerates every `ProcessingTracker` filename used across the platform (`name`, `filename`, `description`)   |
+| `list_processing_trackers_tool`     | Enumerates every `ProcessingTrackers` filename used across the platform (`name`, `filename`, `description`)  |
 
 `inspect_sessions_tool` accepts `session_paths: list[str]` — pass a single-element list for one
 session, or many paths to inspect a batch. There is no separate single / batch signature. The
@@ -254,9 +258,9 @@ flows.
 `list_supported_session_types_tool` and `list_processing_trackers_tool` are owned by this skill
 in the sense that this is where the read pattern is documented and where other skills should
 hand off when they need them. Both are read-only and may also be called as natural shares.
-`list_processing_trackers_tool` is the canonical reference for the filenames written by the
-checksum, behavior, camera, video, microcontroller, cindra single- and multi-recording, forging,
-analysis, manifest, and transfer pipelines.
+`list_processing_trackers_tool` is the canonical reference for the eight `ProcessingTrackers`
+members, covering the checksum, runtime, microcontroller, video, two-photon, cindra
+multi-recording, forging, and manifest pipelines.
 
 ---
 

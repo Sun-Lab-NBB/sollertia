@@ -106,8 +106,10 @@ session of that mode. Every such function follows the same shape:
    previous session of this mode (if one exists on disk), and apply the per-flag overrides forwarded
    by the CLI.
 3. Construct the runtime orchestrator (Layer 3 of `/acquisition-system-design`), passing the
-   in-memory descriptor. For recording modes the orchestrator owns and starts the `DataLogger`;
-   maintenance modes start a standalone `DataLogger` first.
+   in-memory descriptor, when the mode drives the full hardware stack. Such modes delegate `DataLogger` ownership to
+   the orchestrator. A mode that drives a reduced hardware subset skips the orchestrator and creates and starts a
+   standalone `DataLogger` itself. That logger writes into the session's raw-data directory when the mode records a
+   session, and into a discarded temporary directory when it performs maintenance.
 4. Drive the state transitions and the per-cycle runtime loop for the session's lifetime.
 5. Tear down in the reverse order on completion or interrupt.
 
@@ -209,15 +211,17 @@ reproducible and human-readable at a glance; the archive makes it auditable in f
 
 Two operator-facing surfaces are standard:
 
-- **A real-time visualizer** that renders behavior data, reading from the binding classes'
-  `SharedMemoryArray`-backed property accessors (safe to read from the main process; see
-  `/microcontroller-interface`). Its display mode is selected per runtime mode.
+- **A real-time visualizer** that renders behavior data. It owns its own display buffers rather than reading the
+  binding classes' shared memory, so the runtime loop pushes each new sample and event into it through explicit
+  update methods. Its display mode is selected per runtime mode.
 - **An interactive control UI** for operator actions during a session (pause/resume, threshold
-  modifiers, manual commands).
+  modifiers, manual commands). It receives the binding classes' `SharedMemoryArray` trackers at construction and reads
+  them directly, which is safe from any process that connects to the array (see `/microcontroller-interface`).
 
 Both are constructed by the orchestrator. The control UI is serviced by the runtime loop's UI-service
-step, while the visualizer is fed by the data-sync step and repainted once per cycle. Adding a runtime mode with
-new display needs is a change to the visualizer's mode enumeration and its plotting logic.
+step. The visualizer takes pushes from the loop's data-sync and event-dispatch steps, and from the hardware-action
+helpers any step calls, and the loop repaints it once per cycle. Adding a runtime mode with new display needs is a
+change to the visualizer's mode enumeration and its plotting logic.
 
 ---
 

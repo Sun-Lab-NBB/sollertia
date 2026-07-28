@@ -200,18 +200,19 @@ downstream skill:
 
 ## Error routing
 
-The strings below are the literal messages the library emits via `resolve_root_directory` and
-the discovery / filter tools; match against the `error` or per-session `error_detail` field of
-the response.
+The table below covers the literal messages the library emits via `resolve_root_directory` and the
+discovery / filter tools, plus the conditions that surface outside the response's `error` key.
+Match the quoted strings against the `error` field, the per-session `error_detail` field, or the
+`filter_error` field carried by each entry under `invalid_entries`.
 
-| Error message                                                      | Resolution                                                                                               |
-|--------------------------------------------------------------------|----------------------------------------------------------------------------------------------------------|
-| `Root directory does not exist: <path>`                            | Verify the root directory path with the user                                                             |
-| `Root directory is not a directory: <path>`                        | Path points at a file or symlink; ask for the directory                                                  |
-| `Failed to load SessionData: <reason>` (per-entry, status="error") | Session marker is corrupt or missing required keys; repair via `/session-data` / `/session-descriptors`  |
-| Missing `session_name` or `animal` in `filter_sessions_tool` input | Entries from sources other than `get_data_root_overview_tool` may lack these keys; see `invalid_entries` |
-| `sessions=[]` or `total_eligible=0` (no error, empty result)       | No markers matched; verify the search root or filter criteria                                            |
-| MCP tool call raises at the transport layer                        | Invoke `/assets-mcp-environment-setup`                                                                   |
+| Error message                                                                    | Resolution                                                                                               |
+|----------------------------------------------------------------------------------|----------------------------------------------------------------------------------------------------------|
+| `Unable to resolve the root data directory. The path <path> does not exist.`     | Verify the root directory path with the user                                                             |
+| `Unable to resolve the root data directory. The path <path> is not a directory.` | Path points at a file or symlink; ask for the directory                                                  |
+| `Failed to load SessionData: <reason>` (per-entry, status="error")               | Session marker is corrupt or missing required keys; repair via `/session-data` / `/session-descriptors`  |
+| Missing `session_name` or `animal` in `filter_sessions_tool` input               | Entries from sources other than `get_data_root_overview_tool` may lack these keys; see `invalid_entries` |
+| `sessions=[]` or `total_eligible=0` (no error, empty result)                     | No markers matched; verify the search root or filter criteria                                            |
+| MCP tool call raises at the transport layer                                      | Invoke `/assets-mcp-environment-setup`                                                                   |
 
 ---
 
@@ -238,8 +239,8 @@ Session discovery:
 | `/project-hierarchy`                    | Owns `get_data_root_overview_tool` as the tree walk                              |
 | `/session-data`                         | Reference: SessionData marker and `inspect_sessions_tool` for per-session health |
 | `/session-descriptors`                  | Reference: per-session descriptor repair                                         |
-| `forging:project-manifest`      | Downstream: manifest reading and generation                                      |
-| `forging:checksum-verification` | Downstream: consumes confirmed session_paths                                     |
-| `forging:behavior-processing`   | Downstream: consumes confirmed session_paths                                     |
-| `forging:dataset-forging`       | Downstream: consumes confirmed session names                                     |
-| `forging:behavior-input-format` | Reference: behavior-processing eligibility rules                                 |
+| `forging:project-manifest`              | Downstream: manifest reading and generation                                      |
+| `forging:checksum-verification`         | Downstream: consumes confirmed session_paths                                     |
+| `forging:behavior-processing`           | Downstream: consumes confirmed session_paths                                     |
+| `forging:dataset-forging`               | Downstream: consumes confirmed session names                                     |
+| `forging:behavior-input-format`         | Reference: behavior-processing eligibility rules                                 |

@@ -26,7 +26,7 @@ Unity's serialization layer, and returns the resulting hierarchy for validation.
   `IResettable` implementations) on a copied prefab
 - Renaming modifier regions and overriding their serialized field defaults
 - Adding or removing nested modifier zones while preserving the `m_Children` ↔ `m_Father` pairing
-- Validating the new prefab via `inspect_prefab_tool`
+- Validating the new prefab via `inspect_prefab_tool`, a read-only **natural share** any skill may call
 - Identifying every downstream wiring step required to make the new prefab usable
 
 **Does not cover:**
@@ -34,7 +34,7 @@ Unity's serialization layer, and returns the resulting hierarchy for validation.
 - Modifications to the `CreateTask` pipeline that consumes zone prefabs (see `/task-generator`)
 - Adding a new `TriggerType` member to the shared-assets registry (see assets plugin's
   `assets:library-extension`)
-- Authoring the new MonoBehaviour script itself (see `ataraxis@automation:csharp-style` in the automation plugin)
+- Authoring the new MonoBehaviour script itself, covered by `automation:csharp-style` (ataraxis marketplace)
 - Editing protected hand-authored assets — `/task-generator` "Required shared assets" enumerates
   the full set (zone base prefabs, shared materials, scene base template). They are source
   templates and shared assets that `CreateTask` and the generated prefabs reference, and they
@@ -44,12 +44,12 @@ Unity's serialization layer, and returns the resulting hierarchy for validation.
 
 ## Manufacturing a zone prefab
 
-The `clone_zone_prefab_tool` MCP tool (owned by `/task-prefabs`, relayed to `McpBridge.CloneZonePrefab`)
-performs the whole prefab-authoring step in one call. It copies a canonical base prefab, renames regions,
-swaps the root and region modifier scripts for new compiled `MonoBehaviour` types, applies serialized field
-overrides, and returns the resulting hierarchy in the same shape as `inspect_prefab_tool`. Unity assigns the
-fileIDs, script references, and `m_Children` / `m_Father` wiring through its serialization layer, so the
-result is correct by construction and validates in the same call.
+The `clone_zone_prefab_tool` MCP tool (owned **exclusively** by this skill, relayed to
+`McpBridge.CloneZonePrefab`) performs the whole prefab-authoring step in one call. It copies a canonical base
+prefab, renames regions, swaps the root and region modifier scripts for new compiled `MonoBehaviour` types,
+applies serialized field overrides, and returns the resulting hierarchy in the same shape as
+`inspect_prefab_tool`. Unity assigns the fileIDs, script references, and `m_Children` / `m_Father` wiring
+through its serialization layer, so the result is correct by construction and validates in the same call.
 
 ```text
 clone_zone_prefab_tool(
@@ -65,7 +65,14 @@ The tool resolves every script name before it writes anything, so a typo or an u
 any asset is created, and it rolls the asset back if a later edit fails. The new prefab's root takes the
 destination filename. The tool enforces the same guarantees this skill applies by hand: the source must be
 one of the two canonical base prefabs, the destination must sit under `Assets/InfiniteCorridorTask/Prefabs/`
-and may not name a protected base, and each region `match` must resolve to exactly one descendant.
+and may not name a protected base, each region `match` must resolve to exactly one descendant, and the
+destination path must be free unless the call opts into overwriting.
+
+The keyword-only `overwrite` argument defaults to `false`, so an existing destination fails with
+`A prefab already exists at '<path>'. Pass overwrite=true to replace it`. Pass `overwrite=True` to re-author
+a prefab in place, which deletes the existing asset before the clone runs. An edit failure during an
+overwrite rolls back by deleting the destination asset, which leaves the path empty, so recover the original
+prefab from git before retrying.
 
 **Prerequisites:** author and compile the new `MonoBehaviour` script(s) first (see the
 [pre-flight checklist](#pre-flight-checklist)), then run the tool. Hand off the downstream wiring afterward
@@ -122,7 +129,7 @@ You MUST verify all the following before manufacturing a new zone prefab:
 2. **The new script lives in the `SL.Tasks` namespace** (or a subnamespace), inherits from
    `MonoBehaviour`, and implements `IResettable` if it carries per-lap state. Follow the existing
    `OccupancyZone` / `GuidanceZone` pattern in `Assets/InfiniteCorridorTask/Scripts/`.
-3. **Style compliance.** Invoke `ataraxis@automation:csharp-style` before writing the new script,
+3. **Style compliance.** Invoke `automation:csharp-style` before writing the new script,
    and run CSharpier on the modified C# files before committing.
 4. **Unity Editor running** with `McpBridge` reachable. The validation step relies on
    `inspect_prefab_tool`, which fails without the bridge. Invoke `/unity-mcp-environment-setup`
@@ -264,8 +271,9 @@ above handles routine variants in one call.
   the root collider's size and center at task generation time. Spending edit cycles tuning these
   values is wasted effort.
 - **Setting `isActive: true` on the root.** The root `StimulusTriggerZone` script must start
-  inactive; `ResetZone.ResetState` activates it at the start of each lap. Setting it to `true` at
-  authoring time causes the zone to fire on the first frame before the actor is in position.
+  inactive. `StimulusTriggerZone.ResetState`, invoked from `ResetZone.OnTriggerEnter`, activates it at
+  the start of each lap. Setting it to `true` at authoring time causes the zone to fire on the first
+  frame before the actor is in position.
 - **Skipping `inspect_prefab_tool`.** Unity will silently load broken prefabs into the Editor but
   produce import errors that are easy to miss. `inspect_prefab_tool` returns a structured failure
   the agent can act on.
@@ -277,34 +285,35 @@ above handles routine variants in one call.
 
 ## Failure modes
 
-| Symptom                                                                              | Cause                                                                          | Resolution                                                                                                                                                               |
-|--------------------------------------------------------------------------------------|--------------------------------------------------------------------------------|--------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
-| `clone_zone_prefab_tool` returns "Script type '…' not found"                         | The named root or region script is not authored or the project is not compiled | Author the script, let Unity compile, then re-run the tool                                                                                                               |
-| `clone_zone_prefab_tool` returns "Field '…' does not exist on …"                     | A `fields` override names a member the modifier script does not declare        | Correct the field name to one the script declares; the tool rolled the asset back, so no partial prefab remains                                                          |
-| `inspect_prefab_tool` returns success but no `StimulusTriggerZone` component on root | Root MonoBehaviour was accidentally removed or its script GUID is invalid      | Re-read the source template; restore the root MonoBehaviour block verbatim (manual workflow only)                                                                        |
-| Hierarchy returned by `inspect_prefab_tool` is flat (no children)                    | `m_Father` ↔ `m_Children` symmetry was broken                                  | Verify every child's Transform `m_Father` matches the parent Transform's fileID, and that the parent's `m_Children` list contains the child's Transform fileID           |
-| Modifier script defaults look correct but the runtime behavior is wrong              | `m_Script.guid` references the wrong script                                    | Re-read the target script's `.cs.meta` and confirm the GUID; the `m_EditorClassIdentifier` line is informational and may lag the real script class until Unity reimports |
-| Unity Editor reports "missing script" when opening the new prefab                    | Either the script does not exist yet, or the GUID is malformed                 | Confirm the `.cs` and `.cs.meta` files exist under `Scripts/`; ensure the GUID is 32 hex characters with no whitespace                                                   |
-| New prefab disappears after a cleanup pass                                           | Prefab not added to `McpBridge.DeleteProtectedPaths`                           | Add the path to the protected set and recover the prefab from git                                                                                                        |
-| Task generation succeeds but the new zone never triggers                             | `BuildSegmentPrefabs` does not route to the new prefab                         | Hand off to `/task-generator` — add a `trigger_type` branch and a `Place...Zone` helper                                                                                  |
+| Symptom                                                                                         | Cause                                                                          | Resolution                                                                                                                                                               |
+|-------------------------------------------------------------------------------------------------|--------------------------------------------------------------------------------|--------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| `clone_zone_prefab_tool` returns "Script type '…' not found"                                    | The named root or region script is not authored or the project is not compiled | Author the script, let Unity compile, then re-run the tool                                                                                                               |
+| `clone_zone_prefab_tool` returns "Field '…' does not exist on …"                                | A `fields` override names a member the modifier script does not declare        | Correct the field name to one the script declares; the tool rolled the asset back, so no partial prefab remains                                                          |
+| `clone_zone_prefab_tool` returns "A prefab already exists at '…'"                               | The destination prefab already exists and `overwrite` defaults to false        | Re-run with `overwrite=True` to replace the existing prefab, or pick a destination path that no prefab occupies                                                          |
+| `inspect_prefab_tool` returns success but the root `components` list omits the root zone script | Root MonoBehaviour was accidentally removed or its script GUID is invalid      | Re-read the source template; restore the root MonoBehaviour block verbatim (manual workflow only)                                                                        |
+| Hierarchy returned by `inspect_prefab_tool` is flat (no children)                               | `m_Father` ↔ `m_Children` symmetry was broken                                  | Verify every child's Transform `m_Father` matches the parent Transform's fileID, and that the parent's `m_Children` list contains the child's Transform fileID           |
+| Modifier script defaults look correct but the runtime behavior is wrong                         | `m_Script.guid` references the wrong script                                    | Re-read the target script's `.cs.meta` and confirm the GUID; the `m_EditorClassIdentifier` line is informational and may lag the real script class until Unity reimports |
+| Unity Editor reports "missing script" when opening the new prefab                               | Either the script does not exist yet, or the GUID is malformed                 | Confirm the `.cs` and `.cs.meta` files exist under `Scripts/`; ensure the GUID is 32 hex characters with no whitespace                                                   |
+| New prefab disappears after a cleanup pass                                                      | Prefab not added to `McpBridge.DeleteProtectedPaths`                           | Add the path to the protected set and recover the prefab from git                                                                                                        |
+| Task generation succeeds but the new zone never triggers                                        | `BuildSegmentPrefabs` does not route to the new prefab                         | Hand off to `/task-generator` — add a `trigger_type` branch and a `Place...Zone` helper                                                                                  |
 
 ---
 
 ## Related skills
 
-| Skill                                        | Relationship                                                                                               |
-|----------------------------------------------|------------------------------------------------------------------------------------------------------------|
-| `/task-prefabs` (this plugin)                | Provides `clone_zone_prefab_tool` and `inspect_prefab_tool`                                                |
-| `/task-generator` (this plugin)              | Reference for `BuildSegmentPrefabs`, `Place...Zone`, and validator updates                                 |
-| `/task-parameters` (this plugin)             | Reference if the new zone exposes Inspector-driven fields                                                  |
-| `/task-scenes` (this plugin)                 | Consumer — places the regenerated task prefab into a scene                                                 |
-| `/play-mode` (this plugin)                   | Consumer — exercises the new zone at runtime                                                               |
-| `/mqtt-contract` (this plugin)               | Reference if the new modifier publishes or subscribes to MQTT topics                                       |
-| `/unity-mcp-environment-setup` (this plugin) | Run first if the Unity Editor bridge is unreachable                                                        |
-| `assets:library-extension`                   | Required for new `TriggerType` member and registry parity check                                            |
-| `ataraxis@automation:csharp-style`           | Required when authoring the new modifier script and editing C# wiring                                      |
-| `ataraxis@automation:commit`                 | Run after the prefab, script, and wiring changes are ready to commit                                       |
-| `experiment:vr-driver-interface`             | Host consumes the `Stimulus` events these zones emit, joined via `DecomposedTrials.trial_names`            |
+| Skill                                        | Relationship                                                                                    |
+|----------------------------------------------|-------------------------------------------------------------------------------------------------|
+| `/task-prefabs` (this plugin)                | Generates the task prefabs that instantiate zone prefabs, and provides `inspect_prefab_tool`    |
+| `/task-generator` (this plugin)              | Reference for `BuildSegmentPrefabs`, `Place...Zone`, and validator updates                      |
+| `/task-parameters` (this plugin)             | Reference if the new zone exposes Inspector-driven fields                                       |
+| `/task-scenes` (this plugin)                 | Consumer — places the regenerated task prefab into a scene                                      |
+| `/play-mode` (this plugin)                   | Consumer — exercises the new zone at runtime                                                    |
+| `/mqtt-contract` (this plugin)               | Reference if the new modifier publishes or subscribes to MQTT topics                            |
+| `/unity-mcp-environment-setup` (this plugin) | Run first if the Unity Editor bridge is unreachable                                             |
+| `assets:library-extension`                   | Required for new `TriggerType` member and registry parity check                                 |
+| `automation:csharp-style`                    | Required when authoring the new modifier script and editing C# wiring                           |
+| `automation:commit`                          | Run after the prefab, script, and wiring changes are ready to commit                            |
+| `experiment:vr-driver-interface`             | Host consumes the `Stimulus` events these zones emit, joined via `DecomposedTrials.trial_names` |
 
 ---
 
@@ -323,7 +332,8 @@ Zone Prefabs Compliance:
 - [ ] The new prefab's root m_Name matches the prefab filename basename
 - [ ] The new prefab's root Transform.localPosition is exactly (0, 0.505, 0)
 - [ ] The new prefab's root retains MeshFilter (built-in Quad), MeshRenderer (TargetMat.mat),
-      MeshCollider (non-trigger), BoxCollider (trigger), and StimulusTriggerZone
+      MeshCollider (non-trigger), BoxCollider (trigger), and the root zone script (StimulusTriggerZone,
+      or the subclass name when the root script was swapped)
 - [ ] StimulusTriggerZone.showBoundary is 0 and StimulusTriggerZone.isActive is 0 on the root
 - [ ] Every modifier MonoBehaviour's m_Script.guid matches the corresponding .cs.meta guid
 - [ ] Every modifier region's Transform.localPosition is (0, 0, 0)

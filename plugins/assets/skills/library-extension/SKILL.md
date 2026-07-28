@@ -177,15 +177,15 @@ touches** (which is what this skill uniquely owns), and the downstream-library c
    `SESSION_TYPES_USING_VR_TASK` entry is not import-checked, so cover the new type in
    `tests/data_hierarchy/session_data_test.py`, where `required_raw_assets` is unit-tested.
 
-**Skill touches** — update each of the following so its hardcoded enumeration matches the new
-member:
+**Skill touches**. Visit each of the following and apply the named update. Each row names the
+content to edit in that skill, the skill that owns the concrete per-system content, or both:
 
-| Skill                       | What to update                                                                                                                                                                                                                                                                          |
-|-----------------------------|-----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
-| `/session-data`             | The `SessionTypes` enumeration sentence under "Session types"; the required-assets paragraph if the new type changes which per-session snapshots are required                                                                                                                           |
-| `/session-descriptors`      | The "Session types and descriptor classes" mapping table (the Mesoscope-VR exemplar descriptors' authoritative field schema lives in `mesoscope:mesoscope-vr-session-schema`)                                                                                                           |
-| `/session-hardware-state`   | The "Per-session-type field population" table — add a row for the new type even if it produces no hardware-state file (record the absence explicitly so callers do not infer "missing data"); the Mesoscope-VR exemplar's field schema lives in `mesoscope:mesoscope-vr-session-schema` |
-| `/experiment-configuration` | Mention the new session type only if the experiment-configuration flow accepts it (it currently does not — only `mesoscope experiment` consumes the experiment configuration snapshot)                                                                                                  |
+| Skill                       | What to update                                                                                                                                                                                                                                                                                                                        |
+|-----------------------------|---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| `/session-data`             | The `SessionTypes` enumeration sentence under "Session types"; the required-assets paragraph if the new type changes which per-session snapshots are required                                                                                                                                                                         |
+| `/session-descriptors`      | The Mesoscope-VR persistent-cache filename roster under "Known file locations", where a new type run by Mesoscope-VR adds a fifth `<session-type>_descriptor.yaml` entry. Record the new descriptor class and its field schema in the owning system's schema skill, which is `mesoscope:mesoscope-vr-session-schema` for Mesoscope-VR |
+| `/session-hardware-state`   | This skill stays system-agnostic and needs no per-type edit. Record which fields the new type populates, and whether it produces a `hardware_state.yaml` at all, in the owning system's schema skill, which is `mesoscope:mesoscope-vr-session-schema` for Mesoscope-VR                                                               |
+| `/experiment-configuration` | Mention the new session type only if the experiment-configuration flow accepts it (it currently does not — only `mesoscope experiment` consumes the experiment configuration snapshot)                                                                                                                                                |
 
 **Downstream coordination:**
 - `sollertia-experiment` actually creates sessions of the new type during acquisition. Hand off to
@@ -221,15 +221,15 @@ member:
    `SYSTEM_SESSION_TYPES` pairing, and `_assert_experiment_configuration_contract()` fails the import if the new
    `<System>ExperimentConfiguration` omits a contract field or the `from_task_template` builder.
 
-**Skill touches** — update each of the following so its hardcoded "currently only Mesoscope-VR"
-framing reflects the new member:
+**Skill touches**. Visit each of the following and apply the named update so its Mesoscope-VR
+framing and pointers cover the new member as well:
 
-| Skill                       | What to update                                                                                                                                                                                                                                                                                                                                                                                                                       |
-|-----------------------------|--------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
-| `/session-data`             | The `instance.system_raw_data` bullet under "Path-resolution sub-dataclasses on `SessionData`" — add the new `<System>RawData` field list; the `Mesoscope-VR` mention in "Does not cover" if `mesoscope:mesoscope-vr-snapshots` becomes one of several owners of system-specific snapshots                                                                                                                                           |
-| `/session-hardware-state`   | The frontmatter description, the "currently the only concrete subclass is `MesoscopeHardwareState`" prose, and the "Per-session-type field population (Mesoscope-VR example)" framing — clone the table format for the new system. The Mesoscope-VR exemplar's authoritative field schema lives in `mesoscope:mesoscope-vr-session-schema`                                                                                           |
-| `/experiment-configuration` | The frontmatter description, the "currently only `MesoscopeExperimentConfiguration`" prose, and any per-trial-class assumptions specific to the Mesoscope-VR rig. The new system reuses `create_experiment_from_vr_template_tool` once its `<System>ExperimentConfiguration` implements the `from_task_template` builder. The Mesoscope-VR exemplar's authoritative field schema lives in `mesoscope:mesoscope-vr-experiment-schema` |
-| `/task-templates`           | The "currently only `MesoscopeExperimentConfiguration`" mention                                                                                                                                                                                                                                                                                                                                                                      |
+| Skill                       | What to update                                                                                                                                                                                                                                                                                                                                                                                                                                                                                |
+|-----------------------------|-----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| `/session-data`             | The `instance.system_raw_data` bullet under "Path-resolution sub-dataclasses on `SessionData`" — add the new `<System>RawData` field list; the `Mesoscope-VR` mention in "Does not cover" if `mesoscope:mesoscope-vr-snapshots` becomes one of several owners of system-specific snapshots                                                                                                                                                                                                    |
+| `/session-hardware-state`   | The `mesoscope:mesoscope-vr-session-schema` pointers in the intro, under "What is a hardware-state snapshot", in the read and amend workflows, and in the verification checklist. Add a parallel pointer to the new system's schema skill, which owns that system's field list, its per-session-type field population, and the session types that produce no file. Add a matching row for that skill to the "Related skills" table, alongside the `mesoscope:mesoscope-vr-session-schema` row |
+| `/experiment-configuration` | The frontmatter description's per-system schema-skill pointer, and the `mesoscope:mesoscope-vr-experiment-schema` pointers throughout the body. Add a parallel pointer to the new system's schema skill, which owns its trial classes and field schema. The new system reuses `create_experiment_from_vr_template_tool` once its `<System>ExperimentConfiguration` implements the `from_task_template` builder                                                                                |
+| `/task-templates`           | The "currently only `MesoscopeExperimentConfiguration`" mention                                                                                                                                                                                                                                                                                                                                                                                                                               |
 
 **Downstream coordination:**
 - `sollertia-experiment` owns the system-level hardware/software configuration classes and the
@@ -361,12 +361,13 @@ the dispatch-registry side, but required-asset branches need explicit test cover
 
 ### Step 3: Apply the skill touches
 
-For each entry in the relevant touch list, open the named SKILL.md and update the specified
-content. Do **not** rewrite framing that says "currently only X" into "currently only X and Y" —
+Work through every row of the relevant touch list. A row that names content to update points at a
+SKILL.md you edit directly. A row that names where the concrete content belongs points at the
+owning system's schema skill, so record the new material there.
+Do **not** rewrite framing that says "currently only X" into "currently only X and Y" —
 prefer enumerating the new member alongside the existing one explicitly so the prose stays
-honest. The `/experiment-configuration`, `/session-data`,
-`/session-descriptors`, `/session-hardware-state`, and `/task-templates`
-skills are the most likely targets; check the others only if your scenario crosses their scope.
+honest. The scenario's table is the authoritative target list, so visit every row it carries and
+leave the skills it omits alone.
 
 ### Step 4: Coordinate with downstream libraries
 
@@ -397,13 +398,16 @@ required-asset branches, and the skill content.
 
 ## Related skills
 
+The `automation:commit` entry below resolves through the ataraxis marketplace. Every other entry
+resolves inside the sollertia marketplace.
+
 | Skill                                      | Relationship                                                                                                                                                                                               |
 |--------------------------------------------|------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
 | `/assets-mcp-environment-setup`            | Run if the parity check fails at import time — the failure manifests as an MCP startup error                                                                                                               |
 | `/working-directory`                       | Required prerequisite — bootstraps the working directory consumed by every extension touch-point                                                                                                           |
 | `/session-data`                            | Receives skill touch-ups for new `SessionTypes` and new `AcquisitionSystems`                                                                                                                               |
-| `/session-descriptors`                     | Receives skill touch-ups for new `SessionTypes`                                                                                                                                                            |
-| `/session-hardware-state`                  | Receives skill touch-ups for new `SessionTypes` and new `AcquisitionSystems`                                                                                                                               |
+| `/session-descriptors`                     | Receives skill touch-ups for new `SessionTypes`, which extend its Mesoscope-VR persistent-cache descriptor filename roster                                                                                 |
+| `/session-hardware-state`                  | Receives skill touch-ups for new `AcquisitionSystems`. Stays system-agnostic across new `SessionTypes`                                                                                                     |
 | `/experiment-configuration`                | Receives skill touch-ups for new `AcquisitionSystems`, runtime trial classes, and `TriggerType` members                                                                                                    |
 | `/task-templates`                          | Receives skill touch-ups for new `TriggerType` and runtime trial classes                                                                                                                                   |
 | `mesoscope:mesoscope-vr-session-schema`    | Authoritative field-level schema of the Mesoscope-VR exemplar's descriptors and hardware-state — the reference for the `mesoscope_vr/runtime_data.py` exemplars this skill mirrors                         |
@@ -417,7 +421,7 @@ required-asset branches, and the skill content.
 | `forging:dataset-forging-input-format`     | Decides eligibility of new session types for dataset forging                                                                                                                                               |
 | `unity:task-prefabs`                       | Generates Unity prefabs for new `TriggerType` members                                                                                                                                                      |
 | `unity:task-scenes`                        | Authors Unity scenes for new acquisition systems                                                                                                                                                           |
-| `ataraxis@automation:commit`               | Should be invoked after the cross-cutting changes land                                                                                                                                                     |
+| `automation:commit`                        | Should be invoked after the cross-cutting changes land                                                                                                                                                     |
 | `experiment:vr-driver-interface`           | Decomposes the VR cue sequence into `DecomposedTrials` (`trial_names`); the `TriggerType` enum lives in `sollertia-shared-assets`                                                                          |
 
 ---
@@ -451,7 +455,7 @@ Code side:
 - [ ] Test suite passes; `slsa mcp` starts cleanly
 
 Skill side:
-- [ ] Walked the per-scenario touch list and updated every named SKILL.md
+- [ ] Walked the per-scenario touch list and applied every update it names
 - [ ] Did not rewrite "currently only X" framing into a longer chain of "currently only X, Y, Z";
       enumerated each member explicitly instead
 - [ ] No skill still claims the old member is the sole supported one when it is not
@@ -460,8 +464,8 @@ Skill side:
 Downstream side:
 - [ ] Downstream-library hand-offs listed in the per-scenario table are documented in the PR
       description (sollertia-experiment, sollertia-forgery, sollertia-virtual-reality as applicable)
-- [ ] If the README does not yet carry a recipe for the chosen scenario (new trial, new trigger),
-      proposed a README update in the same PR
+- [ ] The README recipe for the chosen scenario still describes the code after the change, and any
+      drift it picked up is corrected in the same PR
 ```
 
 ---

@@ -171,9 +171,9 @@ host-level credentials path is resolved separately. Preprocessing then construct
 - `snapshot_surgery_data(session_data, animal_id, credentials_path, surgery_sheet_id)` builds a
   `SurgeryLog`, calls `extract_animal_data()`, writes the result to the session's
   `surgery_metadata.yaml`, and returns the handle.
-- `_preprocess_google_sheet_data(session_data, sheets_data)` is the Mesoscope-VR glue: it gates the
+- `_preprocess_google_sheet_data(session_data, sheets_data)` is the Mesoscope-VR glue. It gates the
   whole step on the configured identifiers, resolves credentials, snapshots the surgery record, and
-  updates the water log.
+  then branches on the session type to pick the write it performs.
 
 **Gating rules** (mirror these in any system):
 
@@ -182,6 +182,11 @@ host-level credentials path is resolved separately. Preprocessing then construct
 - If **at least one** identifier is set, the host MUST provide valid credentials; a missing or
   invalid credentials file aborts preprocessing with `FileNotFoundError`.
 - A sheet whose identifier is individually unset (while the other is set) is skipped with a warning.
+- The two writes are **mutually exclusive and selected by session type**. A
+  `SessionTypes.WINDOW_CHECKING` session writes the surgery-quality score (clamped to 0–3) through
+  the `SurgeryLog` handle and returns. Every other session type writes the water log.
+- The window-checking branch reuses the `SurgeryLog` handle, so an unset `surgery_sheet_id` skips
+  the surgery-quality update with a warning.
 
 ---
 
@@ -225,7 +230,7 @@ raises. Construction is atomic: a processor either constructs cleanly or aborts.
 | `ValueError` naming missing headers                  | The sheet's header row lacks a required column — schema drift or wrong tab. |
 | `ValueError`: animal not in the `id` column / no tab | The target animal has no surgery row / no water-log tab.                    |
 | `ValueError`: empty header or ID column              | The tab is empty or points at the wrong project/animal.                     |
-| `ValueError`: date row not found (`WaterLog`)        | The session's date is not pre-filled in the water log — add it and re-run.  |
+| `ValueError`: date row not found (`WaterLog`)        | The session's date row is absent, or its date format differs from `M/D/YY`. |
 | `ValueError`: invalid session timestamp              | The `session_date` passed to `WaterLog` is not a valid session name.        |
 | `FileNotFoundError` during preprocessing             | A sheet identifier is set but credentials are missing or invalid.           |
 | Malformed cell on extract (`float()`/`int()`/date)   | A weight, cage, date, or time cell is empty or non-numeric.                 |
@@ -260,6 +265,7 @@ Before relying on or authoring a Google Sheets processor:
 - [ ] The sheet identifier(s) are set in the system configuration's external-services section
 - [ ] The sheet matches the schema contract (required headers, header-row position, identity model)
 - [ ] Gating is honored: no credentials required when all identifiers are unset; required when any is set
+- [ ] The session-type branch is honored (window-checking writes surgery quality, other types write the water log)
 
 When authoring a custom processor:
 - [ ] Constructor authenticates, builds the header→column map, and validates required headers + record presence

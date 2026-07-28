@@ -397,9 +397,14 @@ in edit mode means the rig already looks correct in the Scene view without enter
 
 - **Screen mesh type**: `UpdateView` reads `projectionScreen.GetComponent<MeshFilter>().sharedMesh.name`
   once and branches on `"Plane"` (10×10 unit, lies on XZ plane, lower-left at `(-5, 0, -5)`) or
-  `"Quad"` (1×1 unit, lies on XY plane, lower-left at `(-0.5, -0.5, 0)`). Any other mesh name
-  silently skips the projection update — the camera continues rendering with whatever matrices
-  Unity assigned last.
+  `"Quad"` (1×1 unit, lies on XY plane, lower-left at `(-0.5, -0.5, 0)`). The `switch` carries no
+  `default` case and no early return, so any other mesh name leaves all three screen corners at
+  their `Vector3` zero initializers and the update runs to completion on that degenerate geometry.
+  The zeroed corners collapse `screenRightAxis`, `screenUpAxis`, and `screenNormal`, drive
+  `eyeToScreenDistance` to 0, and make `BuildProjectionMatrix` divide by zero, so the camera is
+  assigned a NaN `projectionMatrix` and a degenerate `worldToCameraMatrix`. With the default
+  `estimateViewFrustum = true`, `EstimateViewFrustum` also overwrites the camera's rotation and
+  sets `fieldOfView` to 0. Name every projection screen's `sharedMesh` asset `Plane` or `Quad`.
 - **Negative-scale handling**: when the eye is behind the screen (dot-product test on
   `screenLowerLeft → upperLeft × lowerRight`), the screen axes are flipped before normalization.
   This is what lets the project's Right wall use a negative geometry scale to mirror its cue
@@ -436,8 +441,8 @@ already-open GUI without a reload.
 no name (untitled / unsaved buffer). That guards against creating an orphan
 `-savedFullScreenViews.asset` (hyphen-prefixed, no scene to consume it) when the Parameters
 window or the McpBridge writes camera mapping before the scene has been saved. The companion
-asset is also cascade-deleted when its owning scene is removed via `delete_asset_tool`
-(see `/task-scenes`).
+asset is also cascade-deleted when its owning scene is removed via `delete_task_tool`
+(see `/task-prefabs`).
 
 **Monitor enumeration timeout.** `Monitor.EnumerateMonitors` calls `xrandr` (Linux) or
 `/usr/local/bin/displayplacer list` (macOS) as a subprocess with a hardcoded 5000ms timeout.
@@ -449,9 +454,10 @@ produces a brief visual flicker on each display.
 
 **One-camera-per-monitor invariant.** `RenderMonitorRow` silently ignores any selection that
 would alias another monitor's camera. The dropdown change appears to apply but the underlying
-`cameraEntityId` is not reassigned (and the saved-views asset is not rewritten). To bind a
-camera that is already assigned elsewhere, first set the original monitor's dropdown back to
-`None`, then assign the new monitor.
+`cameraEntityId` is not reassigned. The persistence call is gated independently on the dropdown
+selection having changed, so `SaveCameras` still runs and, on a saved scene, rewrites the
+saved-views asset with the unchanged bindings. To bind a camera that is already assigned
+elsewhere, first set the original monitor's dropdown back to `None`, then assign the new monitor.
 
 ---
 
@@ -513,8 +519,8 @@ the framework or easy to break in non-obvious ways:
 | `Controllers/LinearTreadmill.cs`    | The hide-don't-chain Start contract is required by `SimulatedLinearTreadmill`       |
 | `Editor/MainWindow.cs`              | Auto-open hooks + EnsureControllers are load-bearing for scene initialization       |
 
-If a change here is unavoidable, update the `ataraxis@automation:csharp-style` verification pass and test against the
-full display rig (three monitors) before committing.
+If a change here is unavoidable, update the `automation:csharp-style` (ataraxis marketplace)
+verification pass and test against the full display rig (three monitors) before committing.
 
 ---
 
@@ -548,11 +554,11 @@ full display rig (three monitors) before committing.
 
 ## Related skills
 
-| Skill                                    | Relationship                                                                                   |
-|------------------------------------------|------------------------------------------------------------------------------------------------|
-| `/mqtt-contract` (this plugin)           | Topic catalog for every channel constructed on top of `MQTTChannel`                            |
-| `/scene-setup` (this plugin)             | User-facing workflow for the MainWindow Task Parameters window                                 |
-| `/task-parameters` (this plugin)         | Programmatic mirror of the same window's Actor / MQTT / Display / Camera Mapping / Task fields |
-| `/task-generator` (this plugin)          | Segment prefabs sit inside the actor's coordinate frame                                        |
-| `ataraxis@automation:csharp-style`      | GIMBL code is held to the same C# conventions as the project                                   |
-| `experiment:vr-driver-interface` | Python peer of `MQTTClient` / `MQTTTopics` — the host end of the wire contract                 |
+| Skill                              | Relationship                                                                                   |
+|------------------------------------|------------------------------------------------------------------------------------------------|
+| `/mqtt-contract` (this plugin)     | Topic catalog for every channel constructed on top of `MQTTChannel`                            |
+| `/scene-setup` (this plugin)       | User-facing workflow for the MainWindow Task Parameters window                                 |
+| `/task-parameters` (this plugin)   | Programmatic mirror of the same window's Actor / MQTT / Display / Camera Mapping / Task fields |
+| `/task-generator` (this plugin)    | Segment prefabs sit inside the actor's coordinate frame                                        |
+| `automation:csharp-style`          | GIMBL code is held to the same C# conventions as the project                                   |
+| `experiment:vr-driver-interface`   | Python peer of `MQTTClient` / `MQTTTopics`, the host end of the wire contract                  |

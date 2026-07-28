@@ -50,11 +50,12 @@ policy hook so a subclass can resume instead of restart, without touching the pr
   (`Stopwatch.Start` resumes from the accumulated elapsed time; `Restart` zeroes it first).
 
 This is a behavior-preserving edit — every existing occupancy mode keeps the default
-`RestartTimerOnEntry => true`. Run `ataraxis@automation:csharp-style` and CSharpier before committing.
+`RestartTimerOnEntry => true`. Run `automation:csharp-style` (ataraxis marketplace) and CSharpier before
+committing.
 
 ### Step 2: Write `CumulativeOccupancyZone : OccupancyZone`
 
-Under `Assets/InfiniteCorridorTask/Scripts/CumulativeOccupancyZone.cs` (invoke `ataraxis@automation:csharp-style`):
+Under `Assets/InfiniteCorridorTask/Scripts/CumulativeOccupancyZone.cs` (invoke `automation:csharp-style`):
 
 - Override `RestartTimerOnEntry => false` so re-entries resume the stopwatch and the dwell time
   accumulates across the lap.
@@ -117,7 +118,7 @@ any of the three known types, so it requires an explicit `ResetZone.cs` registra
 
 ### Step 1: Author `SpeedZone.cs` (standalone `IResettable`)
 
-Under `Assets/InfiniteCorridorTask/Scripts/SpeedZone.cs` (invoke `ataraxis@automation:csharp-style`):
+Under `Assets/InfiniteCorridorTask/Scripts/SpeedZone.cs` (invoke `automation:csharp-style`):
 
 - `[Serializable]` fields: `targetSpeedCmPerSec`, `toleranceCmPerSec`, plus an `[HideInInspector]`
   `cmPerUnit` populated by `PlaceSpeedInteractionZone` at task generation time so the script does not
@@ -136,14 +137,16 @@ and avoids a `FindAnyObjectByType<Task>()` round-trip every frame.
 
 ### Step 2: Author `SpeedInteractionTriggerZone : StimulusTriggerZone`
 
-Under `Assets/InfiniteCorridorTask/Scripts/SpeedInteractionTriggerZone.cs` (invoke `ataraxis@automation:csharp-style`):
+Under `Assets/InfiniteCorridorTask/Scripts/SpeedInteractionTriggerZone.cs` (invoke `automation:csharp-style`):
 
-- Cache the sibling `SpeedZone` via `GetComponentInChildren<SpeedZone>()` in `Start` (after
-  `base.Start()`).
-- Override the interaction-mode fire condition. The simplest path is to make
-  `StimulusTriggerZone.UpdateInteractionMode` and `TriggerStimulus` `protected virtual` first (parallel
-  to Example A's `OccupancyZone` edits), then override `UpdateInteractionMode` to gate on
-  `_speedZone != null && _speedZone.speedMet` in addition to the existing interaction-detection check.
+- Promote `StimulusTriggerZone.Start`, `UpdateInteractionMode`, and `TriggerStimulus` to `protected virtual`
+  first (parallel to Example A's `OccupancyZone` edit). The base declares all three `private`, and Unity
+  dispatches `Start` as a message rather than through virtual dispatch, so a subclass reaches the base
+  initialization only after this promotion.
+- Cache the sibling `SpeedZone` via `GetComponentInChildren<SpeedZone>()` in an overridden `Start`, calling
+  `base.Start()` first so the base MQTT and `Task` wiring runs.
+- Override `UpdateInteractionMode` to gate on `_speedZone != null && _speedZone.speedMet` in addition to the
+  existing interaction-detection check.
 - Inherit `ResetState` from `StimulusTriggerZone`; `SpeedZone.ResetState` handles its own state.
 
 Subclassing means:
@@ -174,14 +177,14 @@ Subclassing means:
 ### Step 5: Validate via `inspect_prefab_tool`
 
 ```text
-SpeedInteractionTriggerZone (SpeedInteractionTriggerZone + StimulusTriggerZone in components)
+SpeedInteractionTriggerZone (SpeedInteractionTriggerZone in components)
 └── SpeedTestRegion         (SpeedZone in components, BoxCollider over speed-test range)
 ```
 
-The reward-interaction collider lives on the root; it is not a separate child. `inspect_prefab_tool`'s
-`components` list for the root should include both the subclass name (`SpeedInteractionTriggerZone`)
-and — through inheritance polling — should at minimum confirm `BoxCollider`, `MeshFilter`,
-`MeshRenderer`, and `MeshCollider` are still present.
+The reward-interaction collider lives on the root. It is not a separate child. `inspect_prefab_tool` reports
+each attached component once under its concrete runtime type name, so the root's `components` list carries the
+script name `SpeedInteractionTriggerZone` alongside `MeshFilter`, `MeshRenderer`, `MeshCollider`, and
+`BoxCollider`. Confirm the script name and each of those four Unity components appear in the list.
 
 ### Step 6: Wire downstream per `SKILL.md` Step 7
 

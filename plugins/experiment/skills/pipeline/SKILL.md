@@ -29,7 +29,8 @@ ordering, handoff conditions to phase-specific skills, and the boundary between 
 - Detailed tool usage for any individual phase (see phase-specific skills)
 - MCP server connectivity (see each plugin's `*-mcp-environment-setup` skill, e.g.
   `/experiment-mcp-environment-setup`, `assets:assets-mcp-environment-setup`)
-- Authoring system / experiment / session YAML files (see assets plugin skills)
+- Authoring system, experiment, or session YAML files. The active system's skill authors the system configuration
+  through the `sle mcp` write tool, and the assets plugin skills author experiment and session files
 - Post-acquisition data processing (see forging plugin)
 
 **Handoff rules:** This skill dispatches to phase-specific skills at each stage. Always invoke the
@@ -103,14 +104,15 @@ reads validated configuration files written during the AI-assisted phases.
 - **Actions:** Discover the active system's hardware — cameras, microcontrollers, and Zaber motors (the
   platform-universal / domain-general stack), plus any system-specific instrument it composes (for the
   `mesoscope` system, the mesoscope itself, controlled via the ScanImage bridge). Validate the system
-  configuration against discovered hardware. Update fields (camera indices, port assignments) using the
-  assets plugin's MCP write tools as needed. Where a device has cached configuration in the system
-  configuration directory, apply it as part of bringup — e.g. restore each camera's GenICam configuration
-  from its cached file (`ataraxis@video:camera-setup`, path sourced from the system configuration).
+  configuration against discovered hardware. Update fields (camera indices, port assignments) with the
+  `sle mcp` write tool (`write_system_configuration_tool`) as needed. Where a device has cached configuration
+  in the system configuration directory, apply it as part of bringup, e.g. restore each camera's GenICam
+  configuration from its cached file via `video:camera-setup` (ataraxis marketplace), with the path sourced
+  from the system configuration.
 - **Handoff condition:** All required hardware enumerated; system configuration matches reality.
 - **Cross-plugin handoffs:**
-  - `ataraxis@video:camera-setup` for camera discovery
-  - `ataraxis@communication:microcontroller-setup` for microcontroller enumeration
+  - `video:camera-setup` for camera discovery
+  - `communication:microcontroller-setup` for microcontroller enumeration
   - `/zaber-interface` for Zaber motor discovery and validation (domain-general, not system-specific)
   - for any system-specific instrument the active system composes, that system's skill (for the
     `mesoscope` system: the mesoscope via the ScanImage bridge; see `mesoscope:mesoscope-vr`)
@@ -147,6 +149,9 @@ seeds its configuration from a corridor task template.
   Mesoscope-VR's `experiment` mode), also confirm the Unity Editor MCP Bridge is reachable
   (`check_unity_bridge_tool` / `sle get unity`) so the run CLI can open the scene and arm the VR task; training
   and window-checking sessions skip this check. Light-touch sanity check before launching a runtime session.
+  `validate_system_configuration_tool` and `check_system_mounts_tool` report on the filesystem mounts, so verify
+  the `video_tracking` section by hand whenever face-camera inference is configured. A wrong `dlc_project_path`
+  passes every pre-flight check and surfaces only when Phase 7 joins the inference subprocess.
 - **Handoff condition:** All checklist items pass.
 
 ### Phase 6: Runtime acquisition (no AI)
@@ -178,8 +183,26 @@ seeds its configuration from a corridor task template.
 - **Actions:** Run `preprocess_session_tool` to aggregate raw data and validate session contents.
   Optionally, run `migrate_animal_tool` to migrate the animal between projects or `delete_session_tool`
   to delete the session — these are separate tools, not part of preprocessing.
-- **Handoff condition:** Preprocessed session lives at the canonical storage tier; `processed_data` is
-  populated.
+- **Face-camera inference sub-step:** For experiment sessions (`SessionTypes.MESOSCOPE_EXPERIMENT`),
+  preprocessing launches DeepLabCut face-camera eye-tracking as a background
+  `conda run -n <conda_environment> slvt infer` subprocess, right after the session videos are renamed. It
+  therefore runs on the rig's otherwise-idle GPU while the CPU-bound and disk-bound stages proceed. The step
+  is opt-in through the `video_tracking` section of `MesoscopeSystemConfiguration`, which gates it on
+  `conda_environment` and `dlc_project_path`. Leaving either unset skips inference, as does a missing
+  face-camera video, which skips with a warning. The subprocess boundary is load-bearing, because
+  sollertia-video-tracking requires Python 3.12 and numpy 1.x for DeepLabCut 3.0.0, while the acquisition
+  stack runs Python 3.14 and numpy 2. sollertia-video-tracking ships no MCP server and no plugin, so the
+  `slvt` CLI is its whole agent-facing surface.
+- **Face-camera inference outcome:** The subprocess exits zero and writes at least one DeepLabCut `.h5`
+  prediction beside the face-camera video in `raw_data/camera_data/`, where the raw-data checksum and the
+  storage transfer then capture it. A non-zero exit status or zero predictions raises `RuntimeError`, aborts
+  the transfer to long-term storage, and retains the local session copy for a manual retry. The transient log
+  at `<tmp>/slvt_infer_<session_name>.log` is retained on failure, with its last 2000 characters echoed into
+  the error.
+- **Handoff condition:** The session's `raw_data` directory reached every configured long-term storage
+  destination and the local session copy is removed. A host that configures no storage destinations completes
+  preprocessing with the local copy retained, which satisfies this phase as well. `processed_data` is created
+  later, on the processing host, when the session is loaded for processing.
 
 ### Phase 8: Handoff to forging (optional)
 
@@ -229,36 +252,36 @@ Rows naming a Mesoscope-VR skill illustrate the active system's hand-offs; anoth
 substitutes its own system skill (resolved via `/acquisition-system-setup`'s **Supported acquisition
 systems** registry).
 
-| You need to…                                      | Use…                                                                                        |
-|---------------------------------------------------|---------------------------------------------------------------------------------------------|
-| Set the working directory or credentials          | `assets:working-directory`                                                                  |
-| Author the active system's configuration YAML     | that system's skill (for `mesoscope`, `mesoscope:mesoscope-vr`)                             |
-| Author the server (remote transfer) configuration | `forging:server-configuration`                                                              |
-| Create a project                                  | `create_project_tool` or `slsa configure project` CLI (`assets:project-hierarchy`)          |
-| Author a task template                            | `assets:task-templates`                                                                     |
-| Author a per-project experiment configuration     | `assets:experiment-configuration`                                                           |
-| Read a session marker / inspect session metadata  | `assets:session-data`                                                                       |
-| Read or repair a session descriptor               | `assets:session-descriptors`                                                                |
-| Read or patch a frozen runtime snapshot           | `mesoscope:mesoscope-vr-snapshots`                                                          |
-| Look up animal surgery / implants / drugs         | `assets:data-assets`                                                                        |
-| Curate or read a dataset                          | `forging:datasets`                                                                          |
-| Discover GenICam cameras                          | `ataraxis@video:camera-setup`                                                               |
-| Test camera acquisition interactively             | `ataraxis@video:camera-setup`                                                               |
-| Verify a camera against its stored GenICam config | `/system-health-check` (verify) / `/acquisition-system-setup` (at bringup)                  |
-| Dump or restore a camera's GenICam config         | `ataraxis@video:camera-setup` (path sourced from the system configuration)                  |
-| Discover microcontrollers / verify MQTT           | `ataraxis@communication:microcontroller-setup`                                              |
-| Write a new VideoSystem binding                   | `ataraxis@video:camera-interface` (general) / `mesoscope:mesoscope-vr` (Mesoscope-specific) |
-| Write a new ModuleInterface                       | `/microcontroller-interface` → `ataraxis@communication:microcontroller-interface`           |
-| Write firmware for a new module                   | `ataraxis@microcontroller:firmware-module`                                                  |
-| Discover or configure Zaber motors                | `/zaber-interface`                                                                          |
-| Modify Mesoscope-VR hardware composition          | `mesoscope:mesoscope-vr`                                                                    |
-| Modify Mesoscope-VR runtime behavior              | `mesoscope:mesoscope-vr-runtime`                                                            |
-| Drive the Unity VR task / MQTT coupling           | `/vr-driver-interface`                                                                      |
-| Design a new acquisition system (static)          | `/acquisition-system-design`                                                                |
-| Implement an acquisition-system runtime loop      | `/acquisition-system-runtime`                                                               |
-| Generate / verify Unity task prefab from template | `unity:task-prefabs`                                                                        |
-| Open / create a Unity scene                       | `unity:task-scenes`                                                                         |
-| Enter / exit Unity Play Mode                      | `unity:play-mode`                                                                           |
+| You need to…                                      | Use…                                                                               |
+|---------------------------------------------------|------------------------------------------------------------------------------------|
+| Set the working directory or credentials          | `assets:working-directory`                                                         |
+| Author the active system's configuration YAML     | that system's skill (for `mesoscope`, `mesoscope:mesoscope-vr`)                    |
+| Author the server (remote transfer) configuration | `forging:server-configuration`                                                     |
+| Create a project                                  | `create_project_tool` or `slsa configure project` CLI (`assets:project-hierarchy`) |
+| Author a task template                            | `assets:task-templates`                                                            |
+| Author a per-project experiment configuration     | `assets:experiment-configuration`                                                  |
+| Read a session marker / inspect session metadata  | `assets:session-data`                                                              |
+| Read or repair a session descriptor               | `assets:session-descriptors`                                                       |
+| Read or patch a frozen runtime snapshot           | `mesoscope:mesoscope-vr-snapshots`                                                 |
+| Look up animal surgery / implants / drugs         | `assets:data-assets`                                                               |
+| Curate or read a dataset                          | `forging:datasets`                                                                 |
+| Discover GenICam cameras                          | `video:camera-setup`                                                               |
+| Test camera acquisition interactively             | `video:camera-setup`                                                               |
+| Verify a camera against its stored GenICam config | `/system-health-check` (verify) / `/acquisition-system-setup` (at bringup)         |
+| Dump or restore a camera's GenICam config         | `video:camera-setup` (path sourced from the system configuration)                  |
+| Discover microcontrollers / verify MQTT           | `communication:microcontroller-setup`                                              |
+| Write a new VideoSystem binding                   | `video:camera-interface` (general) / `mesoscope:mesoscope-vr` (Mesoscope-specific) |
+| Write a new ModuleInterface                       | `/microcontroller-interface` → `communication:microcontroller-interface`           |
+| Write firmware for a new module                   | `microcontroller:firmware-module`                                                  |
+| Discover or configure Zaber motors                | `/zaber-interface`                                                                 |
+| Modify Mesoscope-VR hardware composition          | `mesoscope:mesoscope-vr`                                                           |
+| Modify Mesoscope-VR runtime behavior              | `mesoscope:mesoscope-vr-runtime`                                                   |
+| Drive the Unity VR task / MQTT coupling           | `/vr-driver-interface`                                                             |
+| Design a new acquisition system (static)          | `/acquisition-system-design`                                                       |
+| Implement an acquisition-system runtime loop      | `/acquisition-system-runtime`                                                      |
+| Generate / verify Unity task prefab from template | `unity:task-prefabs`                                                               |
+| Open / create a Unity scene                       | `unity:task-scenes`                                                                |
+| Enter / exit Unity Play Mode                      | `unity:play-mode`                                                                  |
 
 ---
 

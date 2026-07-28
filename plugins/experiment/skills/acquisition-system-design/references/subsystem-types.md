@@ -73,7 +73,7 @@ Each `VideoSystem` is fully configured at construction (camera index, display ra
 format, quantization, preset), so its parameters are set once, at construction.
 
 **Current instance:** Mesoscope-VR's `VideoSystems` (face and body cameras). For the `VideoSystem`
-API, encoding configuration, and acquisition patterns, see `ataraxis@video:camera-interface`.
+API, encoding configuration, and acquisition patterns, see `video:camera-interface` (ataraxis marketplace).
 
 ---
 

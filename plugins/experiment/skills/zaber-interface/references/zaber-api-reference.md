@@ -450,7 +450,8 @@ setting cannot be modified directly as it is managed by the binding library.
 **Note on axis_label:**
 - The `axis_label` is optional and typically unused for Zaber motors. A missing axis_label is not a configuration issue.
 - Axis labels are primarily used for third-party motors where the label reflects the motor name.
-- For Zaber single-axis controllers, the `device_label` is sufficient for identification.
+- For Zaber single-axis controllers, the `device_label` drives checksum validation and can repeat across a motor
+  group, because the binding library selects each device by its daisy-chain index.
 
 ### validate_zaber_device_configuration
 

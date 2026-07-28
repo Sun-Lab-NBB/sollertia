@@ -92,7 +92,7 @@ Implements amortization on the non-reported direction to suppress micro-jitter i
 | Interrupt dependency | `ENCODER_USE_INTERRUPTS` consumes interrupt slots; module is incompatible with other `AttachInterrupt()`-using libraries on the same board |
 
 **Wrapper**: `EncoderInterface(encoder_ppr, wheel_diameter, polling_frequency)`. Computes
-`cm_per_pulse` in `__init__` (rounded to 8 decimals) and maintains a 2-element shared-memory tracker
+`cm_per_pulse` in `__init__` as a full-precision `np.float64` and maintains a 2-element shared-memory tracker
 for total distance (cm, index 0) and the signed encoder displacement in pulses (index 1, from which the
 absolute Unity position is derived). The centimeters-per-Unity-unit conversion is
 NOT a constructor argument — it is supplied at experiment start via `set_unity_scale(cm_per_unity_unit)`

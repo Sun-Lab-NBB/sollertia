@@ -42,9 +42,9 @@ by `/acquisition-system-setup`.
 | `ataraxis-video-system`            | `axvs mcp`  | Camera discovery and video requirements (via `/acquisition-system-setup`)               |
 | `ataraxis-communication-interface` | `axci mcp`  | Microcontroller discovery and MQTT broker check (via `/acquisition-system-setup`)       |
 
-If a required server is unavailable, hand off to the owning plugin's MCP environment setup skill
-(`/experiment-mcp-environment-setup`, `assets:assets-mcp-environment-setup`,
-`ataraxis@video:video-mcp-environment-setup`, `ataraxis@communication:communication-mcp-environment-setup`).
+If a required server is unavailable, hand off to the owning plugin's MCP environment setup skill:
+`/experiment-mcp-environment-setup`, `assets:assets-mcp-environment-setup`,
+`video:video-mcp-environment-setup` (ataraxis marketplace), or `communication:communication-mcp-environment-setup`.
 
 ---
 
@@ -71,7 +71,11 @@ list_supported_acquisition_systems_tool() # slsa — the AcquisitionSystems voca
 
 1. Call `read_system_configuration_tool()`. If it returns no configuration, no system is set up on this
    host: stop the health check and hand off to `/acquisition-system-setup` (bringup) and assets plugin
-   `assets:working-directory`.
+   `assets:working-directory`. This tool belongs to the `sle mcp` server's Mesoscope-VR tool group and loads
+   the configuration through `get_system_configuration()`, which raises `TypeError` on a host that belongs to
+   a different acquisition system. The tool lets that exception propagate, so a propagating `TypeError`
+   identifies the host as belonging to another acquisition system. In that case, hand off to
+   `/acquisition-system-setup` to identify that system and resolve its owning skill, then continue at Phase 1.
 2. Determine the active system's **type** from the returned `file_path`: the configuration filename is
    `<system>_system_configuration.yaml` (for the `mesoscope` system, `mesoscope_system_configuration.yaml`),
    whose `<system>` segment is the `AcquisitionSystems` value, confirmable against
@@ -113,7 +117,10 @@ shares and each configured `filesystem.storage_directories` destination. A syste
 run entirely on local storage, in which case this phase has nothing to verify. The set of locations is
 read from the active configuration automatically; for the canonical list of a system's shares and
 storage destinations, hand off to the active system's skill resolved in Phase 0 (for the `mesoscope`
-system, `mesoscope:mesoscope-vr`).
+system, `mesoscope:mesoscope-vr`). `check_system_mounts_tool` belongs to the `sle mcp` server's Mesoscope-VR
+tool group and resolves the active configuration through the same `get_system_configuration()` call as
+Phase 0, so run it when Phase 0 resolved the active system to `mesoscope`. For any other active system, hand
+off to that system's skill for its mount check.
 
 For a path that fails, drill in with `check_mount_accessibility_tool(path=...)`:
 
@@ -158,22 +165,32 @@ system: the ScanImage control bridge that arms and commands the Mesoscope over M
 
 | Check                        | Tool                                 | Expected result                                |
 |------------------------------|--------------------------------------|------------------------------------------------|
-| System configuration valid   | `validate_system_configuration_tool` | Valid; mounts healthy                          |
+| System configuration valid   | `validate_system_configuration_tool` | Valid, mounts healthy, on a `mesoscope` host   |
 | Camera GenICam configs match | `verify_camera_configuration_tool`   | Each declared camera matches its stored config |
 
-`validate_system_configuration_tool` is the platform-universal check — it validates whatever system
-configuration is active against the live mounts. Each third-party-SDK subsystem additionally exposes its
-own validator, which is system-specific: run one per subsystem the active system composes, and hand off
-to the active system's skill for its parameters and expected settings. (For the `mesoscope` system: the
-Zaber motors' `validate_zaber_configuration_tool(port, device_index)`; see
-`/zaber-interface`.) A system that composes no such subsystem has nothing further to validate here.
+`validate_system_configuration_tool` belongs to the `sle mcp` server's Mesoscope-VR tool group. It validates the
+active Mesoscope-VR system configuration against the live mounts and returns `valid`, `issues`, and a per-path
+`paths` report, so run it when Phase 0 resolved the active system to `mesoscope`. On a host that belongs to a
+different acquisition system the underlying `get_system_configuration()` call raises `TypeError`, which the tool
+lets propagate, so the call surfaces as an MCP tool exception rather than the tool's `{"error": ...}` payload. For
+any other active system, hand off to that system's skill for its configuration validator.
 
-When the active system records per-camera GenICam configuration paths (standard for GenTL/GenICam
-cameras), `verify_camera_configuration_tool` dumps each camera's live node configuration and diffs it
-against the stored YAML, reporting per-camera `match` and `value_mismatches`. Cameras with no path
-declared are skipped, and a system with no GenICam cameras has nothing to check here. On a mismatch, hand
-off to `/acquisition-system-setup` to restore or re-baseline, and to `ataraxis@video:camera-setup` for the
-GenICam dump/restore mechanics.
+Each third-party-SDK subsystem additionally exposes its own device-level validator.
+`validate_zaber_configuration_tool(port, device_index)` sits in the domain-general `sle get` tool group and is
+shared across acquisition systems, validating one Zaber device against the settings the binding library requires.
+Which subsystems the active system composes, and the ports, device indices, and expected settings each should
+report, are system-specific, so hand off to the active system's skill and to `/zaber-interface` for the per-device
+Zaber semantics. A system that composes no such subsystem has nothing further to validate here.
+
+`verify_camera_configuration_tool` sits in the same `sle mcp` Mesoscope-VR tool group and resolves the active
+system through the same `get_system_configuration()` call as `validate_system_configuration_tool`. Run it when
+Phase 0 resolved the active system to `mesoscope`, and expect the same propagating `TypeError` on a host that
+belongs to a different acquisition system. For each Mesoscope-VR camera that records a GenICam configuration path
+(standard for GenTL/GenICam cameras), the tool dumps that camera's live node configuration and diffs it against the
+stored YAML, reporting per-camera `match` and `value_mismatches`. Cameras whose path is unset report
+`configured: false`. On a mismatch, hand off to `/acquisition-system-setup` to restore or re-baseline, and to
+`video:camera-setup` for the GenICam dump/restore mechanics. For any other active system, hand off to that system's
+skill for its camera-configuration check.
 
 Project existence (for a session about to be recorded) is verified through the assets plugin
 `assets:project-hierarchy`; there is no project-listing tool on `sle mcp`.
@@ -185,10 +202,11 @@ Project existence (for a session about to be recorded) is verified through the a
 For a rapid pre-session check:
 
 1. `get_platform_environment_status_tool()` — platform configuration healthy.
-2. `check_system_mounts_tool()` — all storage accessible.
+2. Active system's mount check — all storage accessible (`check_system_mounts_tool()` for mesoscope).
 3. Hand off to `/acquisition-system-setup` — the hardware the active system declares (cameras,
    microcontrollers, any third-party-SDK subsystems such as Zaber motors, MQTT broker) is present.
-4. `validate_system_configuration_tool()` — configuration valid.
+4. `validate_system_configuration_tool()` — the configuration is valid (run it when Phase 0 resolved the
+   active system to `mesoscope`, otherwise run the validator the active system's skill names).
 5. For a session that runs the corridor task, `check_unity_bridge_tool()` — the Unity Editor is open and its
    MCP bridge is reachable (training and window-checking sessions run no task and skip it).
 6. For a session that drives a system-specific instrument control interface, confirm it through the active
@@ -238,18 +256,18 @@ the camera/microcontroller/Zaber/MQTT failure modes.
 
 ## Related skills
 
-| Skill                                          | Relationship                                                                                     |
-|------------------------------------------------|--------------------------------------------------------------------------------------------------|
-| `/acquisition-system-setup`                    | Owns the full hardware-discovery sweep this skill hands off to                                   |
-| `mesoscope:mesoscope-vr`                       | Active acquisition system's skill (`mesoscope`); owns config/validation and the ScanImage bridge |
-| `/vr-driver-interface`                         | Owns the shared Unity editor bridge check (`check_unity_bridge_tool`) for corridor-task sessions |
-| `/experiment-mcp-environment-setup`            | Run first if the `sle mcp` server is not connected                                               |
-| `/pipeline`                                    | Phase 5 (pre-session health check) is owned by this skill                                        |
-| `assets:working-directory`                     | Fixes data-root / credentials / templates prerequisites                                          |
-| `assets:project-hierarchy`                     | Confirms the recording project exists                                                            |
-| `ataraxis@video:camera-setup`                  | CTI / video runtime requirement deep-dives                                                       |
-| `ataraxis@communication:microcontroller-setup` | Microcontroller manifest / discovery deep-dives                                                  |
-| `/zaber-interface`                             | Owns per-device Zaber discovery / validation semantics for systems that compose Zaber motors     |
+| Skill                                 | Relationship                                                                                     |
+|---------------------------------------|--------------------------------------------------------------------------------------------------|
+| `/acquisition-system-setup`           | Owns the full hardware-discovery sweep this skill hands off to                                   |
+| `mesoscope:mesoscope-vr`              | Active acquisition system's skill (`mesoscope`), owns config/validation and the ScanImage bridge |
+| `/vr-driver-interface`                | Owns the shared Unity editor bridge check (`check_unity_bridge_tool`) for corridor-task sessions |
+| `/experiment-mcp-environment-setup`   | Run first if the `sle mcp` server is not connected                                               |
+| `/pipeline`                           | Phase 5 (pre-session health check) is owned by this skill                                        |
+| `assets:working-directory`            | Fixes data-root / credentials / templates prerequisites                                          |
+| `assets:project-hierarchy`            | Confirms the recording project exists                                                            |
+| `video:camera-setup`                  | CTI / video runtime requirement deep-dives                                                       |
+| `communication:microcontroller-setup` | Microcontroller manifest / discovery deep-dives                                                  |
+| `/zaber-interface`                    | Owns per-device Zaber discovery / validation semantics for systems that compose Zaber motors     |
 
 ---
 
@@ -260,9 +278,9 @@ the camera/microcontroller/Zaber/MQTT failure modes.
 - [ ] Active system identified via read_system_configuration_tool (by the configuration filename's
       AcquisitionSystems type, not the free-form name) and resolved to its owning skill
 - [ ] get_platform_environment_status_tool reported all components healthy
-- [ ] check_system_mounts_tool reported all mounts OK
+- [ ] Active system's mount check reported all mounts OK (check_system_mounts_tool for mesoscope)
 - [ ] Hardware sweep via /acquisition-system-setup confirmed expected hardware
-- [ ] validate_system_configuration_tool passed
+- [ ] Active system's configuration validator passed (validate_system_configuration_tool for mesoscope)
 - [ ] Per-subsystem discovery/validation done for each subsystem the active system composes (see that
       system's skill; for mesoscope, Zaber via /zaber-interface) — skip if it composes none
 - [ ] For a session that runs the corridor task, check_unity_bridge_tool reported the shared Unity editor
