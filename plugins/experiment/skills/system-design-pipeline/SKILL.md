@@ -234,10 +234,9 @@ and is skipped when `conda_environment` or `dlc_project_path` is left unset. A n
 copy for a manual retry. `slvt` ships no MCP server and no plugin, so its CLI is the only agent-facing surface and this
 coupling is documented on the `sollertia-experiment` side.
 
-`validate_system_configuration_tool` and `check_system_mounts_tool` do not inspect the `video_tracking` section, so a
-wrong `dlc_project_path` passes every pre-flight check and surfaces only when preprocessing joins the subprocess. You
-MUST confirm the DeepLabCut project path and conda environment by hand when you configure a host for a system that runs
-pose inference.
+`validate_system_configuration_tool` and `check_system_mounts_tool` report the `dlc_project_path` under the
+`dlc_project` key, so a wrong project path fails at pre-flight. You MUST confirm the conda environment by hand when
+you configure a host for a system that runs pose inference, since the environment name sits outside that report.
 
 ---
 

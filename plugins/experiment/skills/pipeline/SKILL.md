@@ -149,9 +149,9 @@ seeds its configuration from a corridor task template.
   Mesoscope-VR's `experiment` mode), also confirm the Unity Editor MCP Bridge is reachable
   (`check_unity_bridge_tool` / `sle get unity`) so the run CLI can open the scene and arm the VR task; training
   and window-checking sessions skip this check. Light-touch sanity check before launching a runtime session.
-  `validate_system_configuration_tool` and `check_system_mounts_tool` report on the filesystem mounts, so verify
-  the `video_tracking` section by hand whenever face-camera inference is configured. A wrong `dlc_project_path`
-  passes every pre-flight check and surfaces only when Phase 7 joins the inference subprocess.
+  `validate_system_configuration_tool` and `check_system_mounts_tool` cover the `dlc_project_path` under the
+  `dlc_project` key, so a wrong project path fails here. Confirm the `video_tracking` conda environment by hand
+  whenever face-camera inference is configured, since the environment name sits outside that report.
 - **Handoff condition:** All checklist items pass.
 
 ### Phase 6: Runtime acquisition (no AI)

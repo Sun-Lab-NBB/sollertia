@@ -503,7 +503,7 @@ reconcile this skill against ground truth.
 | `assets:task-templates`                 | Authors task templates the experiment runtime loads.                                     |
 | `assets:experiment-configuration`       | Authors experiment configurations the runtime loads.                                     |
 | `experiment:data-management`            | Downstream session-data lifecycle (preprocess, transfer, delete).                        |
-| `/mesoscope-vr-snapshots`               | Zaber/mesoscope position snapshots captured at session start.                            |
+| `/mesoscope-vr-snapshots`               | Zaber and mesoscope position snapshots recorded near the session's end.                  |
 | `/mesoscope-vr-session-schema`          | Field-level schema for the descriptors + hardware state this runtime populates           |
 | `/mesoscope-vr-experiment-schema`       | Field-level schema for the experiment config + trial types this runtime executes         |
 | `unity:gimbl-framework`                 | Unity-side framework for the VR game engine.                                             |

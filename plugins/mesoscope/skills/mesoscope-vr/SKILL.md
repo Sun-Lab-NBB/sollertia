@@ -573,9 +573,9 @@ transfer to long-term storage, and retains the local session copy for a manual r
 log lives at `<tmp>/slvt_infer_<session_name>.log`, is removed on success, and is retained on
 failure, with its last 2000 characters echoed into the error.
 
-`validate_system_configuration_tool` and `check_system_mounts_tool` report on filesystem paths only,
-so a wrong `dlc_project_path` passes every pre-flight check and surfaces when preprocessing joins
-the subprocess.
+`validate_system_configuration_tool` and `check_system_mounts_tool` report `dlc_project_path` under
+the `dlc_project` key, so a wrong path fails at pre-flight. The `conda_environment` name sits
+outside that report, so confirm it separately.
 
 For the full per-field documentation of the auxiliary sections, see
 [`references/configuration-fields.md`](references/configuration-fields.md).

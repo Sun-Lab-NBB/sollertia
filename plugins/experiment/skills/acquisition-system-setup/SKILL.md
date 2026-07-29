@@ -218,10 +218,10 @@ before running an experiment session.
 environment and a DeepLabCut project path, both must resolve on the host before an experiment session can be
 preprocessed. Preprocessing runs the `slvt` command out of process through `conda run`. DeepLabCut caps at Python 3.12
 and numpy 1.x, so `slvt` pins Python 3.12 while the rest of the Sollertia stack runs Python 3.14 and numpy 2. Confirm
-that the named conda environment exists and provides `slvt`, and that the declared DeepLabCut `config.yaml` exists at
-its recorded path. `check_system_mounts_tool` and `validate_system_configuration_tool` skip the video-tracking section
-entirely, so a wrong project path passes every pre-flight check and surfaces only when preprocessing joins the
-inference subprocess. Read the declared values through `mesoscope:mesoscope-vr`, which owns the configuration file.
+that the named conda environment exists and provides `slvt`. `check_system_mounts_tool` and
+`validate_system_configuration_tool` cover the declared DeepLabCut `config.yaml` under the `dlc_project` key, so a
+wrong project path fails at pre-flight. The conda environment name sits outside that report and needs the manual
+check. Read the declared values through `mesoscope:mesoscope-vr`, which owns the configuration file.
 The `slvt` tool ships no MCP server and no plugin, so its CLI is the only agent-facing surface for these checks.
 
 ### Phase 2: Hardware discovery

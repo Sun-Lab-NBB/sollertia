@@ -301,10 +301,11 @@ agent-facing surface and this binding is documented on the sollertia-experiment 
 `check_system_mounts_tool` (or equivalent) that reports whether the path exists and is writable. The check is
 system-specific, and the pattern is that the system configuration's MCP tooling exposes a mount-check entry point that
 an agent or operator invokes. An unset root for an optional storage destination reports as not configured with an ok
-status, so the feature that consumes it is skipped. Every other reported path is checked for existence and
-writability. Mesoscope-VR's `validate_system_configuration_tool` and `check_system_mounts_tool` report on the
-filesystem section only, so a wrong `dlc_project_path` in the `video_tracking` section passes every pre-flight check
-and surfaces when preprocessing joins the inference subprocess.
+status, so the feature that consumes it is skipped. A path the system writes to is checked for existence and
+writability. A path the system only reads, such as a stored device configuration or an external tool's project file,
+is checked for existence and readability instead, because a write probe would reject a valid read-only input. Sections
+outside the filesystem section contribute their own paths to the same report, so the check covers every declared path
+rather than one section.
 
 ---
 

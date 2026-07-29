@@ -340,9 +340,10 @@ different trained model or a different GPU.
 face-camera video in `raw_data/camera_data/`, so they are covered by the raw-data checksum and
 shipped to long-term storage as raw data.
 
-**Validation gap:** `validate_system_configuration_tool` and `check_system_mounts_tool` report on
-filesystem paths only, so a wrong `dlc_project_path` passes every pre-flight check and surfaces when
-preprocessing joins the inference subprocess.
+**Pre-flight coverage:** `check_system_mounts_tool` and `validate_system_configuration_tool` report
+`dlc_project_path` under the `dlc_project` key, checking that the file exists and is readable. An
+unset path reports as not configured with an ok status, matching the storage destinations. The
+`conda_environment` name sits outside that report, so confirm it separately.
 
 ---
 
