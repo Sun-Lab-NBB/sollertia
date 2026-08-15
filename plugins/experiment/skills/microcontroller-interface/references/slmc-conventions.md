@@ -197,9 +197,7 @@ slmc partitions its modules across multiple microcontroller boards using a singl
 blocks:
 
 ```cpp
-#define ACTOR   // Selected at upload time. Exactly one target must be defined.
-
-#ifdef ACTOR
+#ifdef ACTOR   // The building PlatformIO environment defines exactly one target macro.
     static constexpr uint8_t kControllerID = 101;
     BrakeModule<33, false, true> wheel_brake(3, 1, axmc_communication);
     // ... ACTOR-specific instances ...
@@ -217,6 +215,11 @@ blocks:
     static_assert(false, "Define one of the supported microcontroller targets.");
 #endif
 ```
+
+A PlatformIO environment in `platformio.ini` supplies the target macro through its `build_flags`. The environments are
+named `<board>_<target>` and extend a shared, non-buildable `[<board>_base]` template that holds every field common to
+them, so `pio run` without `-e` compiles every target and fails on a break in a target other than the one being
+flashed. Adding a target therefore means adding both an `#elif defined` block and its matching environment.
 
 This is the slmc-general pattern for supporting multiple controller boards from one firmware codebase. The specific
 targets `ACTOR`, `SENSOR`, and `ENCODER` are the Mesoscope-VR instance of this pattern. When adding a different
