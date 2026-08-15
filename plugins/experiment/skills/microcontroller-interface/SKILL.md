@@ -317,13 +317,18 @@ reuse-first bias rather than by copying or discarding the Mesoscope-VR layout.
    - Include only the headers for modules instantiated on this board.
    - Build the per-board `Module* modules[]` array.
 
-4. **Keep the trailing `#else static_assert(false, ...)` block intact**. It MUST remain the last branch so that
+4. **Add the PlatformIO environment**: Add an `[env:<board>_<target>]` section to `platformio.ini` that extends the
+   board's `[<board>_base]` template and appends `-D <NEW_TARGET>` to `build_flags`. Without it the target compiles
+   only when the macro is passed by hand, so `pio run` never gates it.
+
+5. **Keep the trailing `#else static_assert(false, ...)` block intact**. It MUST remain the last branch so that
    compilations without a defined target fail with a clear message.
 
-5. **Update slmc README and CLAUDE.md**: Add the new target to the per-target configuration table. The README and
-   CLAUDE.md are platform-general and SHOULD list every supported target, not only the Mesoscope-VR three.
+6. **Update slmc README and CLAUDE.md**: Add the new target to the per-target configuration table and to the
+   build-system environment table. The README and CLAUDE.md are platform-general and SHOULD list every supported
+   target, not only the Mesoscope-VR three.
 
-6. **Hand off to `mesoscope:mesoscope-vr`** (for the current Mesoscope-VR consumer): The host-PC binding class must add
+7. **Hand off to `mesoscope:mesoscope-vr`** (for the current Mesoscope-VR consumer): The host-PC binding class must add
    a new `MicroControllerInterface` instance for the new board, with the new controller ID and the appropriate
    `ModuleInterface` instances. This skill does not cover that step.
 
@@ -449,8 +454,8 @@ Catalog (`references/module-catalog.md`):
 - [ ] If a new controller board target was introduced, SKILL.md board-allocation discussion updated
 
 Verification:
-- [ ] pio run succeeds for every affected target
-- [ ] pio check reports no new clang-tidy findings for every affected target
+- [ ] pio run succeeds, compiling every target in one invocation
+- [ ] pio check reports no new clang-tidy findings for any target
 - [ ] After flash, the new module is visible via communication:microcontroller-setup discovery
 - [ ] A Python REPL can instantiate the wrapper without error and round-trip a set_parameters / send_command call
 ```

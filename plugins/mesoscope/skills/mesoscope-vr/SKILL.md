@@ -709,7 +709,8 @@ Then in this skill:
 ### Add a new module that needs a new microcontroller board
 
 Follow the workflow in `experiment:microcontroller-interface`'s "Adding a new controller board"
-section to add the new target macro in slmc's `main.cpp`. Then in this skill:
+section to add the new target macro to slmc's `main.cpp` and its PlatformIO environment to
+`platformio.ini`. Then in this skill:
 
 1. **Add a new port field** to `MesoscopeMicroControllers` (e.g., `<role>_port`).
 2. **Add a new construction block** in `MicroControllerInterfaces.__init__` for the new board,
