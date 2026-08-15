@@ -25,7 +25,8 @@ acquisition system's binding layer (currently Mesoscope-VR's `ZaberMotors`).
 - Composing Zaber motors into an acquisition system's binding class
 
 **Does not cover:**
-- Mesoscope-VR-specific integration — modifying `MesoscopeVRAssets` or extending `ZaberMotors` (see `mesoscope:mesoscope-vr`)
+- Mesoscope-VR-specific integration — modifying `MesoscopeVRAssets` or extending `ZaberMotors`
+  (see `mesoscope:mesoscope-vr`)
 - The platform-general pattern for composing a Zaber subsystem into a binding class (see `/acquisition-system-design`)
 - Reading or writing the `ZaberPositions` session snapshot (see `mesoscope:mesoscope-vr-snapshots`)
 - The `zaber-motion` library internals (third-party; consult its own documentation)
@@ -59,7 +60,7 @@ Use the sollertia-experiment MCP server for Zaber discovery. Start the server wi
 sle mcp
 ```
 
-**MCP Tool for Verification:**
+**MCP tool for verification:**
 
 | Tool                     | Purpose                                      |
 |--------------------------|----------------------------------------------|
@@ -73,14 +74,23 @@ sle mcp
 
 **Expected output from `get_zaber_devices_tool()`:**
 ```text
-+----------------+------------+-------+---------+-------------+---------+-------------+
-|      Port      | Device Num |  ID   |  Label  |    Name     | Axis ID | Axis Label  |
-+----------------+------------+-------+---------+-------------+---------+-------------+
-| /dev/ttyUSB0   |     1      | 30341 | HeadBar |  X-LDA025A  |    1    |      Z      |
-|                |     2      | 30341 |         |  X-LDA025A  |    1    |    Pitch    |
-|                |     3      | 30341 |         |  X-LDA025A  |    1    |    Roll     |
-+----------------+------------+-------+---------+-------------+---------+-------------+
++--------------+--------------+-------+---------+-----------+-----------+--------------+
+|     Port     |   Device Num |    ID |  Label  |   Name    |   Axis ID |  Axis Label  |
++==============+==============+=======+=========+===========+===========+==============+
+| /dev/ttyUSB0 |            1 | 30341 | HeadBar | X-LDA025A |         1 |      Z       |
++--------------+--------------+-------+---------+-----------+-----------+--------------+
+| /dev/ttyUSB0 |            2 | 30341 | HeadBar | X-LDA025A |         1 |    Pitch     |
++--------------+--------------+-------+---------+-----------+-----------+--------------+
+| /dev/ttyUSB0 |            3 | 30341 | HeadBar | X-LDA025A |         1 |     Roll     |
++--------------+--------------+-------+---------+-----------+-----------+--------------+
+|              |              |       |         |           |           |              |
++--------------+--------------+-------+---------+-----------+-----------+--------------+
 ```
+
+The port path repeats on every device row, because the tool rebuilds the port, device number, ID, label, and name
+cells for each discovered device. Cells blank out only across the additional axes of one multi-axis device, so
+single-axis controllers always carry a fully populated row. The tool also appends one blank row after each port
+section, which separates the sections when several ports report devices.
 
 > **OS note.** Serial-port paths are OS-specific. This skill shows the Linux form (`/dev/ttyUSB0`); on Windows
 > the same port appears as a `COM3`-style name, on macOS as `/dev/tty.usbserial-XXXX`. Always use the path the
@@ -197,7 +207,8 @@ Positions are stored in non-volatile USER_DATA variables on each motor controlle
 
 A consuming acquisition system's binding class can restore motors to their previous-session positions from a
 position snapshot the system provides and persists. This enables consistent positioning across sessions. For the
-Mesoscope-VR implementation, see `mesoscope:mesoscope-vr` (the `ZaberMotors` consumer) and `mesoscope:mesoscope-vr-snapshots` (the snapshot).
+Mesoscope-VR implementation, see `mesoscope:mesoscope-vr` (the `ZaberMotors` consumer) and
+`mesoscope:mesoscope-vr-snapshots` (the snapshot).
 
 ---
 
@@ -225,7 +236,7 @@ Use MCP tools to read and modify Zaber motor configuration stored in non-volatil
 
 #### Modifying configuration
 
-**Safety Protocol:**
+**Safety protocol:**
 
 1. Read current value using `get_zaber_device_settings_tool()`
 2. Show user the current value and proposed change
@@ -283,7 +294,8 @@ Use MCP tools to read and modify Zaber motor configuration stored in non-volatil
 **axis_label:**
 - Optional and typically unused for Zaber motors. A missing axis_label is not an issue.
 - Axis labels are primarily used for third-party motors where the label reflects the specific motor name.
-- For Zaber single-axis controllers, the device_label is sufficient for identification.
+- For Zaber single-axis controllers, the device_label drives checksum validation and can repeat across a motor group,
+  because the binding library selects each device by its daisy-chain index.
 - Do not flag missing axis_label as a configuration problem.
 
 ### Initial device setup workflow
@@ -430,8 +442,8 @@ dataclass patterns, see [references/zaber-api-reference.md](references/zaber-api
 
 1. Motor was not shut down properly in previous session
 2. Verify motor is positioned safely for homing
-3. Confirm the "Proceed with initializing this motor?" prompt with `y` (it defaults to declining; declining
-   aborts initialization)
+3. Confirm the "Proceed with initializing this motor?" prompt with `y` (the prompt has no default and
+   re-prompts on any empty or unrecognized answer; entering `n`/`no` aborts initialization)
 4. Or manually set USER_DATA_1 to 1 in Zaber Launcher
 
 ### Movement not executing
@@ -455,7 +467,7 @@ dataclass patterns, see [references/zaber-api-reference.md](references/zaber-api
 | Skill                               | Relationship                                                                   |
 |-------------------------------------|--------------------------------------------------------------------------------|
 | `/acquisition-system-design`        | Platform-general pattern for composing a Zaber subsystem into a binding class  |
-| `mesoscope:mesoscope-vr`            | Current consumer — composes `ZaberMotors` from `MesoscopeVRAssets`             |
+| `mesoscope:mesoscope-vr`            | Current consumer that composes `ZaberMotors` from `MesoscopeVRAssets`          |
 | `mesoscope:mesoscope-vr-snapshots`  | Reads/writes the `ZaberPositions` snapshot this subsystem restores from        |
 | `/acquisition-system-setup`         | Acquisition-system-level hardware discovery and verification                   |
 | `/experiment-mcp-environment-setup` | Run first if the `sle mcp` server is not connected                             |
@@ -463,7 +475,7 @@ dataclass patterns, see [references/zaber-api-reference.md](references/zaber-api
 
 ---
 
-## Implementation checklist
+## Verification checklist
 
 Before integrating Zaber motors into an acquisition system:
 

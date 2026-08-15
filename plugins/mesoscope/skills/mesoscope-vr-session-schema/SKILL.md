@@ -188,19 +188,19 @@ keyed by `AcquisitionSystems.MESOSCOPE_VR` in `HARDWARE_STATE_REGISTRY` and writ
 hardware module was not used by the executed runtime"** — not "missing data." That convention is
 load-bearing for downstream pipelines and MUST be preserved on any amendment.
 
-| Field                         | Type              | Default | Meaning                                                                                       |
-|-------------------------------|-------------------|---------|-----------------------------------------------------------------------------------------------|
-| `cm_per_pulse`                | `float \          | None`   | `None` | Conversion factor translating encoder pulses into centimeters.                       |
-| `maximum_brake_strength`      | `float \          | None`   | `None` | Braking torque, in N·cm, at the wheel edge when the brake is maximally engaged.      |
-| `minimum_brake_strength`      | `float \          | None`   | `None` | Braking torque, in N·cm, at the wheel edge when the brake is fully disengaged.       |
-| `lick_threshold`              | `int \            | None`   | `None` | Lick threshold, in 12-bit ADC units, above which the sensor signal counts as a lick. |
-| `valve_scale_coefficient`     | `float \          | None`   | `None` | Scale coefficient of the valve open-time / dispensed-volume power law.               |
-| `valve_nonlinearity_exponent` | `float \          | None`   | `None` | Nonlinearity exponent of the valve open-time / dispensed-volume power law.           |
-| `torque_per_adc_unit`         | `float \          | None`   | `None` | Conversion factor translating torque sensor 12-bit ADC units into N·cm.              |
-| `screens_initially_on`        | `bool \           | None`   | `None` | Initial state of the Virtual Reality screens at the start of the session's runtime.  |
-| `recorded_mesoscope_ttl`      | `bool \           | None`   | `None` | Whether the session recorded brain activity data with the mesoscope.                 |
-| `delivered_gas_puffs`         | `bool \           | None`   | `None` | Whether the session delivered any gas puffs to the animal.                           |
-| `system_state_codes`          | `dict[str, int] \ | None`   | `None` | Maps integer system state-codes to human-readable state names.                       |
+| Field                         | Type                     | Default | Meaning                                                                              |
+|-------------------------------|--------------------------|---------|--------------------------------------------------------------------------------------|
+| `cm_per_pulse`                | `float \| None`          | `None`  | Conversion factor translating encoder pulses into centimeters.                       |
+| `maximum_brake_strength`      | `float \| None`          | `None`  | Braking torque, in N·cm, at the wheel edge when the brake is maximally engaged.      |
+| `minimum_brake_strength`      | `float \| None`          | `None`  | Braking torque, in N·cm, at the wheel edge when the brake is fully disengaged.       |
+| `lick_threshold`              | `int \| None`            | `None`  | Lick threshold, in 12-bit ADC units, above which the sensor signal counts as a lick. |
+| `valve_scale_coefficient`     | `float \| None`          | `None`  | Scale coefficient of the valve open-time / dispensed-volume power law.               |
+| `valve_nonlinearity_exponent` | `float \| None`          | `None`  | Nonlinearity exponent of the valve open-time / dispensed-volume power law.           |
+| `torque_per_adc_unit`         | `float \| None`          | `None`  | Conversion factor translating torque sensor 12-bit ADC units into N·cm.              |
+| `screens_initially_on`        | `bool \| None`           | `None`  | Initial state of the Virtual Reality screens at the start of the session's runtime.  |
+| `recorded_mesoscope_ttl`      | `bool \| None`           | `None`  | Whether the session recorded brain activity data with the mesoscope.                 |
+| `delivered_gas_puffs`         | `bool \| None`           | `None`  | Whether the session delivered any gas puffs to the animal.                           |
+| `system_state_codes`          | `dict[str, int] \| None` | `None`  | Maps human-readable state names to integer system state-codes.                       |
 
 ### Per-session-type applicability and field population
 

@@ -66,8 +66,10 @@ Unity VR task driver the orchestrator uses to couple to the game engine, see
 │  window_checking_logic(...)   lick_training_logic(...)                       │
 │  run_training_logic(...)      experiment_logic(...)   maintenance_logic()    │
 │                                                                              │
-│  Each constructs a MesoscopeVRSystem, drives its state transitions, and      │
-│  runs its runtime_cycle() loop over the session's lifetime.                  │
+│  lick_training_logic, run_training_logic, and experiment_logic construct a   │
+│  MesoscopeVRSystem, drive its state transitions, and run its runtime_cycle() │
+│  loop. window_checking_logic and maintenance_logic build their own hardware  │
+│  assets directly.                                                            │
 └────────────────────────────────────────────────────┬─────────────────────────┘
                                                      │ composes
 ┌────────────────────────────────────────────────────▼─────────────────────────┐
@@ -77,8 +79,8 @@ Unity VR task driver the orchestrator uses to couple to the game engine, see
 │  - Drives the MesoscopeVRStates system state machine                         │
 │  - Owns a VRTaskDriver (experiment sessions only) for Unity coupling         │
 │  - Owns BehaviorVisualizer + RuntimeControlUI                                │
-│  - runtime_cycle() fans out to _data_cycle / _unity_cycle / _ui_cycle /      │
-│    _mesoscope_cycle each iteration                                           │
+│  - runtime_cycle() runs _data_cycle, visualizer update, and _ui_cycle every  │
+│    iteration, plus _unity_cycle / _mesoscope_cycle for experiment sessions   │
 └──────────────────────────────────────────────────────────────────────────────┘
 ```
 
@@ -119,7 +121,10 @@ Current states:
 | `LICK_TRAINING` | 3     | Lick training session (lickport-only behavior)                                                                           |
 | `RUN_TRAINING`  | 4     | Run training session (wheel-only behavior)                                                                               |
 
-The enum exposes `to_dict()` (lowercased, underscores→spaces) for the visualizer title bar.
+The enum exposes `to_dict()` (lowercased member names, underscores→spaces). Its three call sites all
+sit in `_generate_hardware_state_snapshot()`, which stores the mapping as `MesoscopeHardwareState`'s
+`system_state_codes` field in the session's `hardware_state.yaml`. Downstream behavior processing in
+the forging plugin reads that mapping to decode logged system-state codes.
 
 State values 0–4 are taken. New states SHOULD use the next unused value (5) unless a non-contiguous
 code carries semantic meaning that justifies the gap.
@@ -188,13 +193,25 @@ advances the within-session runtime stage. State transitions are idempotent.
 
 ### Runtime cycle
 
-`runtime_cycle()` is the per-iteration heartbeat the logic functions call in a loop. It fans out to:
+`runtime_cycle()` is the per-iteration heartbeat the logic functions call in a loop. Every iteration
+runs, in order:
 
-- `_data_cycle()` — drains microcontroller data, updates trackers, pushes motion/lick to the VR
-  driver and the visualizer.
-- `_unity_cycle()` — consumes at most one `VRTaskEvent` from the `VRTaskDriver` and dispatches it.
-- `_ui_cycle()` — services the `RuntimeControlUI` (pause/resume, threshold modifiers, manual reward).
-- `_mesoscope_cycle()` — services mesoscope frame-acquisition bookkeeping.
+- `_data_cycle()`, which drains microcontroller data, updates trackers, and pushes motion/lick to the
+  VR driver and the visualizer.
+- `self._visualizer.update()`, which redraws the behavior visualizer.
+- `_ui_cycle()`, which services the `RuntimeControlUI` (pause/resume, threshold modifiers, manual
+  reward).
+
+`SessionTypes.MESOSCOPE_EXPERIMENT` sessions run two additional cycles at the end of each iteration.
+Window-checking and maintenance runtimes build their hardware assets directly and stay outside the
+cycle entirely. Window-checking runs a linear sequence of blocking operator prompts, and maintenance
+runs its own control loop driven by the maintenance GUI. Lick-training and run-training runtimes run
+the cycle and skip both of these additional cycles:
+
+- `_unity_cycle()`, which consumes at most one `VRTaskEvent` from the `VRTaskDriver` and dispatches it. For
+  `STIMULUS_TRIGGERED` it resolves the trial outcome (success / guided / failure) from the event's `delivered` and
+  `cause` and reports it to the visualizer, labeling a trial guided only when guidance actually fired.
+- `_mesoscope_cycle()`, which services mesoscope frame-acquisition bookkeeping.
 
 `start()` and `stop()` bring the session up and tear it down. For
 `SessionTypes.MESOSCOPE_EXPERIMENT` sessions, `start()` calls `self._mesoscope.connect()` and then
@@ -269,8 +286,12 @@ that:
 2. Builds the session-specific descriptor from default values, the previous same-type session's
    parameters (when available), and per-flag overrides; experiment sessions additionally load the
    `MesoscopeExperimentConfiguration` from its YAML.
-3. Constructs `MesoscopeVRSystem`, which owns and starts its own `DataLogger`.
-4. Drives state transitions and the `runtime_cycle()` loop.
+3. Builds the hardware assets the mode needs. `lick_training_logic`, `run_training_logic`, and
+   `experiment_logic` construct `MesoscopeVRSystem`, which owns and starts its own `DataLogger`.
+   `window_checking_logic` and `maintenance_logic` construct their own `DataLogger` and hardware
+   assets directly, with no orchestrator.
+4. Runs the session's control loop. The three `MesoscopeVRSystem` modes drive state transitions and
+   call `runtime_cycle()` each iteration.
 5. Tears down on completion or error.
 
 Current functions:
@@ -283,9 +304,11 @@ Current functions:
 | `experiment_logic`      | Full Mesoscope-VR experiment session with VR trial structure                     |
 | `maintenance_logic`     | Hardware maintenance (valve calibration, motor positioning, brake testing)       |
 
-Each session-running function takes the experimenter, project, and animal identifiers, the animal
-weight, and per-flag parameter overrides, and builds the `SessionData` and descriptor internally.
-`maintenance_logic()` takes no session.
+Every session-running function takes the experimenter, project, and animal identifiers and builds the
+`SessionData` and descriptor internally. `lick_training_logic`, `run_training_logic`, and
+`experiment_logic` additionally take the animal weight and per-flag parameter overrides, and
+`experiment_logic` also takes `experiment_name`. `window_checking_logic` takes exactly the three
+identifiers. `maintenance_logic()` takes no session.
 
 ### Session descriptor consumption
 
@@ -357,22 +380,31 @@ The user-facing entry points live in `sollertia_experiment/interfaces/mesoscope_
 under the `sle mesoscope` command group (itself registered on the top-level `sle` group in
 `interfaces/entry_points.py`):
 
-| Command                             | Calls                              | Notes                                                 |
-|-------------------------------------|------------------------------------|-------------------------------------------------------|
-| `sle mesoscope configure`           | `create_system_configuration_file` | Writes a template system configuration YAML           |
-| `sle mesoscope maintain`            | `maintenance_logic`                | Hardware maintenance GUI (no session)                 |
-| `sle mesoscope run window-checking` | `window_checking_logic`            | Cranial-window maintenance mode                       |
-| `sle mesoscope run lick-training`   | `lick_training_logic`              | Defaults match the lick-training descriptor           |
-| `sle mesoscope run run-training`    | `run_training_logic`               | Absolute speed/duration threshold targets via flags   |
-| `sle mesoscope run experiment`      | `experiment_logic`                 | Takes `--experiment` for the experiment configuration |
-| `sle mesoscope preprocess`          | (session data lifecycle)           | See `experiment:data-management`                      |
-| `sle mesoscope delete`              | (session data lifecycle)           | See `experiment:data-management`                      |
-| `sle mesoscope migrate`             | (session data lifecycle)           | See `experiment:data-management`                      |
+| Command                              | Calls                                  | Notes                                                    |
+|--------------------------------------|----------------------------------------|----------------------------------------------------------|
+| `sle mesoscope configure system`     | `create_system_configuration_file`     | Writes the system configuration YAML                     |
+| `sle mesoscope configure experiment` | `create_experiment_configuration_file` | Creates an experiment configuration from a task template |
+| `sle mesoscope maintain`             | `maintenance_logic`                    | Hardware maintenance GUI (no session)                    |
+| `sle mesoscope run window-checking`  | `window_checking_logic`                | Cranial-window maintenance mode                          |
+| `sle mesoscope run lick-training`    | `lick_training_logic`                  | Defaults match the lick-training descriptor              |
+| `sle mesoscope run run-training`     | `run_training_logic`                   | Absolute speed/duration threshold targets via flags      |
+| `sle mesoscope run experiment`       | `experiment_logic`                     | Takes `--experiment` for the experiment configuration    |
+| `sle mesoscope preprocess`           | (session data lifecycle)               | See `experiment:data-management`                         |
+| `sle mesoscope delete`               | (session data lifecycle)               | See `experiment:data-management`                         |
+| `sle mesoscope migrate`              | (session data lifecycle)               | See `experiment:data-management`                         |
 
-`sle mesoscope run` is a command group; the `--user`, `--project`, `--animal`, and `--animal-weight`
-options are supplied on `run` and shared by every session subcommand. Each session subcommand builds
-a `SessionData`, builds the descriptor with CLI overrides, writes the descriptor to disk, and calls
-the per-mode logic function. The CLI is the only public surface for starting a session.
+`sle mesoscope configure` is a command group with two targets. `configure system` takes no options
+and writes the system configuration YAML under the working directory. `configure experiment` takes
+the required `-p/--project`, `-e/--experiment`, and `-t/--template` options plus `-sc/--state-count`
+(default 1), `--reward-size` (default 5.0), `--reward-tone-duration` (default 300), and
+`--puff-duration` (default 100), and writes the experiment configuration under the configured data
+root. See `assets:experiment-configuration` for the configuration contract itself.
+
+`sle mesoscope run` is a command group. The `--user`, `--project`, `--animal`, and `--animal-weight`
+options are supplied on `run` and shared by every session subcommand. Each session subcommand reads
+those shared values out of the Click context, adds its own per-flag overrides, and calls the matching
+per-mode logic function, which builds the `SessionData` and the descriptor. The CLI is the only
+public surface for starting a session.
 
 ---
 
@@ -413,9 +445,11 @@ function (`lick_training_logic` for a non-trial mode, `experiment_logic` for a t
 
 ### Step 5: Add the CLI command (this repo)
 
-In `interfaces/mesoscope_vr.py`, add a new `@run.command(...)` (for a session) or `@mesoscope.command(...)`
-subcommand that builds a `SessionData` and descriptor with overrides, writes the descriptor, and
-calls the new logic function. Mirror an existing command.
+In `interfaces/mesoscope_vr.py`, add a new `@run.command(...)` subcommand for a session, or a
+`@mesoscope.command(...)` subcommand for a standalone utility. A `@run.command` declares its per-flag Click
+options and forwards them, together with the `ctx.obj` values the `run` group shares, to the new logic
+function. A `@mesoscope.command` forwards only its own options. The logic function owns the `SessionData`
+and descriptor construction from Step 4. Mirror an existing command.
 
 ### Step 6: Export and version-bump (this repo)
 
@@ -469,7 +503,7 @@ reconcile this skill against ground truth.
 | `assets:task-templates`                 | Authors task templates the experiment runtime loads.                                     |
 | `assets:experiment-configuration`       | Authors experiment configurations the runtime loads.                                     |
 | `experiment:data-management`            | Downstream session-data lifecycle (preprocess, transfer, delete).                        |
-| `/mesoscope-vr-snapshots`               | Zaber/mesoscope position snapshots captured at session start.                            |
+| `/mesoscope-vr-snapshots`               | Zaber and mesoscope position snapshots recorded near the session's end.                  |
 | `/mesoscope-vr-session-schema`          | Field-level schema for the descriptors + hardware state this runtime populates           |
 | `/mesoscope-vr-experiment-schema`       | Field-level schema for the experiment config + trial types this runtime executes         |
 | `unity:gimbl-framework`                 | Unity-side framework for the VR game engine.                                             |

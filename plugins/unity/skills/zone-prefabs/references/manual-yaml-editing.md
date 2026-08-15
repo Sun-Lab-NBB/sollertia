@@ -26,7 +26,7 @@ are referenced by `CreateTask.PlaceInteractionZone` / `PlaceOccupancyZone` at ta
 | `BoxCollider.m_IsTrigger`          | `1` (true — this is the StimulusTriggerZone detection)                        |
 | `BoxCollider.m_Size` / `m_Center`  | Placeholder — `ConfigureRootZoneCollider` overwrites                          |
 | `StimulusTriggerZone.showBoundary` | `0` (false; `CreateTask` sets it per trial at generation)                     |
-| `StimulusTriggerZone.isActive`     | `0` (false; `ResetZone.ResetState` activates at lap start)                    |
+| `StimulusTriggerZone.isActive`     | `0` (false, `StimulusTriggerZone.ResetState` activates at lap start)          |
 
 ### On every modifier-zone child
 
@@ -193,7 +193,7 @@ Removing a field is also fine — Unity will fall back to the script's declared 
 
 ### Step 5: Add or remove modifier regions
 
-Adding a new sibling or nested region requires appending three YAML blocks (GameObject, Transform,
+Adding a new sibling or nested region requires appending four YAML blocks (GameObject, Transform,
 BoxCollider, MonoBehaviour) and wiring the new fileIDs into the parent's `m_Children` list.
 
 When adding a region:
@@ -225,17 +225,18 @@ BoxCollider) and remove its Transform fileID from the parent's `m_Children` list
 
 ### Step 6: Validate via inspect_prefab_tool
 
-Run `inspect_prefab_tool` (owned by `/task-prefabs`) against the new prefab. The tool returns the
-hierarchy Unity actually loads — if the YAML is malformed, the tool errors out before producing a
-hierarchy, which is a stronger signal than visual inspection.
+Run `inspect_prefab_tool` (a read-only **natural share** any skill may call) against the new prefab. The
+tool returns the hierarchy Unity actually loads — if the YAML is malformed, the tool errors out before
+producing a hierarchy, which is a stronger signal than visual inspection.
 
 ```text
 inspect_prefab_tool(prefab_path="Assets/InfiniteCorridorTask/Prefabs/MyNewTriggerZone.prefab")
 ```
 
 Verify:
-- The root has a `StimulusTriggerZone` component (in the `components` list) and a
-  `BoxCollider`.
+- The root `components` list carries a `BoxCollider` and the root zone script name. The tool reports each
+  component under its concrete runtime type name, so a root left on the base script shows
+  `StimulusTriggerZone` and a root swapped per Step 4b shows the subclass name.
 - Each modifier region has the expected new script in `components`.
 - `collider_size` and `collider_center` on the root are non-zero (size is a placeholder; presence
   matters more than the value).

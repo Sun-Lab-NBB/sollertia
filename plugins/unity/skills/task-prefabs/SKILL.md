@@ -1,7 +1,7 @@
 ---
 name: task-prefabs
 description: >-
-  Creates, deletes, and inspects Unity tasks for sollertia-unity-tasks from YAML task templates.
+  Creates, deletes, and inspects Unity tasks for sollertia-virtual-reality from YAML task templates.
   Owns create_task_tool (single-step template → prefab + scene), delete_task_tool (single-step
   removal of every generated artifact for a task), inspect_prefab_tool, and delete_asset_tool
   (individual cue / material cleanup). Use when a template needs a matching task built or removed,
@@ -11,10 +11,11 @@ user-invocable: false
 
 # Sollertia Unity task prefabs
 
-Creates, deletes, and inspects Unity tasks for the `sollertia-unity-tasks` project through the
+Creates, deletes, and inspects Unity tasks for the `sollertia-virtual-reality` project through the
 Unity relay exposed by `slsa mcp` — the **exclusive** owner of `create_task_tool`,
-`delete_task_tool`, `inspect_prefab_tool`, and `delete_asset_tool`, which no other skill in the
-marketplace may call.
+`delete_task_tool`, and `delete_asset_tool`, which no other skill in the marketplace may call. This
+skill's inspection tool (`inspect_prefab_tool`) is read-only and may be called as a **natural
+share** by any other skill that needs to read a prefab's hierarchy.
 
 ---
 
@@ -44,7 +45,7 @@ A single task is three name-aligned files on disk. The base name (`MF_Reward`, `
 is greppable across all three:
 
 ```text
-Assets/InfiniteCorridorTask/Configurations/<name>.yaml      template          (authored by assets assets:task-templates)
+Assets/InfiniteCorridorTask/Configurations/<name>.yaml      template          (authored by assets:task-templates)
                                 │
                                 │  create_task_tool (single call)
                                 ▼
@@ -86,11 +87,13 @@ supervisor (see `/scene-setup`). You MUST NOT hand-author a scene to work around
 |-----------------------|---------------------------------------------------------------------------------------------------------------|
 | `create_task_tool`    | Builds a task prefab and the matching scene from a template in one call (exclusive)                           |
 | `delete_task_tool`    | Removes the scene, the per-scene companion, the task prefab, and every segment prefab in one call (exclusive) |
-| `inspect_prefab_tool` | Returns a prefab's recursive GameObject tree (exclusive)                                                      |
+| `inspect_prefab_tool` | Returns a prefab's recursive GameObject tree (read-only natural share)                                        |
 | `delete_asset_tool`   | Removes a regenerable cue prefab or cue material (exclusive)                                                  |
 
 `list_assets_tool` (owned by `/task-scenes`) is callable as a natural share when enumerating
-prefabs before inspection. `delete_asset_tool` is scoped to non-scene assets under
+prefabs before inspection. `inspect_prefab_tool` stays owned by this skill and is callable as a
+natural share in the other direction. For example, `/zone-prefabs` runs it to validate a cloned
+zone prefab. `delete_asset_tool` is scoped to non-scene assets under
 `Assets/InfiniteCorridorTask/`; the handler rejects scene paths so scene cleanup goes through
 `delete_task_tool` and preserves the per-scene `savedFullScreenViews` companion cascade.
 `delete_task_tool` is the inverse of `create_task_tool`.
@@ -212,12 +215,21 @@ delete_task_tool(template_name="<template-name>")
 Removes the scene at `Assets/Scenes/<template-name>.unity` (plus its
 `savedFullScreenViews.asset` companion via the same cascade `delete_task_tool` uses), the task
 prefab at `Assets/InfiniteCorridorTask/Tasks/<template-name>.prefab`, and every segment prefab
-under `Assets/InfiniteCorridorTask/Prefabs/` whose filename begins with `<template-name>_`. The
+under `Assets/InfiniteCorridorTask/Prefabs/` that `<template-name>` owns — ownership resolves by the
+longest matching template name, so a template whose name prefixes another (e.g. `SSO_Merging` vs
+`SSO_Merging_Base`) never deletes the longer template's segments. The
 template YAML and the shared cue prefabs / materials are preserved — cues live in
 `Assets/InfiniteCorridorTask/Cues/` and are referenced by sibling tasks, so individual cue
 cleanup goes through `delete_asset_tool`. The response carries `deleted_paths` (every
 asset removed) and `companion_deleted` (the saved-views asset when present); when no artifacts
 exist for the supplied template the call returns an error.
+
+**Active-scene swap.** When the scene being deleted is the Editor's active scene, the tool opens
+`Assets/Scenes/ExperimentTemplate.unity` in single mode first, so the Editor is left on the
+template scene once the delete finishes. The swap is conditional on that scene being the open one,
+and the response reports nothing about it. You MUST re-open the scene you intend to work in through
+`/task-scenes` before any skill that reads the active scene runs, including `/task-parameters`,
+`/play-mode`, and `/task-scenes` itself.
 
 ---
 
@@ -236,8 +248,15 @@ beyond the bundle delete.
 (`Cue_<name>_<length>cm.prefab` / `.mat`) and are shared across every template that declares a
 matching cue. `CreateTask` reuses an existing cue prefab whenever it finds one on disk, so editing
 a cue's **texture** while keeping the same name and length will not propagate until the cue prefab
-and its material are deleted. The validator catches the resulting drift on the segment side; the
-fix is to delete the cue and regenerate.
+and its material are deleted. **The resulting drift is silent.** The cue build pass skips any cue
+whose prefab is already on disk, without comparing the template's declared texture to the existing
+material. The only segment-side check that could surface a texture change compares measured prefab
+length against the summed cue lengths, which a same-name, same-length texture edit leaves unchanged.
+The cross-template cue-texture preflight fires only when two templates declare the same `(name,
+length_cm)` identity with conflicting textures, so a texture edit applied to every declaring
+template passes it too. The prefabs therefore look correct on disk while the corridor renders the
+previous texture at runtime. Deleting the cue prefab and its material and regenerating is the only
+remedy.
 
 ### Picking what to delete
 
@@ -279,15 +298,15 @@ The task prefab and the scene are rebuilt by every successful `create_task_tool`
 
 Use this composite flow for end-to-end task creation; each step is owned by a different skill.
 
-| Step | Skill (owner)                      | Action                                                                                       |
-|------|------------------------------------|----------------------------------------------------------------------------------------------|
-| 1    | assets `assets:task-templates`           | Author `Assets/InfiniteCorridorTask/Configurations/<name>.yaml`                              |
-| 2    | `/task-prefabs` (this skill)       | `create_task_tool(template_name="<name>")` — builds the task prefab AND the matching scene   |
-| 3    | `/task-prefabs` (this skill)       | `inspect_prefab_tool(prefab_path="Assets/InfiniteCorridorTask/Tasks/<name>.prefab")`         |
-| 4    | `/task-scenes`                     | `open_scene_tool(scene_path="Assets/Scenes/<name>.unity")` — the scene was created in step 2 |
-| 5    | `/scene-setup`                     | Configure Display rig and optional `SimulatedLinearTreadmill`                                |
-| 6    | `/play-mode`                       | `enter_play_mode_tool()` → exercise → `exit_play_mode_tool()`                                |
-| 7    | assets `assets:experiment-configuration` | (Optional) Bind the template to a per-project experiment configuration                       |
+| Step | Skill (owner)                     | Action                                                                                       |
+|------|-----------------------------------|----------------------------------------------------------------------------------------------|
+| 1    | `assets:task-templates`           | Author `Assets/InfiniteCorridorTask/Configurations/<name>.yaml`                              |
+| 2    | `/task-prefabs` (this skill)      | `create_task_tool(template_name="<name>")` — builds the task prefab AND the matching scene   |
+| 3    | `/task-prefabs` (this skill)      | `inspect_prefab_tool(prefab_path="Assets/InfiniteCorridorTask/Tasks/<name>.prefab")`         |
+| 4    | `/task-scenes`                    | `open_scene_tool(scene_path="Assets/Scenes/<name>.unity")` — the scene was created in step 2 |
+| 5    | `/scene-setup`                    | Configure Display rig and optional `SimulatedLinearTreadmill`                                |
+| 6    | `/play-mode`                      | `enter_play_mode_tool()` → exercise → `exit_play_mode_tool()`                                |
+| 7    | `assets:experiment-configuration` | (Optional) Bind the template to a per-project experiment configuration                       |
 
 Checkpoints between steps:
 
@@ -318,7 +337,7 @@ three occupancy modes share the `OccupancyTriggerZone.prefab` source and the occ
 (`OccupancyGuidanceZone` publishing `Delay`); `CreateTask` only varies the occupancy sub-mode.
 `collision` reuses `StimulusTriggerZone.prefab` with its `GuidanceRegion` child stripped and the
 root collider set as a thin boundary wall at `stimulus_location`. No mode has its own prefab file,
-and every mode publishes the same `Stimulus{trialName}` event.
+and every mode publishes the same `Stimulus` event.
 
 ### Interaction mode (trigger_type == "interaction")
 
@@ -423,34 +442,35 @@ either visual geometry or standard Unity components every GameObject carries.
 
 ## Troubleshooting
 
-| Symptom                                                                   | Cause                                                                                                                                                                                                                                                                                                                                                                      | Resolution                                                                                                                                                                                                                                                                                                                                                                                            |
-|---------------------------------------------------------------------------|----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|-------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
-| `create_task_tool` returns "Template not found"                           | Template file missing from `Configurations/`                                                                                                                                                                                                                                                                                                                               | Hand off to `assets:task-templates`                                                                                                                                                                                                                                                                                                                                                         |
-| `create_task_tool` returns "Scene already exists at: …"                   | The target scene exists; regeneration is an explicit two-step action                                                                                                                                                                                                                                                                                                       | Call `delete_task_tool` for the existing scene, then re-run `create_task_tool`                                                                                                                                                                                                                                                                                                                        |
-| `create_task_tool` returns "Cross-template cue-texture conflict detected" | Two or more templates in `Configurations/` declare the same `(cue name, length_cm)` identity with different `texture` values — the preflight aborts before any prefab is touched                                                                                                                                                                                           | Rename or re-length the colliding cue in one of the templates, or unify the textures, then re-run. Hand off to `assets:task-templates` for the YAML edits                                                                                                                                                                                                                                   |
-| `inspect_prefab_tool` returns "Prefab not found at: …"                    | Prefab missing from `Tasks/` (deleted, or `create_task_tool` failed silently)                                                                                                                                                                                                                                                                                              | Re-run `create_task_tool` for the template; if the prefab still does not appear, check the Unity Console for `CreateTask` errors                                                                                                                                                                                                                                                                      |
-| All Unity tools return "Unity Editor is not reachable"                    | Editor or McpBridge offline                                                                                                                                                                                                                                                                                                                                                | `/unity-mcp-environment-setup` in this plugin                                                                                                                                                                                                                                                                                                                                                         |
-| Trigger type mismatch between template and prefab                         | GUID reference drift                                                                                                                                                                                                                                                                                                                                                       | Open the prefab in the Editor and re-link zone                                                                                                                                                                                                                                                                                                                                                        |
-| `delete_asset_tool` rejects the path with "Refusing to delete"            | Path is outside the `InfiniteCorridorTask` roots, or names one of the hand-authored protected assets enumerated in `/task-generator` "Required shared assets"                                                                                                                                                                                                              | Reference a different name in the template; you MUST NOT bypass the protection. Restore the protected asset from git if it is genuinely missing                                                                                                                                                                                                                                                       |
+| Symptom                                                                   | Cause                                                                                                                                                                            | Resolution                                                                                                                                                |
+|---------------------------------------------------------------------------|----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|-----------------------------------------------------------------------------------------------------------------------------------------------------------|
+| `create_task_tool` returns "Template not found"                           | Template file missing from `Configurations/`                                                                                                                                     | Hand off to `assets:task-templates`                                                                                                                       |
+| `create_task_tool` returns "Scene already exists at: …"                   | The target scene exists; regeneration is an explicit two-step action                                                                                                             | Call `delete_task_tool` for the existing scene, then re-run `create_task_tool`                                                                            |
+| `create_task_tool` returns "Cross-template cue-texture conflict detected" | Two or more templates in `Configurations/` declare the same `(cue name, length_cm)` identity with different `texture` values — the preflight aborts before any prefab is touched | Rename or re-length the colliding cue in one of the templates, or unify the textures, then re-run. Hand off to `assets:task-templates` for the YAML edits |
+| `inspect_prefab_tool` returns "Prefab not found at: …"                    | Prefab missing from `Tasks/` (deleted, or `create_task_tool` failed silently)                                                                                                    | Re-run `create_task_tool` for the template; if the prefab still does not appear, check the Unity Console for `CreateTask` errors                          |
+| All Unity tools return "Unity Editor is not reachable"                    | Editor or McpBridge offline                                                                                                                                                      | `/unity-mcp-environment-setup` in this plugin                                                                                                             |
+| Trigger type mismatch between template and prefab                         | GUID reference drift                                                                                                                                                             | Open the prefab in the Editor and re-link zone                                                                                                            |
+| `delete_asset_tool` rejects the path with "Refusing to delete"            | Path is outside the `InfiniteCorridorTask` roots, or names one of the hand-authored protected assets enumerated in `/task-generator` "Required shared assets"                    | Reference a different name in the template; you MUST NOT bypass the protection. Restore the protected asset from git if it is genuinely missing           |
 
 ---
 
 ## Related skills
 
-| Skill                                         | Relationship                                                        |
-|-----------------------------------------------|---------------------------------------------------------------------|
-| `/unity-mcp-environment-setup` (this plugin)  | Run first if Unity Editor is unreachable                            |
-| `/task-scenes` (this plugin)                  | Consumer — opens / inspects the scene this skill produced           |
-| `/play-mode` (this plugin)                    | Consumer — exercises the prefab at runtime                          |
-| `/scene-setup` (this plugin)                  | Consumer — configures displays / controller before Play Mode        |
-| `/task-parameters` (this plugin)              | Consumer — reads / writes the generated `Task` component fields     |
-| `/task-generator` (this plugin)               | Reference for the `CreateTask` pipeline this tool invokes           |
-| `/mqtt-contract` (this plugin)                | Reference for MQTT topics wired by generated zone scripts           |
-| `/gimbl-framework` (this plugin)              | Reference for `ActorObject` coordinate frame usage                  |
-| `assets:task-templates`               | Upstream — owns the YAML template the prefab is built from          |
-| `assets:experiment-configuration`     | Downstream — per-project instantiation of the template              |
-| `assets:assets-mcp-environment-setup` | Run first — owns the slsa MCP server diagnostic                     |
-| `experiment:vr-driver-interface`      | Host consumes the cues and zones in the generated prefab at runtime |
+| Skill                                        | Relationship                                                          |
+|----------------------------------------------|-----------------------------------------------------------------------|
+| `/unity-mcp-environment-setup` (this plugin) | Run first if Unity Editor is unreachable                              |
+| `/task-scenes` (this plugin)                 | Consumer — opens / inspects the scene this skill produced             |
+| `/play-mode` (this plugin)                   | Consumer — exercises the prefab at runtime                            |
+| `/scene-setup` (this plugin)                 | Consumer — configures displays / controller before Play Mode          |
+| `/task-parameters` (this plugin)             | Consumer — reads / writes the generated `Task` component fields       |
+| `/zone-prefabs` (this plugin)                | Natural-share caller of `inspect_prefab_tool` for cloned zone prefabs |
+| `/task-generator` (this plugin)              | Reference for the `CreateTask` pipeline this tool invokes             |
+| `/mqtt-contract` (this plugin)               | Reference for MQTT topics wired by generated zone scripts             |
+| `/gimbl-framework` (this plugin)             | Reference for `ActorObject` coordinate frame usage                    |
+| `assets:task-templates`                      | Upstream — owns the YAML template the prefab is built from            |
+| `assets:experiment-configuration`            | Downstream — per-project instantiation of the template                |
+| `assets:assets-mcp-environment-setup`        | Run first — owns the slsa MCP server diagnostic                       |
+| `experiment:vr-driver-interface`             | Host consumes the cues and zones in the generated prefab at runtime   |
 
 ---
 
@@ -469,6 +489,8 @@ Task Prefabs Compliance:
 - [ ] inspect_prefab_tool hierarchy matches the template's cue / segment / trial counts
 - [ ] Stale cue prefabs and materials are removed via delete_asset_tool before regeneration when
       a cue texture changes without a name or length rename
+- [ ] When delete_task_tool removed the scene that was open in the Editor, the intended scene is
+      re-opened through /task-scenes before any skill reads the active scene
 - [ ] Every cues[].texture in the template resolves to an existing file under
       Assets/InfiniteCorridorTask/Textures/; a missing texture is handed off to the user to supply (you cannot author
       binary image assets) and generation resumes only after they import it — never left to fail with "Failed to load

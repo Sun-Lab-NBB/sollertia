@@ -1,7 +1,7 @@
 ---
 name: scene-setup
 description: >-
-  Guides Editor-side scene configuration for sollertia-unity-tasks: the consolidated Task
+  Guides Editor-side scene configuration for sollertia-virtual-reality: the consolidated Task
   Parameters window, the three-monitor Display rig, swapping the LinearTreadmill and
   SimulatedLinearTreadmill controllers from the Actor section, and the optional UI lick-reward
   feedback canvas. Use when preparing a new scene for Play Mode, swapping hardware for the
@@ -37,8 +37,9 @@ runnable."
 
 **Does not cover:**
 - Programmatic read / write of the Parameters window (see `/task-parameters`)
-- Creating scenes or enumerating assets (see `/task-scenes`)
-- Generating the task prefab dropped into a scene (see `/task-prefabs`, `/task-generator`)
+- Enumerating assets (see `/task-scenes`)
+- Creating the scene and generating the task prefab dropped into it (see `/task-prefabs`,
+  `/task-generator`)
 - Entering / exiting Play Mode (see `/play-mode`)
 - GIMBL class APIs (see `/gimbl-framework`)
 - MQTT topic details (see `/mqtt-contract`)
@@ -68,9 +69,13 @@ label is `Parameters`; the menu entry is `Window → Task Parameters` to disambi
 
 ### Auto-created scene infrastructure
 
-Opening the window (or opening any scene with the window already open) ensures the active scene
-contains the following before the GUI renders. Existing objects are left untouched; missing ones
-are created.
+Opening the window when no instance is open runs `OnEnable` and, through it, `InitializeScene`,
+which ensures the active scene contains the following before the GUI renders. Existing objects are
+left untouched, and missing ones are created. Opening a scene while the window is already open
+skips that pass, because the `EditorSceneManager.sceneOpened` hook returns early once an instance
+exists. A scene opened that way, including through `open_scene_tool`, gains the infrastructure once
+the window is closed and reopened, or after the next domain reload. The window's own HelpBox says
+the same thing, "Close and reopen this window to auto-create one".
 
 | GameObject            | Components / behavior                                                                    | Hidden in hierarchy     |
 |-----------------------|------------------------------------------------------------------------------------------|-------------------------|
@@ -105,9 +110,10 @@ A runnable scene contains:
 | `<Task prefab instance>`      | `SL.Tasks.Task`                                                     | Corridor hierarchy (dropped in from `Tasks/`)           |
 | `UI-Control` (optional)       | `SL.UI.LickStimulusSpawner`                                         | On-screen lick and stimulus indicators                  |
 
-`ExperimentTemplate.unity` ships without the task prefab and UI control; both are added manually
-(or `create_task_tool` from `/task-scenes` seeds the task prefab and `CreateTask.CreateSceneFromTemplate`
-guarantees both controllers exist).
+`ExperimentTemplate.unity` ships the `UI-lick-reward` canvas as a `UI-Control` prefab instance, so
+the task prefab is the one piece added on top. Add it manually, or call `create_task_tool` from
+`/task-prefabs`, whose `CreateTask.CreateSceneFromTemplate` instantiates the task prefab and
+guarantees both controllers exist.
 
 ---
 
@@ -145,13 +151,15 @@ monitor indices are not stable across reboots.
 The Display section exposes **two editable fields** (`brightness`, `heightInVR`) plus a Blank /
 Show button. The relevant state values are:
 
-| Value               | Surface                                            | Persistence                                                                   | Effect                                        |
-|---------------------|----------------------------------------------------|-------------------------------------------------------------------------------|-----------------------------------------------|
-| `brightness`        | Numeric field (default `50`)                       | `Assets/VRSettings/Displays/<Display>.asset`                                  | Default brightness restored by "Show Display" |
-| `heightInVR`        | Numeric field (default `0.2`)                      | `Assets/VRSettings/Displays/<Display>.asset`                                  | Y offset of the display rig from the actor    |
-| `currentBrightness` | No field — written only by the Blank / Show button | Scene-serialized on `DisplayObject`; synced to `brightness` on scene creation | Live brightness override applied to rendering |
+| Value               | Surface                                                  | Persistence                                                                   | Effect                                        |
+|---------------------|----------------------------------------------------------|-------------------------------------------------------------------------------|-----------------------------------------------|
+| `brightness`        | Numeric field (default `50`)                             | `Assets/VRSettings/Displays/<Display>.asset`                                  | Default brightness restored by "Show Display" |
+| `heightInVR`        | Numeric field (default `0.2`)                            | `Assets/VRSettings/Displays/<Display>.asset`                                  | Y offset of the display rig from the actor    |
+| `currentBrightness` | No field, written by Blank / Show and `brightness` edits | Scene-serialized on `DisplayObject`, synced to `brightness` on scene creation | Live brightness override applied to rendering |
 
 The Blank / Show button flips `currentBrightness` between `0` and the configured `brightness`.
+Editing the `brightness` field writes the new value into `currentBrightness` as well, so a
+brightness edit reaches the live display right away, without a "Show Display" press.
 `CreateTask.CreateSceneFromTemplate` calls `MainWindow.SyncDisplayBrightnessToSettings` after the
 scene is instantiated, so a freshly created scene's `currentBrightness` matches the asset's
 `brightness` rather than the `DisplayObject` field initializer. `DisplayObject.Create` also reuses
@@ -256,29 +264,35 @@ nothing about the runtime data.
 
 ### Components
 
-| Asset                              | Purpose                                                          |
-|------------------------------------|------------------------------------------------------------------|
-| `UI-Control.prefab`                | Canvas prefab carrying `LickStimulusSpawner`                     |
-| `LickMsg.prefab`                   | Instantiated when `Interaction` is received                      |
-| `RewardMsg.prefab`                 | Instantiated when `Stimulus` is received                         |
-| `lickAnimation.anim`               | Short animation played by `LickMessage` on spawn                 |
-| `rewardAnimation.anim`             | Short animation played by `StimulusMessage` on spawn             |
+| Asset                  | Purpose                                                                              |
+|------------------------|--------------------------------------------------------------------------------------|
+| `UI-Control.prefab`    | Canvas prefab carrying `LickStimulusSpawner`                                         |
+| `LickMsg.prefab`       | Instantiated when `Interaction` is received                                          |
+| `RewardMsg.prefab`     | Instantiated when `Stimulus` is received                                             |
+| `lickAnimation.anim`   | Short animation auto-played by the `LickMsg` prefab's legacy `Animation` component   |
+| `rewardAnimation.anim` | Short animation auto-played by the `RewardMsg` prefab's legacy `Animation` component |
 
 ### Scripts
 
-- `LickStimulusSpawner.cs` — the root MonoBehaviour on `UI-Control`. Subscribes to `Interaction` and
+- `LickStimulusSpawner.cs`, the root MonoBehaviour on `UI-Control`. Subscribes to `Interaction` and
   `Stimulus` and instantiates the corresponding indicator prefab on the canvas.
-- `LickMessage.cs` — attached to `LickMsg`. Drives the lick indicator animation and self-destructs.
-- `StimulusMessage.cs` — attached to `RewardMsg`. Drives the stimulus indicator animation and
-  self-destructs.
+- `LickMessage.cs`, attached to `LickMsg`. Schedules the indicator's destruction `destroyTime`
+  seconds after `Start`, while the prefab's `Animation` component plays `lickAnimation.anim`.
+- `StimulusMessage.cs`, attached to `RewardMsg`. Schedules the indicator's destruction
+  `destroyTime` seconds after `Start`, while the prefab's `Animation` component plays
+  `rewardAnimation.anim`.
 
 ### Installing in a scene
 
+Scenes copied from `ExperimentTemplate.unity`, which covers every scene `create_task_tool` produces, already carry a
+`UI-Control` instance with `Canvas`, `Lick Prefab`, and `Stimulus Prefab` assigned. The steps below apply to a scene
+assembled outside that template.
+
 1. Drag `Assets/UI-lick-reward/UI-Control.prefab` into the scene hierarchy.
 2. In the `LickStimulusSpawner` inspector, assign:
-   - `Canvas` — the `Canvas` component on `UI-Control` itself.
-   - `Lick Prefab` — `LickMsg.prefab`.
-   - `Stimulus Prefab` — `RewardMsg.prefab`.
+   - `Canvas`, the `Canvas` component on the `Canvas` child GameObject under `UI-Control`.
+   - `Lick Prefab`, the `LickMsg.prefab` asset.
+   - `Stimulus Prefab`, the `RewardMsg.prefab` asset.
 3. Enter Play Mode. Licks and stimulus events spawn short-lived indicators on the canvas.
 
 ### Intra-Unity subscription
@@ -327,18 +341,18 @@ configuration can be saved and reused.
 
 ## Common failure modes
 
-| Symptom                                              | Root cause                                                                           | Resolution                                                              |
-|------------------------------------------------------|--------------------------------------------------------------------------------------|-------------------------------------------------------------------------|
-| `NullReferenceException` on Play — `Display` is null | Actor.Display not assigned                                                           | Re-open `Window → Task Parameters` to retrigger `EnsureActorAndDisplay` |
-| Camera Mapping rows are empty after a scene open     | Scene was created without the `MainWindow.InitializeScene` pass                      | Open `Window → Task Parameters`; `OnEnable` reruns `InitializeScene`    |
-| Monitors show wrong content after reboot             | OS reassigned monitor ports                                                          | Press **Refresh Monitor Positions** and reassign cameras                |
-| Keyboard input has no effect in Play Mode            | Controller dropdown is `Linear`, not `Simulated Linear`                              | Swap via the Actor section's Controller dropdown                        |
-| Spurious lick events in session log                  | Forgotten `Simulated Linear` selection in a production scene                         | Swap back to `Linear`                                                   |
-| UI indicators never appear                           | `LickStimulusSpawner` canvas / prefab fields unset                                   | Assign fields in the Inspector                                          |
-| Task script errors "Configuration YAML not found"    | `Task.configPath` drifted from actual YAML location                                  | Regenerate via `/task-prefabs` or fix the path                          |
-| Full-screen views open on wrong monitors             | Monitor indices reordered or new monitors attached                                   | Refresh Monitor Positions, reassign cameras                             |
-| `Window → Task Parameters` shows "No Task component" | Active scene contains no task prefab                                                 | `create_task_tool` with a `task_prefab_path`, or drag a task prefab in  |
-| Default `Main Camera` re-appears after scene open    | Editor reopened a scene saved before the cleanup; the next Parameters open clears it | Open / re-focus `Window → Task Parameters`; it logs the removal         |
+| Symptom                                              | Root cause                                                      | Resolution                                                                       |
+|------------------------------------------------------|-----------------------------------------------------------------|----------------------------------------------------------------------------------|
+| `NullReferenceException` on Play — `Display` is null | Actor.Display not assigned                                      | Close and reopen `Window → Task Parameters` to retrigger `EnsureActorAndDisplay` |
+| Camera Mapping rows are empty after a scene open     | Scene was created without the `MainWindow.InitializeScene` pass | Close and reopen `Window → Task Parameters`, which reruns `InitializeScene`      |
+| Monitors show wrong content after reboot             | OS reassigned monitor ports                                     | Press **Refresh Monitor Positions** and reassign cameras                         |
+| Keyboard input has no effect in Play Mode            | Controller dropdown is `Linear`, not `Simulated Linear`         | Swap via the Actor section's Controller dropdown                                 |
+| Spurious lick events in session log                  | Forgotten `Simulated Linear` selection in a production scene    | Swap back to `Linear`                                                            |
+| UI indicators never appear                           | `LickStimulusSpawner` canvas / prefab fields unset              | Assign fields in the Inspector                                                   |
+| Task script errors "Configuration YAML not found"    | `Task.configPath` drifted from actual YAML location             | Regenerate via `/task-prefabs` or fix the path                                   |
+| Full-screen views open on wrong monitors             | Monitor indices reordered or new monitors attached              | Refresh Monitor Positions, reassign cameras                                      |
+| `Window → Task Parameters` shows "No Task component" | Active scene contains no task prefab                            | `create_task_tool(template_name=...)`, or drag a task prefab in                  |
+| Default `Main Camera` re-appears after scene open    | Scene predates the `Main Camera` cleanup pass                   | Close and reopen `Window → Task Parameters`, which logs the removal              |
 
 ---
 
@@ -358,13 +372,13 @@ configuration can be saved and reused.
 
 ## Related skills
 
-| Skill                                     | Relationship                                                                    |
-|-------------------------------------------|---------------------------------------------------------------------------------|
-| `/task-scenes` (this plugin)              | Upstream — creates or opens the scene this skill configures                     |
-| `/task-prefabs` (this plugin)             | Upstream — generates the prefab placed into the scene                           |
-| `/task-parameters` (this plugin)          | Programmatic alternative to the GUI flows described here                        |
-| `/play-mode` (this plugin)                | Consumer — entered after scene setup passes the pre-Play Mode checklist         |
-| `/gimbl-framework` (this plugin)          | Reference for `MainWindow` invariants, `ActorObject`, `DisplayObject`, etc.     |
-| `/mqtt-contract` (this plugin)            | Topics consumed by `UI-lick-reward` and published by `Simulated Linear`         |
+| Skill                             | Relationship                                                                    |
+|-----------------------------------|---------------------------------------------------------------------------------|
+| `/task-scenes` (this plugin)      | Upstream, opens the scene this skill configures                                 |
+| `/task-prefabs` (this plugin)     | Upstream, creates the scene and the task prefab placed into it                  |
+| `/task-parameters` (this plugin)  | Programmatic alternative to the GUI flows described here                        |
+| `/play-mode` (this plugin)        | Consumer — entered after scene setup passes the pre-Play Mode checklist         |
+| `/gimbl-framework` (this plugin)  | Reference for `MainWindow` invariants, `ActorObject`, `DisplayObject`, etc.     |
+| `/mqtt-contract` (this plugin)    | Topics consumed by `UI-lick-reward` and published by `Simulated Linear`         |
 | `assets:task-templates`           | Upstream — owns the YAML that drove the prefab via `/task-prefabs`              |
 | `assets:experiment-configuration` | Upstream — per-project instantiation of the template (drives `Task.configPath`) |

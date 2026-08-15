@@ -1,7 +1,7 @@
 ---
 name: task-scenes
 description: >-
-  Manages Unity task scenes and asset enumeration for sollertia-unity-tasks via the
+  Manages Unity task scenes and asset enumeration for sollertia-virtual-reality via the
   sollertia-shared-assets MCP server's Unity relay. Owns list_scenes_tool, open_scene_tool,
   inspect_scene_tool, and list_assets_tool. Use when listing, switching, or inspecting task
   scenes, or when enumerating project assets.
@@ -10,10 +10,12 @@ user-invocable: false
 
 # Sollertia Unity task scenes
 
-Lists, opens, inspects, and enumerates Unity scenes and assets for the `sollertia-unity-tasks`
+Lists, opens, inspects, and enumerates Unity scenes and assets for the `sollertia-virtual-reality`
 project through the Unity relay exposed by `slsa mcp` — the **exclusive** owner of
-`list_scenes_tool`, `open_scene_tool`, `inspect_scene_tool`, and `list_assets_tool`, which no
-other skill in the marketplace may call.
+`list_scenes_tool`, `open_scene_tool`, `inspect_scene_tool`, and `list_assets_tool`. No other skill
+in the marketplace may call the three scene tools. This skill's asset enumeration tool
+(`list_assets_tool`) is read-only and may be called as a **natural share** by any other skill that
+needs to enumerate project assets.
 
 ---
 
@@ -43,7 +45,7 @@ other skill in the marketplace may call.
 | `list_scenes_tool`   | Lists every scene path and returns the active-scene path as a separate field (exclusive)             |
 | `open_scene_tool`    | Opens a scene in the Editor with explicit unsaved-changes handling (exclusive)                       |
 | `inspect_scene_tool` | Returns the active scene's metadata, dirty flag, and recursive root-GameObject hierarchy (exclusive) |
-| `list_assets_tool`   | Lists asset paths of a given type under a search path (exclusive)                                    |
+| `list_assets_tool`   | Lists asset paths of a given type under a search path (read-only natural share)                      |
 
 `list_assets_tool` is callable as a natural share by `/task-prefabs` when enumerating prefabs
 before inspection. For task creation and deletion (which always operate on the full template →
@@ -80,12 +82,12 @@ inspect_scene_tool()
 
 Top-level response:
 
-| Field          | Description                                                                              |
-|----------------|------------------------------------------------------------------------------------------|
-| `scene_path`   | Project-relative path of the active scene (e.g. `Assets/Scenes/MF_Reward.unity`)         |
-| `scene_name`   | The active scene's filename without extension                                            |
-| `is_dirty`     | `true` when the active scene has unsaved edits                                           |
-| `root_objects` | List of recursive node objects (see below), one per root GameObject in hierarchy order   |
+| Field          | Description                                                                            |
+|----------------|----------------------------------------------------------------------------------------|
+| `scene_path`   | Project-relative path of the active scene (e.g. `Assets/Scenes/<name>.unity`)          |
+| `scene_name`   | The active scene's filename without extension                                          |
+| `is_dirty`     | `true` when the active scene has unsaved edits                                         |
+| `root_objects` | List of recursive node objects (see below), one per root GameObject in hierarchy order |
 
 Each entry in `root_objects` — and every descendant inside it — has this shape:
 
@@ -204,13 +206,13 @@ chain). It is in `McpBridge.DeleteProtectedPaths`, so `delete_asset_tool` refuse
 
 ## Troubleshooting
 
-| Symptom                                                        | Cause                                                           | Resolution                                                                                            |
-|----------------------------------------------------------------|-----------------------------------------------------------------|-------------------------------------------------------------------------------------------------------|
-| `open_scene_tool` returns "Scene not found at: …"              | Scene path typo or missing file                                 | Call `list_scenes_tool` and copy the exact path                                                       |
-| `open_scene_tool` returns "Active scene … has unsaved changes" | Active scene is dirty, no policy passed                         | Ask the user save vs discard, retry with `unsaved_changes="save"` or `"discard"`                      |
-| `inspect_scene_tool` returns empty `root_objects`              | No scene loaded, or `ExperimentTemplate.unity` was opened empty | Call `list_scenes_tool` and `open_scene_tool` to load a real scene first                              |
-| `list_assets_tool` returns empty list                          | `asset_type` or `search_path` wrong                             | Broaden `search_path="Assets"` and confirm type                                                       |
-| Unity relay tools all fail                                     | McpBridge down                                                  | `/unity-mcp-environment-setup`                                                                        |
+| Symptom                                                        | Cause                                   | Resolution                                                                               |
+|----------------------------------------------------------------|-----------------------------------------|------------------------------------------------------------------------------------------|
+| `open_scene_tool` returns "Scene not found at: …"              | Scene path typo or missing file         | Call `list_scenes_tool` and copy the exact path                                          |
+| `open_scene_tool` returns "Active scene … has unsaved changes" | Active scene is dirty, no policy passed | Ask the user save vs discard, retry with `unsaved_changes="save"` or `"discard"`         |
+| `inspect_scene_tool` returns empty `root_objects`              | No scene loaded                         | Call `open_scene_tool`. `ExperimentTemplate.unity` is currently the project's only scene |
+| `list_assets_tool` returns empty list                          | `asset_type` or `search_path` wrong     | Broaden `search_path="Assets"` and confirm type                                          |
+| Unity relay tools all fail                                     | McpBridge down                          | `/unity-mcp-environment-setup`                                                           |
 
 ---
 
@@ -223,10 +225,10 @@ chain). It is in `McpBridge.DeleteProtectedPaths`, so `delete_asset_tool` refuse
 | `/scene-setup` (this plugin)                 | Consumer — configures the scene for runtime after opening                                     |
 | `/task-parameters` (this plugin)             | Consumer — reads / writes Actor / MQTT / Display / Camera Mapping / Task fields after opening |
 | `/play-mode` (this plugin)                   | Consumer — typically entered after opening a target scene                                     |
-| `assets:task-templates`              | Upstream — template filename defines the conventional scene name                              |
+| `assets:task-templates`                      | Upstream — template filename defines the conventional scene name                              |
 | `/mqtt-contract` (this plugin)               | Active scene name is also exchanged over the `SceneName` / `SceneNameTrigger` wire pair       |
-| `experiment:vr-driver-interface`     | Host verifies the active scene name during the `setup()` handshake                            |
-| `assets:experiment-configuration`    | Owns `unity_scene_name`, which selects the scene to open                                      |
+| `experiment:vr-driver-interface`             | Host verifies the active scene name during the `setup()` handshake                            |
+| `assets:experiment-configuration`            | Owns `unity_scene_name`, which selects the scene to open                                      |
 
 ---
 

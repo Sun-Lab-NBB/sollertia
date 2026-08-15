@@ -228,8 +228,10 @@ starting points the user overrides per-host.
 
 - Numeric defaults SHOULD be the values measured on the reference rig (e.g.,
   `wheel_diameter_cm: float = 15.0333` is the actual diameter of the reference wheel).
-- `Path()` (empty path) is the default for any filesystem field — the user MUST set it for each
-  deployment; an empty path triggers a mount-check failure at load time.
+- `Path()` (empty path) is the default for any filesystem field. It reads as not configured, and the deployment sets
+  it to enable the feature that consumes it. The on-demand mount report marks an unset long-term-storage root as not
+  configured and reports it as ok. An optional path such as a stored camera configuration or an external tool's
+  project path stays outside that report entirely and simply skips its feature while unset.
 - Serial-port defaults SHOULD be a representative USB device path for the reference platform
   (e.g. `/dev/ttyACM0`/`/dev/ttyUSB0` on Linux, `COMx` on Windows) — the value is OS-specific and is
   expected to be overridden per host.
@@ -296,14 +298,14 @@ class <System><Subsystem>Bindings:
 The skeleton above shows a microcontroller-style binding (it wraps `module_interfaces` and uses the
 `_started` / `start()` / `stop()` lifecycle); camera and third-party-SDK subsystems share the
 constructor and ownership rules below but differ in their method surface (see
-[subsystem-types.md](subsystem-types.md)).
+`subsystem-types.md`).
 
 **Rules:**
 - **Constructor takes** `data_logger` first (when the subsystem logs to DataLogger), then the per-subsystem
   configuration dataclass, then any optional supplementary inputs (output directory, previous-session
   state snapshot, etc.). Order matters: `data_logger` is the most-shared dependency. SDK-connection
   subsystems (e.g., Zaber motors) may omit `data_logger` entirely.
-- **Per-device wrappers are public attributes** (`self.brake`, `self.lick`, `self._face_camera`).
+- **Per-device wrappers are public attributes** (`self.brake`, `self.lick`).
   The convention is public attributes for wrappers the lifecycle orchestrator may directly access
   (e.g., to issue commands at runtime), private (`_underscore`) for internal-only wrappers.
 - **Underlying low-level controllers are private** (`self._actor`, `self._face_camera`'s
@@ -317,7 +319,7 @@ constructor and ownership rules below but differ in their method surface (see
 ### Bring-up sequence (subsystem-type-specific)
 
 The bring-up sequence and method surface are specific to each subsystem type. The full per-type
-sequences are documented in [subsystem-types.md](subsystem-types.md):
+sequences are documented in `subsystem-types.md`:
 
 - **Microcontroller subsystems**: start each controller → `initialize_local_assets()` on every
   `SharedMemoryArray`-backed wrapper → push runtime parameters via `set_parameters()`.
@@ -368,13 +370,13 @@ VideoSystems(...)
     ↓
 <other subsystem bindings>... (motors, custom devices)
     ↓
-VRTaskDriver(...)            ── last (constructed unconditionally; gated per session type at runtime)
+VRTaskDriver(...)            ── last (constructed only for the session types that run the corridor task)
 ```
 
-Each `MicroControllerInterface.__init__` registers a manifest entry in the DataLogger's output
-directory, so the DataLogger (and its started communication process) MUST precede every controller.
-The remaining instantiation order follows the subsystem list; runtime behavior is governed by the
-*bring-up* staging below.
+Each `MicroControllerInterface.__init__` writes a manifest entry into the DataLogger's output directory, a directory
+created by `DataLogger.__init__`, so the DataLogger *instance* MUST precede every controller. The DataLogger's logger
+process starts later, during the orchestrator's bring-up, after every controller is already constructed. The remaining
+instantiation order follows the subsystem list, and runtime behavior is governed by the *bring-up* staging below.
 
 **Bring-up (start)** is staged by the runtime state
 machine and governed by two principles:
@@ -484,8 +486,9 @@ fall back to defaults. Both are dangerous for configuration. The pattern is:
 ### Contract 3: Lifecycle ordering
 
 Every binding class assumes:
-- DataLogger is running before `__init__` is called.
+- The DataLogger instance exists before `__init__` is called.
 - The constructor's `data_logger` argument is the DataLogger instance to log to.
+- The DataLogger is started before `start()` is called.
 - `start()` is called before any per-device wrapper method that issues commands or reads data.
 - `stop()` is called before DataLogger is stopped.
 

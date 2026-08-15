@@ -25,7 +25,7 @@ Diagnoses and resolves sollertia-shared-assets MCP server connectivity and envir
 - MCP tool usage for any specific configuration task (see other assets plugin skills)
 - sollertia-experiment MCP servers (see `experiment:experiment-mcp-environment-setup`)
 - sollertia-forgery MCP server (see `forging:forging-mcp-environment-setup`)
-- Unity Editor or sollertia-unity-tasks installation (see the sollertia-unity-tasks README)
+- Unity Editor or sollertia-virtual-reality installation (see the sollertia-virtual-reality README)
 - Unity Editor relay (`McpBridge`) connectivity diagnostics (see the unity plugin's
   `unity:unity-mcp-environment-setup`)
 

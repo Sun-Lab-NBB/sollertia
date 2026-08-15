@@ -133,7 +133,7 @@ caller points at. `surgery_metadata.yaml` (`RawDataFiles.SURGERY_METADATA`) is m
 | Location                                        | Populated by                                                        | Discovery path                                                                                        |
 |-------------------------------------------------|---------------------------------------------------------------------|-------------------------------------------------------------------------------------------------------|
 | `<session>/raw_data/surgery_metadata.yaml`      | Acquisition runtime at session start (snapshot of the Google Sheet) | `SessionData.raw_data.surgery_metadata_path`; `inspect_sessions_tool` lists it under `raw_data_files` |
-| `<dataset_root>/<animal>/surgery_metadata.yaml` | Forging pipeline (from the animal's latest session)                 | `DatasetData.surgery_paths` (owned by `forging:datasets` skill)                         |
+| `<dataset_root>/<animal>/surgery_metadata.yaml` | Forging pipeline (from the animal's latest session)                 | `DatasetData.animals`, then `DatasetAnimal.surgery_path` (owned by `forging:datasets`)                |
 
 All copies are **snapshots** of the Google Sheet state when their pipeline ran; none is a live view,
 and a write to one does not update any sibling copy or flow back to the sheet.
@@ -153,8 +153,8 @@ resolution depends on where the file lives.
 2. **Resolve the `data_asset`** (infer from context; `list_supported_data_assets_tool` if unsure).
 3. **Resolve the `file_path`** via the owning hand-off — for surgery: session snapshot via
    `/project-hierarchy` / `/session-discovery` (confirm with `inspect_sessions_tool` in
-   `/session-data`), or the dataset per-animal copy via `forging:datasets`
-   (`DatasetData.surgery_paths`), or an ad-hoc path the user supplies.
+   `/session-data`), or the dataset per-animal copy via `forging:datasets` (`DatasetData.animals`,
+   with each `DatasetAnimal` exposing `surgery_path`), or an ad-hoc path the user supplies.
 4. **Read:** `read_data_asset_tool(file_path="<absolute path>", data_asset="<asset>")`.
 5. **Project the section(s)** the user asked about from `response["data"]`, then report. If the read
    came from a snapshot, remind the user the values reflect the upstream state when the copy was written.
@@ -218,5 +218,5 @@ The MCP layer never pushes an amendment back upstream; copies stay separate unti
 | `/session-discovery`                          | Resolves session roots for session-snapshot paths                                              |
 | `/session-data`                               | Owns `inspect_sessions_tool` that classifies read-asset files under a session                  |
 | `/session-descriptors`                        | Sibling — descriptors capture per-session runtime state (separate from read assets)            |
-| `forging:datasets`                    | Resolves dataset per-animal `surgery_metadata.yaml` paths (`DatasetData.surgery_paths`)        |
-| `experiment:google-sheets-processing` | Owns the reader that captures a read asset from its external source into the on-disk dataclass |
+| `forging:datasets`                            | Resolves dataset per-animal `surgery_metadata.yaml` paths via `DatasetData.animals`            |
+| `experiment:google-sheets-processing`         | Owns the reader that captures a read asset from its external source into the on-disk dataclass |

@@ -3,7 +3,7 @@ name: behavior-processing
 description: >-
   Orchestrates batch behavior processing via the sollertia-forgery MCP server (batch
   preparation, job execution, progress monitoring, cancellation, retry, cleanup). Use when
-  processing confirmed session paths through the runtime / camera / microcontroller pipeline
+  processing confirmed session paths through the runtime / microcontroller pipeline
   or managing behavior-processing jobs across sessions.
 user-invocable: false
 ---
@@ -29,34 +29,40 @@ analysis.
 - Resource allocation and the worker budget model
 
 **Does not cover:**
+- The prepare-then-execute and worker-budget doctrine in full (see `forging:data-processing-design`)
 - Session discovery and filtering (see `assets:session-discovery`)
-- Input file formats or cross-library handoff (see `/behavior-input-format`)
-- Output verification, schemas, or interpretation (see `/behavior-results`)
-- MCP server connectivity (see `/forging-mcp-environment-setup`)
-- Upstream axvs/axci processing (see `ataraxis@video:log-processing` and `ataraxis@communication:log-processing`)
+- Input file formats or cross-library handoff (see `forging:behavior-input-format`)
+- Output verification, schemas, or interpretation (see `forging:behavior-results`)
+- The separate camera-timestamp extraction stage (see `forging:camera-timestamp-extraction`)
+- The agnostic microcontroller feather primitives (see `forging:microcontroller-primitives`)
+- Per-module conversions, event codes, and schemas (see `mesoscope:mesoscope-vr-module-parsing`)
+- MCP server connectivity (see `forging:forging-mcp-environment-setup`)
+- The internals of the in-process axci microcontroller-log binding (see `ataraxis@communication:log-processing`)
 
-**Handoff rules:** If MCP tools are unavailable, invoke `/forging-mcp-environment-setup`. If the user has not
+**Handoff rules:** If MCP tools are unavailable, invoke `forging:forging-mcp-environment-setup`. If the user has not
 yet run session discovery, invoke `assets:session-discovery` first. After all jobs complete successfully, hand
-off to `/behavior-results` to verify and analyze outputs.
+off to `forging:behavior-results` to verify and analyze outputs.
 
-**Note:** `/video:*` and `/communication:*` refer to the **video** and **communication** plugins
+**Note:** `ataraxis@communication:*` refers to the **communication** plugin
 from the [ataraxis marketplace](https://github.com/Sun-Lab-NBB/ataraxis).
 
 ---
 
 ## Agent requirements
 
-You MUST use the sollertia-forgery MCP tools for all processing operations. Do not import
-`sollertia_forgery.processing.pipeline` directly or invoke the `sl-process` CLI — those bypass the
-background execution manager and the progress/timing monitoring surface.
+You MUST use the sollertia-forgery MCP tools for all processing operations. Do not call the
+underlying pipeline entry points (such as the per-job `run_behavior_processing_pipeline`) directly —
+those bypass the background execution manager and the progress/timing monitoring surface.
 
 You MUST have confirmed session paths from `assets:session-discovery` before calling
 `prepare_behavior_processing_batch_tool`. Do not guess, infer, or discover paths from within this
 skill.
 
-Behavior outputs are written to `{session.processed_data_path}/behavior_data/` for every session,
-co-located with the upstream `camera_timestamps/` and `microcontroller_data/` directories. The pipeline
-resolves this from the session marker at dispatch time.
+Behavior outputs are written to `{session.processed_data_path}/behavior_data/` for every session. This
+batch writes only the runtime and microcontroller feathers here; the pipeline resolves this location from
+the session marker at dispatch time. Camera timestamp feathers also reside in `behavior_data/`, but they
+are written by the separate camera-timestamp extraction stage, not by this batch (see
+`forging:camera-timestamp-extraction`).
 
 You MUST respect the single-execution-session constraint: only one batch may run at a time per
 `sl-mcp` process. Cancel any active session before starting a new batch.
@@ -121,7 +127,7 @@ Neither tool takes parameters — both read from the in-memory execution state p
 |-----------------|-------------|------------|------------------------------------------------------------------------------------|
 | `session_paths` | `list[str]` | (required) | Absolute paths to session root directories whose behavior output should be cleaned |
 
-Loads each session's :class:`SessionData` to resolve `processed_data_path`, then deletes
+Loads each session's SessionData marker to resolve `processed_data_path`, then deletes
 `{processed_data_path}/behavior_data/` and all of its contents (feather outputs + tracker YAML).
 After cleanup, pass the same session paths back to `prepare_behavior_processing_batch_tool` to
 reinitialize from scratch.
@@ -137,18 +143,31 @@ reinitialize from scratch.
 ## Pipeline architecture
 
 ```text
-session_data.yaml + raw_data/1_log.npz               → runtime_processing          → *_data.feather
-                  + processed_data/camera_*.feather  → camera_processing (hardlink) → face/body_camera_timestamps.feather
-                  + processed_data/controller_*      → microcontroller_processing  → encoder_data.feather, etc.
+session_data.yaml + raw_data/behavior_data/1_log.npz       → runtime_processing         → *_data.feather
+
+raw_data/behavior_data/{cid}_log.npz --(axci in-process)--> processed_data/microcontroller_data/controller_*_module_*.feather
+                                                            → microcontroller_processing → encoder_data.feather, etc.
 ```
 
 Key architectural facts:
 
-- **Job types:** `runtime_processing`, `camera_processing`, `microcontroller_processing`.
+- **Job types:** exactly two — `runtime_processing` and `microcontroller_processing`. There is no
+  `camera_processing` behavior job; camera-timestamp extraction is a separate stage (see
+  `forging:camera-timestamp-extraction`).
 - **Job specifiers:**
   - `runtime_processing` → always the fixed source ID `"1"` (exactly one per session)
-  - `camera_processing` → camera source ID as a string (e.g., `"51"`, `"62"`)
   - `microcontroller_processing` → `"{controller_id}-{module_type}-{module_id}"`
+- **In-process microcontroller extraction:** at execute time the behavior worker extracts the raw
+  microcontroller logs in-process via the axci log-processing binding (`_extract_microcontroller_logs`),
+  reading raw `{controller_id}_log.npz` archives from `raw_data/behavior_data/` (driven by the session's
+  `extraction_configuration.yaml`) and writing the per-module feathers into
+  `processed_data/microcontroller_data/` itself. No separate axci run is required — axci is a hard
+  in-process dependency, not a prerequisite job. See `ataraxis@communication:log-processing` for the
+  binding's internals.
+- **Prepare-time asymmetry:** prepare-time discovery (`discover_behavior_jobs`) only globs for
+  already-present `controller_*_module_*.feather` files and does NOT extract. A first prepare on a
+  never-processed session may therefore find zero microcontroller jobs until an execute (or a CLI run)
+  has produced the module feathers.
 - **Tracker filename:** `behavior_processing_tracker.yaml`, written under
   `{session.processed_data_path}/behavior_data/`. The path is static — the caller does not choose it.
 - **ProcessingTracker lifecycle:** `SCHEDULED` → `RUNNING` → `SUCCEEDED` / `FAILED`, persisted as YAML.
@@ -160,9 +179,11 @@ Key architectural facts:
   will be rebuilt automatically on the next prepare call.
 - **Reserved cores:** 2 cores are reserved system-wide (`RESERVED_CORES = 2`); the worker budget
   applies to the remaining cores.
-- **Output layout:** every session writes to `{session_root}/processed_data/behavior_data/`. This is
-  co-located with the upstream `camera_timestamps/` and `microcontroller_data/` produced by axvs and axci
-  so that downstream tooling can locate behavior outputs deterministically from the session root.
+- **Output layout:** every session writes its runtime and microcontroller behavior outputs to
+  `{session_root}/processed_data/behavior_data/` so that downstream tooling can locate them
+  deterministically from the session root. The separate camera-timestamp extraction stage also lands its
+  `{name}_timestamps.feather` outputs in `behavior_data/`, but that stage runs independently with its own
+  `camera_timestamps/camera_processing_tracker.yaml`, not under this batch.
 
 ---
 
@@ -170,20 +191,20 @@ Key architectural facts:
 
 ### Execution model
 
-The workflow uses a **prepare-then-execute** model:
-
-1. **Prepare** creates trackers and builds job descriptors without starting any computation. This
-   step is idempotent — calling it again on the same session paths returns the existing tracker
-   state and job list instead of reinitializing.
-2. **Execute** spawns a background execution manager that dispatches jobs into a `ProcessPoolExecutor`
-   bounded by the worker budget. Only one execution session can be active at a time.
+The workflow uses the **prepare-then-execute** batch model shared by every batch slf pipeline:
+prepare initializes trackers and builds job descriptors idempotently, then execute dispatches jobs
+into a budget-bounded process pool with a single active execution session at a time. This skill does
+not re-explain that doctrine — see `forging:data-processing-design` for the full prepare-then-execute,
+job-identity, tracker, and worker-budget contract, and for the cross-stage seams between slf-owned and
+delegated dependency stages.
 
 ### Pre-processing checklist
 
 ```text
 - [ ] Confirmed session paths from assets:session-discovery
-- [ ] Upstream ataraxis@video:log-processing outputs present in processed_data/ (if camera jobs expected)
-- [ ] Upstream ataraxis@communication:log-processing outputs present in processed_data/ (if microcontroller jobs expected)
+- [ ] extraction_configuration.yaml present in raw_data/behavior_data/ (drives in-process microcontroller extraction)
+- [ ] Raw controller {controller_id}_log.npz archives present in raw_data/behavior_data/
+- [ ] Runtime 1_log.npz archive present in raw_data/behavior_data/
 - [ ] Hardware state YAML present in raw_data/ for every session in the batch
 - [ ] Experiment configuration YAML present for MESOSCOPE_EXPERIMENT sessions
 - [ ] Worker budget decision made with user (default -1 for auto-resolution)
@@ -191,7 +212,7 @@ The workflow uses a **prepare-then-execute** model:
 ```
 
 **STOP**: If any checkbox is incomplete, do not proceed. Complete the missing steps first. See
-`/behavior-input-format` for per-file details.
+`forging:behavior-input-format` for per-file details.
 
 ### Workflow steps
 
@@ -203,21 +224,25 @@ The workflow uses a **prepare-then-execute** model:
    - Top-level `success: true` and a populated `sessions` map → continue.
    - Per-session `error: "Discovery failed: ..."` → session-specific problem (likely missing
      hardware state or malformed inputs). Surface to user; continue with remaining sessions.
-   - Per-session `error: "No processable behavior jobs discovered..."` → upstream prerequisites
-     missing. Surface to user and recommend running `ataraxis@video:log-processing` and `ataraxis@communication:log-processing` first.
+   - Per-session `error: "No processable behavior jobs discovered..."` → no runtime archive was found,
+     or prepare-time discovery found zero microcontroller module feathers. Because prepare only globs for
+     already-present `controller_*_module_*.feather` files (it does not extract), a never-processed
+     session may report no microcontroller jobs until an execute (or CLI run) has produced them. Confirm
+     the runtime `1_log.npz` archive and the `extraction_configuration.yaml` and raw
+     `{controller_id}_log.npz` archives are present under `raw_data/behavior_data/`, then re-prepare.
    - `invalid_paths` list populated → session paths that did not exist. Surface to user.
 
 3. **Present discovered jobs** — For each session in the manifest, show the job count broken down
-   by type (runtime / camera / microcontroller). Format suggestion:
+   by type (runtime / microcontroller). Format suggestion:
 
    ```text
-   **Batch Preparation** — 3 sessions, 24 jobs
+   **Batch Preparation** — 3 sessions, 18 jobs
 
-   | Session                       | Runtime | Camera | MCU | Total |
-   |-------------------------------|---------|--------|-----|-------|
-   | animal_001_2026-03-04_lick_01  | 1       | 2      | 5   | 8     |
-   | animal_001_2026-03-05_run_01   | 1       | 2      | 5   | 8     |
-   | animal_002_2026-03-06_exp_01   | 1       | 2      | 5   | 8     |
+   | Session                       | Runtime | MCU | Total |
+   |-------------------------------|---------|-----|-------|
+   | animal_001_2026-03-04_lick_01  | 1       | 5   | 6     |
+   | animal_001_2026-03-05_run_01   | 1       | 5   | 6     |
+   | animal_002_2026-03-06_exp_01   | 1       | 5   | 6     |
    ```
 
 4. **Confirm resource allocation** — Present the default worker budget (`-1` = auto-resolve using
@@ -245,7 +270,7 @@ The workflow uses a **prepare-then-execute** model:
    Present status as a formatted table (see "Status formatting" below).
 
 8. **Handle completion** — When `active: false` and all jobs are in terminal states:
-   - All `SUCCEEDED` → hand off to `/behavior-results`.
+   - All `SUCCEEDED` → hand off to `forging:behavior-results`.
    - Some `FAILED` → see "Error routing" and offer reset/retry.
    - Mix of `SUCCEEDED` and `UNKNOWN` → tracker corruption; recommend clean + re-prepare.
 
@@ -254,14 +279,18 @@ The workflow uses a **prepare-then-execute** model:
 ## Resource management
 
 The execution tool uses **budget-based worker allocation** via a single `worker_budget` parameter.
-Behavior jobs are generally lightweight (camera hardlinks are near-instant; microcontroller parsers
-partition a single feather into in-memory arrays; runtime processing streams one NPZ archive), so the
-budget primarily controls how many jobs can run in parallel rather than tuning per-job parallelism.
+Behavior jobs are generally lightweight (microcontroller parsers partition a single feather into
+in-memory arrays; runtime processing streams one NPZ archive), so the budget primarily controls how many
+jobs run in parallel rather than tuning per-job parallelism. Microcontroller jobs additionally incur the
+in-process axci extraction cost if extraction has not already populated the module feathers. Behavior
+processing uses the plain `RESERVED_CORES` plus `max_parallel_jobs`
+variant of the worker-budget doctrine — see `forging:data-processing-design` for the full concurrency
+contract and how this variant differs from the per-job-overhead and saturating-allocation variants.
 
-- `worker_budget=-1` → `resolve_worker_count` picks the available cores after subtracting 2 reserved
-  cores (`RESERVED_CORES`).
+- `worker_budget=-1` → `resolve_worker_count` picks the available cores after subtracting the reserved
+  cores (`RESERVED_CORES = 2`).
 - Each pending job is dispatched to a free worker as the budget allows. The dispatch order preserves
-  the (runtime, camera, microcontroller) ordering produced by discovery.
+  the (runtime, microcontroller) ordering produced by discovery.
 - Reduce `worker_budget` to cap memory on constrained hosts. A budget of `1` effectively runs the
   batch sequentially.
 
@@ -277,13 +306,12 @@ When presenting batch status, format as a table:
 ```text
 **Behavior Processing Status**
 
-Summary: 18/24 jobs complete | 2 running | 4 queued | 0 failed
+Summary: 14/18 jobs complete | 2 running | 2 queued | 0 failed
 
 | Session                       | Job                             | Status    | Duration |
 |-------------------------------|---------------------------------|-----------|----------|
 | animal_001_2026-03-04_lick_01  | runtime_processing:1            | SUCCEEDED | 12.5s    |
 | animal_001_2026-03-04_lick_01  | microcontroller_processing:101-2-1 | SUCCEEDED | 3.1s     |
-| animal_001_2026-03-04_lick_01  | camera_processing:51            | SUCCEEDED | 0.1s     |
 | animal_001_2026-03-05_run_01   | runtime_processing:1            | RUNNING   | 4.8s     |
 | animal_002_2026-03-06_exp_01   | runtime_processing:1            | SCHEDULED | --       |
 ```
@@ -295,9 +323,9 @@ For multi-session overview via `get_batch_status_overview_tool`:
 
 | Session root                                         | Status    | Succeeded | Failed | Running | Scheduled |
 |------------------------------------------------------|-----------|-----------|--------|---------|-----------|
-| /data/projects/my_project/animal_001/2026-03-04_lick_01 | completed | 8         | 0      | 0       | 0         |
-| /data/projects/my_project/animal_001/2026-03-05_run_01  | running   | 3         | 0      | 2       | 3         |
-| /data/projects/my_project/animal_002/2026-03-06_exp_01  | scheduled | 0         | 0      | 0       | 8         |
+| /data/projects/my_project/animal_001/2026-03-04_lick_01 | completed | 6         | 0      | 0       | 0         |
+| /data/projects/my_project/animal_001/2026-03-05_run_01  | running   | 3         | 0      | 2       | 1         |
+| /data/projects/my_project/animal_002/2026-03-06_exp_01  | scheduled | 0         | 0      | 0       | 6         |
 ```
 
 ---
@@ -312,8 +340,8 @@ For multi-session overview via `get_batch_status_overview_tool`:
 
 To re-process an entire session from scratch, call `clean_behavior_processing_output_tool` to delete
 the session's `behavior_data/` subdirectory, then re-prepare and re-execute. This is the right move
-when a tracker is corrupt or when the user wants to change output file contents (e.g., after
-updating `_MODULE_REGISTRY` or `_CAMERA_OUTPUT_NAMES`).
+when a tracker is corrupt or when the user wants to change output file contents (e.g., after updating
+a module parser in the Mesoscope-VR module registry, gated by `mesoscope:mesoscope-vr-module-parsing`).
 
 ---
 
@@ -324,7 +352,7 @@ updating `_MODULE_REGISTRY` or `_CAMERA_OUTPUT_NAMES`).
 | Error                                                       | Resolution                                                           |
 |-------------------------------------------------------------|----------------------------------------------------------------------|
 | `Discovery failed: ...`                                     | Session metadata or hardware state is malformed; inspect the session |
-| `No processable behavior jobs discovered for this session.` | Upstream axvs/axci outputs missing or session type not eligible      |
+| `No processable behavior jobs discovered for this session.` | No runtime archive found, or prepare found no `controller_*_module_*.feather` yet (extraction has not run), or session type not eligible |
 | `invalid_paths: [...]`                                      | One or more session paths do not exist on disk                       |
 
 ### Execution errors
@@ -340,14 +368,14 @@ updating `_MODULE_REGISTRY` or `_CAMERA_OUTPUT_NAMES`).
 
 | Error pattern                                        | Action                                                               |
 |------------------------------------------------------|----------------------------------------------------------------------|
-| Runtime archive not found / file read errors         | Verify `1_log.npz` exists under `raw_data/`                          |
+| Runtime archive not found / file read errors         | Verify `1_log.npz` exists under `raw_data/behavior_data/`            |
+| Extraction configuration not found                   | Ensure `extraction_configuration.yaml` present in `raw_data/behavior_data/` |
 | Hardware state YAML not found                        | Ensure `*hardware_state*.yaml` present in `raw_data/`                |
 | Experiment configuration YAML not found (experiment) | Ensure `*experiment_configuration*.yaml` present in `raw_data/`      |
-| Module `(type, id)` does not match registry          | Unsupported module — skip or extend `_MODULE_REGISTRY`               |
-| Camera source ID has no registered output name       | Extend `_CAMERA_OUTPUT_NAMES` to register the camera                 |
+| Module `(type, id)` does not match registry          | Unsupported module — see `mesoscope:mesoscope-vr-module-parsing`     |
 | Cue sequence decomposition failure                   | Malformed cue sequence in runtime archive; inspect payload           |
-| Polars / Arrow read errors on module feather         | Corrupt axci output; re-run `ataraxis@communication:log-processing` upstream |
-| MCP tools unavailable                                | Invoke `/forging-mcp-environment-setup`                              |
+| Polars / Arrow read errors on module feather         | Corrupt feather from in-process axci extraction; clean + re-prepare (see `ataraxis@communication:log-processing` for binding internals) |
+| MCP tools unavailable                                | Invoke `forging:forging-mcp-environment-setup`                       |
 | Out of memory                                        | Reduce `worker_budget`                                               |
 | Corrupt tracker                                      | `clean_behavior_processing_output_tool` → re-prepare                 |
 
@@ -355,15 +383,18 @@ updating `_MODULE_REGISTRY` or `_CAMERA_OUTPUT_NAMES`).
 
 ## Related skills
 
-| Skill                                | Relationship                                                         |
-|--------------------------------------|----------------------------------------------------------------------|
-| `/forging-mcp-environment-setup`     | Prerequisite: MCP server connectivity                                |
-| `assets:session-discovery`   | Upstream: session discovery and filtering                            |
-| `/behavior-input-format`             | Reference: input file layout and cross-library handoff               |
-| `/behavior-results`                  | Downstream: output discovery, verification, and interpretation       |
-| `/project-manifest`                  | Downstream: regenerate manifest to update behavior status            |
-| `ataraxis@video:log-processing`              | Upstream: produces camera timestamp feathers consumed here           |
-| `ataraxis@communication:log-processing`      | Upstream: produces microcontroller module feathers consumed here     |
+| Skill                                     | Relationship                                                      |
+|-------------------------------------------|------------------------------------------------------------------|
+| `forging:forging-mcp-environment-setup`   | Prerequisite: MCP server connectivity                            |
+| `forging:data-processing-design`          | Doctrine: the prepare-then-execute and worker-budget pattern     |
+| `assets:session-discovery`                | Upstream: session discovery and filtering                        |
+| `forging:behavior-input-format`           | Reference: input file layout and cross-library handoff           |
+| `forging:behavior-results`                | Downstream: output discovery, verification, and interpretation   |
+| `forging:camera-timestamp-extraction`     | Separate stage: the manifest-driven camera-timestamp extraction  |
+| `forging:microcontroller-primitives`      | Stage: the agnostic microcontroller feather-parsing primitives   |
+| `mesoscope:mesoscope-vr-module-parsing`   | Specialization: per-module conversions, event codes, and schemas |
+| `forging:project-manifest`                | Downstream: regenerate manifest to update behavior status        |
+| `ataraxis@communication:log-processing`   | Internals of the in-process axci microcontroller-log binding     |
 
 ---
 
@@ -371,7 +402,7 @@ updating `_MODULE_REGISTRY` or `_CAMERA_OUTPUT_NAMES`).
 
 ```text
 Behavior Processing Workflow:
-- [ ] Verified MCP server connectivity (invoked /forging-mcp-environment-setup if unavailable)
+- [ ] Verified MCP server connectivity (invoked forging:forging-mcp-environment-setup if unavailable)
 - [ ] Received confirmed session paths from assets:session-discovery
 - [ ] Prepared batch via prepare_behavior_processing_batch_tool
 - [ ] Presented discovered job counts per session and per type
@@ -380,5 +411,5 @@ Behavior Processing Workflow:
 - [ ] Executed jobs via execute_behavior_processing_jobs_tool
 - [ ] Monitored status until all jobs reached terminal state
 - [ ] Investigated and retried failed jobs if needed (reset or clean + re-prepare)
-- [ ] Handed off successful output to /behavior-results
+- [ ] Handed off successful output to forging:behavior-results
 ```

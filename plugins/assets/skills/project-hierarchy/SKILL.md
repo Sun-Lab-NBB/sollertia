@@ -279,12 +279,14 @@ shaped for downstream chaining with `filter_sessions_tool` (see `/session-discov
 
 Create a project with `create_project_tool`, which materializes `<root>/<project>/configuration/`
 under the configured data root (or an explicit `root_directory`). The equivalent CLI command is
-`slsa configure project -p <project_name> -r <root_directory>`. The project directory must exist
-before `SessionData.create` (in `experiment:data-management`) can create the first
-session — `SessionData.create` raises `FileNotFoundError` when the project directory is missing.
+`slsa configure project -p <project_name>`, which always resolves the root from the persisted data
+root. An explicit root is available through `create_project_tool` alone, via its optional
+`root_directory` argument. The project directory must exist before `SessionData.create` (in
+`experiment:data-management`) can create the first session. `SessionData.create` raises
+`FileNotFoundError` when the project directory is missing.
 A brand-new project holds no session markers, so confirm it with `get_data_root_overview_tool`'s
-`directories` strategy (or `slsa get projects`); the default `markers` strategy will not list it until
-it holds a session.
+`directories` strategy (or `slsa get projects`). The default `markers` strategy lists it once it holds
+a session.
 
 ---
 
@@ -293,8 +295,8 @@ it holds a session.
 ```text
 - [ ] sollertia-shared-assets MCP server is connected
 - [ ] get_data_root_overview_tool was used for any project / animal / session enumeration
-- [ ] Project creation used create_project_tool (or the slsa configure project CLI), resolving the data root or an explicit root
-- [ ] Did not call write_* / set_* tools beyond create_project_tool — hierarchy discovery remains read-only
+- [ ] Project creation used create_project_tool (explicit root supported) or slsa configure project (persisted root)
+- [ ] Did not call write_* / set_* tools beyond create_project_tool. Hierarchy discovery remains read-only
 - [ ] Handed off to /experiment-configuration for any experiment authoring
 - [ ] Handed off to /session-data, /session-descriptors, /data-assets, or forging plugin's
       forging:datasets for any read that goes deeper than the hierarchy itself

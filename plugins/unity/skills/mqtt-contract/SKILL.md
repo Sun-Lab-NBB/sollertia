@@ -1,7 +1,7 @@
 ---
 name: mqtt-contract
 description: >-
-  Documents every MQTT topic sollertia-unity-tasks publishes or subscribes to — payload shape,
+  Documents every MQTT topic sollertia-virtual-reality publishes or subscribes to — payload shape,
   direction, owning script — covering the bidirectional MQTT 5.0 contract with sollertia-experiment.
   All topics are flat PascalCase constants centralized in Assets/Gimbl/Scripts/MQTT/MQTTTopics.cs.
   Use when authoring or modifying MQTT wiring, diagnosing a missed message, or adding a new
@@ -11,7 +11,7 @@ user-invocable: false
 
 # Sollertia Unity MQTT contract
 
-Documents the MQTT contract between `sollertia-unity-tasks` and `sollertia-experiment`. Every
+Documents the MQTT contract between `sollertia-virtual-reality` and `sollertia-experiment`. Every
 topic is declared as a `public const string` in
 `Assets/Gimbl/Scripts/MQTT/MQTTTopics.cs`, which is the single source of truth for topic names,
 payload shapes, and direction. This skill is the audit-ready mirror of that file.
@@ -26,7 +26,7 @@ and `/play-mode` (mid-run flag flips).
 ## Scope
 
 **Covers:**
-- Every MQTT topic published or subscribed to by `sollertia-unity-tasks` scripts
+- Every MQTT topic published or subscribed to by `sollertia-virtual-reality` scripts
 - Payload shapes (trigger-only vs JSON-serialized typed messages)
 - Owning script and initialization site for each channel
 - Required topic conventions (flat PascalCase, no trailing slash, centralized constants)
@@ -54,7 +54,7 @@ and `/play-mode` (mid-run flag flips).
   keep those accurate when adding or modifying topics.
 - **Case-sensitive routing**: `MQTTClient` compares topic strings with
   `string.Equals(..., StringComparison.Ordinal)` on both the broker and in-process loopback paths
-  (`MQTTClient.cs:188` and `MQTTClient.cs:298`). Centralized constants make this invisible to
+  (`MQTTClient.cs:190` and `MQTTClient.cs:310`). Centralized constants make this invisible to
   Unity callers, but ad-hoc tools (`mosquitto_pub`, dashboards, hand-typed test publishers) must
   match the casing exactly — `interaction` and `Interaction` are different topics.
 - **Trigger pairs**: "Trigger" topics come in pairs of `<Name>Trigger` (subscriber that asks
@@ -81,10 +81,10 @@ to Unity, the channel type, the payload shape, and the script(s) that publish or
 
 ### Session lifecycle (owned by `Gimbl.MQTTClient`)
 
-| Constant       | Direction          | Channel type  | Payload | Publisher                                          | Subscriber           |
-|----------------|--------------------|---------------|---------|----------------------------------------------------|----------------------|
-| `SessionStart` | Unity → experiment | `MQTTChannel` | empty   | `MQTTClient.StartSessionAsync` (1 s after `Start`) | sollertia-experiment |
-| `SessionStop`  | Unity → experiment | `MQTTChannel` | empty   | `MQTTClient.OnApplicationQuit`                     | sollertia-experiment |
+| Constant       | Direction          | Channel type  | Payload | Publisher(s)                         | Subscriber(s)        |
+|----------------|--------------------|---------------|---------|--------------------------------------|----------------------|
+| `SessionStart` | Unity → experiment | `MQTTChannel` | empty   | `Gimbl.MQTTClient.StartSessionAsync` | sollertia-experiment |
+| `SessionStop`  | Unity → experiment | `MQTTChannel` | empty   | `Gimbl.MQTTClient.OnApplicationQuit` | sollertia-experiment |
 
 Both are fire-and-forget lifecycle markers — no payload, no acknowledgement contract on the Unity
 side. `sollertia-experiment` uses them to bracket per-session data acquisition.
@@ -103,17 +103,21 @@ note.
 
 ### Interaction / stimulus (owned by `SL.Tasks.StimulusTriggerZone` and `Gimbl.SimulatedLinearTreadmill`)
 
-| Constant      | Direction          | Channel type                                       | Payload                   | Publisher(s)                                                                   | Subscriber(s)                                                                            |
-|---------------|--------------------|----------------------------------------------------|---------------------------|--------------------------------------------------------------------------------|------------------------------------------------------------------------------------------|
-| `Interaction` | bidirectional      | `MQTTChannel`                                      | empty                     | sollertia-experiment hardware lickport; `SimulatedLinearTreadmill` Jump action | `SL.Tasks.StimulusTriggerZone.OnInteractionDetected`; `SL.UI.LickStimulusSpawner.OnLick` |
-| `Stimulus`    | Unity → experiment | `MQTTChannel<StimulusTriggerZone.StimulusMessage>` | `{ "trialName": string }` | `SL.Tasks.StimulusTriggerZone.TriggerStimulus`                                 | sollertia-experiment; `SL.UI.LickStimulusSpawner.OnStimulus` (intra-Unity)               |
+| Constant      | Direction     | Channel type                                       | Payload                                                       | Publisher(s)                                                                    | Subscriber(s)                                                                            |
+|---------------|---------------|----------------------------------------------------|---------------------------------------------------------------|---------------------------------------------------------------------------------|------------------------------------------------------------------------------------------|
+| `Interaction` | bidirectional | `MQTTChannel`                                      | empty                                                         | sollertia-experiment interaction sensor, `SimulatedLinearTreadmill` Jump action | `SL.Tasks.StimulusTriggerZone.OnInteractionDetected`, `SL.UI.LickStimulusSpawner.OnLick` |
+| `Stimulus`    | bidirectional | `MQTTChannel<StimulusTriggerZone.StimulusMessage>` | `{ "trialName": string, "delivered": bool, "cause": string }` | `SL.Tasks.StimulusTriggerZone.TriggerStimulus`                                  | sollertia-experiment, `SL.UI.LickStimulusSpawner.OnStimulus` (intra-Unity)               |
 
 Both topics are multi-subscriber — see [Multi-consumer topics](#multi-consumer-topics) for the
 full subscriber map. `Interaction` is bidirectional because the simulated treadmill publishes
-synthetic licks during keyboard-only runs while hardware publishes them in production. The
-`Stimulus` payload carries the firing zone's owning trial name (set on `StimulusTriggerZone.trialName`
-by `CreateTask` at generation), so the stimulus identifier is the trial name; `sollertia-experiment`
-parses it into `VRTaskEvent.trial_name` and resolves the per-trial outcome from it.
+synthetic interactions during keyboard-only runs while the acquisition runtime's interaction sensor publishes
+them in production. `Stimulus` is bidirectional because Unity both publishes it from `StimulusTriggerZone`
+and subscribes to it from `LickStimulusSpawner`, while its cross-boundary flow toward `sollertia-experiment`
+runs one way. The `Stimulus` payload carries the resolving trial's name (`trialName`, set on
+`StimulusTriggerZone.trialName` by `CreateTask` at generation, so the stimulus identifier is the trial name),
+a `delivered` flag (whether the physical stimulus fired or was omitted), and a `cause` string
+(`behavior` for the animal's own action or `guidance` for the fallback). `sollertia-experiment` parses
+these into `VRTaskEvent` and resolves the per-trial outcome from them.
 
 ### Occupancy guidance brake (owned by `SL.Tasks.OccupancyGuidanceZone`)
 
@@ -170,10 +174,10 @@ the new state. Editor-time changes to the same flags are available through `/tas
 
 ### UI feedback (owned by `SL.UI.LickStimulusSpawner`)
 
-| Constant      | Direction                     | Channel type  | Subscriber action                                           |
-|---------------|-------------------------------|---------------|-------------------------------------------------------------|
-| `Interaction` | Unity ← experiment / sim      | `MQTTChannel` | Spawns a lick indicator on the experimenter's UI canvas     |
-| `Stimulus`    | Unity ← Unity (intra-process) | `MQTTChannel` | Spawns a stimulus indicator on the experimenter's UI canvas |
+| Constant      | Direction                     | Channel type                                       | Subscriber action                                                                    |
+|---------------|-------------------------------|----------------------------------------------------|--------------------------------------------------------------------------------------|
+| `Interaction` | Unity ← experiment / sim      | `MQTTChannel`                                      | Spawns a lick indicator on the experimenter's UI canvas                              |
+| `Stimulus`    | Unity ← Unity (intra-process) | `MQTTChannel<StimulusTriggerZone.StimulusMessage>` | Spawns a stimulus indicator on the experimenter's UI canvas when `delivered` is true |
 
 `LickStimulusSpawner` never publishes. The `Stimulus` case is an **intra-Unity** subscription —
 `StimulusTriggerZone` publishes, and both `LickStimulusSpawner` and `sollertia-experiment` subscribe.
@@ -194,23 +198,27 @@ Subscribers inside Unity:
 - `SL.UI.LickStimulusSpawner.OnLick` — spawns a UI indicator on the experimenter's canvas.
 
 Publishers:
-- sollertia-experiment hardware lickport (production).
+- sollertia-experiment interaction sensor (production). The acquisition runtime resolves a concrete sensor
+  (lick port, button, lever, pressure plate), and the Mesoscope-VR system resolves it to the lick port.
 - `Gimbl.SimulatedLinearTreadmill` — `Jump` action (spacebar) keypress during dev testing; the
   publisher uses the in-process loopback when no broker is connected.
 
 ### `Stimulus`
 
 Subscriber inside Unity:
-- `SL.UI.LickStimulusSpawner.OnStimulus` — spawns a UI indicator.
+- `SL.UI.LickStimulusSpawner.OnStimulus` — spawns a UI indicator when the stimulus was delivered.
 
 Publisher:
-- `SL.Tasks.StimulusTriggerZone.TriggerStimulus` — fires once per zone activation. All five trigger
-  modes (`interaction`, `collision`, `occupancy_disarm`, `occupancy_arm`, `occupancy_trigger`) publish
-  this same `Stimulus` event; only the firing condition differs (an interaction event, a boundary-wall
-  collision, or occupancy met), and the wire payload is identical across modes.
+- `SL.Tasks.StimulusTriggerZone.TriggerStimulus` publishes exactly once per trial at its resolution
+  (delivered or omitted) in the `interaction`, `collision`, `occupancy_disarm`, and `occupancy_arm` modes.
+  The `occupancy_trigger` mode publishes at most once per trial, because `UpdateOccupancyMode` sends only
+  when occupancy is met and leaves the not-met case for the driver to infer. All five modes publish this
+  same `Stimulus` event with an identical wire payload shape, and only the resolution condition differs
+  (an interaction, a boundary-wall collision, occupancy met or not, or leaving an interaction zone without
+  interacting).
 
 External:
-- sollertia-experiment subscribes to log the stimulus event against the session timeline.
+- sollertia-experiment subscribes to resolve the per-trial outcome and command the stimulus hardware.
 
 ---
 
@@ -268,7 +276,7 @@ work through its likely cause and first check.
 - **Likely cause**: Topic string mismatch between sides, hand-typed literal drifted from the
   constant, or casing differs (`Interaction` vs `interaction` — `MQTTClient` uses `StringComparison.Ordinal`).
 - **First check**: Confirm both sides reference `MQTTTopics.<Name>` (Unity) or the matching
-  `sl-experiment` constant with identical casing.
+  `_VRTaskMQTTTopics` member on the `sollertia-experiment` side with identical casing.
 
 ### Unity publishes but experiment never receives
 
@@ -357,12 +365,12 @@ work through its likely cause and first check.
 
 ## Related skills
 
-| Skill                                    | Relationship                                                                        |
-|------------------------------------------|-------------------------------------------------------------------------------------|
-| `/gimbl-framework` (this plugin)         | Owns `MQTTClient`, `MQTTChannel`, and `MQTTChannel<T>` class references             |
-| `/task-prefabs` (this plugin)            | Generated prefabs wire the zones whose scripts own these topics                     |
-| `/task-parameters` (this plugin)         | Editor-time alternative for `RequireInteraction` / `RequireWait` flags              |
-| `/scene-setup` (this plugin)             | `UI-lick-reward` subsystem subscribes to `Interaction` and `Stimulus`               |
-| `/play-mode` (this plugin)               | MQTT activity is only live while the Editor is in `playing` state                   |
+| Skill                            | Relationship                                                                        |
+|----------------------------------|-------------------------------------------------------------------------------------|
+| `/gimbl-framework` (this plugin) | Owns `MQTTClient`, `MQTTChannel`, and `MQTTChannel<T>` class references             |
+| `/task-prefabs` (this plugin)    | Generated prefabs wire the zones whose scripts own these topics                     |
+| `/task-parameters` (this plugin) | Editor-time alternative for `RequireInteraction` / `RequireWait` flags              |
+| `/scene-setup` (this plugin)     | `UI-lick-reward` subsystem subscribes to `Interaction` and `Stimulus`               |
+| `/play-mode` (this plugin)       | MQTT activity is only live while the Editor is in `playing` state                   |
 | `assets:task-templates`          | YAML cue codes appear as `byte` values in `CueSequence` payloads                    |
 | `experiment:vr-driver-interface` | Host (Python) side — `_VRTaskMQTTTopics` mirrors this catalog; change both together |

@@ -54,7 +54,7 @@ configuration-time / runtime split applies (runtime acquisition is deterministic
 | Shared-assets contract | `sollertia-shared-assets`                              | `assets:library-extension`                                   |
 | Hardware interfaces    | `sollertia-micro-controllers` + `sollertia-experiment` | `/microcontroller-interface` (+ ataraxis)                    |
 | Acquisition runtime    | `sollertia-experiment`                                 | `/acquisition-system-design` → `/acquisition-system-runtime` |
-| Corridor task          | `sollertia-unity-tasks`                                | `assets:task-templates` → `unity:task-prefabs`               |
+| Corridor task          | `sollertia-virtual-reality`                            | `assets:task-templates` → `unity:task-prefabs`               |
 
 ### Phase ordering is load-bearing
 
@@ -75,6 +75,7 @@ verify each phase's handoff condition before starting the next.
 4. Corridor task            assets:task-templates → unity:task-prefabs
 5. External services (opt.) /google-sheets-processing  (read/write processors; read-asset via assets:library-extension)
 6. Agentic assets (opt.)    /acquisition-system-design (per-system instance + runtime skills)
+7. Subprocess tools (opt.)  /acquisition-system-design (separate-environment CLI tools such as pose inference)
 →  Operate                  /pipeline  (configure a host and run the first session)
 ```
 
@@ -99,9 +100,9 @@ verify each phase's handoff condition before starting the next.
 
 - **Plugin / Skill:** `/microcontroller-interface` owns the Sollertia paired-module stack — the module
   catalog, type-code allocation, and the "Adding a paired Module + Interface" workflow — and delegates the
-  per-side base mechanics to `ataraxis@microcontroller:firmware-module` (the firmware `Module`) and
-  `ataraxis@communication:microcontroller-interface` (the PC-side `ModuleInterface`). Cameras use
-  `ataraxis@video:camera-interface`; motors use `/zaber-interface`.
+  per-side base mechanics to `microcontroller:firmware-module` (ataraxis marketplace, the firmware `Module`) and
+  `communication:microcontroller-interface` (the PC-side `ModuleInterface`). Cameras use
+  `video:camera-interface`, motors use `/zaber-interface`.
 - **Actions:** For each hardware module the system drives that the shared module catalog does not
   already provide, author the paired C++ `Module` and Python `ModuleInterface`, allocating a type code
   (the catalog tracks the next free code) and instance ids. Hardware already in the catalog is reused
@@ -113,10 +114,10 @@ verify each phase's handoff condition before starting the next.
   (MQTT plus a MATLAB function). Author the instrument's driver as a Layer-2 subsystem in Phase 3 via
   `/acquisition-system-design`.
 - **Cross-plugin handoffs:**
-  - `ataraxis@communication:microcontroller-setup` to discover controllers and verify MQTT
-  - `ataraxis@video:camera-setup` to discover and exercise cameras
+  - `communication:microcontroller-setup` to discover controllers and verify MQTT
+  - `video:camera-setup` to discover and exercise cameras
 - **Handoff condition:** Every new `Module` + `ModuleInterface` pair round-trips commands and data
-  against connected hardware through the ataraxis MCP servers; reused catalog modules need no new code.
+  against connected hardware through the ataraxis MCP servers. Reused catalog modules need no new code.
 
 ### Phase 3: Acquisition runtime
 
@@ -125,13 +126,15 @@ verify each phase's handoff condition before starting the next.
   per-package deliverables manifest in `/acquisition-system-design`'s `references/workflows.md`.
 - **Actions:** Author the system package: the per-subsystem configuration dataclasses, the
   `<System>SystemConfiguration` subclass with its `register_system_configuration` call and typed
-  `get_system_configuration` accessor, the binding classes, the lifecycle orchestrator, the per-mode
+  `get_system_configuration` accessor, the binding classes, the lifecycle orchestrator (which composes
+  the platform-general VR task driver subsystem that couples the runtime to the Unity scene — see
+  `/vr-driver-interface`, parallel to `/microcontroller-interface` and `/zaber-interface`), the per-mode
   logic functions, the visualizer / UIs / instrument driver the system needs, the `sle <system>` CLI
   command group (registered in `interfaces/entry_points.py`), and the `interfaces/<system>_tools.py`
   MCP tool module. Bump the `sollertia-experiment` version.
-- **Handoff condition:** The `sle <system>` CLI group is reachable; `read_system_configuration_tool`
-  validates the system configuration; the per-system MCP tools register (the server discovers every
-  `*_tools.py` module by filename suffix).
+- **Handoff condition:** The `sle <system>` CLI group is reachable, `validate_system_configuration_tool` reports the
+  system configuration as valid with an empty `issues` list, and the per-system MCP tools register (the server
+  discovers every `*_tools.py` module by filename suffix).
 
 ### Phase 4: Corridor task
 
@@ -174,6 +177,22 @@ verify each phase's handoff condition before starting the next.
   The system runs without them, but omitting them leaves it driveable yet undocumented for agents.
 - **Handoff condition:** The system has an instance skill the operate pipeline can dispatch to.
 
+### Phase 7: Subprocess tools (optional)
+
+- **Plugin / Skill:** `/acquisition-system-design` owns the external-tool configuration section and the
+  subprocess launch pattern. `sollertia-video-tracking` (`slvt`) is the worked example, and it ships no MCP
+  server and no plugin, so its CLI is the only agent-facing surface.
+- **Actions:** When the system runs a tool whose dependencies conflict with the acquisition stack, keep that
+  tool in its own conda environment and launch it from preprocessing through `conda run`. Add a configuration
+  section holding the environment name, the tool's project path, and its runtime parameters. Gate the launch
+  on the session types that acquire the accompanying data, and join the subprocess before the transfer to
+  long-term storage so a failure retains the local session copy.
+- **Manual host configuration:** The environment name and the project path are host-specific, and they escape
+  `validate_system_configuration_tool` and `check_system_mounts_tool`. You MUST set and confirm both by hand on
+  every host that runs the tool. See the video-tracking coupling section below for the Mesoscope-VR case.
+- **Handoff condition:** A preprocessing run over a session that triggers the tool writes the tool's output
+  files beside the source data and completes the transfer to long-term storage.
+
 ### Operate: hand off to `/pipeline`
 
 Once the four build layers pass their handoff conditions, the system type exists. Hand off to
@@ -189,11 +208,35 @@ other before the system imports or runs.
 
 | Coupling                                                               | Both sides must agree on                                       |
 |------------------------------------------------------------------------|----------------------------------------------------------------|
-| `AcquisitionSystems` member ↔ the `sle` runtime + CLI + MCP module     | the system identifier; slsa is registered before sle imports   |
+| `AcquisitionSystems` member ↔ the `sle` runtime + CLI + MCP module     | the system identifier, slsa is registered before sle imports   |
 | Firmware `Module` ↔ PC `ModuleInterface`                               | the type code, command / parameter layout, and event codes     |
 | `<System>ExperimentConfiguration` trial classes ↔ the runtime          | the trial vocabulary the orchestrator instantiates             |
 | Experiment configuration `unity_scene_name` ↔ the Unity scene          | the task-template filename stem                                |
 | Read data-service processor ↔ its `sollertia-shared-assets` read asset | the record schema the processor emits and the dataclass stores |
+| `MesoscopeVideoTracking` fields ↔ the `slvt infer` CLI flags           | the flag names and value formats passed to the subprocess      |
+
+### The video-tracking coupling crosses a process boundary
+
+The `MesoscopeVideoTracking` coupling spans a process boundary rather than an import boundary, so it behaves
+differently from the rest. `sollertia-video-tracking` (`slvt`) requires Python 3.12 and numpy 1.x because DeepLabCut
+3.0.0 constrains both, while the rest of the Sollertia stack runs Python 3.14 and numpy 2. `sle` therefore launches
+`slvt` through `conda run`, and `_launch_face_tracking` (`mesoscope_vr/data_preprocessing.py`) passes the
+`MesoscopeVideoTracking` fields straight onto the `slvt infer` command line as `--config-path`, `--shuffle`,
+`--batch-size`, `--chunks`, `--compile-model`, and the optional `--crop`. The `conda_environment` field supplies the
+`conda run -n` environment name, and `--videos` carries the face-camera video resolved under
+`session_data.raw_data.camera_data_path`. A renamed field or a renamed CLI flag therefore surfaces during
+preprocessing rather than at import time, which is why both sides must move together.
+
+`MesoscopeVideoTracking` is wired into `MesoscopeSystemConfiguration` as the `video_tracking` field, the last of its
+seven nested configuration sections. Inference is opt-in, starts only for `SessionTypes.MESOSCOPE_EXPERIMENT` sessions,
+and is skipped when `conda_environment` or `dlc_project_path` is left unset. A non-zero exit status or zero written
+`.h5` prediction files raises `RuntimeError`, aborts the transfer to long-term storage, and retains the local session
+copy for a manual retry. `slvt` ships no MCP server and no plugin, so its CLI is the only agent-facing surface and this
+coupling is documented on the `sollertia-experiment` side.
+
+`validate_system_configuration_tool` and `check_system_mounts_tool` report the `dlc_project_path` under the
+`dlc_project` key, so a wrong project path fails at pre-flight. You MUST confirm the conda environment by hand when
+you configure a host for a system that runs pose inference, since the environment name sits outside that report.
 
 ---
 
@@ -214,58 +257,59 @@ list_supported_acquisition_systems_tool)?
                         ├─ no  → Phase 4 (assets:task-templates → unity:task-prefabs)
                         └─ yes → the system type is built; hand off to /pipeline to configure a host and
                                  run the first session (optional: external-service processors, Phase 5;
-                                 agentic assets, Phase 6)
+                                 agentic assets, Phase 6; subprocess tools, Phase 7)
 ```
 
 ---
 
 ## Cross-plugin handoffs at a glance
 
-Each row points to the system-agnostic owning skill; Mesoscope-VR is the worked example built
+Each row points to the system-agnostic owning skill. Mesoscope-VR is the worked example built
 through these same skills.
 
-| You need to…                                                   | Use…                                                              |
-|----------------------------------------------------------------|-------------------------------------------------------------------|
-| Register the system's contract in shared-assets                | `assets:library-extension`                                        |
-| Add a trial class or trigger type                              | `assets:library-extension`                                        |
-| Add a paired `Module` + `ModuleInterface` (catalog, type code) | `/microcontroller-interface`                                      |
-| Write the firmware `Module` base mechanics                     | `ataraxis@microcontroller:firmware-module`                        |
-| Write the PC `ModuleInterface` base mechanics                  | `ataraxis@communication:microcontroller-interface`                |
-| Verify a microcontroller interface against hardware            | `ataraxis@communication:microcontroller-setup`                    |
-| Write or verify a camera (`VideoSystem`) interface             | `ataraxis@video:camera-interface` / `ataraxis@video:camera-setup` |
-| Add a Zaber motor subsystem                                    | `/zaber-interface`                                                |
-| Integrate the system's primary instrument (bespoke driver)     | `/acquisition-system-design`                                      |
-| Design the system's static composition                         | `/acquisition-system-design`                                      |
-| Implement the runtime loop, modes, CLI, MCP module             | `/acquisition-system-runtime`                                     |
-| Couple the runtime to the Unity VR task                        | `/vr-driver-interface`                                            |
-| Author the corridor task template                              | `assets:task-templates`                                           |
-| Generate the Unity prefab / scene from the template            | `unity:task-prefabs` / `unity:task-scenes`                        |
-| Author a read / write external data-service processor          | `/google-sheets-processing`                                       |
-| Register a new external read asset                             | `assets:library-extension` / `assets:data-assets`                 |
-| Register a new external-service credential category            | `assets:library-extension`                                        |
-| Author the per-system instance / runtime skills                | `/acquisition-system-design` (steps 10–11)                        |
-| Configure a host and run the first session                     | `/pipeline`                                                       |
+| You need to…                                                   | Use…                                              |
+|----------------------------------------------------------------|---------------------------------------------------|
+| Register the system's contract in shared-assets                | `assets:library-extension`                        |
+| Add a trial class or trigger type                              | `assets:library-extension`                        |
+| Add a paired `Module` + `ModuleInterface` (catalog, type code) | `/microcontroller-interface`                      |
+| Write the firmware `Module` base mechanics                     | `microcontroller:firmware-module`                 |
+| Write the PC `ModuleInterface` base mechanics                  | `communication:microcontroller-interface`         |
+| Verify a microcontroller interface against hardware            | `communication:microcontroller-setup`             |
+| Write or verify a camera (`VideoSystem`) interface             | `video:camera-interface` / `video:camera-setup`   |
+| Add a Zaber motor subsystem                                    | `/zaber-interface`                                |
+| Integrate the system's primary instrument (bespoke driver)     | `/acquisition-system-design`                      |
+| Design the system's static composition                         | `/acquisition-system-design`                      |
+| Implement the runtime loop, modes, CLI, MCP module             | `/acquisition-system-runtime`                     |
+| Couple the runtime to the Unity VR task                        | `/vr-driver-interface`                            |
+| Author the corridor task template                              | `assets:task-templates`                           |
+| Generate the Unity prefab / scene from the template            | `unity:task-prefabs` / `unity:task-scenes`        |
+| Author a read / write external data-service processor          | `/google-sheets-processing`                       |
+| Register a new external read asset                             | `assets:library-extension` / `assets:data-assets` |
+| Register a new external-service credential category            | `assets:library-extension`                        |
+| Author the per-system instance / runtime skills                | `/acquisition-system-design` (steps 10–11)        |
+| Configure a host and run the first session                     | `/pipeline`                                       |
 
 ---
 
 ## Related skills
 
-| Skill                                              | Relationship                                                                                 |
-|----------------------------------------------------|----------------------------------------------------------------------------------------------|
-| `/pipeline`                                        | The operate-time counterpart; receives the built system for its first run                    |
-| `assets:library-extension`                         | Owns Phase 1 — the shared-assets contract, registries, and trial/trigger recipes             |
-| `/microcontroller-interface`                       | Owns the Sollertia paired `Module` + `ModuleInterface` workflow and module catalog (Phase 2) |
-| `ataraxis@microcontroller:firmware-module`         | Owns the firmware `Module` authoring in Phase 2                                              |
-| `ataraxis@communication:microcontroller-interface` | Owns the `ModuleInterface` and `MicroControllerInterface` mechanics in Phase 2               |
-| `ataraxis@video:camera-interface`                  | Owns the `VideoSystem` interface authoring in Phase 2                                        |
-| `/zaber-interface`                                 | Owns the Zaber motor subsystem in Phase 2                                                    |
-| `/acquisition-system-design`                       | Owns Phase 3 static composition and the per-package deliverables manifest                    |
-| `/acquisition-system-runtime`                      | Owns Phase 3 runtime loop, modes, CLI, and MCP tool module                                   |
-| `assets:task-templates`                            | Owns the corridor task template in Phase 4                                                   |
-| `unity:task-prefabs`                               | Owns Unity prefab and scene generation in Phase 4                                            |
-| `/google-sheets-processing`                        | Owns the external data-service processors in Phase 5                                         |
-| `assets:data-assets`                               | Reads and amends the on-disk read assets a processor emits                                   |
-| `/acquisition-system-setup`                        | Resolves a built system to its owning instance skill during operation                        |
+| Skill                                     | Relationship                                                                                 |
+|-------------------------------------------|----------------------------------------------------------------------------------------------|
+| `/pipeline`                               | The operate-time counterpart, receives the built system for its first run                    |
+| `assets:library-extension`                | Owns Phase 1 — the shared-assets contract, registries, and trial/trigger recipes             |
+| `/microcontroller-interface`              | Owns the Sollertia paired `Module` + `ModuleInterface` workflow and module catalog (Phase 2) |
+| `microcontroller:firmware-module`         | Owns the firmware `Module` authoring in Phase 2                                              |
+| `communication:microcontroller-interface` | Owns the `ModuleInterface` and `MicroControllerInterface` mechanics in Phase 2               |
+| `video:camera-interface`                  | Owns the `VideoSystem` interface authoring in Phase 2                                        |
+| `/zaber-interface`                        | Owns the Zaber motor subsystem in Phase 2                                                    |
+| `/acquisition-system-design`              | Owns Phase 3 static composition and the per-package deliverables manifest                    |
+| `/acquisition-system-runtime`             | Owns Phase 3 runtime loop, modes, CLI, and MCP tool module                                   |
+| `/vr-driver-interface`                    | Owns the host-side VR task driver that couples the runtime to the Unity scene (Phase 3)      |
+| `assets:task-templates`                   | Owns the corridor task template in Phase 4                                                   |
+| `unity:task-prefabs`                      | Owns Unity prefab and scene generation in Phase 4                                            |
+| `/google-sheets-processing`               | Owns the external data-service processors in Phase 5                                         |
+| `assets:data-assets`                      | Reads and amends the on-disk read assets a processor emits                                   |
+| `/acquisition-system-setup`               | Resolves a built system to its owning instance skill during operation                        |
 
 ---
 
@@ -281,6 +325,7 @@ System build orchestration:
 - [ ] The sle CLI group is reachable and the per-system MCP tools register
 - [ ] The experiment configuration's unity_scene_name resolves to a real task template and scene
 - [ ] If the system integrates an external data service, its processor round-trips and (for reads) snapshots to disk
+- [ ] If the system runs a subprocess tool, its conda environment and project path are set and confirmed by hand
 - [ ] Each cross-repository coupling has both sides in agreement, with version bumps where required
 - [ ] Handed off to /pipeline for host configuration and the first session
 ```

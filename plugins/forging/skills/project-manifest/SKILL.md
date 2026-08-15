@@ -30,7 +30,6 @@ about project state.
 **Does not cover:**
 - Session discovery and filtering (see `assets:session-discovery`)
 - Checksum verification or regeneration (see `/checksum-verification`)
-- Session transfer or deletion (see `/session-transfer`)
 - Behavior processing (see `/behavior-processing`)
 - MCP server connectivity (see `/forging-mcp-environment-setup`)
 
@@ -263,7 +262,6 @@ companion `.lock` files.
 The manifest is a snapshot — it does not update automatically. Regenerate after:
 - Running checksum verification (updates `integrity` column)
 - Completing cindra, behavior, or video processing
-- Transferring or deleting sessions
 - Adding new sessions to the project
 
 ---
@@ -290,7 +288,6 @@ The manifest is a snapshot — it does not update automatically. Regenerate afte
 | `/forging-mcp-environment-setup`     | Prerequisite: MCP server connectivity                             |
 | `assets:session-discovery`   | Upstream: discover sessions before generating a manifest          |
 | `/checksum-verification`             | Upstream: integrity column reflects checksum status               |
-| `/session-transfer`                  | Upstream: regenerate manifest after transfer or deletion          |
 | `/behavior-processing`               | Upstream: behavior column reflects extraction pipeline status     |
 | `assets:project-hierarchy`   | Reference: project directory layout                               |
 

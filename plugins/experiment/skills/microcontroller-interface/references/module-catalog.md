@@ -92,13 +92,15 @@ Implements amortization on the non-reported direction to suppress micro-jitter i
 | Interrupt dependency | `ENCODER_USE_INTERRUPTS` consumes interrupt slots; module is incompatible with other `AttachInterrupt()`-using libraries on the same board |
 
 **Wrapper**: `EncoderInterface(encoder_ppr, wheel_diameter, polling_frequency)`. Computes
-`cm_per_pulse` in `__init__` (rounded to 8 decimals) and maintains a 2-element shared-memory tracker
-for total distance (cm) and absolute Unity position. The centimeters-per-Unity-unit conversion is
+`cm_per_pulse` in `__init__` as a full-precision `np.float64` and maintains a 2-element shared-memory tracker
+for total distance (cm, index 0) and the signed encoder displacement in pulses (index 1, from which the
+absolute Unity position is derived). The centimeters-per-Unity-unit conversion is
 NOT a constructor argument — it is supplied at experiment start via `set_unity_scale(cm_per_unity_unit)`
 (the value is read from the active `TaskTemplate`), which derives `unity_unit_per_pulse`.
 
 - Shared memory: `<type>_<id>_distance_tracker` — `np.float64[2]` (index 0: cumulative cm; index 1:
-  absolute Unity-unit position)
+  signed encoder displacement in pulses, relative to runtime onset — converted to Unity units at read
+  time by the `absolute_position` property)
 - Public methods: `set_parameters(report_ccw, report_cw, delta_threshold)`, `set_unity_scale(cm_per_unity_unit)`,
   `set_monitoring_state(*, state)`, `cm_per_pulse` (property), `absolute_position` (property),
   `traveled_distance` (property), `reset_distance_tracker()`

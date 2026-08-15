@@ -128,7 +128,7 @@ set `supports_trials` to match (`False`) so the forging/analysis side reads the 
 
 The experiment configuration **never enumerates or schedules trials** — it contributes only the
 **per-trial-type parameters** (the system-specific runtime fields on each trial class). The trial
-sequence is owned by Unity (`sollertia-unity-tasks`): at session init the acquisition runtime requests a cue
+sequence is owned by Unity (`sollertia-virtual-reality`): at session init the acquisition runtime requests a cue
 sequence materialized from the template's per-trial `transitions` (see `/task-templates`), then identifies trial
 boundaries by motif matching against each `TrialStructure`. Relative frequencies are encoded in the template's
 transition probabilities. The runtime joins each decomposed trial name back to this configuration's
@@ -225,11 +225,12 @@ the session's own `SessionData` — `inspect_sessions_tool` (`/session-data`) re
 - MCP server connected (else `/assets-mcp-environment-setup`).
 - The target project directory exists (i.e. `<root>/<project>/configuration/` is on disk).
   Project directories are created with the `create_project_tool` MCP tool or the
-  `slsa configure project -p <name> -r <root>` CLI command (both create
-  `<root>/<project>/configuration/`). `SessionData.create` raises `FileNotFoundError` when the
-  project is missing, so the project must be created before any experiment configuration or session
-  can be authored. This skill does not create project directories on its own; hand off to
-  `/project-hierarchy`, which owns `create_project_tool`.
+  `slsa configure project -p <name>` CLI command, which takes the project name alone. The CLI uses
+  the configured platform data root, and both routes create `<root>/<project>/configuration/`.
+  `SessionData.create` raises `FileNotFoundError` when the project is missing, so the project must
+  be created before any experiment configuration or session can be authored. This skill does not
+  create project directories on its own; hand off to `/project-hierarchy`, which owns
+  `create_project_tool`.
 - The target task template exists at a known path. If it doesn't, hand off to `/task-templates` to author
   it — this skill must not call `write_template_tool` directly. The templates directory can be enumerated via
   `discover_templates_tool`, which also returns absolute paths.
@@ -254,7 +255,8 @@ describe_experiment_configuration_schema_tool(acquisition_system="<system>")
 ```
 
 Use the schema as the source of truth for field names and nesting. It always reports the contract fields
-(`experiment_states` and `trial_structures`) plus whatever system-specific fields the resolved subclass adds.
+(`experiment_states`, `trial_structures`, and `unity_scene_name`) plus whatever system-specific fields the
+resolved subclass adds.
 Its `nested_classes` are derived from the resolved configuration class, so they reflect that system's actual
 nested dataclasses — never assume the Mesoscope-VR set applies verbatim.
 

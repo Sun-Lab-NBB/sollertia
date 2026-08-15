@@ -26,7 +26,6 @@ Diagnoses and resolves sollertia-forgery MCP server connectivity and environment
 - MCP tool usage for session discovery (see `assets:session-discovery`)
 - MCP tool usage for manifest reading and generation (see `/project-manifest`)
 - MCP tool usage for checksum verification (see `/checksum-verification`)
-- MCP tool usage for session transfer and deletion (see `/session-transfer`)
 - MCP tool usage for batch processing (see `/behavior-processing`)
 - MCP tool usage for output verification (see `/behavior-results`)
 - Input data preparation from upstream libraries (see `/behavior-input-format`)
@@ -91,7 +90,7 @@ You MUST follow these steps in order when MCP tools are unavailable or the serve
 
 ### Step 1: Test MCP tool availability
 
-Attempt to call any sollertia-forgery MCP tool (for example `get_transfer_status_tool`). If the
+Attempt to call any sollertia-forgery MCP tool (for example `get_checksum_status_tool`). If the
 call succeeds, the environment is healthy, and you can invoke the target skill. If the call returns a
 connection error, continue to step 2.
 
@@ -190,7 +189,6 @@ workflows above (the conda / mamba workflow is identical on all platforms).
 | `assets:session-discovery`   | Downstream: session discovery once MCP is verified                 |
 | `/project-manifest`                  | Downstream: manifest reading and generation require MCP tools      |
 | `/checksum-verification`             | Downstream: checksum batch pipeline requires MCP tools             |
-| `/session-transfer`                  | Downstream: transfer and deletion pipeline requires MCP tools      |
 | `/behavior-input-format`             | Reference: input formats consumed by MCP-driven workflows          |
 | `/behavior-processing`               | Downstream: batch processing operations require MCP tools          |
 | `/behavior-results`                  | Downstream: output verification and querying require MCP tools     |

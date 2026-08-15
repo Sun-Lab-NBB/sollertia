@@ -258,14 +258,14 @@ interface. This timing is handled automatically by internal `_padded_method_call
 
 Zaber controllers store configuration in non-volatile USER_DATA variables:
 
-| Setting                     | Variable     | Purpose                                       |
-|-----------------------------|--------------|-----------------------------------------------|
-| `checksum`                  | USER_DATA_0  | CRC32-XFER checksum of device label           |
-| `shutdown_flag`             | USER_DATA_1  | 1 = proper shutdown, 0 = abnormal termination |
-| `unsafe_flag`               | USER_DATA_10 | 1 = requires safe position for homing         |
-| `axis_park_position`        | USER_DATA_11 | Park position in native units                 |
-| `axis_maintenance_position` | USER_DATA_12 | Maintenance position in native units          |
-| `axis_mount_position`       | USER_DATA_13 | Mount position in native units                |
+| Setting                | Variable     | Purpose                                       |
+|------------------------|--------------|-----------------------------------------------|
+| `checksum`             | USER_DATA_0  | CRC32-XFER checksum of device label           |
+| `shutdown_flag`        | USER_DATA_1  | 1 = proper shutdown, 0 = abnormal termination |
+| `unsafe_flag`          | USER_DATA_10 | 1 = requires safe position for homing         |
+| `park_position`        | USER_DATA_11 | Park position in native units                 |
+| `maintenance_position` | USER_DATA_12 | Maintenance position in native units          |
+| `mount_position`       | USER_DATA_13 | Mount position in native units                |
 
 **Understanding shutdown_flag vs unsafe_flag:**
 
@@ -417,7 +417,7 @@ def set_zaber_device_setting(
 | `setting`      | `str`        | Setting name (see table below)                           |
 | `value`        | `int \| str` | Value to write (int for positions/flags, str for labels) |
 
-**Valid Settings:**
+**Valid settings:**
 
 | Setting                | Type  | Validation                            |
 |------------------------|-------|---------------------------------------|
@@ -450,7 +450,8 @@ setting cannot be modified directly as it is managed by the binding library.
 **Note on axis_label:**
 - The `axis_label` is optional and typically unused for Zaber motors. A missing axis_label is not a configuration issue.
 - Axis labels are primarily used for third-party motors where the label reflects the motor name.
-- For Zaber single-axis controllers, the `device_label` is sufficient for identification.
+- For Zaber single-axis controllers, the `device_label` drives checksum validation and can repeat across a motor
+  group, because the binding library selects each device by its daisy-chain index.
 
 ### validate_zaber_device_configuration
 

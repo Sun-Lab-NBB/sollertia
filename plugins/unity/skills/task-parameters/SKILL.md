@@ -1,7 +1,7 @@
 ---
 name: task-parameters
 description: >-
-  Reads and writes the consolidated Task Parameters editor window in sollertia-unity-tasks via the
+  Reads and writes the consolidated Task Parameters editor window in sollertia-virtual-reality via the
   sollertia-shared-assets MCP server's Unity relay. Owns read_task_parameters_tool and
   write_task_parameters_tool, which mirror the Actor, MQTT, Display, Camera Mapping, and Task
   sections of `Window → Task Parameters`. Use when inspecting or programmatically changing per-scene
@@ -12,7 +12,7 @@ user-invocable: false
 # Sollertia Unity task parameters
 
 Programmatically reads and writes the consolidated **Task Parameters** Unity Editor window for
-`sollertia-unity-tasks` through the Unity relay exposed by `slsa mcp` — the **exclusive** owner of
+`sollertia-virtual-reality` through the Unity relay exposed by `slsa mcp` — the **exclusive** owner of
 `read_task_parameters_tool` and `write_task_parameters_tool`, which no other skill in the
 marketplace may call.
 
@@ -36,13 +36,13 @@ programmatic entry point for those fields.
 - Writing any subset of those fields and receiving the post-write snapshot on success
   (`write_task_parameters_tool`)
 - The option lists (allowed enum values) and visibility flags returned alongside the state
-- Validation rules that mirror the GUI (zone-gated `require_interaction` / `require_wait`, monitor index
+- Validation rules the bridge enforces (zone-gated `require_interaction` / `require_wait`, monitor index
   bounds, controller / model / camera membership)
 - Choosing between Parameters window writes and scene-file edits
 
 **Does not cover:**
-- Generating or validating prefabs (see `/task-prefabs`)
-- Listing, opening, creating, or inspecting scenes (see `/task-scenes`)
+- Generating or validating prefabs, and creating the task prefab plus scene bundle (see `/task-prefabs`)
+- Listing, opening, or inspecting scenes (see `/task-scenes`)
 - Entering / exiting Play Mode (see `/play-mode`)
 - Editor-time scene wiring beyond what the Parameters window exposes (see `/scene-setup`)
 - MQTT topic catalog (see `/mqtt-contract`)
@@ -258,8 +258,8 @@ path to flip it mid-experiment.
 
 ## Validation rules
 
-The bridge rejects writes that the GUI would also refuse. Each rejection returns an
-`{"success": false, "error": "..."}` response with a descriptive message.
+The bridge runs its own validation set, which is a subset of the rules the GUI applies. Each
+rejection returns an `{"success": false, "error": "..."}` response with a descriptive message.
 
 | Section          | Field                          | Rejection condition                                                                             |
 |------------------|--------------------------------|-------------------------------------------------------------------------------------------------|
@@ -269,6 +269,18 @@ The bridge rejects writes that the GUI would also refuse. Each rejection returns
 | `camera_mapping` | `camera`                       | Value is not in `options.camera_mapping.camera`                                                 |
 | `task`           | `require_interaction`          | Scene has no `GuidanceZone` (i.e., `visibility.task.require_interaction == false`)              |
 | `task`           | `require_wait`                 | Scene has no `OccupancyZone` (i.e., `visibility.task.require_wait == false`)                    |
+
+The camera mapping path carries one GUI-only guard, so a write there can produce a binding the GUI
+refuses to make. `FullScreenViewManager.RenderMonitorRow` scans every monitor for the selected
+camera's `EntityId` and skips the assignment when that camera is already bound, so the GUI silently
+keeps the row on its previous camera. The bridge assigns `cameraEntityId` for every valid monitor /
+camera pair and then calls `SaveCameras()`, so `write_task_parameters_tool` can bind one camera to
+two monitors. The guard also matches the monitor being edited, which makes re-selecting a row's
+current camera a harmless no-op in the GUI. Monitors left out of a write payload keep their current
+bindings, and the bridge inspects neither them nor the other rows of the payload. You MUST confirm
+that the post-write `state.camera_mapping` holds each camera name at most once, unless a duplicate
+binding is intended. The `"None"` value is exempt because it clears a monitor, so it may repeat
+across as many rows as needed.
 
 Other fields (`mqtt.ip`, `mqtt.port`, `display.*`, `task.track_length`, `task.track_seed`) accept
 any numeric / string value the underlying `Convert.ToSingle` / `Convert.ToInt32` / `Convert.ToBoolean`
@@ -326,7 +338,7 @@ Use `get_play_state_tool` (`/play-mode`) to check `state == "edit"` before issui
 | Symptom                                                                         | Cause                                                                                        | Resolution                                                                                                                                     |
 |---------------------------------------------------------------------------------|----------------------------------------------------------------------------------------------|------------------------------------------------------------------------------------------------------------------------------------------------|
 | `state.actor == null` even though an Actor exists                               | The Actor was placed outside the root and `FindAnyObjectByType<ActorObject>()` missed it     | Confirm the Actor is in the active scene; `inspect_scene_tool` (`/task-scenes`) to verify                                                      |
-| `state.task == null`                                                            | No `Task` component in the active scene (only the empty `ExperimentTemplate` template scene) | `create_task_tool(scene_name=..., task_prefab_path=...)` (`/task-scenes`) to seed a task                                                       |
+| `state.task == null`                                                            | No `Task` component in the active scene (only the empty `ExperimentTemplate` template scene) | `create_task_tool(template_name=...)` (`/task-prefabs`) to seed a task                                                                         |
 | Write rejected: "Invalid controller '...'"                                      | The controller name is not in `options.actor.controller`                                     | Re-read `options.actor.controller`; copy the exact string (it is the GameObject name)                                                          |
 | Write rejected: "Cannot set require_interaction: scene has no GuidanceZone"     | The current task prefab has no interaction-mode segments                                     | The flag is not applicable — leave it alone, or open a scene whose template includes interaction-mode trials                                   |
 | Write rejected: "Invalid monitor index N; scene has M monitors"                 | Camera mapping payload references a 1-based monitor index outside `[1, M]`                   | Re-read `state.camera_mapping` to enumerate valid `monitor` indices                                                                            |

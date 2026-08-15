@@ -205,8 +205,7 @@ template owns its segments outright. `ConfigLoader` rejects trial names that con
 
 ### Required shared assets
 
-`BuildCuePrefabs` and `BuildSegmentPrefabs` abort if any of these are missing. Every entry below
-is also in `McpBridge.DeleteProtectedPaths` and cannot be deleted via `delete_asset_tool`:
+Every entry below is in `McpBridge.DeleteProtectedPaths` and cannot be deleted via `delete_asset_tool`:
 
 | Asset                                 | Type       | Purpose                                                          |
 |---------------------------------------|------------|------------------------------------------------------------------|
@@ -218,6 +217,20 @@ is also in `McpBridge.DeleteProtectedPaths` and cannot be deleted via `delete_as
 | `Materials/Floor.mat`                 | Material   | Shared floor material baked into every generated segment         |
 | `Materials/Wall.mat`                  | Material   | Shared wall material baked into every generated segment          |
 | `Materials/TargetMat.mat`             | Material   | Renderer material referenced by both hand-authored trigger zones |
+
+The generator handles a missing entry at one of four severities:
+
+- **Aborts the build.** `BuildSegmentPrefabs` returns false when `Materials/Floor.mat` or `Materials/Wall.mat`
+  fails to load, and also when a cue prefab referenced by a trial's `cue_sequence` is missing.
+- **Skips the zone silently.** The three zone prefabs are loaded without a null check, and every use site is
+  null-guarded. A missing zone prefab omits that zone from every generated segment and the build still succeeds.
+- **Degrades with a warning.** `LoadReferenceCueShader` logs a `Debug.LogWarning` for a missing
+  `Materials/_CueShaderReference.mat` and resolves the shader through the fallback chain documented above.
+- **Fails later, inside `CreateFromTemplate`.** `Prefabs/Padding.prefab` is resolved after `BuildSegmentPrefabs`
+  returns, and a missing padding prefab ends the run with `error: No padding found at <paddingPath>`.
+
+`Materials/TargetMat.mat` sits outside all four paths. The trigger zone prefabs bind it by serialized GUID, so the
+generator itself never loads it by path, and the table lists it because `McpBridge.DeleteProtectedPaths` protects it.
 
 You MUST NOT rename these assets — `BuildSegmentPrefabs` / `LoadReferenceCueShader` resolve them by
 hardcoded path, and the trigger zone prefabs reference `TargetMat.mat` by serialized GUID. The
@@ -245,9 +258,10 @@ runs per trial structure — a single segment may have at most one `StimulusTrig
 on this enum and applies the per-mode firing rule.
 `PlaceCollisionZone` reuses `StimulusTriggerZone.prefab` (stripping its `GuidanceRegion` child and setting the root
 collider as a thin boundary wall at `stimulus_location`). `occupancy_arm` and `occupancy_trigger` reuse
-`OccupancyTriggerZone.prefab` through `PlaceOccupancyZone`, which only sets the occupancy sub-mode — no mode has its
-own prefab file. The occupancy sub-modes share a single `OccupancyZone.occupancyMet` signal (the generic "occupancy
-requirement met" flag); the parent `StimulusTriggerZone` applies the per-mode firing rule.
+`OccupancyTriggerZone.prefab` through `PlaceOccupancyZone`, which sets the occupancy sub-mode and the template's
+`occupancy_duration_ms` on the placed zone. No mode has its own prefab file. The occupancy sub-modes share a single
+`OccupancyZone.occupancyMet` signal (the generic "occupancy requirement met" flag), and the parent
+`StimulusTriggerZone` applies the per-mode firing rule.
 
 ### Interaction mode (`PlaceInteractionZone`)
 
@@ -263,11 +277,14 @@ StimulusTriggerZone.BoxCollider.size   = (1, 1, zoneSizeUnity)
 StimulusTriggerZone.BoxCollider.center = (0, 0, 0)
 
 GuidanceRegion.BoxCollider.size   = (1, 1, 0.4)                                ← fixed 0.4 Unity units wide
-GuidanceRegion.BoxCollider.center = (0, 0, stimulusLocationUnity - zoneCenterUnity)
+GuidanceRegion.BoxCollider.center = (0, 0, stimulusLocationUnity - zoneCenterUnity + 0.2)
 ```
 
 - Y offset `0.505` is deliberate — raises the zone just above the floor to avoid collider overlap.
 - GuidanceRegion width is **not** template-driven (the hardcoded `0.4` unit collider width is a design choice).
+- The `+ 0.2` term is half that fixed collider depth. It anchors the guidance region's **leading edge** on
+  `stimulus_location` and extends the region forward from there, so the region's center sits half a collider depth
+  downstream of the declared stimulus location. The far edge carries no behavioral meaning.
 
 ### Collision mode (`PlaceCollisionZone`)
 
@@ -290,15 +307,16 @@ StimulusTriggerZone.BoxCollider.center = (0, 0, 0)
 ### Occupancy modes (`PlaceOccupancyZone`)
 
 `PlaceOccupancyZone` serves all three occupancy sub-modes (`occupancy_disarm`, `occupancy_arm`, `occupancy_trigger`)
-from the same `OccupancyTriggerZone.prefab`; `CreateTask` only sets the occupancy sub-mode on the placed zone. The
-geometry below is identical across the three sub-modes — they differ only in the runtime firing rule the parent
-`StimulusTriggerZone` applies to the shared `OccupancyZone.occupancyMet` signal:
+from the same `OccupancyTriggerZone.prefab`. `CreateTask` sets the occupancy sub-mode and the trial's
+`occupancy_duration_ms` on the placed zone. The geometry below is identical across the three sub-modes. They differ
+only in the runtime firing rule the parent `StimulusTriggerZone` applies to the shared `OccupancyZone.occupancyMet`
+signal:
 
 - **`occupancy_disarm`**: a collision with the boundary fires while occupancy is **not** met (occupancy "disarms" the
   boundary).
 - **`occupancy_arm`**: occupying the zone **arms** the boundary; colliding with the now-armed boundary (occupancy
   **met**) fires. It is the inverse of `occupancy_disarm`.
-- **`occupancy_trigger`**: occupying the zone for the required duration fires the stimulus **immediately**, with no
+- **`occupancy_trigger`**: occupying the zone for `occupancy_duration_ms` fires the stimulus **immediately**, with no
   boundary collision.
 
 All three occupancy modes keep the occupancy-guidance brake (`OccupancyGuidanceZone` publishing `Delay`).
@@ -314,6 +332,8 @@ StimulusTriggerZone.localPosition      = (0, 0.505, rootZ)
 StimulusTriggerZone.BoxCollider.size   = (1, 1, zoneSizeUnity)
 StimulusTriggerZone.BoxCollider.center = (0, 0, 0)
 
+OccupancyZone.occupancyDurationMs  = trial.occupancy_duration_ms             ← baked from the template, in ms
+
 OccupancyRegion.BoxCollider.size   = (1, 1, zoneSizeUnity)
 OccupancyRegion.BoxCollider.center = (0, 0, occupancyCenterOffset)
 
@@ -326,6 +346,10 @@ OccupancyGuidanceRegion.BoxCollider.center = (0, 0, occupancyCenterOffset + zone
   occupancy **is** met. For `occupancy_trigger` the boundary collider is unused — occupancy met fires immediately.
 - `OccupancyGuidanceRegion` sits at the downstream end of the occupancy range, offset by `-0.2` to keep it inside the
   occupancy collider.
+- `occupancyDurationMs` is the only non-geometric value the occupancy anatomy above records. It carries the trial's
+  `occupancy_duration_ms` straight onto the child `OccupancyZone`, and `ConfigLoader.ValidateTemplate` requires that
+  template field for all three occupancy literals, so the helper always has a value to bake. `PlaceOccupancyZone` also
+  writes `triggerMode`, `showBoundary`, and `trialName` onto the root `StimulusTriggerZone`.
 
 ### Critical invariant
 
@@ -352,8 +376,8 @@ After `BuildSegmentPrefabs` finishes, `CreateTask` builds the top-level task hie
 │   Task.requireInteraction = true           (default; overridden at runtime by MQTT)
 │
 ├── Corridor000          localPosition = (0, 0, 0)
-│   ├── <segment0>       localPosition = (0, 0, 0)
-│   ├── <segment0>       localPosition = (0, 0, segmentLengths[0])   ← same segment, re-instantiated
+│   ├── <segment0>       localPosition = (0, 0, -cueOffsetUnity)
+│   ├── <segment0>       localPosition = (0, 0, segmentLengths[0] - cueOffsetUnity)   ← same segment, re-instantiated
 │   ├── ... (segments_per_corridor instances total)
 │   └── Padding          localPosition = (0, 0, depth * min(segmentLengths) - 1)
 │
@@ -364,6 +388,14 @@ After `BuildSegmentPrefabs` finishes, `CreateTask` builds the top-level task hie
 ```
 
 Rules enforced by the assembly loop:
+- Every segment and padding instance is reparented with `worldPositionStays: false` and then shifted by a
+  `localPosition +=` addition, so each instance keeps its prefab root's authored `localPosition` and the Z shift
+  stacks on top of it. Each segment adds `(0, 0, zShift)`, the running total of the segment lengths placed before
+  it. Segment roots are authored at `(0, 0, -cueOffsetUnity)`, which is why the corridor's first segment sits at
+  `-cueOffsetUnity` rather than at the origin. The padding instance adds `(0, 0, paddingZShift)`, a separate value,
+  and `Padding.prefab`'s root sits at the origin, so its shift resolves to the value shown above.
+  Each `Corridor<indices>` root is parented with the default `worldPositionStays` and receives its X spacing through a
+  direct `localPosition` assignment.
 - Only the **first** segment in each corridor retains its `StimulusTriggerZone` and `ResetZone`. Later segments are
   visual-only and have their zones stripped (`DestroyImmediate`).
 - The first segment's `StimulusTriggerZone.showBoundary` is read directly from
@@ -427,25 +459,29 @@ affects both flows. Test through both the menu and the MCP tools after any pipel
 `/zone-prefabs` worked examples cover a speed-gated interaction reward and a cumulative-occupancy variant end to end.
 The recipe holds as long as the new mode is a zone modifier (subclass an existing zone, or a standalone `IResettable`
 registered in `ResetZone`) on a copied zone prefab whose root subclasses `StimulusTriggerZone` and publishes the
-standard `Stimulus{trialName}` event. Escalate to the human supervisor only when the behavior needs a new MQTT topic,
+standard `Stimulus` event. Escalate to the human supervisor only when the behavior needs a new MQTT topic,
 new `Task.cs` runtime mechanics, or geometry outside a single corridor segment — those are paradigm-level and have no
 author-derived recipe.
 
 This skill owns the **`CreateTask` pipeline edits** for a new `TriggerType`. The full cross-cutting
 recipe is split three ways:
 
-| Slice                                        | Owning skill                                  |
-|----------------------------------------------|-----------------------------------------------|
-| Python registry + `TriggerType` enum         | `assets:library-extension`            |
-| Hand-authored zone prefab manufacturing      | `/zone-prefabs`                               |
-| `CreateTask` pipeline edits                  | this skill (steps 1–3 below)                  |
+| Slice                                   | Owning skill                 |
+|-----------------------------------------|------------------------------|
+| Python registry + `TriggerType` enum    | `assets:library-extension`   |
+| Hand-authored zone prefab manufacturing | `/zone-prefabs`              |
+| `CreateTask` pipeline edits             | this skill (steps 1–3 below) |
 
 Apply your three skills' bullets in order. The pipeline-side touches owned here:
 
 1. Extend the `trigger_type` literal check in `ConfigLoader.ValidateTemplate` (currently accepts
-   `"interaction"`, `"collision"`, `"occupancy_disarm"`, `"occupancy_arm"`, and `"occupancy_trigger"`); without
-   this, every template that uses the new value fails at load time. Validation is mode-aware: `collision` validates
-   only `stimulus_location` (no trigger zone); `occupancy_trigger` validates only the trigger zone (no boundary);
+   `"interaction"`, `"collision"`, `"occupancy_disarm"`, `"occupancy_arm"`, and `"occupancy_trigger"`). Without
+   this, every template that uses the new value fails at load time. The same method also gates
+   `occupancy_duration_ms`, requiring it to be set for `occupancy_disarm`, `occupancy_arm`, and
+   `occupancy_trigger`, and requiring it to be positive whenever it is present. Extend that gate too when the new
+   mode reads a duration. Mode-aware zone, boundary, and ordering validation lives on the Python side, in
+   `TaskTemplate._validate_zone_positions` (`sollertia-shared-assets`, `configuration/vr_configuration.py`), where
+   `collision` validates only `stimulus_location`, `occupancy_trigger` validates only the trigger zone, and
    `interaction`, `occupancy_disarm`, and `occupancy_arm` validate the zone, the boundary, and their ordering.
 2. Add a new `if (trial.triggerType == "<new>")` branch in `BuildSegmentPrefabs` and a
    corresponding `Place<New>Zone` helper following the pattern of `PlaceInteractionZone` /
@@ -469,7 +505,7 @@ acquisition system maps only the subset it supports and may leave a member unmap
 (→ `MesoscopeGasPuffTrial`), and does not map `collision`, `occupancy_arm`, or `occupancy_trigger`, so a
 Mesoscope-VR config that uses one of those raises a clear "not mapped to a runtime trial class" error.
 All five modes share one MQTT/wire contract:
-every mode publishes the same `Stimulus{trialName}` event, adds no topics, and does not change
+every mode publishes the same `Stimulus` event, adds no topics, and does not change
 `require_interaction` / `require_wait`. `list_supported_trigger_types_tool` returns all five values.
 
 ### Adding a new cue or segment
@@ -482,7 +518,9 @@ or other binary image assets. To add a new cue texture:
    `code`, `length_cm`, and target filename. The user imports the `.png` (or compatible image) and then loops you back
    to continue. You MUST NOT let generation dead-end in a `Failed to load texture` error.
 2. Reference the filename from the YAML template's `cues[].texture` field together with a unique `name`,
-   `code`, and `lengthCm`.
+   `code`, and `length_cm`. `ConfigLoader` deserializes with `UnderscoredNamingConvention` and
+   `IgnoreUnmatchedProperties`, so an unrecognized key is dropped in silence and the cue then fails validation with
+   `Cue '<name>' has invalid length 0. Must be positive.`
 3. Regenerate the task via `create_task_tool`; the cue prefab and matching material are created automatically
    under `Cues/Cue_<name>_<length>cm.prefab` and `Materials/Cue_<name>_<length>cm.mat`.
 
@@ -529,13 +567,15 @@ manual, verify-before-done step.
 
 ## Related skills
 
-| Skill                                    | Relationship                                                       |
-|------------------------------------------|--------------------------------------------------------------------|
-| `/task-prefabs` (this plugin)            | Consumer — invokes `create_task_tool` and validates output         |
-| `/mqtt-contract` (this plugin)           | Zone scripts (authored here) own MQTT topics described there       |
-| `/gimbl-framework` (this plugin)         | Segment prefabs place GIMBL-derived `Actor` coordinate frame usage |
-| `assets:task-templates`          | Upstream — owns YAML authoring and schema evolution                |
-| `ataraxis@automation:csharp-style`      | Enforced when editing `CreateTask.cs` or adding new generator code |
+`automation:csharp-style` (ataraxis marketplace) is the only external-marketplace skill referenced below.
+
+| Skill                            | Relationship                                                       |
+|----------------------------------|--------------------------------------------------------------------|
+| `/task-prefabs` (this plugin)    | Consumer, invokes `create_task_tool` and validates output          |
+| `/mqtt-contract` (this plugin)   | Zone scripts (authored here) own MQTT topics described there       |
+| `/gimbl-framework` (this plugin) | Segment prefabs place GIMBL-derived `Actor` coordinate frame usage |
+| `assets:task-templates`          | Upstream, owns YAML authoring and schema evolution                 |
+| `automation:csharp-style`        | Enforced when editing `CreateTask.cs` or adding new generator code |
 | `experiment:vr-driver-interface` | Host decomposes the cue sequence these generated prefabs render    |
 
 ---

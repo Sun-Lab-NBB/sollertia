@@ -1,7 +1,7 @@
 # sle Python wrapper conventions
 
-These conventions extend or deviate from `ataraxis@communication:microcontroller-interface` and apply
-to every `ModuleInterface` subclass in `src/sollertia_experiment/cross_system/module_interfaces.py`.
+These conventions extend or deviate from `communication:microcontroller-interface` (ataraxis marketplace)
+and apply to every `ModuleInterface` subclass in `src/sollertia_experiment/cross_system/module_interfaces.py`.
 See [`../SKILL.md`](../SKILL.md) for the registry, cross-side contract, and workflows that govern
 this layer.
 
@@ -24,9 +24,11 @@ this layer.
 
 ## Constructor signature
 
-The wrapper's `__init__` exposes **calibration and policy parameters as keyword arguments only** and
-fixes the contract identity inside the `super().__init__(...)` call. What is fixed versus caller-supplied
-is not a single blanket rule:
+The wrapper's `__init__` exposes **calibration and policy parameters as regular parameters that call sites
+pass by keyword**, and fixes the contract identity inside the `super().__init__(...)` call. Constructors
+carry no `*` separator. True keyword-only syntax is reserved for the binary state setters described under
+[Public-method patterns](#public-method-patterns). What is fixed versus caller-supplied is not a single
+blanket rule:
 
 - **`module_type` is always hardcoded.** This is an architectural decision: a wrapper class is
   permanently bound to one firmware module type, and the caller never supplies it.
@@ -69,15 +71,19 @@ configuration (e.g., `valve_calibration_data` is the calibration tuple, not a ra
 ## Calibration math in `__init__`
 
 Unit conversions and calibration-driven derived quantities are computed in `__init__` and cached as
-`np.float64` instance attributes rounded to 8 decimals for repeatability. Examples:
+`np.float64` instance attributes at full precision. Examples:
 
-- `EncoderInterface`: `_cm_per_pulse = round(pi * wheel_diameter / ppr, 8)` in `__init__`;
+- `EncoderInterface`: `_cm_per_pulse = np.float64((pi * wheel_diameter) / ppr)` in `__init__`.
   `_unity_unit_per_pulse` is derived later in `set_unity_scale(cm_per_unity_unit)` (called at
   experiment start with the conversion value read from the active `TaskTemplate`), not in `__init__`
-- `TorqueInterface`: `_torque_per_adc_unit = round(sensor_capacity * 0.00981 / (max_v - baseline_v), 8)`
+- `TorqueInterface`: `_torque_per_adc_unit = np.float64(sensor_capacity) * np.float64(0.00981) / (max_v - baseline_v)`
 - `BrakeInterface`: minimum/maximum strength in g·cm converted to N·cm using `0.00981`
 - `WaterValveInterface`: `curve_fit` of the power-law model yields `_scale_coefficient` and
-  `_nonlinearity_exponent`, both rounded to 8 decimals
+  `_nonlinearity_exponent`, both stored as `np.float64`
+
+Rounding happens at the point of use, where a derived value becomes an integer command argument.
+`WaterValveInterface` rounds the millisecond-to-microsecond tone conversion in `deliver_reward` and
+`simulate_reward`, and rounds the pulse duration it returns from `get_duration_from_volume`.
 
 When a module's calibration requires unit conversion, perform it **in the wrapper**, not in the
 binding-class layer. Binding classes pass raw user-input values to the wrapper unchanged.
@@ -99,12 +105,15 @@ fourth: **`initialize_local_assets()`**.
 | `terminate_remote_assets`  | communication subprocess | Disconnect from shared memory                                                                          |
 | `__del__`                  | parent                   | `disconnect()` then `destroy()` the shared memory                                                      |
 
-The `initialize_local_assets()` method is sle-specific; it is called explicitly by binding-class code
-before the communication subprocess starts. Wrappers that do not use shared memory may omit it (the
-inherited base behavior is a no-op).
+The `initialize_local_assets()` method is sle-specific. Binding-class code calls it explicitly, immediately
+after each `MicroControllerInterface.start()` has spawned its communication subprocess, so the parent
+process connects to the shared-memory buffers while the subprocesses are already running. The ataraxis
+`ModuleInterface` base declares only `initialize_remote_assets`, `terminate_remote_assets`, and
+`process_received_data`, so there is no inherited default to fall back on.
 
-Wrappers without shared memory (e.g., `BrakeInterface`, `TorqueInterface`, `ScreenInterface`) leave
-both remote-asset methods as `return` no-ops.
+Wrappers without shared memory (e.g., `BrakeInterface`, `TorqueInterface`, `ScreenInterface`) omit
+`initialize_local_assets()` and leave both remote-asset methods as `return` no-ops. Binding classes call
+`initialize_local_assets()` only on the wrappers that define it.
 
 ---
 
