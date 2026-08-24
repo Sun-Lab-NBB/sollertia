@@ -273,7 +273,8 @@ calls `resume_after_unity_restart()`, which re-arms Unity through the bridge and
 
 The driver, its event model, the MQTT topic contract, the editor bridge, and the trial-decomposition layer
 are documented in `experiment:vr-driver-interface`. The Unity side of the contract is documented in
-`unity:gimbl-framework`, `unity:mqtt-contract`, `unity:play-mode`, and `unity:scene-setup`.
+`unity:gimbl-framework`, `unity:mqtt-contract`, `unity:play-mode`, `unity:task-scenes`, and
+`unity:scene-setup`.
 
 ---
 

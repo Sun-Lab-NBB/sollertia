@@ -212,7 +212,8 @@ slsa state, so this skill may call it. See `video:camera-setup` for the canonica
 invoke `check_mqtt_broker_tool`; if the broker is unreachable, instruct the user to start their broker service
 (e.g. Mosquitto) before continuing. Then invoke `check_unity_bridge_tool` (CLI: `sle get unity`); if it reports
 the bridge unreachable, instruct the user to open the Unity project in the editor — its MCP bridge auto-starts —
-before running an experiment session.
+before running an experiment session. If the Editor is already open and the bridge is still unreachable, see
+`unity:unity-mcp-environment-setup` for the Editor-side listener diagnostic.
 
 **Face-camera pose-inference environment.** When the active system configuration declares a video-tracking conda
 environment and a DeepLabCut project path, both must resolve on the host before an experiment session can be
@@ -312,18 +313,19 @@ hand off to the assets plugin skill that owns the affected asset.
 
 ## Related skills
 
-| Skill                                 | Relationship                                                            |
-|---------------------------------------|-------------------------------------------------------------------------|
-| `assets:working-directory`            | Owns bootstrap state (working dir, credentials, templates dir)          |
-| `mesoscope:mesoscope-vr`              | Owns `MesoscopeSystemConfiguration` authoring and validation            |
-| `forging:server-configuration`        | Owns `ServerConfiguration` authoring and validation                     |
-| `assets:project-hierarchy`            | Owns project creation (`create_project_tool`)                           |
-| `assets:task-templates`               | Owns task template authoring                                            |
-| `assets:experiment-configuration`     | Owns per-project experiment configuration authoring                     |
-| `/system-health-check`                | Lighter-weight pre-session verification sweep                           |
-| `/pipeline`                           | Phase 3 (Hardware bringup) is owned by this skill                       |
-| `video:camera-setup`                  | Canonical home for CTI configuration and runtime requirement deep-dives |
-| `communication:microcontroller-setup` | Canonical home for microcontroller manifest and discovery deep-dives    |
+| Skill                                 | Relationship                                                               |
+|---------------------------------------|----------------------------------------------------------------------------|
+| `assets:working-directory`            | Owns bootstrap state (working dir, credentials, templates dir)             |
+| `mesoscope:mesoscope-vr`              | Owns `MesoscopeSystemConfiguration` authoring and validation               |
+| `forging:server-configuration`        | Owns `ServerConfiguration` authoring and validation                        |
+| `assets:project-hierarchy`            | Owns project creation (`create_project_tool`)                              |
+| `assets:task-templates`               | Owns task template authoring                                               |
+| `assets:experiment-configuration`     | Owns per-project experiment configuration authoring                        |
+| `/system-health-check`                | Lighter-weight pre-session verification sweep                              |
+| `/pipeline`                           | Phase 3 (Hardware bringup) is owned by this skill                          |
+| `video:camera-setup`                  | Canonical home for CTI configuration and runtime requirement deep-dives    |
+| `communication:microcontroller-setup` | Canonical home for microcontroller manifest and discovery deep-dives       |
+| `unity:unity-mcp-environment-setup`   | Editor-side McpBridge listener diagnostic behind `check_unity_bridge_tool` |
 
 ---
 

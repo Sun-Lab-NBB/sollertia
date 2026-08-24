@@ -279,8 +279,8 @@ systems** registry).
 | Drive the Unity VR task / MQTT coupling           | `/vr-driver-interface`                                                             |
 | Design a new acquisition system (static)          | `/acquisition-system-design`                                                       |
 | Implement an acquisition-system runtime loop      | `/acquisition-system-runtime`                                                      |
-| Generate / verify Unity task prefab from template | `unity:task-prefabs`                                                               |
-| Open / create a Unity scene                       | `unity:task-scenes`                                                                |
+| Generate / verify a Unity task (prefab + scene)   | `unity:task-prefabs`                                                               |
+| Open / inspect a Unity scene                      | `unity:task-scenes`                                                                |
 | Enter / exit Unity Play Mode                      | `unity:play-mode`                                                                  |
 
 ---

@@ -139,7 +139,7 @@ verify each phase's handoff condition before starting the next.
 ### Phase 4: Corridor task
 
 - **Plugin / Skill:** `assets:task-templates` (author the `TaskTemplate`) → unity plugin
-  `unity:task-prefabs` and `unity:task-scenes` (generate the prefab and scene).
+  `unity:task-prefabs` (`create_task_tool` generates the prefab and the scene in one call).
 - **Actions:** Author a corridor task template for the system. Every Sollertia system runs the linear
   infinite corridor, so a new system reuses the existing corridor — this is template authoring rather
   than new scene engineering. The experiment configuration's `unity_scene_name` must match the task
@@ -282,7 +282,7 @@ through these same skills.
 | Implement the runtime loop, modes, CLI, MCP module             | `/acquisition-system-runtime`                     |
 | Couple the runtime to the Unity VR task                        | `/vr-driver-interface`                            |
 | Author the corridor task template                              | `assets:task-templates`                           |
-| Generate the Unity prefab / scene from the template            | `unity:task-prefabs` / `unity:task-scenes`        |
+| Generate the Unity prefab / scene from the template            | `unity:task-prefabs`                              |
 | Author a read / write external data-service processor          | `/google-sheets-processing`                       |
 | Register a new external read asset                             | `assets:library-extension` / `assets:data-assets` |
 | Register a new external-service credential category            | `assets:library-extension`                        |
