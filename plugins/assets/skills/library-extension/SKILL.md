@@ -273,13 +273,14 @@ framing and pointers cover the new member as well:
 ### Adding a new `TriggerType` member
 
 This skill owns the **Python registry slice** of the cross-cutting recipe. The full extension is
-split three ways and each skill owns its slice — apply all three:
+split four ways and each skill owns its slice, so apply all four:
 
 | Slice                                                                                             | Owning skill                      |
 |---------------------------------------------------------------------------------------------------|-----------------------------------|
 | Python `TriggerType` enum + per-supporting-system `from_task_template` branch (this skill, below) | `/library-extension` (this skill) |
 | Zone prefab manufacturing (`clone_zone_prefab_tool`)                                              | `unity:zone-prefabs`              |
 | `CreateTask` pipeline edits + `DeleteProtectedPaths`                                              | `unity:task-generator`            |
+| EditMode / PlayMode test updates                                                                  | `unity:unity-tests`               |
 
 The platform `TriggerType` enum carries the full taxonomy — currently five members: `INTERACTION`,
 `COLLISION`, `OCCUPANCY_DISARM`, `OCCUPANCY_ARM`, and `OCCUPANCY_TRIGGER` (the C# `ConfigLoader`
@@ -420,8 +421,10 @@ resolves inside the sollertia marketplace.
 | `forging:project-manifest`                 | Tabulates new session types in the project manifest                                                                                                                                                        |
 | `forging:dataset-forging-input-format`     | Decides eligibility of new session types for dataset forging                                                                                                                                               |
 | `unity:zone-prefabs`                       | Manufactures the trigger zone prefab a new `TriggerType` member needs (`clone_zone_prefab_tool`)                                                                                                           |
+| `unity:task-generator`                     | Owns the `CreateTask` pipeline edits and `DeleteProtectedPaths` a new `TriggerType` member needs                                                                                                           |
 | `unity:task-prefabs`                       | Generates Unity prefabs for new `TriggerType` members                                                                                                                                                      |
-| `unity:task-scenes`                        | Authors Unity scenes for new acquisition systems                                                                                                                                                           |
+| `unity:unity-tests`                        | Owns the EditMode / PlayMode fixtures a new `TriggerType` member breaks by design                                                                                                                          |
+| `unity:task-scenes`                        | Opens and inspects the scenes generated for new acquisition systems                                                                                                                                        |
 | `automation:commit`                        | Should be invoked after the cross-cutting changes land                                                                                                                                                     |
 | `experiment:vr-driver-interface`           | Decomposes the VR cue sequence into `DecomposedTrials` (`trial_names`); the `TriggerType` enum lives in `sollertia-shared-assets`                                                                          |
 

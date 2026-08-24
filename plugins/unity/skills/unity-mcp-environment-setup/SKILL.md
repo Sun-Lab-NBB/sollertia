@@ -284,9 +284,9 @@ but first-call latency can stretch to several seconds. Re-focus the Editor windo
 
 ## Adding a bridge tool
 
-`sollertia-virtual-reality`'s extension table marks the `McpBridge` tool row as owned by no skill, so this section is
-the contract. A new tool is **two** changes in **two** repositories, and shipping only the Unity half leaves the tool
-unreachable from Claude.
+`sollertia-virtual-reality`'s extension table routes the `McpBridge` tool row here, so this section is the contract. A
+new tool is **two** changes in **two** repositories, and shipping only the Unity half leaves the tool unreachable from
+Claude.
 
 ### Unity side
 

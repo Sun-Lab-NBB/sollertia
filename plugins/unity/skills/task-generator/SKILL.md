@@ -316,15 +316,16 @@ supervisor only when the behavior needs a new MQTT topic, new `Task.cs` runtime 
 corridor segment. Those are paradigm-level and have no author-derived recipe.
 
 This skill owns the **`CreateTask` pipeline edits** for a new `TriggerType`. The full cross-cutting recipe is split
-three ways:
+four ways:
 
 | Slice                                   | Owning skill                    |
 |-----------------------------------------|---------------------------------|
 | Python registry + `TriggerType` enum    | `assets:library-extension`      |
 | Hand-authored zone prefab manufacturing | `/zone-prefabs`                 |
 | `CreateTask` pipeline edits             | this skill (steps 1 to 3 below) |
+| EditMode / PlayMode test updates        | `/unity-tests`                  |
 
-Apply your three skills' bullets in order. The pipeline-side touches owned here:
+Apply all four skills' bullets in order. The pipeline-side touches owned here:
 
 1. Extend the `trigger_type` literal check in `ConfigLoader.ValidateTemplate` (currently accepts `"interaction"`,
    `"collision"`, `"occupancy_disarm"`, `"occupancy_arm"`, and `"occupancy_trigger"`). Without this, every template that
@@ -354,8 +355,9 @@ Apply your three skills' bullets in order. The pipeline-side touches owned here:
       caught before any mutation.
    3. `McpBridge.CloneSourcePrefabs`, if the new prefab is to serve as a sanctioned `clone_zone_prefab` source.
 
-Coordinate the prefab manufacturing through `/zone-prefabs` Step 7 and the Python registry parity through assets
-`assets:library-extension` "Adding a new `TriggerType` member" so each skill bullets only its own substeps.
+Coordinate the prefab manufacturing through `/zone-prefabs` Step 7, the Python registry parity through
+`assets:library-extension` "Adding a new `TriggerType` member", and the fixture updates through `/unity-tests`, so each
+skill bullets only its own substeps.
 
 The platform `TriggerType` enum carries all five members (`INTERACTION`, `COLLISION`, `OCCUPANCY_DISARM`,
 `OCCUPANCY_ARM`, `OCCUPANCY_TRIGGER`), and the C# `ConfigLoader` accepts all five literals. System support is a
@@ -365,7 +367,7 @@ A configuration that uses an unmapped mode then raises a clear "not mapped to a 
 per-system mapping table lives in that system's own plugin, and for Mesoscope-VR that is
 `mesoscope:mesoscope-vr-experiment-schema`. All five modes share one MQTT/wire contract, so every mode publishes the
 same `Stimulus` event, adds no topics, and does not change `require_interaction` / `require_wait`.
-`list_supported_trigger_types_tool` returns all five values.
+`assets:task-templates` owns `list_supported_trigger_types_tool`, which returns all five values.
 
 ### Adding a new cue or segment
 

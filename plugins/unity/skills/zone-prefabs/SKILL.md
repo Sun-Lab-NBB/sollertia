@@ -339,20 +339,21 @@ handles routine variants in one call.
 
 ## Related skills
 
-| Skill                                        | Relationship                                                                                       |
-|----------------------------------------------|----------------------------------------------------------------------------------------------------|
-| `/task-prefabs` (this plugin)                | Generates the task prefabs that instantiate zone prefabs, and provides `inspect_prefab_tool`       |
-| `/task-generator` (this plugin)              | Reference for `BuildSegmentPrefabs`, `Place...Zone`, and validator updates                         |
-| `/task-parameters` (this plugin)             | Reference if the new zone exposes Inspector-driven fields                                          |
-| `/task-scenes` (this plugin)                 | Consumer, places the regenerated task prefab into a scene                                          |
-| `/play-mode` (this plugin)                   | Consumer, exercises the new zone at runtime                                                        |
-| `/mqtt-contract` (this plugin)               | Reference if the new modifier publishes or subscribes to MQTT topics                               |
-| `/unity-mcp-environment-setup` (this plugin) | Run first if the Unity Editor bridge is unreachable                                                |
-| `/unity-tests` (this plugin)                 | Owns the EditMode / PlayMode suites and the assembly layout a new zone script joins                |
-| `assets:library-extension`                   | Required for the Python `TriggerType` enum member and the per-system `from_task_template` decision |
-| `automation:csharp-style`                    | Required when authoring the new modifier script and editing C# wiring                              |
-| `automation:commit`                          | Run after the prefab, script, and wiring changes are ready to commit                               |
-| `experiment:vr-driver-interface`             | Host consumes the `Stimulus` events these zones emit, joined via `DecomposedTrials.trial_names`    |
+| Skill                                        | Relationship                                                                                          |
+|----------------------------------------------|-------------------------------------------------------------------------------------------------------|
+| `/task-prefabs` (this plugin)                | Regenerates task prefabs (`delete_task_tool` + `create_task_tool`) and provides `inspect_prefab_tool` |
+| `/task-generator` (this plugin)              | Reference for `BuildSegmentPrefabs`, `Place...Zone`, and validator updates                            |
+| `/task-parameters` (this plugin)             | Reference if the new zone exposes Inspector-driven fields                                             |
+| `/task-scenes` (this plugin)                 | Consumer, opens and inspects the scene holding the regenerated task                                   |
+| `/play-mode` (this plugin)                   | Consumer, exercises the new zone at runtime                                                           |
+| `/mqtt-contract` (this plugin)               | Reference if the new modifier publishes or subscribes to MQTT topics                                  |
+| `/gimbl-framework` (this plugin)             | Reference for the GIMBL vs `SL.*` split a new modifier script must respect                            |
+| `/unity-mcp-environment-setup` (this plugin) | Run first if the Unity Editor bridge is unreachable                                                   |
+| `/unity-tests` (this plugin)                 | Owns the EditMode / PlayMode suites and the assembly layout a new zone script joins                   |
+| `assets:library-extension`                   | Required for the Python `TriggerType` enum member and the per-system `from_task_template` decision    |
+| `automation:csharp-style`                    | Required when authoring the new modifier script and editing C# wiring                                 |
+| `automation:commit`                          | Run after the prefab, script, and wiring changes are ready to commit                                  |
+| `experiment:vr-driver-interface`             | Host consumes the `Stimulus` events these zones emit, joined via `DecomposedTrials.trial_names`       |
 
 ---
 

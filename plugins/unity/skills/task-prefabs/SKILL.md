@@ -147,6 +147,9 @@ Multi-line values align continuation text with the first character after the fie
 # Related: MF_Reward (the base version of this task that only includes the reward zone)
 ```
 
+A write through `assets:task-templates`' `write_template_tool` drops this header, because that skill owns the tool and
+its serialization behavior. Restore the header block by hand after any such write and before calling `create_task_tool`.
+
 Header guidelines:
 - **Project:** Full project name, not the abbreviation.
 - **Purpose:** Single sentence starting with a verb (Defines, Extends, Teaches).

@@ -248,7 +248,8 @@ the camera/microcontroller/Zaber/MQTT failure modes.
 5. **Configuration invalid** — hand off to the active acquisition system's skill (currently
    `mesoscope:mesoscope-vr`, for the `mesoscope` system) to correct the system configuration.
 6. **Unity bridge unreachable** (sessions that run the corridor task) — open the Unity project in the editor so
-   its MCP bridge auto-starts (confirm with `sle get unity`); hand off to `/vr-driver-interface`.
+   its MCP bridge auto-starts and confirm with `sle get unity`. Hand off to `/vr-driver-interface`, or to
+   `unity:unity-mcp-environment-setup` when the Editor is already open and the listener is still unreachable.
 7. **System-specific control interface unreachable** — hand off to the active system's skill to bring it up
    (for the `mesoscope` system, the ScanImage control bridge; see `mesoscope:mesoscope-vr`).
 
@@ -261,6 +262,7 @@ the camera/microcontroller/Zaber/MQTT failure modes.
 | `/acquisition-system-setup`           | Owns the full hardware-discovery sweep this skill hands off to                                   |
 | `mesoscope:mesoscope-vr`              | Active acquisition system's skill (`mesoscope`), owns config/validation and the ScanImage bridge |
 | `/vr-driver-interface`                | Owns the shared Unity editor bridge check (`check_unity_bridge_tool`) for corridor-task sessions |
+| `unity:unity-mcp-environment-setup`   | Editor-side McpBridge listener diagnostic when the Editor is open but unreachable                |
 | `/experiment-mcp-environment-setup`   | Run first if the `sle mcp` server is not connected                                               |
 | `/pipeline`                           | Phase 5 (pre-session health check) is owned by this skill                                        |
 | `assets:working-directory`            | Fixes data-root / credentials / templates prerequisites                                          |

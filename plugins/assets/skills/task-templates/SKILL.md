@@ -408,6 +408,11 @@ Pass `overwrite=True` only when intentionally replacing an existing template.
 On success the tool returns a `summary` (cue/trial counts plus `cue_offset_cm`); on failure it
 returns an `issues` list. Fix any reported issues and re-write before handing off.
 
+`write_template_tool` re-serializes through the canonical `to_yaml`, so it writes no comments and
+drops any that a rewritten file already carried. Re-apply the mandatory header block and the filename
+convention owned by `unity:task-prefabs` ("Template header", "File naming") before handing off in
+Step 6.
+
 ### Step 6: Hand off for Unity task creation
 
 When the template targets a Unity scene, hand off to the **`unity:task-prefabs`** and

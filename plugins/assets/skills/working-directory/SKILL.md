@@ -116,8 +116,9 @@ geometry, and trigger type — there is no separate segment catalog at the templ
 typically the path to the local sollertia-virtual-reality repository's template directory:
 `<local-repo>/Assets/InfiniteCorridorTask/Configurations/`. The MCP `create_task_tool` refuses
 templates outside that directory (see `unity_tools.py`), and the Unity-side `CreateFromTemplate`
-generator scans the same directory (see the unity plugin's skills), so this directory is the
-single source of truth — keep it pointed at the canonical repo path.
+generator scans the same directory (see `unity:task-prefabs` for `create_task_tool` and
+`unity:task-generator` for the generator's directory scan), so this directory is the single source of
+truth. Keep it pointed at the canonical repo path.
 
 Templates are **project-agnostic** — the same template can back many per-project experiment
 configuration instances across different projects and even across different hosts.
@@ -334,6 +335,7 @@ below summarize where each downstream skill picks up after the working directory
 | `experiment:acquisition-system-design` | Working directory                                        |
 | `forging:server-configuration`         | Working directory                                        |
 | `/task-templates`                      | Working directory + task templates directory             |
+| `unity:task-prefabs`                   | Templates directory, pointed at Unity `Configurations/`  |
 | `/experiment-configuration`            | Working directory                                        |
 | `/project-hierarchy`                   | Working directory; optionally the persisted data root    |
 | `/session-data`                        | Working directory                                        |

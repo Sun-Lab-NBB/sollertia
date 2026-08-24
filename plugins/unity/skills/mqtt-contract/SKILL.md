@@ -40,6 +40,8 @@ alternative for `RequireInteraction` / `RequireWait`), and `/play-mode` (mid-run
   `experiment:vr-driver-interface`)
 - The Task Parameters MCP surface that mirrors `RequireInteraction` / `RequireWait` at editor time (see
   `/task-parameters`)
+- Authoring the zone prefab, its modifier script, and the generator placement branch whose channels carry these topics
+  (see `/zone-prefabs`, `/task-generator`)
 
 ---
 
@@ -416,16 +418,17 @@ likely cause and first check.
 
 ## Related skills
 
-| Skill                            | Relationship                                                                                |
-|----------------------------------|---------------------------------------------------------------------------------------------|
-| `/gimbl-framework` (this plugin) | Owns `MQTTClient`, `MQTTChannel`, and `MQTTChannel<T>` class references                     |
-| `/task-prefabs` (this plugin)    | Generated prefabs wire the zones whose scripts own these topics                             |
-| `/task-parameters` (this plugin) | Editor-time alternative for `RequireInteraction` / `RequireWait` flags                      |
-| `/scene-setup` (this plugin)     | `UI-lick-reward` subsystem subscribes to `Interaction` and `Stimulus`                       |
-| `/play-mode` (this plugin)       | MQTT activity is only live while the Editor is in `playing` state                           |
-| `/unity-tests` (this plugin)     | `MQTTTopicsTests` pins this catalog, and `MqttTestHarness` needs no broker                  |
-| `assets:task-templates`          | YAML cue codes appear as `byte` values in `CueSequence` payloads                            |
-| `experiment:vr-driver-interface` | Host (Python) side, where `_VRTaskMQTTTopics` mirrors this catalog, so change both together |
+| Skill                                            | Relationship                                                                                  |
+|--------------------------------------------------|-----------------------------------------------------------------------------------------------|
+| `/gimbl-framework` (this plugin)                 | Owns `MQTTClient`, `MQTTChannel`, and `MQTTChannel<T>` class references                       |
+| `/task-prefabs` (this plugin)                    | Generated prefabs wire the zones whose scripts own these topics                               |
+| `/zone-prefabs`, `/task-generator` (this plugin) | Own the zone prefab and the placement branch whose scripts construct channels on these topics |
+| `/task-parameters` (this plugin)                 | Editor-time alternative for `RequireInteraction` / `RequireWait` flags                        |
+| `/scene-setup` (this plugin)                     | `UI-lick-reward` subsystem subscribes to `Interaction` and `Stimulus`                         |
+| `/play-mode` (this plugin)                       | MQTT activity is only live while the Editor is in `playing` state                             |
+| `/unity-tests` (this plugin)                     | `MQTTTopicsTests` pins this catalog, and `MqttTestHarness` needs no broker                    |
+| `assets:task-templates`                          | YAML cue codes appear as `byte` values in `CueSequence` payloads                              |
+| `experiment:vr-driver-interface`                 | Host (Python) side, where `_VRTaskMQTTTopics` mirrors this catalog, so change both together   |
 
 ---
 

@@ -348,8 +348,12 @@ than rejected). `mqtt.port` is bounded to `[0, 65535]` because the value reaches
 `EditorPrefs` entry a fresh session reloads from. `display.current_brightness` / `brightness` / `height_in_vr` must
 convert to finite floats but are not range-checked, and nothing downstream clamps or warns. `PerspectiveProjection`
 passes `currentBrightness` straight to the display shader, so an out-of-range value writes and takes effect silently.
-`task.track_length` must be strictly positive and finite, so zero and negative values are rejected. `task.track_seed`
-must convert to a 32-bit integer.
+`task.track_length` must be strictly positive and finite, so zero and negative values are rejected, and that bridge
+bound is the only check applied here. A `track_length` too short to cover the template's corridor still writes
+successfully and then disables the `Task` at the next Play Mode entry with `Task: trackLength <n> is too short for
+template '<name>'.` `/task-generator` owns that runtime contract and `ValidateTrackLengthCoversCorridor`, the
+generation-time gate that keeps it unreachable at the generated value. `task.track_seed` must convert to a 32-bit
+integer.
 
 The zone-gated rejection of `require_interaction` and `require_wait` is **intentional**, because a successful write
 guarantees the flag will actually take effect at runtime. The bridge says so verbatim, in `Cannot set
@@ -426,6 +430,7 @@ Camera mapping is the exception to the repaint caveat: the bridge reuses the ope
 | `/scene-setup` (this plugin)                 | Upstream, owns the `MainWindow` GUI and the auto-creation of Actors / Controllers / Displays |
 | `/play-mode` (this plugin)                   | Upstream, `get_play_state_tool` gates writes that the GUI greys out at runtime               |
 | `/task-prefabs` (this plugin)                | Upstream, generates the task prefab whose `Task` component this skill mutates                |
+| `/task-generator` (this plugin)              | Owns the `Task.cs` startup contract that a lowered `task.track_length` violates              |
 | `/mqtt-contract` (this plugin)               | Reference for the `RequireInteraction` / `RequireWait` runtime alternative to `task` writes  |
 | `/gimbl-framework` (this plugin)             | Reference for `ActorObject`, `DisplayObject`, `MQTTClient`, and `ControllerOutput` semantics |
 | `assets:assets-mcp-environment-setup`        | Upstream, owns the slsa MCP server diagnostic                                                |
