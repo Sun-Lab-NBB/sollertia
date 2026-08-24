@@ -41,7 +41,9 @@ Cue_<name>_<length>cm
 
 ## Cue build internals (`BuildCuePrefabs`)
 
-The pass runs once per declared cue, in this order:
+Shader resolution through `LoadReferenceCueShader` runs once for the whole pass, before the first cue is
+examined, so its missing-reference warning and folder scan fire once per invocation rather than once per cue.
+The per-cue sequence then runs, in this order:
 
 1. **Resolve the asset stem** `Cue_<name>_<lengthLabel>cm` and derive both the prefab and the material path from it.
    Cue assets are keyed by `(name, length_cm)` only, so every template that declares a matching cue shares them.
@@ -57,8 +59,8 @@ The pass runs once per declared cue, in this order:
 4. **Skip only when BOTH assets survive.** The skip-if-exists test requires the prefab *and* its material. A material
    deleted from under a surviving prefab leaves that prefab rendering untextured, so `BuildCuePrefabs` deletes the
    surviving prefab and rebuilds both — `SaveAsPrefabAsset` merges into a same-named asset already at the path, and
-   that merge would otherwise keep both wall renderers on the deleted material.
-5. **Resolve the shader** through `LoadReferenceCueShader` and build the two quads.
+   that merge would otherwise keep both wall renderers on the deleted material. The two quads are then built
+   from the already-resolved shader and saved.
 
 ### Cue shader resolution
 

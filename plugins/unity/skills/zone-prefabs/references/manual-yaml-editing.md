@@ -97,7 +97,9 @@ For a newly authored script, read its `.cs.meta` to extract the freshly minted G
 
 `PlaceCollisionZone` reuses `StimulusTriggerZone.prefab` as a bare boundary wall and destroys its
 `GuidanceRegion` child at generation (`CreateTask.cs:1199-1204`), so a region added to that template
-survives the `interaction` placement branch but not the `collision` one.
+survives the `interaction` placement branch, and survives the `collision` one too unless it carries a
+`GuidanceZone` (or subclass) found first by `GetComponentInChildren`, or is nested under the destroyed
+`GuidanceRegion`.
 
 ### Step 2: Read the source prefab
 

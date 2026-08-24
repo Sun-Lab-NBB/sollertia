@@ -15,7 +15,8 @@ Documents the Unity Test Framework suite under `Assets/Tests/` and the assembly 
 `sollertia-virtual-reality` script compiles into.
 
 **Reference-only skill.** No upstream. Agents arrive here from `/task-generator`, `/zone-prefabs`,
-`/mqtt-contract`, and `/gimbl-framework` whenever a C# change needs a matching fixture, a new script
+`/mqtt-contract`, `/gimbl-framework`, `/unity-mcp-environment-setup`, and `/play-mode` whenever a C#
+change needs a matching fixture, a new script
 folder needs an assembly, or a fixture that pins a contract has started failing.
 
 ---
@@ -53,10 +54,11 @@ folder needs an assembly, or a fixture that pins a contract has started failing.
 **EditMode** drives the private Unity lifecycle callbacks (`Awake`, `Start`, `Update`,
 `OnTriggerEnter`, `OnTriggerExit`) through the Support assembly's `PrivateAccess` reflection helper,
 which keeps every transition deterministic and free of frames and physics. It holds three groups: the
-runtime state machines, the editor-only surface (`CreateTask`, `McpBridge`, `MainWindow`, `Monitor`,
-and the full-screen view classes), and the pure schema and serialization classes (`ConfigLoader`,
-`TaskTemplate`, `Cue`, `TrialStructure`, `VREnvironment`, `MiniJson`, `MQTTTopics`). The `CreateTask`,
-`McpBridge`, and `MainWindow` fixtures can only live here, because `Sollertia.Tests.EditMode` is the
+runtime state machines, the editor-only surface (`CreateTask`, `McpBridge`, `MiniJson`, `MainWindow`,
+`Monitor`, and the full-screen view classes), and the pure schema and serialization classes
+(`ConfigLoader`, `TaskTemplate`, `Cue`, `TrialStructure`, `VREnvironment`, `MQTTTopics`). The
+`CreateTask`, `McpBridge`, `MiniJson`, and `MainWindow` fixtures can only live here, because
+`Sollertia.Tests.EditMode` is the
 only test assembly referencing `Sollertia.Gimbl.Editor` and `Sollertia.InfiniteCorridorTask.Editor`.
 `Monitor` and the full-screen view classes compile into `Sollertia.Gimbl` behind `#if UNITY_EDITOR`
 guards, so they join the same group for their editor-only surface rather than for an assembly

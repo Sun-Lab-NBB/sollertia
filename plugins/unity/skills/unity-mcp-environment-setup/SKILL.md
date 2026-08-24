@@ -348,11 +348,16 @@ The Unity half is unreachable from Claude until a matching wrapper exists in
 
 ### Finish the change
 
-- Add a row to the tool-ownership table in this skill's "Architecture" section naming the owning skill, and bump both
-  counts ("The 15 relayed tools are:" and "All 15 tools require ..."). An unowned tool breaks the plugin's
-  exclusive-ownership lattice.
+- Add a row to the tool-ownership table in this skill's "Architecture" section naming the owning skill, and bump all
+  three counts ("The 15 relayed tools are:", "All 15 tools require ...", and the "fifteen arms" count in "Adding a
+  bridge tool"). An unowned tool breaks the plugin's exclusive-ownership lattice.
 - Update the `sollertia-virtual-reality` README's "Editor MCP Bridge" table **and** its
   `The bridge dispatches **15 tools**:` count in the same change — that README is the catalog.
+- Update the `sollertia-shared-assets` README's MCP tool table and the Unity-tool list in the `***Note,***`
+  paragraph that follows it — agents read that README as the wrapper catalog.
+- Bump the remaining counts: the `sollertia-virtual-reality` README's "15 Editor operations" bullet, its
+  `CLAUDE.md` "dispatches 15 tools" line, the `eleven of the fifteen` counts in `/unity-tests`, and the
+  `<remarks>` count on `Dispatch_DeclaredToolName_DoesNotFallThroughToUnknownTool` in `McpBridgeTests.cs`.
 - Document the tool in the owning skill's own tool surface, and register the handler with whichever bridge fixture
   its prerequisites allow — `McpBridgeTests`, `McpBridgeTaskParametersTests`, or `McpBridgePlayModeTests` (see
   `/unity-tests`).

@@ -140,8 +140,8 @@ Every template must begin with a YAML comment header:
 # Project: [Full project name]
 # Purpose: [Single sentence describing the task structure]
 # Layout:  [Segment names with cue letters and zone placements]
-# History: [Optional — provenance of a reproduced historical geometry]
 # Related: [Related template file (parenthetical explanation)]
+# History: [Optional — provenance of a reproduced historical geometry]
 ```
 
 Multi-line values align continuation text with the first character after the field name:
@@ -158,9 +158,9 @@ Header guidelines:
 - **Project:** Full project name, not the abbreviation.
 - **Purpose:** Single sentence starting with a verb (Defines, Extends, Teaches).
 - **Layout:** Segment names with cue letters, zone types, and stimulus clarifications.
+- **Related:** Parenthetical explanation of the relationship.
 - **History:** Optional. Present only on templates that reproduce a historical geometry, where it
   records the provenance and the exact numeric values the reproduction targets.
-- **Related:** Parenthetical explanation of the relationship.
 
 Stimulus modality is an acquisition-system concern, not a Unity one — the Unity wire contract is
 valence-agnostic (`StimulusMessage` carries only the trial name, whether the stimulus was delivered,

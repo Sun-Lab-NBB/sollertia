@@ -109,6 +109,7 @@ A runnable scene contains:
 | GameObject                    | Component                                                           | Purpose                                                 |
 |-------------------------------|---------------------------------------------------------------------|---------------------------------------------------------|
 | `MQTT Client`                 | `Gimbl.MQTTClient`                                                  | Broker singleton; sets `MQTTClient.Instance` on `Awake` |
+| `Logger`                      | `Gimbl.MQTTConnectorObject`                                         | Calls `MQTTClient.Instance.Connect` on `OnEnable`; without it the scene never reaches the broker |
 | `Actor` (or renamed)          | `Gimbl.ActorObject`                                                 | Animal avatar with display + controller                 |
 | `<Display>`                   | `Gimbl.DisplayObject`                                               | Multi-monitor rig with per-monitor cameras              |
 | `Linear` / `Simulated Linear` | `LinearTreadmill` / `SimulatedLinearTreadmill` + `ControllerOutput` | Input devices; pick one via Actor dropdown              |
@@ -220,6 +221,16 @@ always names the auto-created display `Display`. Every scene in the project ther
 single `Assets/VRSettings/Displays/Display.asset`, regardless of which `Resources/Displays/` prefab
 supplied the geometry. The MQTT broker `ip` and `port` are stored in `EditorPrefs`
 (`SollertiaVR_MQTT_IP` / `SollertiaVR_MQTT_Port`) and apply project-wide.
+
+---
+
+## Choosing an actor model
+
+The `Actor` section's **Model** dropdown lists every prefab under `Assets/Gimbl/Resources/Actors/Prefabs/`
+plus the literal `None`. The shipped project offers only `Rodent`. Selecting a different entry destroys the
+existing `Model <name>` child and instantiates the chosen prefab in its place, so any manual edit made to the
+old model child is lost. `None` leaves the actor without a visible mesh, which is valid for a headless
+controller test but renders nothing in the display cameras.
 
 ---
 
@@ -375,6 +386,8 @@ configuration can be saved and reused.
 
 ```text
 - [ ] Scene contains the auto-created "MQTT Client" / "Actors" / "Controllers" GameObjects
+- [ ] Scene contains a GameObject with MQTTConnectorObject (the template's "Logger"); InitializeScene
+      does not create one
 - [ ] Scene contains exactly one ActorObject under "Actors"
 - [ ] Scene contains at least one DisplayObject parented under the Actor
 - [ ] Actor.Controller is set to Linear OR Simulated Linear (not None, unless deliberately disabled)
@@ -401,7 +414,7 @@ are both published and subscribed inside Unity, so they alone can be exercised t
 
 | Symptom                                                | Root cause                                                                                                                               | Resolution                                                                                       |
 |--------------------------------------------------------|------------------------------------------------------------------------------------------------------------------------------------------|--------------------------------------------------------------------------------------------------|
-| `NullReferenceException` on Play — `Display` is null   | Actor.Display not assigned                                                                                                               | Close and reopen `Window → Task Parameters` to retrigger `EnsureActorAndDisplay`                 |
+| Display does not follow the actor in Play Mode         | Actor.Display not assigned, so `ActorObject.Display`'s setter never ran `ParentToActor`                                                  | Close and reopen `Window → Task Parameters` to retrigger `EnsureActorAndDisplay`                 |
 | Camera Mapping lists no monitors at all                | No monitors detected — on macOS `displayplacer`, on Linux `xrandr` is missing or failed (see the `Monitor enumeration:` Console warning) | Install the helper, then press **Refresh Monitor Positions** or call `refresh_monitors_tool`     |
 | Camera Mapping rows are empty after a scene open       | Monitors enumerated but no camera bound yet, or the scene was created without the `MainWindow.InitializeScene` pass                      | Bind each row; if the Actor / Display are missing, close and reopen `Window → Task Parameters`   |
 | Monitors show wrong content after reboot               | OS reassigned monitor ports                                                                                                              | Press **Refresh Monitor Positions** (or call `refresh_monitors_tool`) and reassign cameras       |

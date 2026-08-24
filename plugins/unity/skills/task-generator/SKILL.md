@@ -82,10 +82,11 @@ CreateTask.CreateFromTemplate(absoluteTemplatePath, relativeConfigPath, savePath
 │                                              padding prefab is absent — before any asset is written
 │
 ├── BuildCuePrefabs(template)                ← Cues/Cue_<name>_<length>cm.prefab  (shared, skip-if-exists)
+│   ├── LoadReferenceCueShader               ← Once per pass, before the cue loop; reads the shader from
+│   │                                          Materials/_CueShaderReference.mat (canonical)
 │   │
 │   ├── Load Textures/<cue.texture> as a Texture2D  (aborts when it is not imported)
 │   ├── Abort if the cached Cue_<name>_<length>cm.mat was built from a different texture
-│   ├── LoadReferenceCueShader               ← Reads shader from Materials/_CueShaderReference.mat (canonical)
 │   └── Load/create the .mat, build Right + Left quads, save Cues/Cue_<name>_<length>cm.prefab
 │
 ├── CleanGeneratedSegments(template)         ← Deletes, by exact canonical name, every
@@ -127,7 +128,7 @@ CreateTask.CreateSceneFromTemplate(sceneSavePath, taskPrefabPath, overwriteExist
 
 ### Pipeline notes
 
-- **Generation fails loudly, never silently.** Both preflight validators run before any asset is written, and the
+- **Generation fails loudly, never silently.** All three preflight validators run before any asset is written, and the
   cue and segment builds abort on a missing input rather than degrading. Only three soft failures survive: the cue
   shader fallback, the segment-length mismatch warning, and the non-fatal missing-task-prefab path.
 - **Cross-template cue-texture preflight runs first**: `ValidateCueDefinitionsAcrossTemplates` enumerates every
@@ -240,6 +241,10 @@ moves and no stimulus publishes. A change to `CreateTask` MUST keep all of them 
 - **Sequence exhaustion ends the session.** When the animal runs past the last generated segment, `Task` logs
   `Animal ran through all generated segments. Raise Track Length in Window > Task Parameters to cover a longer run.`
   and disables itself mid-run. This is a track-length budgeting concern, not a generation defect.
+- **Corridor key out of range.** When the encoded corridor key falls outside the corridor map, `Task.Update` logs
+  `Task: Corridor key '<k>' out of bounds [0, <n>). The key stays out of range for every later frame, so the Task
+  is disabled to prevent runtime errors.` and disables itself. A correctly assembled prefab keeps the key in range
+  for every permutation, so this fires only on a hand-edited corridor map or a mismatched trial count.
 
 Per-lap zone reset is driven from the same corridor advance rather than from any in-segment trigger volume:
 `Task.ResetZoneStates()` walks the `IResettable[]` that `Task.FindResettableZones()` collected at `Start`.

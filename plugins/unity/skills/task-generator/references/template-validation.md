@@ -13,15 +13,18 @@ field went missing.
 ## `ConfigLoader.LoadTemplate` order of checks
 
 1. **File existence** — `FileNotFoundException: Template file not found: <path>`.
-2. **Template filename stem** — `ConfigLoader.SegmentNameComponentPattern` (`^[A-Za-z0-9_]+$`) applied to the YAML
+2. **YAML deserialization** — a malformed document fails here, before the filename check, so a badly named file
+   with broken YAML reports the parse error rather than the filename error.
+3. **Template filename stem** — `ConfigLoader.SegmentNameComponentPattern` (`^[A-Za-z0-9_]+$`) applied to the YAML
    filename without its extension:
    `Template filename '<name>' is invalid. Template names must contain only ASCII letters, digits, and underscores,
    because the generated segment prefab filename joins the template name and the trial name with a hyphen.`
-3. **`ValidateTemplate`**, in the order below.
+4. **`ValidateTemplate`**, in the order below.
 
 ### `ValidateTemplate`
 
-**Structure:** non-empty `cues`, non-null `vr_environment` (which runs `ValidateVrEnvironment`), non-empty
+**Structure:** non-null parsed template (`FormatException: Failed to parse template file.`), non-empty `cues`,
+non-null `vr_environment` (which runs `ValidateVrEnvironment`), non-empty
 `trial_structures`.
 
 **Per cue**, in order:

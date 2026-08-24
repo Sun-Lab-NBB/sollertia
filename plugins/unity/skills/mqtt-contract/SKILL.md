@@ -249,7 +249,7 @@ Subscribers inside Unity:
 
 Publishers:
 - sollertia-experiment interaction sensor (production). The acquisition runtime resolves a concrete sensor
-  (a lever, button, pressure plate, or contact sensor) — the sensor choice is a per-system decision on the
+  (a lick port, button, lever, or pressure plate) — the sensor choice is a per-system decision on the
   `sollertia-experiment` side and is invisible to Unity.
 - `Gimbl.SimulatedLinearTreadmill` — `Jump` action (spacebar) keypress during dev testing; the
   publisher uses the in-process loopback when no broker is connected.
