@@ -50,7 +50,7 @@ generation — lives in the unity plugin; this skill owns the host (Python) side
 **Does not cover** (delegated):
 - The Unity-side framework and game objects — see `unity:gimbl-framework`
 - The Unity-side editor MCP Bridge endpoint (`McpBridge.cs`) and scene / Play-Mode authoring — see
-  `unity:play-mode`, `unity:scene-setup`
+  `unity:play-mode`, `unity:task-scenes`
 - The Unity-side Task Parameters read / write surface the controller rebind travels over — see
   `unity:task-parameters`
 - The Unity-side MQTT topic registration / `MQTTTopics` constant set — see `unity:mqtt-contract`
@@ -69,7 +69,7 @@ The `communication:microcontroller-interface` skill referenced below lives in th
 | Concern                                                              | Authority                                 |
 |----------------------------------------------------------------------|-------------------------------------------|
 | `MQTTCommunication` mechanics (connect, monitored topics, get_data)  | `communication:microcontroller-interface` |
-| Unity-side editor MCP Bridge (scene / Play-Mode tools)               | `unity:play-mode`, `unity:scene-setup`    |
+| Unity-side editor MCP Bridge (scene / Play-Mode tools)               | `unity:play-mode`, `unity:task-scenes`    |
 | Unity-side Task Parameters window (actor motion controller)          | `unity:task-parameters`                   |
 | Unity-side MQTT topic contract (`MQTTTopics`)                        | `unity:mqtt-contract`                     |
 | Unity-side VR framework and game objects                             | `unity:gimbl-framework`                   |
@@ -138,7 +138,7 @@ resolving an absent `delivered` to `True` and any `cause` value other than the e
 
 Alongside the MQTT data channel, the driver drives the Unity Editor over the **editor MCP Bridge** — the
 HTTP listener `McpBridge.cs` starts automatically inside the Unity Editor (Unity side: `unity:play-mode`,
-`unity:scene-setup`, `unity:task-parameters`). `UnityBridgeClient` (`sollertia_experiment/vr_task/bridge.py`) is
+`unity:task-scenes`, `unity:task-parameters`). `UnityBridgeClient` (`sollertia_experiment/vr_task/bridge.py`) is
 the host-side client. It is **mandatory and always on**: there is no enable/disable configuration field, and the
 driver does NOT fall back to manual scene / Play-Mode prompts. The bridge binds the loopback interface only, so
 the acquisition host MUST be the same machine as the Unity Editor; the endpoint is a fixed module constant
@@ -337,7 +337,7 @@ side alone — Unity and the host silently desynchronize at runtime.
 | Contract dimension           | experiment (host)                             | unity (game engine)                                                              | assets (data model)                                    |
 |------------------------------|-----------------------------------------------|----------------------------------------------------------------------------------|--------------------------------------------------------|
 | MQTT wire strings / payloads | `_VRTaskMQTTTopics` (this skill)              | `unity:mqtt-contract`, `unity:gimbl-framework` (`MQTTTopics.cs`)                 | —                                                      |
-| Editor bridge HTTP tools     | `UnityBridgeClient` (this skill)              | `unity:play-mode`, `unity:scene-setup`, `unity:task-parameters` (`McpBridge.cs`) | —                                                      |
+| Editor bridge HTTP tools     | `UnityBridgeClient` (this skill)              | `unity:play-mode`, `unity:task-scenes`, `unity:task-parameters` (`McpBridge.cs`) | —                                                      |
 | Active scene name            | `expected_scene_name` + `SceneName` handshake | `unity:task-scenes`, `unity:task-prefabs`                                        | `assets:experiment-configuration` (`unity_scene_name`) |
 | Cue catalog / trial motifs   | `decompose_cue_sequence` (this skill)         | `unity:task-generator`, `unity:task-prefabs`                                     | `assets:task-templates` (`TaskTemplate`)               |
 | TriggerType / trigger zones  | `trial_names` join key (this skill)           | `unity:zone-prefabs`, `unity:task-generator`                                     | `assets:library-extension`, `assets:task-templates`    |
@@ -361,7 +361,7 @@ When in doubt, re-read `sollertia_experiment/vr_task/driver.py`,
 | `communication:microcontroller-interface` | `MQTTCommunication` mechanics the driver builds on                           |
 | `/system-health-check`                    | Pre-flight `check_unity_bridge_tool` that enforces the Unity Editor is open  |
 | `unity:play-mode`                         | Unity-side editor bridge Play-Mode control the driver drives                 |
-| `unity:scene-setup`                       | Unity-side editor bridge scene activation the driver drives                  |
+| `unity:task-scenes`                       | Unity-side owner of `list_scenes_tool` / `open_scene_tool` the driver calls  |
 | `unity:task-parameters`                   | Unity-side Task Parameters surface the controller rebind reads and writes    |
 | `unity:mqtt-contract`                     | Unity side of the MQTT topic contract (`MQTTTopics`)                         |
 | `unity:gimbl-framework`                   | Unity-side VR framework and game objects                                     |
@@ -377,7 +377,7 @@ When in doubt, re-read `sollertia_experiment/vr_task/driver.py`,
 ```text
 When modifying the VR task driver:
 - [ ] _VRTaskMQTTTopics wire strings match the Unity MQTTTopics constant set exactly (unity:mqtt-contract)
-- [ ] Bridge tool names and reply keys match McpBridge.cs (unity:play-mode, unity:scene-setup, unity:task-parameters)
+- [ ] Bridge tool names and reply keys match McpBridge.cs (unity:play-mode, unity:task-scenes, unity:task-parameters)
 - [ ] Scene activation binds the Linear treadmill controller and errors when the actor reports a different one
 - [ ] Bridge stays mandatory and loopback-only (no enable/disable config, no manual-prompt fallback)
 - [ ] monitored_topics updated for any new inbound surfaced topic

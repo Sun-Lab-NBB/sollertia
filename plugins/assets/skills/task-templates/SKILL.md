@@ -43,7 +43,7 @@ helpers — no other skill in the marketplace may call these.
 A `TaskTemplate` is the **mandatory** Virtual-Reality task asset: a reusable description of a VR
 behavioral paradigm — the VR environment, the cue catalog, and the trial structures. Each trial owns
 its own cue sequence, zone geometry, and trigger type, and is materialized into a single segment prefab
-named `<template_name>_<trial_name>.prefab` at generation time. Every experiment configuration is built
+named `<TemplateName>-<TrialName>.prefab` at generation time. Every experiment configuration is built
 from a corridor task template. A template is project- and system-agnostic — the same template can back
 many experiment configurations across many projects. Currently only `MesoscopeExperimentConfiguration`,
 but the `AcquisitionSystems` enum and factory registry are designed for additional acquisition systems.
@@ -82,7 +82,7 @@ Configurations/<name>.yaml          template (authored here)
         ▼  unity:task-prefabs (create_task_tool)
 InfiniteCorridorTask/Tasks/<name>.prefab    task prefab
         │
-        ▼  unity:task-scenes (create_task_tool)
+        ▼  unity:task-prefabs (same create_task_tool call)
 Scenes/<name>.unity                 scene (instantiates the task prefab)
 ```
 
@@ -98,7 +98,7 @@ A `TaskTemplate` is composed of these classes (all defined in `sollertia_shared_
 
 | Primitive        | Purpose                                                                                                                         |
 |------------------|---------------------------------------------------------------------------------------------------------------------------------|
-| `Cue`            | A visual cue (name, uint8 code, length, optional texture) referenced by trial cue sequences                                     |
+| `Cue`            | A visual cue (name, uint8 code, length, required texture) referenced by trial cue sequences                                     |
 | `TrialStructure` | Per-trial spatial config: cue sequence, optional transitions, stimulus trigger zone, stimulus location, trigger type            |
 | `VREnvironment`  | VR corridor configuration: spacing, segments per corridor, padding prefab, units, cue offset                                    |
 | `TriggerType`    | Enum of stimulus trigger zone activators (`interaction`, `collision`, `occupancy_disarm`, `occupancy_arm`, `occupancy_trigger`) |
@@ -265,7 +265,7 @@ For the current Mesoscope-VR reference system's concrete mapping, see
   filesystem slot.
 - **Each trial structure embeds its own cue sequence** because the Unity task generator derives
   segment prefab geometry directly from the trial's cue sequence — there is no separate segment
-  catalog. The segment prefab name is `<template_name>_<trial_name>`, so every trial structure
+  catalog. The segment prefab name is `<TemplateName>-<TrialName>`, so every trial structure
   yields a distinct prefab keyed by the trial key (no geometric coincidence between two trials can
   cause them to collapse into a single prefab).
 - **Transitions are a named dict (`{trial_name: probability}`)** because
@@ -353,7 +353,7 @@ Build the template dictionary in this order:
 
 1. **VR environment** — define the `VREnvironment` (corridor spacing, segments per corridor, padding
    prefab name, cm-per-unity-unit conversion, cue offset).
-2. **Cue catalog** — define every `Cue` (name, uint8 code, length, optional texture filename).
+2. **Cue catalog** — define every `Cue` (name, uint8 code, length, required texture filename).
 3. **Trial structures** — populate the `trial_structures` dict, mapping each trial name to a
    `TrialStructure` (cue sequence, stimulus trigger zone start/end, stimulus location, whether the
    collision boundary is visible, trigger type from `list_supported_trigger_types_tool`, and an
@@ -391,7 +391,8 @@ Pass `overwrite=True` only when intentionally replacing an existing template.
 - cue codes are in `[0, 255]`
 - cue names are unique
 - each trial name matches `^[A-Za-z0-9_]+$` (used verbatim in the Unity-side
-  `<template>_<trial>.prefab` segment filename)
+  `<TemplateName>-<TrialName>.prefab` segment filename; barring the hyphen from both halves is what
+  lets that filename split at its only hyphen and resolve to exactly one owning template)
 - each trial `cue_sequence` is non-empty and references valid cue names
 - each trial `cue_sequence` is unique within the template (two trials must not share an identical
   cue sequence; to make trials look identical to the animal yet stay distinguishable to the system,
@@ -488,5 +489,5 @@ for instantiating templates into experiment configurations.
 | `mesoscope:mesoscope-vr-experiment-schema` | Owns Mesoscope-VR's concrete trial-class field schema for the classes named here        |
 | `/library-extension`                       | Cross-cutting recipe to add a new `TriggerType` or runtime trial class                  |
 | `unity:task-prefabs`                       | Downstream — generates and validates the Unity prefab                                   |
-| `unity:task-scenes`                        | Downstream — places the generated prefab into a Unity scene                             |
+| `unity:task-scenes`                        | Downstream — opens and inspects the scene `create_task_tool` produced                   |
 | `experiment:vr-driver-interface`           | Consumer — decomposes the cue sequence into trials using these motifs and trigger types |

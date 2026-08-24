@@ -26,14 +26,15 @@ coordinate frame), and `/zone-prefabs` (modifier-script invariants).
 ## Scope
 
 **Covers:**
-- GIMBL package layout under `Assets/Gimbl/` and the `Gimbl` C# namespace (current file inventory)
-- `MainWindow` Task Parameters editor window (the only editor window)
+- GIMBL package layout under `Assets/Gimbl/` and the `Gimbl` C# namespace (current file inventory),
+  including the two assemblies its `.asmdef` files declare
+- `MainWindow` Task Parameters editor window (the only GIMBL editor window with a menu entry)
 - `ActorObject` (animal representation, display + controller binding, model swap)
-- Controller hierarchy: `ControllerObject` → `LinearTreadmill` → `SimulatedLinearTreadmill`, with
-  `ControllerOutput` indirection
-- `ControllerTypes` enum and `MainWindow.EnsureControllers` auto-create loop
-- `DisplayObject` and `FullScreenViewManager` multi-monitor rig
 - `MQTTClient` singleton, `MQTTChannel` / `MQTTChannel<T>` typed messaging, `MQTTTopics` constants
+- Controller hierarchy: `ControllerObject` → `LinearTreadmill` → `SimulatedLinearTreadmill`, with
+  `ControllerOutput` indirection and the `ControllerTypes` enum
+- `DisplayObject`, `PerspectiveProjection`, `Monitor`, and the `FullScreenViewManager` rig
+- Which EditMode / PlayMode fixture covers each GIMBL type
 - Decision rules for whether a given behavior belongs in GIMBL or the `SL.*` task layer
 
 **Does not cover:**
@@ -41,6 +42,7 @@ coordinate frame), and `/zone-prefabs` (modifier-script invariants).
 - Programmatic Task Parameters read / write (see `/task-parameters`)
 - Editor scene configuration workflows (see `/scene-setup`)
 - Task prefab generation (see `/task-generator`, `/task-prefabs`)
+- Test-authoring conventions and the project-wide assembly catalog (see `/unity-tests`)
 
 ---
 
@@ -49,7 +51,8 @@ coordinate frame), and `/zone-prefabs` (modifier-script invariants).
 ```text
 Assets/Gimbl/
 ├── Editor/
-│   └── MainWindow.cs                   ← `Window → Task Parameters` — the only editor window
+│   ├── MainWindow.cs                   ← `Window → Task Parameters` — the only menu-entry window
+│   └── Sollertia.Gimbl.Editor.asmdef   ← Editor-only assembly (see below)
 ├── Resources/
 │   ├── Actors/
 │   │   ├── Prefabs/
@@ -57,10 +60,11 @@ Assets/Gimbl/
 │   │   └── Rodent/                     ← Source mesh, texture, and material for `Rodent.prefab`
 │   ├── Displays/
 │   │   └── MyMonitorSetup.prefab       ← Display model prefab; loaded by `Resources.Load("Displays/<name>")`
-│   ├── Icons/                          ← GUI icons used by the editor window
-│   └── Materials/                      ← Shared materials (e.g., monitor test pattern)
+│   ├── Icons/                          ← Unreferenced legacy icon art (`mouse.png` / `mouse.psd`)
+│   └── Materials/                      ← Unreferenced `MonitorTestPattern.psd` texture
 └── Scripts/
     ├── LayoutSettings.cs               ← Shared GUI styling helpers used by MainWindow
+    ├── Sollertia.Gimbl.asmdef          ← Runtime assembly (see below)
     ├── TagsAndLayers.cs                ← Tag / layer creation helpers (e.g., VRDisplay, TrackCam)
     ├── Actor/
     │   └── ActorObject.cs              ← Animal GameObject facade (Display, Controller, Model)
@@ -92,7 +96,16 @@ Actor and display model prefabs live in `Assets/Gimbl/Resources/Actors/Prefabs/`
 `Assets/Gimbl/Resources/Displays/`. `ActorObject.SetModel` and `DisplayObject.Create` load them
 via `Resources.Load($"Actors/Prefabs/<name>")` and `Resources.Load($"Displays/<name>")`;
 `MainWindow` enumerates the same folders via `Resources.LoadAll<GameObject>` to populate the
-model dropdowns.
+model dropdowns. Those two folders are the only `Resources/` subtrees any code reads — `Icons/`
+and `Materials/` hold legacy art no script or asset references.
+
+**Assemblies.** GIMBL compiles into two of the project's eight named assemblies: the runtime
+`Sollertia.Gimbl` (rootNamespace `Gimbl`, references `Unity.InputSystem`), and the
+Editor-platform-only `Sollertia.Gimbl.Editor` (references `Sollertia.Gimbl` and
+`Sollertia.InfiniteCorridorTask` — which is why `MainWindow` may `using SL.Tasks;` while no runtime
+GIMBL script may). A new file joins an assembly by sitting inside its subtree; a brand-new folder
+needs its own `.asmdef` plus a `references` entry from every consuming assembly, including the test
+assemblies, or the tests cannot see it. `/unity-tests` owns the full catalog.
 
 ---
 
@@ -100,23 +113,31 @@ model dropdowns.
 
 ### `Gimbl.MainWindow`
 
-`EditorWindow` registered under `Window → Task Parameters`. The single GUI entry point for every
-per-scene configuration field (Actor, MQTT, Display, Camera Mapping, Task). See `/scene-setup` for
-the GUI workflow and `/task-parameters` for the programmatic surface.
+`EditorWindow` registered under `Window → Task Parameters` — the only GIMBL `EditorWindow` with a
+menu entry (`FullScreenView` and `Monitor`'s private `MonitorTester` are the other two, both created
+programmatically). The single GUI entry point for every per-scene configuration field (Actor, MQTT,
+Display, Camera Mapping, Task). See `/scene-setup` for the GUI workflow and `/task-parameters` for
+the programmatic surface.
 
 Notable invariants:
 
 - `[InitializeOnLoadMethod] RegisterAutoOpen` subscribes to `EditorSceneManager.sceneOpened`,
   `EditorApplication.playModeStateChanged`, and `EditorApplication.delayCall` so the window
   reappears after Editor start, scene open, or Play Mode enter. Closing it manually is
-  recoverable; the next hook fires re-opens it.
-- `OnEnable() → InitializeScene()` ensures the active scene contains `Actors`, `Controllers`,
-  `MQTT Client` roots, removes the Unity-default Main Camera, creates a default Actor + Display,
-  runs `EnsureControllers`, then runs `EnsureMqttDefaults` to apply the project-wide broker IP /
-  port. Existing GameObjects are left untouched. The `MQTT Client` GameObject is created with
-  `hideFlags = HideFlags.HideInHierarchy`, so it does **not** appear in the scene Hierarchy
-  panel. Looking for the MQTT client via the Hierarchy is futile; query it via
-  `GameObject.Find("MQTT Client")` or `MQTTClient.Instance`.
+  recoverable; the next hook fires re-opens it. In batch mode (`Application.isBatchMode`) none of
+  the three hooks is registered — opening the window there would run `InitializeScene` against the
+  throwaway startup scene and block the run on a save dialog batch mode cancels — so CI and
+  headless test runs never auto-open it.
+- `OnEnable() → InitializeScene()` first creates the `Assets/VRSettings` and
+  `Assets/VRSettings/Displays` folders when missing (`DisplayObject.Create` and
+  `FullScreenViewManager.LoadCameras` write their assets there), then ensures the active scene
+  contains `Actors`, `Controllers`, `MQTT Client` roots, removes the Unity-default Main Camera,
+  creates a default Actor + Display, runs `EnsureControllers`, then runs `EnsureMqttDefaults` to
+  apply the project-wide broker IP / port. Existing GameObjects keep their components, but every
+  pass re-stamps `hideFlags`: `MQTT Client` is forced to `HideFlags.HideInHierarchy` and
+  `Controllers` to `HideFlags.None`, whether the object was just created or already present. So
+  the MQTT client does **not** appear in the scene Hierarchy panel; looking for it there is futile,
+  query it via `GameObject.Find("MQTT Client")` or `MQTTClient.Instance`.
 - `EnsureControllers()` iterates `CachedControllerSpecs` (resolved once via reflection at type
   init) and creates one GameObject per `ControllerTypes` enum value. The actor's controller
   assignment is not auto-changed — user-chosen swaps survive a re-init.
@@ -131,12 +152,17 @@ Notable invariants:
 - The window is `GetWindow<MainWindow>("Parameters", ..., new Type[] {InspectorWindow})` so it
   docks next to the Inspector by default; the docked tab label is the short `Parameters` and the
   menu entry is the long `Task Parameters` to disambiguate.
-- **Scene-component cache.** `MainWindow` caches `_cachedTask`, `_cachedActor`, `_cachedDisplay`,
-  `_cachedGuidanceZone`, and `_cachedOccupancyZone` references on first access and invalidates
-  them on `EditorSceneManager.activeSceneChangedInEditMode`. Without the cache, every `OnGUI`
-  repaint (potentially many times per second) would run five `FindAnyObjectByType` walks of the
-  scene. A code path that swaps a Task / Actor / Display / zone component in the active scene
-  without going through the scene-change hook (rare) must call `InvalidateSceneCache` itself.
+- **Scene-component cache.** `MainWindow` caches `_client` (the scene's `MQTTClient`),
+  `_cachedTask`, `_cachedActor`, `_cachedDisplay`, `_cachedGuidanceZone`, and `_cachedOccupancyZone`
+  references on first access and invalidates them on
+  `EditorSceneManager.activeSceneChangedInEditMode`. Without the cache, every `OnGUI` repaint
+  (potentially many times per second) would run six `FindAnyObjectByType` walks of the scene.
+  `InvalidateSceneCache` is a private instance method called only from `OnEnable` and from the
+  scene-change handler, so no external code path can trigger it: a code path that swaps a Task /
+  Actor / Display / zone component in the active scene without an active-scene change keeps reading
+  the stale reference until the window is reopened. The cached fields do self-heal, because each
+  `GetCachedX` re-resolves whenever its field compares equal to null — which includes a destroyed
+  Unity object.
 
 ### `Gimbl.MQTTClient`
 
@@ -148,10 +174,17 @@ GameObject in every scene initialized by `MainWindow`.
   `1883`, so a freshly-`AddComponent`'d client reports the loopback default even before any hook
   runs. `Awake()` overlays the same values from `EditorPrefs` (`SollertiaVR_MQTT_IP` /
   `SollertiaVR_MQTT_Port`) with the loopback fallback, and `MainWindow.EnsureMqttDefaults`
-  applies the same logic synchronously at scene init and at scene creation. The three paths
-  converge on the same authoritative value.
+  applies the same logic synchronously at scene init and at scene creation. The three paths agree
+  for an unset or in-range preference, but their port fallbacks differ: `Awake` rewrites any port
+  outside 1–65535 to 1883, while `EnsureMqttDefaults` falls back only when the stored port is
+  exactly `0`, so a stored out-of-range non-zero port survives the editor pass and is corrected at
+  `Awake`.
 - `Subscribe(channel, topic, qosLevel)` and `Publish(topic, payload)` are called by `MQTTChannel`;
-  do not call them directly.
+  do not call them directly. `Unsubscribe(channel)` is the exception — callers ARE expected to
+  invoke it. It removes the channel from the routing list so a destroyed listener stops receiving
+  messages, and deliberately leaves the broker-side topic filter in place, because several channels
+  may share one topic while the filter is per topic. A component that builds channels in `Start()`
+  releases them in `OnDestroy()`.
 - **`Subscribe` late-connect failure mode**: the channel is added to the internal `_channelList`
   unconditionally so the in-process loopback (below) can route messages, but the broker-side
   `SubscribeAsync` only fires when the client is currently connected. A channel created while the
@@ -160,26 +193,47 @@ GameObject in every scene initialized by `MainWindow`.
   broker connect must re-create the channel (or trigger a fresh subscribe pass).
 - **MQTT 5.0 only**: `MqttClientOptionsBuilder().WithProtocolVersion(MqttProtocolVersion.V500)`.
   Brokers must accept MQTT 5.0 (Mosquitto 2.0+).
-- **Connect has a 1000ms timeout**: `Connect()` runs `ConnectAsync` on a `Task.Run`, waits up
-  to 1 second, and logs an error if the connection has not completed. The method returns either
-  way — `MQTTClient` continues running in an unconnected state and `Publish` automatically falls
-  back to the in-process loopback. A silently-failed connect is visible only via the
-  `Could not connect to MQTT broker at <ip>:<port>` Debug.LogError, not via any thrown exception.
+- **Connect has a 10000ms timeout**: `Connect()` runs `ConnectAsync` on a `Task.Run`, waits up to
+  10 seconds (`ConnectTimeoutMilliseconds`), and logs an error if the connection has not completed.
+  The method returns either way — `MQTTClient` continues running in an unconnected state and
+  `Publish` automatically falls back to the in-process loopback. A broker that actively refuses the
+  connection reports through a `Could not connect to MQTT broker at <ip>:<port>` Debug.LogError
+  that a refused connection extends with `: <inner exception message>`, not via any thrown
+  exception. The matching `Successfully connected to MQTT Broker at: <ip>:<port>` log fires only
+  when `Connect(verbose: true)` is passed, so the default wiring is silent on success.
 - **Raw `IMqttClient` is publicly accessible** as `MQTTClient.Instance.client`. External code
   can bypass the `MQTTChannel` abstraction and call `PublishAsync` / `SubscribeAsync` directly.
   This is a deliberate escape hatch for advanced cases; production code should still go through
   `MQTTChannel` so the in-process loopback and channel-list bookkeeping stay consistent.
 - **In-process loopback**: when the broker is unreachable, `Publish` routes the payload directly
   to in-process subscribers on the matching topic so keyboard-only test runs without a broker
-  still reach local listeners (for example, `LickStimulusSpawner`).
-- **Lifecycle**: `Awake` sets `Instance` and loads `ipAddress` / `port` from `EditorPrefs` (with
-  loopback fallback). `Connect()` is invoked externally by `MQTTConnectorObject.OnEnable()` —
-  Unity runs every `OnEnable` after every `Awake` but before every `Start`, so the broker
-  connection is established with the resolved settings before any subscriber `Start()` constructs
-  channels. `Start` opens `SessionStart` / `SessionStop` channels and fires `SessionStart` after a
-  1-second delay (gives downstream subscribers time to attach). `OnApplicationQuit` publishes
-  `SessionStop`, unsubscribes every channel, and disposes the client. `OnDestroy` duplicates the
-  dispose path so scene transitions that bypass quit still release the `IMqttClient`.
+  still reach local listeners (for example, `LickStimulusSpawner`). The first loopback delivery on
+  each topic logs `MQTTClient: broker unreachable, so '<topic>' is delivered to in-process
+  subscribers only ...`, deduplicated per topic via the `_loopbackWarnedTopics` set, so a console
+  full of these warnings names exactly which topics have no wired experiment-side counterpart.
+  Loopback calls `ReceivedMessage` synchronously on the publisher's thread, so a typed channel's
+  deserialization `InvalidOperationException` propagates back out of the caller's `Send`, not only
+  out of the broker callback.
+- **Lifecycle**: `Awake` first guards against a duplicate — a second `MQTTClient` in the scene logs
+  `MQTTClient: Multiple instances found, using existing instance` and returns without claiming
+  `Instance` or loading any settings, so its `ipAddress` / `port` keep their field initializers.
+  Otherwise `Awake` sets `Instance` and loads `ipAddress` / `port` from `EditorPrefs` (with
+  loopback fallback). `Connect()` is invoked externally by `MQTTConnectorObject.OnEnable()`, which
+  runs after every `Awake` and before any subscriber `Start()` constructs channels (see
+  `Gimbl.MQTTConnectorObject` below). `Start` opens `SessionStart` / `SessionStop` channels and
+  fires `SessionStart` after a 1-second delay (gives downstream subscribers time to attach).
+  `OnApplicationQuit` publishes `SessionStop`, unsubscribes every channel, and disposes the client.
+  `OnDestroy` duplicates the dispose path so scene transitions that bypass quit still release the
+  `IMqttClient`. Both null `Instance` when it still points at the departing component, so
+  `MQTTChannel` construction after teardown throws again.
+- **`Connect()` is re-entrant**: it unhooks `_messageReceivedHandler` from, and disposes, any
+  `IMqttClient` an earlier call installed before building the replacement, so a
+  `MQTTConnectorObject` that re-enables repeatedly releases one broker handle per disable instead
+  of accumulating them. The reset does not touch the routing list, so existing `MQTTChannel`
+  instances keep receiving in-process loopback deliveries — but their broker-side subscriptions
+  died with the disposed client and are never re-issued, because `Subscribe` runs only from the
+  channel constructor. That is the second reason a channel created before a reconnect stops
+  receiving broker-delivered messages.
 
 **Lifecycle gotcha:** `MQTTChannel` constructors throw `InvalidOperationException` if
 `MQTTClient.Instance` is null. This typically means the scene lacks a `MQTT Client` GameObject (or
@@ -197,8 +251,9 @@ channel.receivedEvent.AddListener(OnMyEvent);  // void OnMyEvent() { ... }
 // Later, to publish:
 channel.Send();
 
-// On teardown:
+// On teardown (in OnDestroy):
 channel.receivedEvent.RemoveListener(OnMyEvent);
+channel.client?.Unsubscribe(channel);
 ```
 
 Parameters:
@@ -225,6 +280,13 @@ var channel = new MQTTChannel<MyMessage>(MQTTTopics.MyTypedTopic, isListener: tr
 channel.receivedEvent.AddListener((MyMessage msg) => { /* ... */ });
 channel.Send(new MyMessage { value = 1.0f, note = "hi" });
 ```
+
+**The parameterless `Send()` is hidden and throws.** `MQTTChannel<TMessage>` re-declares `Send()`
+with the `new` modifier and throws `NotSupportedException`; a typed channel must publish through
+`Send(TMessage)`. This turns a former silent loss — an empty payload arriving at typed listeners as
+a null message — into a failure at the call site. Because the hide is `new` rather than `override`,
+calling `Send()` through a base `MQTTChannel` reference still publishes an empty payload, which is
+another reason to hold typed channels as `MQTTChannel<TMessage>`.
 
 Serialization bytes: `Encoding.UTF8.GetBytes(JsonUtility.ToJson(message))`. The typed
 `receivedEvent` shadows the base class's parameterless event with the `new` modifier — accessing
@@ -304,160 +366,24 @@ the Inspector hides it (`[HideInInspector]`) and `Task.OnValidate()` auto-assign
 scene. The Task Parameters window's Task section also re-resolves the actor when the field is
 null on each render.
 
-### `Gimbl.ControllerObject` and `ControllerOutput`
+### Subsystem references
 
-Abstract base for input devices that drive actor movement. The only runtime subclasses are:
+- [references/controllers-subsystem.md](references/controllers-subsystem.md) —
+  `ControllerObject` / `ControllerOutput`, both treadmill subclasses, the cross-thread `movement`
+  accumulator, and the `ControllerTypes` extension recipe.
+- [references/displays-subsystem.md](references/displays-subsystem.md) — `DisplayObject`,
+  `PerspectiveProjection`, `Monitor`, `FullScreenView`, `FullScreenViewManager`, and
+  `FullScreenViewsSaved`: the multi-monitor camera rig, its off-axis projection math, OS monitor
+  enumeration, the shared `RefreshMonitorPositions` entry point, and the saved-views asset.
 
-| Class                      | Driven by                     | Purpose                                  |
-|----------------------------|-------------------------------|------------------------------------------|
-| `LinearTreadmill`          | MQTT `Motion` topic           | Production treadmill input from hardware |
-| `SimulatedLinearTreadmill` | Unity Input System (keyboard) | Developer testing without hardware       |
+### Test coverage
 
-`SimulatedLinearTreadmill` **extends** `LinearTreadmill` but hides its private `Start()` and does
-not chain. The lifecycle contract relies on Unity dispatching `Start` per most-derived type only;
-if a third controller subclass appears, follow the same pattern (hide via its own `Start`; do not
-chain). The non-chaining note in `LinearTreadmill.cs` is load-bearing for the contract.
-
-**Thread-safety contract on the movement accumulator.** `ControllerObject.movement` is a
-`ValueBuffer` written from two threads: `LinearTreadmill.OnMessage` runs on the MQTT message-dispatch 
-thread (MQTTnet background), while `LinearTreadmill.ProcessMovement` runs on the Unity
-main thread via `Update`. Both `OnMessage` and `ProcessMovement` take a `lock (movement)` around
-the buffer mutation. Any future controller subclass that touches `movement` must take the same
-lock, or it will race with the MQTT callback and drop or double-count movement samples.
-
-**`SimulatedLinearTreadmill.MovementSpeedMultiplier = 8.0f`** is hardcoded as a private
-`const float`. Anyone tuning keyboard-driven testing speed must edit this constant in
-`SimulatedLinearTreadmill.cs`; there is no inspector field, Task Parameters entry, or MQTT topic
-to override it at runtime. The interaction trigger is wired to `_input.Player.Jump` (spacebar).
-
-**`ControllerOutput` indirection**: `ActorObject.Controller` is typed as `ControllerOutput` rather
-than the concrete `ControllerObject` subclass so swapping controllers does not invalidate the
-scene's serialized reference. `MainWindow.EnsureControllers` attaches one `ControllerOutput` per
-generated controller GameObject and sets `master` to the sibling controller component. The
-indirection erases the subclass distinction at the Inspector field level.
-
-### `Gimbl.ControllerTypes`
-
-Enum of supported controller subclasses (`LinearTreadmill`, `SimulatedLinearTreadmill`).
-`MainWindow.BuildControllerSpecs` resolves each enum value to its runtime `Type` via reflection
-(`controllerAssembly.GetType($"Gimbl.{enumName}")`) once at type init, and maps each to a display
-name via a small switch (`LinearTreadmill → "Linear"`, `SimulatedLinearTreadmill → "Simulated
-Linear"`). Adding a new controller class requires:
-
-1. Subclass `ControllerObject` (and hide `Start` per the non-chaining contract if the subclass adds
-   an MQTT subscription).
-2. Add a value to `ControllerTypes`.
-3. Optionally add a display-name case to `BuildControllerSpecs` if the default `ToString` is not
-   user-friendly.
-
-`MainWindow.EnsureControllers` will pick up the new entry on the next scene init.
-
-### `Gimbl.DisplayObject`
-
-Represents a VR display attached to an actor. Manages:
-
-- Parenting under the actor and Y offset from `settings.heightInVR`
-- Camera culling to hide the actor's own layer from its own camera
-- Brightness override via `currentBrightness` (0–100). The C# field initializer is `100f`, but
-  `MainWindow.SyncDisplayBrightnessToSettings` syncs it to `settings.brightness` (default `50f`)
-  at scene creation, so fresh scenes start with `currentBrightness == settings.brightness`.
-- Editor-only `Create(displayName, modelName)` that instantiates the display prefab from
-  `Resources/Displays/<modelName>`, **reuses** an existing `DisplaySettings` asset at
-  `Assets/VRSettings/Displays/<displayName>.asset` (creating a fresh one only when none exists),
-  and adds a `Camera` child per `MeshRenderer` found. The camera's name is derived by
-  `mesh.name.Replace("Monitor", " View")` — i.e., monitor meshes must be named `*Monitor` for the
-  rename to produce a `<role> View` camera label; meshes named anything else keep their literal
-  name as the camera label. The reuse semantic on the settings asset exists so user customizations
-  to `brightness` and `heightInVR` survive subsequent scene rebuilds; replacing the asset
-  wholesale would clobber them.
-
-`Create` also wires each spawned camera into the rig in three non-obvious ways:
-
-1. **`targetDisplay = 8`**. Unity's standard Game-view displays are indexed 0–7; targeting 8
-   keeps the per-monitor cameras from rendering into any of those slots. They only become
-   visible through the `FullScreenView` popups managed by `FullScreenViewManager`. If the
-   target-display value is ever changed, the cameras will appear in the Game view and double-render.
-2. **`MeshRenderer` and `MeshCollider` on each monitor mesh are disabled**. The mesh exists only
-   as a positioning anchor for `PerspectiveProjection.projectionScreen`; re-enabling either
-   component puts the monitor surface back into the rendered scene and into physics.
-3. **`projection.setNearClipPlane = false`** is set explicitly on every spawned `PerspectiveProjection`
-   (the field defaults to `true` on the component itself). The camera keeps the fixed
-   `nearClipPlane = 0.3f` Create assigned instead of letting `PerspectiveProjection.UpdateView`
-   recompute it each frame. Re-enabling auto-near-clip breaks the calibrated display rig.
-
-Multi-monitor rigs (three displays for the mesoscope setup) use one `Camera` per monitor inside
-the single `DisplayObject`. `FullScreenViewManager` binds those cameras to OS monitor indices.
-
-### `Gimbl.PerspectiveProjection`
-
-`[ExecuteInEditMode]` `MonoBehaviour` attached to every display camera by `DisplayObject.Create`.
-It computes the off-axis projection and view matrices each `LateUpdate` from the camera's
-position relative to its `projectionScreen` GameObject, then applies them to the camera. Running
-in edit mode means the rig already looks correct in the Scene view without entering Play Mode.
-
-- **Screen mesh type**: `UpdateView` reads `projectionScreen.GetComponent<MeshFilter>().sharedMesh.name`
-  once and branches on `"Plane"` (10×10 unit, lies on XZ plane, lower-left at `(-5, 0, -5)`) or
-  `"Quad"` (1×1 unit, lies on XY plane, lower-left at `(-0.5, -0.5, 0)`). The `switch` carries no
-  `default` case and no early return, so any other mesh name leaves all three screen corners at
-  their `Vector3` zero initializers and the update runs to completion on that degenerate geometry.
-  The zeroed corners collapse `screenRightAxis`, `screenUpAxis`, and `screenNormal`, drive
-  `eyeToScreenDistance` to 0, and make `BuildProjectionMatrix` divide by zero, so the camera is
-  assigned a NaN `projectionMatrix` and a degenerate `worldToCameraMatrix`. With the default
-  `estimateViewFrustum = true`, `EstimateViewFrustum` also overwrites the camera's rotation and
-  sets `fieldOfView` to 0. Name every projection screen's `sharedMesh` asset `Plane` or `Quad`.
-- **Negative-scale handling**: when the eye is behind the screen (dot-product test on
-  `screenLowerLeft → upperLeft × lowerRight`), the screen axes are flipped before normalization.
-  This is what lets the project's Right wall use a negative geometry scale to mirror its cue
-  texture without inverting the projection. It is also why the cue material must use Unity's
-  `Legacy Shaders/Diffuse` (the Standard shader breaks under negative scales — see
-  `/task-generator` for the cue shader contract).
-- **Brightness post-process**: `OnRenderImage` blits the camera's output through a `Material`
-  whose shader is `Hidden/BrightnessShader`, with `_brightness` set from `displayObject.currentBrightness`
-  (or `100f` if no `displayObject` is wired). This is how the `Blank` / `Show` toggle in the
-  Display section dims or restores the display.
-- **`estimateViewFrustum`** (default `true`) points the camera at the screen center and sets its
-  FOV to approximate the off-axis projection so Unity's culling — which uses the symmetric
-  frustum, not the matrix written above — keeps the visible region.
-- **`setNearClipPlane`** (default `true`) auto-adjusts the camera's near clip plane to the
-  eye-to-screen distance. `DisplayObject.Create` explicitly sets this to `false` on every spawned
-  camera so the configured `nearClipPlane = 0.3f` is preserved. Re-enabling it on a rig camera
-  will break the calibrated display.
-
-### `Gimbl.FullScreenViewManager`
-
-Editor-side helper consumed by `MainWindow`'s Camera Mapping section. Enumerates OS monitors via
-`Monitor.EnumerateMonitors()`, persists camera bindings in
-`Assets/VRSettings/Displays/<scene>-savedFullScreenViews.asset`, and creates one
-`FullScreenView` per assigned monitor at Play Mode entry. The same instance is shared by the
-McpBridge's `read_task_parameters` / `write_task_parameters` handlers so editor edits and MCP
-edits stay in sync.
-
-The McpBridge's `AcquireFullScreenManager` reuses the open Parameters window's manager when one
-exists and otherwise constructs a fresh one (whose `LoadCameras` reads the saved asset). The
-shared instance is the reason editor-side writes via `/task-parameters` are visible in the
-already-open GUI without a reload.
-
-`LoadCameras` and `SaveCameras` skip the saved-views asset I/O entirely when the active scene has
-no name (untitled / unsaved buffer). That guards against creating an orphan
-`-savedFullScreenViews.asset` (hyphen-prefixed, no scene to consume it) when the Parameters
-window or the McpBridge writes camera mapping before the scene has been saved. The companion
-asset is also cascade-deleted when its owning scene is removed via `delete_task_tool`
-(see `/task-prefabs`).
-
-**Monitor enumeration timeout.** `Monitor.EnumerateMonitors` calls `xrandr` (Linux) or
-`/usr/local/bin/displayplacer list` (macOS) as a subprocess with a hardcoded 5000ms timeout.
-If the subprocess hangs, the manager kills it, logs a warning, and returns whatever monitors
-were parsed before the timeout. On Windows the enumeration is a synchronous P/Invoke
-(`EnumDisplayMonitors`) and has no timeout. Every detected monitor is then probed for its
-`EditorGUIUtility.pixelsPerPoint` via a temporary 20×20 popup `MonitorTester` window, which
-produces a brief visual flicker on each display.
-
-**One-camera-per-monitor invariant.** `RenderMonitorRow` silently ignores any selection that
-would alias another monitor's camera. The dropdown change appears to apply but the underlying
-`cameraEntityId` is not reassigned. The persistence call is gated independently on the dropdown
-selection having changed, so `SaveCameras` still runs and, on a saved scene, rewrites the
-saved-views asset with the unchanged bindings. To bind a camera that is already assigned
-elsewhere, first set the original monitor's dropdown back to `None`, then assign the new monitor.
+The controller hierarchy shares one `ControllerTests` fixture; every other GIMBL type except
+`LayoutSettings` and `MQTTConnectorObject` has its own `<Type>Tests` EditMode fixture under
+`Assets/Tests/EditMode/` (`namespace SL.Tests.EditMode`), and `MQTTConnectorObject` plus the
+runtime broker path are covered by `MqttClientPlayModeTests` under `Assets/Tests/PlayMode/`.
+`Sollertia.Tests.EditMode` references both GIMBL assemblies, so a change to any GIMBL primitive
+extends the matching fixture — adding one when the type has none. See `/unity-tests`.
 
 ---
 
@@ -469,8 +395,9 @@ focuses) the window. The five sections are rendered in fixed order by `OnGUI`:
 1. **Actor** — model + controller dropdowns
 2. **MQTT** — broker IP / port + Test Connection (greyed in Play Mode)
 3. **Display** — Blank / Show toggle + `brightness` + `heightInVR`
-4. **Camera Mapping** — Refresh + per-monitor camera dropdowns + Show Full-Screen Views (button
-   greyed in Play Mode)
+4. **Camera Mapping** — Refresh Monitor Positions (shares
+   `FullScreenViewManager.RefreshMonitorPositions` with the `refresh_monitors` MCP tool) +
+   per-monitor camera dropdowns + Show Full-Screen Views (button greyed in Play Mode)
 5. **Task** — `Require Interaction` / `Require Wait` (conditional on zone presence) + `Track Length` /
    `Track Seed`. The entire Task section's controls are greyed in Play Mode.
 
@@ -489,7 +416,8 @@ Use this table to decide which layer a change belongs in.
 | MQTT transport and serialization primitives   | GIMBL         | `MQTTClient.cs`, `MQTTChannel.cs`, `MQTTTopics.cs`         |
 | Hardware treadmill input                      | GIMBL         | `LinearTreadmill.cs`                                       |
 | Simulated treadmill input                     | GIMBL         | `SimulatedLinearTreadmill.cs`, `SimulatedInput.cs`         |
-| Display rig projection math                   | GIMBL         | `PerspectiveProjection.cs`, `Monitor.cs`                   |
+| Display rig projection math                   | GIMBL         | `PerspectiveProjection.cs`                                 |
+| Editor-only OS monitor enumeration            | GIMBL         | `Monitor.cs`, `FullScreenViewManager.cs`                   |
 | Task Parameters editor window                 | GIMBL         | `MainWindow.cs`, `LayoutSettings.cs`                       |
 | Corridor teleportation and cue sequence       | `SL.Tasks`    | `Task.cs`                                                  |
 | Stimulus trigger zones and behavior modes     | `SL.Tasks`    | `StimulusTriggerZone.cs`, `OccupancyZone.cs`               |
@@ -513,14 +441,15 @@ the framework or easy to break in non-obvious ways:
 | File                                | Reason                                                                              |
 |-------------------------------------|-------------------------------------------------------------------------------------|
 | `MQTT/MQTTClient.cs`                | Singleton lifecycle and in-process loopback; breakage leaves every channel dangling |
-| `Displays/PerspectiveProjection.cs` | Projection matrix math is calibrated for the mesoscope rig                          |
-| `Displays/Monitor.cs`               | Editor + runtime coordination for full-screen views                                 |
-| `Controllers/ControllerObject.cs`   | Abstract base used by polymorphic editor inspectors                                 |
+| `Displays/PerspectiveProjection.cs` | Off-axis matrix math is calibrated against each screen's physical placement         |
+| `Displays/Monitor.cs`               | Editor-only (`#if UNITY_EDITOR`) OS enumeration; `refresh_monitors` parses its shape|
+| `Controllers/ControllerObject.cs`   | Reflection target of `MainWindow.BuildControllerSpecs`; owns the `movement` buffer  |
 | `Controllers/LinearTreadmill.cs`    | The hide-don't-chain Start contract is required by `SimulatedLinearTreadmill`       |
 | `Editor/MainWindow.cs`              | Auto-open hooks + EnsureControllers are load-bearing for scene initialization       |
 
 If a change here is unavoidable, update the `automation:csharp-style` (ataraxis marketplace)
-verification pass and test against the full display rig (three monitors) before committing.
+verification pass, run the `Sollertia.Tests.EditMode` and `Sollertia.Tests.PlayMode` suites, then
+verify on the target deployment's actual monitor arrangement before committing.
 
 ---
 
@@ -531,7 +460,8 @@ verification pass and test against the full display rig (three monitors) before 
 | `NullReferenceException` on `MQTTClient.Instance`                       | Ensure the scene has a `MQTT Client` GameObject (auto-created by MainWindow); create channels in `Start()` not `Awake()` |
 | `JsonUtility` returns default-valued messages                           | Payload class uses properties `{ get; set; }` — convert to public fields                                                 |
 | Display attaches but actor sees through its own walls                   | Camera culling layer missing; check that the actor's layer matches the scene hierarchy                                   |
-| `Window → Task Parameters` opens but a section says "missing component" | The scene predates `MainWindow.InitializeScene`; re-open the window to repair                                            |
+| A section says "No Actor / Display / MQTT Client in the active scene"   | The scene predates `MainWindow.InitializeScene`; close and reopen the window to auto-create the root                     |
+| The Task section says "No Task component found in the current scene."   | Expected outside a generated task scene; reopening the window does not repair it                                         |
 | MQTT settings reset after reopening the project                         | `EditorPrefs` are per-user-per-project-path — expected; reconfigure once                                                 |
 | Adding a new controller does not appear in the dropdown                 | Missing `ControllerTypes` enum entry, or `BuildControllerSpecs` could not resolve the type at `Gimbl.<EnumName>`         |
 
@@ -542,10 +472,12 @@ verification pass and test against the full display rig (three monitors) before 
 ```text
 - [ ] New scripts that use MQTT create channels in Start(), not Awake() or constructors
 - [ ] Typed channels use payload classes with public fields (no properties)
-- [ ] Null-conditional operator (?.) used when removing listeners in OnDestroy()
+- [ ] Channels created in Start() are released in OnDestroy(): RemoveListener + client?.Unsubscribe(channel)
 - [ ] Display / Controller assignments use the ActorObject property setters, not direct field access
-- [ ] New controllers add a ControllerTypes enum value AND a display-name case if needed
-- [ ] Changes to MQTTClient, PerspectiveProjection, Monitor, or MainWindow have been tested on the three-monitor rig
+- [ ] New controllers add a ControllerTypes enum value, a display-name case if needed, and a ControllerTests update
+- [ ] New script folders declare an .asmdef and are referenced from every consuming assembly, tests included
+- [ ] Changes to any GIMBL primitive pass its EditMode fixture (see Test coverage) and MqttClientPlayModeTests
+- [ ] Display-rig changes were confirmed against the deployment's actual monitor count and layout
 - [ ] `/mqtt-contract` is updated if any new channel is introduced via GIMBL primitives
 - [ ] No hand-typed MQTT topic literals appear outside MQTTTopics.cs
 ```
@@ -560,5 +492,8 @@ verification pass and test against the full display rig (three monitors) before 
 | `/scene-setup` (this plugin)       | User-facing workflow for the MainWindow Task Parameters window                                 |
 | `/task-parameters` (this plugin)   | Programmatic mirror of the same window's Actor / MQTT / Display / Camera Mapping / Task fields |
 | `/task-generator` (this plugin)    | Segment prefabs sit inside the actor's coordinate frame                                        |
+| `/task-prefabs` (this plugin)      | Generated task prefabs sit inside the `ActorObject` coordinate frame                           |
+| `/zone-prefabs` (this plugin)      | Modifier-script invariants for zone prefabs built on GIMBL primitives                          |
+| `/unity-tests` (this plugin)       | Test-assembly layout and the EditMode / PlayMode fixtures covering every GIMBL type            |
 | `automation:csharp-style`          | GIMBL code is held to the same C# conventions as the project                                   |
 | `experiment:vr-driver-interface`   | Python peer of `MQTTClient` / `MQTTTopics`, the host end of the wire contract                  |

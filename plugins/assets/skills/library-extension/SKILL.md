@@ -278,7 +278,7 @@ split three ways and each skill owns its slice — apply all three:
 | Slice                                                                                             | Owning skill                      |
 |---------------------------------------------------------------------------------------------------|-----------------------------------|
 | Python `TriggerType` enum + per-supporting-system `from_task_template` branch (this skill, below) | `/library-extension` (this skill) |
-| Hand-authored zone prefab manufacturing                                                           | `unity:zone-prefabs` (Steps 1–6)  |
+| Zone prefab manufacturing (`clone_zone_prefab_tool`)                                              | `unity:zone-prefabs`              |
 | `CreateTask` pipeline edits + `DeleteProtectedPaths`                                              | `unity:task-generator`            |
 
 The platform `TriggerType` enum carries the full taxonomy — currently five members: `INTERACTION`,
@@ -419,6 +419,7 @@ resolves inside the sollertia marketplace.
 | `forging:behavior-input-format`            | Decides eligibility of new session types for behavior processing                                                                                                                                           |
 | `forging:project-manifest`                 | Tabulates new session types in the project manifest                                                                                                                                                        |
 | `forging:dataset-forging-input-format`     | Decides eligibility of new session types for dataset forging                                                                                                                                               |
+| `unity:zone-prefabs`                       | Manufactures the trigger zone prefab a new `TriggerType` member needs (`clone_zone_prefab_tool`)                                                                                                           |
 | `unity:task-prefabs`                       | Generates Unity prefabs for new `TriggerType` members                                                                                                                                                      |
 | `unity:task-scenes`                        | Authors Unity scenes for new acquisition systems                                                                                                                                                           |
 | `automation:commit`                        | Should be invoked after the cross-cutting changes land                                                                                                                                                     |

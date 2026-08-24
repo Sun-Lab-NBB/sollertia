@@ -27,13 +27,14 @@ good fit for the subclass-a-modifier-zone technique.
 Three runtime systems read `OccupancyZone` by **typed** lookup, and every one of them picks up a
 `CumulativeOccupancyZone` subclass for free:
 
-- `StimulusTriggerZone.cs` calls `GetComponentInChildren<OccupancyZone>()` and reads the parent's
-  `occupancyMet` flag to decide when to fire — unchanged by the subclass.
+- `StimulusTriggerZone.cs` calls `GetComponentInChildren<OccupancyZone>()` and reads that child
+  zone's `occupancyMet` flag to decide when to fire — unchanged by the subclass.
 - `OccupancyGuidanceZone.cs` calls `GetComponentInParent<OccupancyZone>()` to read
   `occupancyDurationMs`, `GetElapsedMilliseconds()`, and `occupancyMet` for the brake — its
   remaining-duration math works against the accumulated elapsed time with no edit.
-- `ResetZone.cs` discovers resettables via `FindObjectsByType<OccupancyZone>` (plus the other two
-  known types), so it resets the subclass each lap with no edit.
+- `Task.FindResettableZones` (`Assets/InfiniteCorridorTask/Scripts/Task.cs`) discovers resettables
+  via `FindObjectsByType<OccupancyZone>` (plus the other three known implementers), so the corridor
+  advance resets the subclass each lap with no edit.
 
 A fully standalone class would be invisible to all three and would force edits to each. Subclassing
 is the cheaper path, and because only the timer-accrual policy changes, the variant needs **one**
@@ -57,6 +58,10 @@ committing.
 
 Under `Assets/InfiniteCorridorTask/Scripts/CumulativeOccupancyZone.cs` (invoke `automation:csharp-style`):
 
+- Declare the class in `namespace SL.Tasks`, the namespace every script in that folder uses. The
+  folder's `Sollertia.InfiniteCorridorTask.asmdef` (`"name": "Sollertia.InfiniteCorridorTask"`,
+  `"rootNamespace": "SL"`) compiles the new file into the `Sollertia.InfiniteCorridorTask` assembly —
+  no script in the project compiles into Unity's predefined `Assembly-CSharp`.
 - Override `RestartTimerOnEntry => false` so re-entries resume the stopwatch and the dwell time
   accumulates across the lap.
 
@@ -73,8 +78,12 @@ exists with a fresh `guid:`.
 ### Step 4: Swap the modifier script GUID
 
 For the `CumulativeOccupancyRegion` MonoBehaviour block: swap `OccupancyZone`'s GUID for
-`CumulativeOccupancyZone`'s GUID (from its `.cs.meta`), and update `m_EditorClassIdentifier:` from
-`Assembly-CSharp::OccupancyZone` to `Assembly-CSharp::CumulativeOccupancyZone`.
+`CumulativeOccupancyZone`'s GUID (from its `.cs.meta`). `m_Script.guid` is the load-bearing field;
+`m_EditorClassIdentifier:` is informational and Unity rewrites it on reimport, so either leave it
+empty or write `Sollertia.InfiniteCorridorTask::SL.Tasks.CumulativeOccupancyZone` — Unity's format is
+`<assembly>::<fully-qualified type>`. The `Assembly-CSharp::OccupancyZone` string the committed
+`OccupancyTriggerZone.prefab` still carries (line 287) is pre-asmdef residue and MUST NOT be copied
+into a newly authored block.
 
 The `OccupancyGuidanceRegion` grandchild and the root `StimulusTriggerZone` MonoBehaviour are
 **unchanged** — both reach the polymorphic `CumulativeOccupancyZone` through their inherited typed
@@ -90,15 +99,26 @@ depth and parent-child fileID pairings match the canonical occupancy prefab exac
 ### Step 6: Wire downstream per `SKILL.md` Step 7
 
 - New `TriggerType` member `OCCUPANCY_TRIGGER_CUMULATIVE` (`occupancy_trigger_cumulative`) via
-  `assets:library-extension`, plus the matching literal in `ConfigLoader.ValidateTemplate`.
+  `assets:library-extension`, plus the matching literal in **both** `ConfigLoader.ValidateTemplate`
+  gates: the accepted `trigger_type` set (`ConfigLoader.cs:223-227`, and its error message at
+  `231-232`) and the separate `isOccupancy` predicate (`ConfigLoader.cs:241-244`) that makes
+  `occupancy_duration_ms` mandatory. The `BuildSegmentPrefabs` dispatch branch passes
+  `trial.occupancyDurationMs.Value` unguarded (`CreateTask.cs:1077`), so a literal missing from the
+  second gate lets a template omit the duration and throws at generation time.
 - A `PlaceCumulativeOccupancyZone` helper in `CreateTask.cs` (clone `PlaceOccupancyZone`) that
   instantiates `CumulativeOccupancyTriggerZone.prefab` and sets the root
   `StimulusTriggerZone.triggerMode = TriggerMode.OccupancyTrigger` — the variant reuses the
   occupancy-trigger **firing** rule and only customizes the timer accrual on the zone. Dispatch to
   it from `BuildSegmentPrefabs` on the new literal (via `/task-generator`).
 - `DeleteProtectedPaths` entry for `CumulativeOccupancyTriggerZone.prefab`.
-- **No** `ResetZone.cs` edit needed — `CumulativeOccupancyZone` inherits from `OccupancyZone`, which
-  `ResetZone.Start` already discovers polymorphically.
+- **Test suite** — add `CumulativeOccupancyZone` to the `expected` array in
+  `IResettable_RuntimeAssembly_DeclaresExactlyTheRegisteredImplementers`
+  (`Assets/Tests/EditMode/StimulusTriggerZoneTests.cs`), which asserts the runtime assembly declares
+  exactly the registered `IResettable` implementers, and extend the occupancy-zone tests to cover the
+  accumulating timer (see `/unity-tests`).
+- **No** `Task.FindResettableZones` edit needed — `CumulativeOccupancyZone` inherits from
+  `OccupancyZone`, which `Task.FindResettableZones` (called from `Task.Start`) already discovers
+  polymorphically.
 
 ---
 
@@ -111,15 +131,18 @@ geometrically (separate colliders at separate cm offsets) and conjunctive at fir
 succeed in the same lap).
 
 `StimulusTriggerZone`'s built-in interaction gate covers the interaction half but has no notion of
-speed. To keep `ResetZone.cs`'s typed `FindObjectsByType<StimulusTriggerZone>` working without an explicit
-edit, the new root parent script **subclasses** `StimulusTriggerZone` rather than replacing it.
-The new sibling-region script (`SpeedZone`) is a standalone `IResettable` — it does not subclass
-any of the three known types, so it requires an explicit `ResetZone.cs` registration.
+speed. To keep `Task.FindResettableZones`'s typed `FindObjectsByType<StimulusTriggerZone>` working
+without an explicit edit, the new root parent script **subclasses** `StimulusTriggerZone` rather than
+replacing it. The new sibling-region script (`SpeedZone`) is a standalone `IResettable` — it does not
+subclass any of the four known implementers, so it requires an explicit registration in
+`Task.FindResettableZones`.
 
 ### Step 1: Author `SpeedZone.cs` (standalone `IResettable`)
 
 Under `Assets/InfiniteCorridorTask/Scripts/SpeedZone.cs` (invoke `automation:csharp-style`):
 
+- Declare `SpeedZone` in `namespace SL.Tasks` so the folder's `Sollertia.InfiniteCorridorTask.asmdef`
+  compiles it into the `Sollertia.InfiniteCorridorTask` assembly alongside the zones it sits beside.
 - `[Serializable]` fields: `targetSpeedCmPerSec`, `toleranceCmPerSec`, plus an `[HideInInspector]`
   `cmPerUnit` populated by `PlaceSpeedInteractionZone` at task generation time so the script does not
   need to discover the conversion at runtime.
@@ -139,22 +162,35 @@ and avoids a `FindAnyObjectByType<Task>()` round-trip every frame.
 
 Under `Assets/InfiniteCorridorTask/Scripts/SpeedInteractionTriggerZone.cs` (invoke `automation:csharp-style`):
 
-- Promote `StimulusTriggerZone.Start`, `UpdateInteractionMode`, and `TriggerStimulus` to `protected virtual`
-  first (parallel to Example A's `OccupancyZone` edit). The base declares all three `private`, and Unity
-  dispatches `Start` as a message rather than through virtual dispatch, so a subclass reaches the base
-  initialization only after this promotion.
+- Promote `StimulusTriggerZone.Start`, `UpdateInteractionMode`, `OnTriggerExit`, and `TriggerStimulus` to
+  `protected virtual` first (parallel to Example A's `OccupancyZone` edit), along with the `BehaviorCause`
+  and `GuidanceCause` constants (`StimulusTriggerZone.cs:22` and `:25`, both `private const`) that a
+  subclass has to name when it calls `TriggerStimulus`, and the `_inZone`, `_interactionDetectedInZone`,
+  `_guidanceZone`, and `_task` fields (`StimulusTriggerZone.cs:55`, `:58`, `:63`, `:76`, all `private`),
+  which an outright `UpdateInteractionMode` or `OnTriggerExit` override has to read. The base declares all
+  four methods `private`, and Unity dispatches `Start` and `OnTriggerExit` as messages rather than through
+  virtual dispatch, so a subclass reaches the base implementations only after this promotion.
 - Cache the sibling `SpeedZone` via `GetComponentInChildren<SpeedZone>()` in an overridden `Start`, calling
   `base.Start()` first so the base MQTT and `Task` wiring runs.
-- Override `UpdateInteractionMode` to gate on `_speedZone != null && _speedZone.speedMet` in addition to the
-  existing interaction-detection check.
+- Override `UpdateInteractionMode` outright rather than layering a `_speedZone.speedMet` check onto the
+  base. The base method (`StimulusTriggerZone.cs:200-232`) branches three ways on `_task.requireInteraction`
+  and `_guidanceZone != null`, and because Step 4 replaces this prefab's `GuidanceZone` with `SpeedZone`,
+  `_guidanceZone` is null — so the base's final `else` branch, which fires on bare `_inZone` with no sensor
+  involvement at all, is the one that would run whenever `requireInteraction` is false.
+- Override `OnTriggerExit` as well. `StimulusTriggerZone.OnTriggerExit` (`StimulusTriggerZone.cs:151-165`)
+  resolves an interaction trial on the boundary crossing via
+  `TriggerStimulus(delivered: _interactionDetectedInZone, cause: BehaviorCause)`, so a subclass that gates
+  only `UpdateInteractionMode` still delivers on exit whenever the animal engaged the sensor inside the
+  zone, however slowly it traversed the speed-test region. The speed gate has to apply on both paths or
+  the conjunction the example promises is not real.
 - Inherit `ResetState` from `StimulusTriggerZone`; `SpeedZone.ResetState` handles its own state.
 
 Subclassing means:
 
-- `ResetZone.Start`'s `FindObjectsByType<StimulusTriggerZone>` finds the new parent
+- `Task.FindResettableZones`'s `FindObjectsByType<StimulusTriggerZone>` finds the new parent
   polymorphically — no edit needed there for the parent.
-- `SpeedZone` is **not** a subclass of the three known types, so `ResetZone.cs` does need
-  a `FindObjectsByType<SpeedZone>` registration. This is the one mandatory `ResetZone` edit per
+- `SpeedZone` is **not** a subclass of the four known implementers, so `Task.FindResettableZones` does
+  need a `FindObjectsByType<SpeedZone>` registration. This is the one mandatory `Task.cs` edit per
   `SKILL.md` Step 7.
 
 ### Step 3: Copy and rename the prefab
@@ -171,8 +207,19 @@ Subclassing means:
 - `SpeedTestRegion` MonoBehaviour: swap `GuidanceZone`'s GUID for `SpeedZone`'s GUID. Replace
   the `GuidanceZone` field block (`inZone: 0`) with `targetSpeedCmPerSec`,
   `toleranceCmPerSec`, and a placeholder `cmPerUnit: 10` (overwritten at task generation).
-- Update `m_EditorClassIdentifier:` lines to match (root populated or empty per the source
-  template's polarity; modifier set to `Assembly-CSharp::SpeedZone`).
+- Leave `m_EditorClassIdentifier:` empty on both the root and the `SpeedTestRegion` block.
+  `StimulusTriggerZone.prefab` ships both lines blank (lines 147 and 215) and Unity repopulates the
+  field on reimport. If a value is written by hand, the format is `<assembly>::<fully-qualified type>`
+  — `Sollertia.InfiniteCorridorTask::SL.Tasks.SpeedZone`, never `Assembly-CSharp::`.
+
+Replacing the region's `GuidanceZone` with `SpeedZone` removes the only `GuidanceZone` from every scene
+generated from this prefab, and `GuidanceZone` is the marker the Task Parameters surface keys on:
+`McpBridge.AcquireSceneComponents` (`McpBridge.cs:1350`) sets `HasInteractionZone = false`, so
+`read_task_parameters` reports `require_interaction: false`, `write_task_parameters` rejects the key
+(`McpBridge.cs:1681-1684`), and the Parameters-window control is hidden — yet the overridden
+`UpdateInteractionMode` still reads `_task.requireInteraction` (`StimulusTriggerZone.cs:202`). Either keep
+a `GuidanceZone` on a second region or extend `AcquireSceneComponents` to detect `SpeedZone` as well
+(see `/task-parameters`).
 
 ### Step 5: Validate via `inspect_prefab_tool`
 
@@ -198,7 +245,18 @@ script name `SpeedInteractionTriggerZone` alongside `MeshFilter`, `MeshRenderer`
   on the root.
 - `BuildSegmentPrefabs` dispatch entry that selects the new prefab for the new `trigger_type`.
 - `DeleteProtectedPaths` entry for `SpeedInteractionTriggerZone.prefab`.
-- `ConfigLoader.ValidateTemplate` accepts the new `trigger_type` literal.
-- **`ResetZone.cs`** — add `resettables.AddRange(FindObjectsByType<SpeedZone>(FindObjectsSortMode.None));`
-  next to the existing three `FindObjectsByType` calls. `SpeedInteractionTriggerZone` is covered by the
-  existing `FindObjectsByType<StimulusTriggerZone>` line via polymorphism.
+- `ConfigLoader.ValidateTemplate` accepts the new `trigger_type` literal in the accepted-literal set
+  (`ConfigLoader.cs:223-227`) and in its error message (`:231-232`). The new mode is not an occupancy
+  mode, so it stays out of the `isOccupancy` predicate (`:241-244`).
+- **`Task.cs`** — add `resettables.AddRange(FindObjectsByType<SpeedZone>(FindObjectsSortMode.None));`
+  inside `Task.FindResettableZones`, next to the existing four `FindObjectsByType` calls.
+  `SpeedInteractionTriggerZone` is covered by the existing `FindObjectsByType<StimulusTriggerZone>`
+  line via polymorphism.
+- **`McpBridge.AcquireSceneComponents`** — settle the `HasInteractionZone` consequence raised in Step 4
+  before the prefab ships, either by keeping a `GuidanceZone` in the prefab or by teaching the scan
+  about `SpeedZone`.
+- **Test suite** — add both `SpeedZone` and `SpeedInteractionTriggerZone` to the `expected` array in
+  `IResettable_RuntimeAssembly_DeclaresExactlyTheRegisteredImplementers`
+  (`Assets/Tests/EditMode/StimulusTriggerZoneTests.cs`), which asserts the runtime assembly declares
+  exactly the registered `IResettable` implementers, and add coverage for the conjunctive gate on both
+  the `Update` and the `OnTriggerExit` delivery paths (see `/unity-tests`).

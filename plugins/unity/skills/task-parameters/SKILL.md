@@ -1,11 +1,11 @@
 ---
 name: task-parameters
 description: >-
-  Reads and writes the consolidated Task Parameters editor window in sollertia-virtual-reality via the
-  sollertia-shared-assets MCP server's Unity relay. Owns read_task_parameters_tool and
-  write_task_parameters_tool, which mirror the Actor, MQTT, Display, Camera Mapping, and Task
-  sections of `Window → Task Parameters`. Use when inspecting or programmatically changing per-scene
-  Task / Actor / Display / MQTT / Camera Mapping settings without opening the Editor window manually.
+  Reads and writes the consolidated Task Parameters editor window in sollertia-virtual-reality via
+  the sollertia-shared-assets MCP server's Unity relay. Owns read_task_parameters_tool,
+  write_task_parameters_tool, and refresh_monitors_tool, which mirror the window's five sections. Use
+  when inspecting or changing per-scene Task, Actor, Display, MQTT, or Camera Mapping settings, or
+  re-detecting the host's monitors, without opening the Editor window manually.
 user-invocable: false
 ---
 
@@ -13,18 +13,22 @@ user-invocable: false
 
 Programmatically reads and writes the consolidated **Task Parameters** Unity Editor window for
 `sollertia-virtual-reality` through the Unity relay exposed by `slsa mcp` — the **exclusive** owner of
-`read_task_parameters_tool` and `write_task_parameters_tool`, which no other skill in the
-marketplace may call.
+`read_task_parameters_tool`, `write_task_parameters_tool`, and `refresh_monitors_tool`, which no
+other skill in the marketplace may call. That exclusivity binds marketplace *skills*; the acquisition
+runtime's own HTTP bridge client is a peer that drives the same endpoints directly during a session
+(see `experiment:vr-driver-interface`).
 
 The window itself is owned by `MainWindow`
 (`Assets/Gimbl/Editor/MainWindow.cs`); the read / write surface mirrors the GUI's *field controls*
-plus the option lists and visibility flags the GUI uses to render them. Action-only GUI controls
-that are not exposed through the bridge include: MQTT `Test Connection`, Camera Mapping
-`Refresh Monitor Positions` and `Show Full-Screen Views`, and the Display `Blank Display` /
-`Show Display` toggle button (its underlying effect is reachable through a `display.current_brightness`
-write). The `Task` component's public fields are `[HideInInspector]` and `TaskEditor` replaces the
-default Inspector with a HelpBox pointing at the Parameters window — so this skill is the *only*
-programmatic entry point for those fields.
+plus the option lists and visibility flags the GUI uses to render them. Camera Mapping's
+`Refresh Monitor Positions` button **is** exposed, as `refresh_monitors_tool` — both paths call
+`FullScreenViewManager.RefreshMonitorPositions`, so they re-detect identically. Action-only GUI
+controls that are not exposed through the bridge include: MQTT `Test Connection`, Camera Mapping
+`Show Full-Screen Views`, and the Display `Blank Display` / `Show Display` toggle button (its
+underlying effect is reachable through a `display.current_brightness` write). The `Task` component's
+public fields are `[HideInInspector]` and `TaskEditor` replaces the default Inspector with a HelpBox
+pointing at the Parameters window — so this skill is the *only* programmatic entry point for those
+fields.
 
 ---
 
@@ -35,9 +39,11 @@ programmatic entry point for those fields.
   (`read_task_parameters_tool`)
 - Writing any subset of those fields and receiving the post-write snapshot on success
   (`write_task_parameters_tool`)
+- Re-detecting the host's monitors mid-session and receiving the post-refresh snapshot
+  (`refresh_monitors_tool`)
 - The option lists (allowed enum values) and visibility flags returned alongside the state
 - Validation rules the bridge enforces (zone-gated `require_interaction` / `require_wait`, monitor index
-  bounds, controller / model / camera membership)
+  bounds, broker-port and numeric-finiteness bounds, controller / model / camera membership)
 - Choosing between Parameters window writes and scene-file edits
 
 **Does not cover:**
@@ -58,18 +64,20 @@ programmatic entry point for those fields.
 |-------------------------------|------------------------------------------------------------------------------------|
 | `read_task_parameters_tool`   | Snapshot the active scene's Parameters state, options, and visibility (exclusive)  |
 | `write_task_parameters_tool`  | Apply a subset of fields and return the post-write snapshot (exclusive)            |
+| `refresh_monitors_tool`       | Re-detect the host's monitors and return the post-refresh snapshot (exclusive)     |
 
-Both tools require the Unity Editor to be running with the `McpBridge` plugin active (else
-`/unity-mcp-environment-setup`). Both share a single `AcquireSceneComponents` walk per request, so
-`read → write → read` is consistent and writes never race a separate enumeration pass.
+All three tools require the Unity Editor to be running with the `McpBridge` plugin active (else
+`/unity-mcp-environment-setup`). All three share a single `AcquireSceneComponents` walk per request,
+so `read → write → read` is consistent and writes never race a separate enumeration pass.
 
 ---
 
 ## Response shape
 
-`read_task_parameters_tool` and the post-write payload from `write_task_parameters_tool` return the
-same dict with three top-level keys: **`state`**, **`options`**, **`visibility`**. Every section
-key is a stable string; the values vary by section.
+`read_task_parameters_tool`, the post-write payload from `write_task_parameters_tool`, and the
+post-refresh payload from `refresh_monitors_tool` all return the same dict with three top-level
+keys: **`state`**, **`options`**, **`visibility`**. Every section key is a stable string; the values
+vary by section.
 
 ### `state`
 
@@ -80,7 +88,7 @@ is never `None`.
 
 ```json
 {
-  "actor":          {"model": "Mouse",     "controller": "Simulated Linear"},
+  "actor":          {"model": "Rodent",    "controller": "Simulated Linear"},
   "mqtt":           {"ip": "127.0.0.1",    "port": 1883},
   "display":        {"current_brightness": 100, "brightness": 100, "height_in_vr": 0.0},
   "camera_mapping": [
@@ -105,10 +113,17 @@ needs to interpret:
   the active `DisplayObject` has no `DisplaySettings` asset assigned, the snapshot substitutes
   `100` for `brightness` and `0` for `height_in_vr` so the response stays well-formed; writes to
   those two fields are silently dropped in that state (see [Validation rules](#validation-rules)).
+- A `display.brightness` write updates only the `DisplaySettings` asset. The GUI's brightness field
+  additionally copies the new default into `display.currentBrightness`; the bridge does not, so pass
+  both `brightness` and `current_brightness` when the live display must follow the new default.
 - `camera_mapping` is a list whose length equals the number of monitors the OS reports for the
   current scene; `monitor` is 1-based to match the GUI labels. The `left` and `top` fields are
   output-only — they report the monitor's OS-reported pixel origin and are silently ignored if
-  included in a write payload.
+  included in a write payload. The enumeration runs once per active scene and is cached
+  (`McpBridge._cachedFullScreenManager`, cleared on every active-scene change), because detecting
+  monitors spawns an OS subprocess on Linux and macOS. A read taken after the physical monitor
+  arrangement changed still reports the old geometry until `refresh_monitors_tool()` (or the GUI's
+  `Refresh Monitor Positions` button) re-detects.
 - `task.track_seed == -1` is the documented sentinel for "nondeterministic seed".
 
 ### `options`
@@ -120,7 +135,7 @@ are rejected by the bridge with a descriptive error.
 ```json
 {
   "actor": {
-    "model":      ["Mouse", "None"],
+    "model":      ["Rodent", "None"],
     "controller": ["None", "Linear", "Simulated Linear"]
   },
   "camera_mapping": {
@@ -136,6 +151,14 @@ are rejected by the bridge with a descriptive error.
 - `camera_mapping.camera` is every scene `Camera` that is **not** tagged `MainCamera` and **not**
   named `Main Camera`, plus `"None"`. This matches the filter the GUI dropdown applies so the agent
   and the user see the same option set.
+
+`state.camera_mapping[*].camera` and `options.camera_mapping.camera` are **not** built from the same
+query: the state resolves the persisted assignment through `EditorUtility.EntityIdToObject`
+regardless of the GameObject's active state, while the options list comes from
+`FindObjectsByType<Camera>(FindObjectsSortMode.None)`, which skips inactive objects. A camera bound
+to a deactivated GameObject therefore appears in `state` but not in `options`, and echoing that
+state name back in a write payload is rejected with `Invalid camera '...' for monitor N`. You MUST
+filter a round-tripped payload against `options`, not against `state`.
 
 No options list is returned for `mqtt`, `display`, or `task` because their fields are free-form
 numeric or boolean values (not enumerations).
@@ -181,7 +204,7 @@ tight loop expecting different results between consecutive frames.
 `display`, `camera_mapping`, `task`). Pass only the sections you intend to change; fields inside a
 section are individually optional too. On success the response is the post-write snapshot in the
 same shape as `read_task_parameters_tool`, so a `read → modify → write → consume_snapshot` loop
-never needs a second read.
+never needs a second read for plain field values.
 
 ```text
 write_task_parameters_tool(
@@ -190,17 +213,25 @@ write_task_parameters_tool(
 )
 ```
 
-Writes are processed sequentially in the order `actor → mqtt → display → camera_mapping → task`,
-and within each section in declaration order. **Writes are not atomic**: at the first validation
-failure the bridge returns `{"success": false, "error": "..."}` and stops, but any sections (or
-earlier fields within the same section) that already succeeded keep their mutations on scene
-components, `EditorPrefs`, scriptable-object assets, and `Display.transform`. Plan multisection
-writes so a rejection of a later field does not leave the scene in a half-applied state, and read
-back to confirm when in doubt.
+**Writes are atomic.** `WriteTaskParameters` runs `ValidateTaskParameterWrites` over the entire
+request before applying anything, so a rejection leaves the scene, `EditorPrefs`, the
+scriptable-object assets, and `Display.transform` completely untouched. Validation visits the
+sections in the order `actor → mqtt → display → camera_mapping → task` and returns the first failure
+it finds; when validation passes, the sections apply in that same order, and within each section in
+declaration order.
+
+The post-write snapshot is rendered from the component references the single pre-write scene walk
+acquired. Field values it re-reads off those components are current, but anything derived from scene
+*structure* — `options.actor.controller`, `options.camera_mapping.camera`, and both
+`visibility.task` flags — still describes the pre-write scene. A write that changes the hierarchy
+(notably `actor.model`, which destroys the previous `Model <name>` child and re-instantiates a new
+one, and `actor.controller`, which can change what `ControllerOutput` list a later read returns)
+requires a follow-up `read_task_parameters_tool()` before those lists and flags can be trusted.
 
 On error the response is **only** `{"success": false, "error": "..."}` — no `state`, `options`, or
-`visibility` keys. If a write fails partway through, the snapshot is not returned; a follow-up
-`read_task_parameters_tool()` is the only way to recover the post-failure state.
+`visibility` keys. A rejected write applies nothing, so the state the failed call reports on is
+exactly the state the preceding `read_task_parameters_tool()` returned — no recovery read is
+required after a rejection.
 
 `Undo` coverage is asymmetric: only the `task` section registers an undo step
 (`Undo.RecordObject(task, "Write Task Parameters")`); writes to `actor`, `mqtt`, `display`, and
@@ -210,7 +241,12 @@ writes expecting a single undo to roll them all back.
 The bridge marks the active scene dirty when any write succeeds and runs `EditorUtility.SetDirty`
 on any modified `DisplaySettings` asset (and calls `FullScreenViewManager.SaveCameras()`, which
 internally runs `EditorUtility.SetDirty` plus `AssetDatabase.SaveAssets` on the
-`FullScreenViewsSaved` asset). A subsequent `Ctrl+S` (`Cmd+S` on macOS) / `EditorSceneManager.SaveOpenScenes()`
+`FullScreenViewsSaved` asset). It also runs `Undo.RecordObject(task, "Write Task Parameters")` plus
+`EditorUtility.SetDirty(task)` on the `Task` component whenever a `task` section object is supplied
+and a `Task` exists — even a section carrying no recognized fields. `ApplyCameraMappingSection` is
+the one applier that explicitly guards against that: a `camera_mapping` list whose rows are all
+skipped (no `monitor` key, no string `camera`) returns before `SaveCameras()`, so it neither
+rewrites the `FullScreenViewsSaved` companion asset nor dirties the scene. A subsequent `Ctrl+S` (`Cmd+S` on macOS) / `EditorSceneManager.SaveOpenScenes()`
 persists every scene-level change. A `display.height_in_vr` write additionally translates the
 `DisplayObject` GameObject by setting `display.transform.localPosition = (0, height_in_vr, 0)`,
 so the scene's display rig moves in lockstep with the asset value.
@@ -218,9 +254,37 @@ so the scene's display rig moves in lockstep with the asset value.
 ### Verify a write took effect
 
 When the write succeeds, the response includes the post-write snapshot, so the simplest
-verification is to inspect the returned dict directly. When the write fails (`success == false`),
-the snapshot is absent, and you MUST call `read_task_parameters_tool()` to inspect the partially
-applied state.
+verification is to inspect the returned dict directly — with the caveat above that its `options` and
+`visibility` sections describe the pre-write scene. When the write fails (`success == false`) the
+snapshot is absent, but nothing was applied: the scene still holds the values the last successful
+read reported. Fix the rejected field and resend the whole payload.
+
+### Refresh the monitor list
+
+```text
+refresh_monitors_tool()
+```
+
+Takes no arguments and returns the same `state` / `options` / `visibility` shape the other two tools
+return, with `state.camera_mapping` rebuilt from a fresh `Monitor.EnumerateMonitors()` pass. Call it
+whenever the physical monitor arrangement changed mid-session: the bridge builds one
+`FullScreenViewManager` per active scene and only discards it on an active-scene change, so a plain
+`read_task_parameters_tool()` keeps reporting the stale geometry indefinitely. The GUI's
+`Refresh Monitor Positions` button is the same code path
+(`FullScreenViewManager.RefreshMonitorPositions`), so the two re-detect identically.
+
+Two consequences you MUST account for:
+
+- **Assignments carry across by monitor index, not by identity.** Removing a monitor from the middle
+  of the arrangement shifts every later assignment up one slot. Re-read `state.camera_mapping` after
+  a refresh and re-bind explicitly rather than assuming the bindings survived.
+- **The refreshed list is not persisted.** It stays in memory until a camera assignment is written
+  through `write_task_parameters_tool`, which is what calls `SaveCameras()` on the per-scene
+  `FullScreenViewsSaved` companion asset.
+
+A refresh is also the prerequisite for the zero-monitor write refusal: `write_task_parameters_tool`
+rejects any `camera_mapping` payload while the host reports no monitors, rather than erasing the
+saved assignments (see [Validation rules](#validation-rules)).
 
 ### Swap controllers (Linear ↔ Simulated Linear)
 
@@ -258,17 +322,38 @@ path to flip it mid-experiment.
 
 ## Validation rules
 
-The bridge runs its own validation set, which is a subset of the rules the GUI applies. Each
-rejection returns an `{"success": false, "error": "..."}` response with a descriptive message.
+`ValidateTaskParameterWrites` runs the whole set below before any section applies. Each rejection
+returns an `{"success": false, "error": "..."}` response with a descriptive message and mutates
+nothing.
 
-| Section          | Field                          | Rejection condition                                                                             |
-|------------------|--------------------------------|-------------------------------------------------------------------------------------------------|
-| `actor`          | `model`                        | Value is not in `options.actor.model`                                                           |
-| `actor`          | `controller`                   | Value is not in `options.actor.controller`                                                      |
-| `camera_mapping` | `monitor`                      | 1-based index outside `[1, monitors.Count]`                                                     |
-| `camera_mapping` | `camera`                       | Value is not in `options.camera_mapping.camera`                                                 |
-| `task`           | `require_interaction`          | Scene has no `GuidanceZone` (i.e., `visibility.task.require_interaction == false`)              |
-| `task`           | `require_wait`                 | Scene has no `OccupancyZone` (i.e., `visibility.task.require_wait == false`)                    |
+| Section          | Field                 | Rejection condition                                                                                |
+|------------------|-----------------------|----------------------------------------------------------------------------------------------------|
+| `actor`          | `model`               | Value is not in `options.actor.model`                                                              |
+| `actor`          | `controller`          | Value is not in `options.actor.controller`                                                         |
+| `mqtt`           | `port`                | Not a whole number, or outside `[0, 65535]`                                                        |
+| `display`        | `current_brightness`  | Value does not convert to a finite float                                                           |
+| `display`        | `brightness`          | Value does not convert to a finite float                                                           |
+| `display`        | `height_in_vr`        | Value does not convert to a finite float                                                           |
+| `camera_mapping` | (whole section)       | The host reported zero monitors, so the write is refused rather than erasing the saved assignments |
+| `camera_mapping` | `monitor`             | Row carries no `monitor` key, or the value is not a whole number                                   |
+| `camera_mapping` | `monitor`             | 1-based index outside `[1, monitors.Count]`                                                        |
+| `camera_mapping` | `camera`              | Value is not in `options.camera_mapping.camera`                                                    |
+| `task`           | `require_interaction` | Scene has no `GuidanceZone` (i.e., `visibility.task.require_interaction == false`)                 |
+| `task`           | `require_wait`        | Scene has no `OccupancyZone` (i.e., `visibility.task.require_wait == false`)                       |
+| `task`           | `require_interaction` | Value does not convert to a boolean                                                                |
+| `task`           | `require_wait`        | Value does not convert to a boolean                                                                |
+| `task`           | `track_length`        | Not a positive, finite number                                                                      |
+| `task`           | `track_seed`          | Not a whole number                                                                                 |
+
+The zero-monitor refusal is recoverable: call `refresh_monitors_tool()` once the host enumerates
+monitors again, then resend the `camera_mapping` payload.
+
+Validation and application are both gated on the owning component existing. A write to a section
+whose component is absent from the active scene (`actor` with no `ActorObject`, `mqtt` with no
+`MQTTClient`, `display` with no `DisplayObject`, `task` with no `Task`) is silently ignored and
+still returns `success: true` — even for values that would otherwise be rejected. You MUST confirm
+the matching `state.<section>` is non-null in the returned snapshot before treating a write as
+applied.
 
 The camera mapping path carries one GUI-only guard, so a write there can produce a binding the GUI
 refuses to make. `FullScreenViewManager.RenderMonitorRow` scans every monitor for the selected
@@ -280,17 +365,28 @@ current camera a harmless no-op in the GUI. Monitors left out of a write payload
 bindings, and the bridge inspects neither them nor the other rows of the payload. You MUST confirm
 that the post-write `state.camera_mapping` holds each camera name at most once, unless a duplicate
 binding is intended. The `"None"` value is exempt because it clears a monitor, so it may repeat
-across as many rows as needed.
+across as many rows as needed. `"None"` is also the second point where the bridge is more permissive
+than the GUI: `RenderMonitorRow` refuses to clear a row whose dropdown merely *parked* on `None`
+because the assigned camera sits on a deactivated GameObject, while `ApplyCameraMappingSection`
+writes `EntityId.None` unconditionally. A `"None"` write therefore clears assignments the GUI would
+have preserved.
 
-Other fields (`mqtt.ip`, `mqtt.port`, `display.*`, `task.track_length`, `task.track_seed`) accept
-any numeric / string value the underlying `Convert.ToSingle` / `Convert.ToInt32` / `Convert.ToBoolean`
-can parse; the bridge does not impose a range check here. The GUI itself does not either, so an
-out-of-range brightness or a negative `track_length` will write but produce runtime warnings.
+`mqtt.ip` is the only field the bridge accepts unconditionally (any string; a non-string value is
+ignored rather than rejected). `mqtt.port` is bounded to `[0, 65535]` because the value reaches both
+the live client and the `EditorPrefs` entry a fresh session reloads from.
+`display.current_brightness` / `brightness` / `height_in_vr` must convert to finite floats but are
+not range-checked, and nothing downstream clamps or warns — `PerspectiveProjection` passes
+`currentBrightness` straight to the display shader, so an out-of-range value writes and takes effect
+silently.
+`task.track_length` must be strictly positive and finite — zero and negative values are rejected.
+`task.track_seed` must convert to a 32-bit integer.
 
 The zone-gated rejection of `require_interaction` and `require_wait` is **intentional**: a successful
-write guarantees the flag will actually take effect at runtime. You MUST NOT paper over a
-rejection by writing the underlying `Task` field through a different path — the missing zone means
-the toggle has nothing to gate.
+write guarantees the flag will actually take effect at runtime. The bridge says so verbatim —
+`Cannot set require_interaction: the active scene has no GuidanceZone, so the control is hidden in
+the Parameters window and the flag has no runtime effect.` (and the `require_wait` twin naming
+`OccupancyZone`). You MUST NOT paper over a rejection by writing the underlying `Task` field through
+a different path — the missing zone means the toggle has nothing to gate.
 
 ---
 
@@ -335,31 +431,36 @@ Use `get_play_state_tool` (`/play-mode`) to check `state == "edit"` before issui
 
 ## Troubleshooting
 
-| Symptom                                                                         | Cause                                                                                        | Resolution                                                                                                                                     |
-|---------------------------------------------------------------------------------|----------------------------------------------------------------------------------------------|------------------------------------------------------------------------------------------------------------------------------------------------|
-| `state.actor == null` even though an Actor exists                               | The Actor was placed outside the root and `FindAnyObjectByType<ActorObject>()` missed it     | Confirm the Actor is in the active scene; `inspect_scene_tool` (`/task-scenes`) to verify                                                      |
-| `state.task == null`                                                            | No `Task` component in the active scene (only the empty `ExperimentTemplate` template scene) | `create_task_tool(template_name=...)` (`/task-prefabs`) to seed a task                                                                         |
-| Write rejected: "Invalid controller '...'"                                      | The controller name is not in `options.actor.controller`                                     | Re-read `options.actor.controller`; copy the exact string (it is the GameObject name)                                                          |
-| Write rejected: "Cannot set require_interaction: scene has no GuidanceZone"     | The current task prefab has no interaction-mode segments                                     | The flag is not applicable — leave it alone, or open a scene whose template includes interaction-mode trials                                   |
-| Write rejected: "Invalid monitor index N; scene has M monitors"                 | Camera mapping payload references a 1-based monitor index outside `[1, M]`                   | Re-read `state.camera_mapping` to enumerate valid `monitor` indices                                                                            |
-| `state.camera_mapping == []`                                                    | OS reported zero monitors at scene load                                                      | Click "Refresh Monitor Positions" in the GUI or replug displays, then retry                                                                    |
-| Writes succeed but the GUI shows old values                                     | The Parameters window cached the value before the write landed                               | The bridge already shares the GUI's `FullScreenViewManager` for camera mapping; for other sections close and reopen `Window → Task Parameters` |
+| Symptom                                                                                     | Cause                                                                                                                                                               | Resolution                                                                                                                      |
+|---------------------------------------------------------------------------------------------|---------------------------------------------------------------------------------------------------------------------------------------------------------------------|---------------------------------------------------------------------------------------------------------------------------------|
+| `state.actor == null` even though an Actor exists                                           | The `ActorObject` is on a deactivated GameObject or lives in a loaded scene other than the active one — `FindAnyObjectByType<ActorObject>()` skips inactive objects | Confirm the Actor is in the active scene; `inspect_scene_tool` (`/task-scenes`) to verify                                       |
+| `state.task == null`                                                                        | No `Task` component in the active scene (only the empty `ExperimentTemplate` template scene)                                                                        | `create_task_tool(template_name=...)` (`/task-prefabs`) to seed a task                                                          |
+| Write rejected: "Invalid controller '...'"                                                  | The controller name is not in `options.actor.controller`                                                                                                            | Re-read `options.actor.controller`; copy the exact string (it is the GameObject name)                                           |
+| Write rejected: "Cannot set require_interaction: the active scene has no GuidanceZone, ..." | The current task prefab has no interaction-mode segments                                                                                                            | The flag is not applicable — leave it alone, or open a scene whose template includes interaction-mode trials                    |
+| Write rejected: "Invalid monitor index N; scene has M monitors"                             | Camera mapping payload references a 1-based monitor index outside `[1, M]`                                                                                          | Re-read `state.camera_mapping` to enumerate valid `monitor` indices                                                             |
+| Write rejected: "Invalid track_length '...'. Must be a positive, finite number ..."         | The payload carried a zero, negative, or non-finite `track_length`                                                                                                  | Send a positive, finite value; the whole write was rejected, so nothing else in the payload applied either                      |
+| `state.camera_mapping == []`                                                                | On macOS / Linux the monitor-enumeration helper is missing; otherwise the host reported zero monitors                                                               | Install the helper (see `/unity-mcp-environment-setup`), confirm the displays are attached, then call `refresh_monitors_tool()` |
+| Write rejected: "Cannot write camera_mapping: no monitors were detected on this host. ..."  | The write is refused rather than allowed to erase the saved assignments                                                                                             | Resolve monitor enumeration as above, call `refresh_monitors_tool()`, then resend the payload                                   |
+| Writes succeed but the GUI shows old values                                                 | The Parameters window has not repainted — it caches component references, not field values                                                                          | Click into the Parameters tab to force a repaint; reopening the window is not required                                          |
+
+Camera mapping is the exception to the repaint caveat: the bridge reuses the open Parameters
+window's own `FullScreenViewManager`, so the GUI row and the snapshot never diverge.
 
 ---
 
 ## Related skills
 
-| Skill                                         | Relationship                                                                                  |
-|-----------------------------------------------|-----------------------------------------------------------------------------------------------|
-| `/unity-mcp-environment-setup` (this plugin)  | Run first if Unity Editor is unreachable                                                      |
-| `/task-scenes` (this plugin)                  | Upstream — switches the active scene that this skill reads and writes                         |
-| `/scene-setup` (this plugin)                  | Upstream — owns the `MainWindow` GUI and the auto-creation of Actors / Controllers / Displays |
-| `/play-mode` (this plugin)                    | Upstream — `get_play_state_tool` gates writes that the GUI greys out at runtime               |
-| `/task-prefabs` (this plugin)                 | Upstream — generates the task prefab whose `Task` component this skill mutates                |
-| `/mqtt-contract` (this plugin)                | Reference for the `RequireInteraction` / `RequireWait` runtime alternative to `task` writes   |
-| `/gimbl-framework` (this plugin)              | Reference for `ActorObject`, `DisplayObject`, `MQTTClient`, and `ControllerOutput` semantics  |
-| `assets:assets-mcp-environment-setup` | Upstream — owns the slsa MCP server diagnostic                                                |
-| `experiment:vr-driver-interface`      | Host sets `RequireInteraction` / `RequireWait` at runtime via `set_*_guidance`                |
+| Skill                                        | Relationship                                                                                  |
+|----------------------------------------------|-----------------------------------------------------------------------------------------------|
+| `/unity-mcp-environment-setup` (this plugin) | Run first if Unity Editor is unreachable                                                      |
+| `/task-scenes` (this plugin)                 | Upstream — switches the active scene that this skill reads and writes                         |
+| `/scene-setup` (this plugin)                 | Upstream — owns the `MainWindow` GUI and the auto-creation of Actors / Controllers / Displays |
+| `/play-mode` (this plugin)                   | Upstream — `get_play_state_tool` gates writes that the GUI greys out at runtime               |
+| `/task-prefabs` (this plugin)                | Upstream — generates the task prefab whose `Task` component this skill mutates                |
+| `/mqtt-contract` (this plugin)               | Reference for the `RequireInteraction` / `RequireWait` runtime alternative to `task` writes   |
+| `/gimbl-framework` (this plugin)             | Reference for `ActorObject`, `DisplayObject`, `MQTTClient`, and `ControllerOutput` semantics  |
+| `assets:assets-mcp-environment-setup`        | Upstream — owns the slsa MCP server diagnostic                                                |
+| `experiment:vr-driver-interface`             | Peer client — rebinds `actor.controller` over these same endpoints mid-session                |
 
 ---
 
@@ -373,10 +474,15 @@ snapshot.
 Task Parameters Compliance:
 - [ ] Unity Editor is running and McpBridge is reachable (else /unity-mcp-environment-setup)
 - [ ] read_task_parameters_tool runs before every write to capture the current options list
-- [ ] Write payloads contain only field values present in options.<section>.<field>
+- [ ] Write payloads contain only field values present in options.<section>.<field>, never names
+      echoed back from state.<section>
 - [ ] require_interaction / require_wait writes are gated on visibility.task.<field> == true
 - [ ] camera_mapping entries use 1-based monitor indices matching state.camera_mapping[*].monitor
-- [ ] Post-write snapshot is inspected to confirm the new state matches the requested change
+- [ ] refresh_monitors_tool is called after any physical monitor change, and state.camera_mapping is
+      re-read afterwards because assignments carry across by index
+- [ ] Post-write snapshot is inspected to confirm the new state matches the requested change, and a
+      follow-up read is issued when the write changed scene structure
+- [ ] state.<section> is non-null before a write to that section is treated as applied
 - [ ] MQTT writes are avoided while the Editor is in Play Mode (use /play-mode to confirm state)
 - [ ] Validation rules are not bypassed by editing the scene file directly to set rejected fields
 ```

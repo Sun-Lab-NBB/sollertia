@@ -13,9 +13,11 @@ user-invocable: false
 Lists, opens, inspects, and enumerates Unity scenes and assets for the `sollertia-virtual-reality`
 project through the Unity relay exposed by `slsa mcp` — the **exclusive** owner of
 `list_scenes_tool`, `open_scene_tool`, `inspect_scene_tool`, and `list_assets_tool`. No other skill
-in the marketplace may call the three scene tools. This skill's asset enumeration tool
-(`list_assets_tool`) is read-only and may be called as a **natural share** by any other skill that
-needs to enumerate project assets.
+in the marketplace may call the three scene tools. That exclusivity binds marketplace skills, not
+the acquisition runtime: the host VR task driver resolves and opens the task scene over its own
+HTTP bridge client during a session (see `experiment:vr-driver-interface`). This skill's asset
+enumeration tool (`list_assets_tool`) is read-only and may be called as a **natural share** by any
+other skill that needs to enumerate project assets.
 
 ---
 
@@ -51,6 +53,10 @@ needs to enumerate project assets.
 before inspection. For task creation and deletion (which always operate on the full template →
 prefab + segments + scene bundle), hand off to `/task-prefabs`.
 
+Every tool on this surface returns a top-level `success` key: `true` alongside the payload fields
+documented below, or `false` with an `error` message and nothing else. You MUST branch on `success`
+before reading any other field.
+
 ---
 
 ## Workflows
@@ -69,8 +75,10 @@ prefab + segments + scene bundle), hand off to `/task-prefabs`.
    ```text
    open_scene_tool(scene_path="Assets/Scenes/<name>.unity")
    ```
-   When the active scene is clean, the call switches scenes immediately. When the active scene has
-   unsaved edits, the call returns an error — see [Unsaved-changes policy](#unsaved-changes-policy).
+   When the active scene is clean, the call switches scenes immediately and returns
+   `{success, message: "Opened scene: <path>", scene_path}` — echo `scene_path` back to confirm the
+   switch landed on the requested scene. When the active scene has unsaved edits, the call returns
+   an error — see [Unsaved-changes policy](#unsaved-changes-policy).
 
 ### Inspect the active scene
 
@@ -84,6 +92,7 @@ Top-level response:
 
 | Field          | Description                                                                            |
 |----------------|----------------------------------------------------------------------------------------|
+| `success`      | `true` on success; a failed call returns `{success: false, error}` instead             |
 | `scene_path`   | Project-relative path of the active scene (e.g. `Assets/Scenes/<name>.unity`)          |
 | `scene_name`   | The active scene's filename without extension                                          |
 | `is_dirty`     | `true` when the active scene has unsaved edits                                         |
@@ -137,9 +146,10 @@ Default `asset_type` is `Prefab` and default `search_path` is `Assets/InfiniteCo
 types the Unity AssetDatabase understands: `Scene`, `Material`, `Texture2D`, `AudioClip`,
 `ScriptableObject`, etc.
 
-Response shape: `{asset_type, search_path, assets}`, where `assets` is the alphabetically sorted
-list of project-relative asset paths matching `t:<asset_type>` under `<search_path>`. An invalid
-`asset_type` or a search path outside `Assets/` yields an empty `assets` list rather than an error.
+Response shape: `{success, asset_type, search_path, assets}`, where `assets` is the alphabetically
+sorted list of project-relative asset paths matching `t:<asset_type>` under `<search_path>`. An
+invalid `asset_type` or a search path outside `Assets/` yields an empty `assets` list rather than
+an error.
 
 Common uses:
 - Audit every segment prefab under `Assets/InfiniteCorridorTask/Prefabs/`.
@@ -150,9 +160,10 @@ Common uses:
 
 ## Unsaved-changes policy
 
-`open_scene_tool` is the only tool on this surface that gates on the active scene's dirty state.
-When the active scene has unsaved edits and `unsaved_changes` is omitted, the bridge refuses to
-switch scenes and returns:
+`open_scene_tool` is the only tool on this surface that gates on the active scene's dirty state —
+`create_task_tool` on `/task-prefabs` applies the identical policy through the same bridge handler,
+because scene generation opens the newly generated scene. When the active scene has unsaved edits
+and `unsaved_changes` is omitted, the bridge refuses to switch scenes and returns:
 
 ```text
 Active scene '<path>' has unsaved changes. Specify unsaved_changes='save' to persist the current
@@ -190,17 +201,27 @@ underlying APIs enforce this differently per tool:
 
 - `list_assets_tool` uses `AssetDatabase.FindAssets`, which silently returns an empty list when
   the `search_path` is absolute or sits outside `Assets/`.
-- `open_scene_tool` uses `File.Exists` followed by `EditorSceneManager.OpenScene`. `File.Exists`
-  accepts both relative and absolute paths, but `EditorSceneManager.OpenScene` expects an
-  Asset-relative path; passing an absolute one leads to undefined behavior. Always pass a path
-  copied from `list_scenes_tool`.
+- `open_scene_tool` resolves `scene_path` through `AssetDatabase.LoadAssetAtPath<SceneAsset>`
+  before opening it. The AssetDatabase resolves the project-relative path against the project root,
+  so the answer is independent of the Editor's working directory, and typing the lookup to
+  `SceneAsset` keeps a folder or a non-scene asset out of `EditorSceneManager.OpenScene`. An
+  absolute path, a path outside `Assets/`, or a `.unity` file the AssetDatabase does not hold is
+  rejected with `Scene not found at: <path>` rather than producing undefined behavior. Always pass
+  a path copied from `list_scenes_tool`.
 
 Task scenes live at `Assets/Scenes/<name>.unity`. `Assets/Scenes/ExperimentTemplate.unity` is the
 hand-authored base scene the bridge copies for new task scenes (see `/task-prefabs` for the asset
-chain). It is in `McpBridge.DeleteProtectedPaths`, so `delete_asset_tool` refuses it — but
-`delete_task_tool` does **not** consult that list and will delete it if called with
-`template_name="ExperimentTemplate"`. You MUST NOT invoke `delete_task_tool` against
-`ExperimentTemplate`.
+chain). Scene removal never travels through `delete_asset_tool`, which refuses every `.unity` file
+under `Assets/Scenes/` outright — not just the protected template — with `Refusing to delete scene
+'<path>' via delete_asset. Use delete_task to remove a task's scene together with its task prefab
+and segment prefabs in one atomic call.` Scenes are deleted exclusively through `delete_task_tool`,
+which also cascade-deletes the per-scene `savedFullScreenViews` companion.
+
+`delete_task_tool` in turn checks `McpBridge.DeleteProtectedPaths` for both the resolved scene path
+and the resolved task-prefab path before deleting anything, so `template_name="ExperimentTemplate"`
+is refused with `Refusing to delete task 'ExperimentTemplate'. Its scene or task prefab is a
+protected hand-authored asset that the generation pipeline loads by hardcoded path.` — the template
+scene cannot be destroyed through either delete path.
 
 ---
 
@@ -208,7 +229,7 @@ chain). It is in `McpBridge.DeleteProtectedPaths`, so `delete_asset_tool` refuse
 
 | Symptom                                                        | Cause                                   | Resolution                                                                               |
 |----------------------------------------------------------------|-----------------------------------------|------------------------------------------------------------------------------------------|
-| `open_scene_tool` returns "Scene not found at: …"              | Scene path typo or missing file         | Call `list_scenes_tool` and copy the exact path                                          |
+| `open_scene_tool` returns "Scene not found at: …"              | Path not a scene in the AssetDatabase   | Call `list_scenes_tool` and copy the exact path                                          |
 | `open_scene_tool` returns "Active scene … has unsaved changes" | Active scene is dirty, no policy passed | Ask the user save vs discard, retry with `unsaved_changes="save"` or `"discard"`         |
 | `inspect_scene_tool` returns empty `root_objects`              | No scene loaded                         | Call `open_scene_tool`. `ExperimentTemplate.unity` is currently the project's only scene |
 | `list_assets_tool` returns empty list                          | `asset_type` or `search_path` wrong     | Broaden `search_path="Assets"` and confirm type                                          |
@@ -227,7 +248,7 @@ chain). It is in `McpBridge.DeleteProtectedPaths`, so `delete_asset_tool` refuse
 | `/play-mode` (this plugin)                   | Consumer — typically entered after opening a target scene                                     |
 | `assets:task-templates`                      | Upstream — template filename defines the conventional scene name                              |
 | `/mqtt-contract` (this plugin)               | Active scene name is also exchanged over the `SceneName` / `SceneNameTrigger` wire pair       |
-| `experiment:vr-driver-interface`             | Host verifies the active scene name during the `setup()` handshake                            |
+| `experiment:vr-driver-interface`             | Peer client — the host opens and verifies the task scene through these same bridge tools      |
 | `assets:experiment-configuration`            | Owns `unity_scene_name`, which selects the scene to open                                      |
 
 ---
