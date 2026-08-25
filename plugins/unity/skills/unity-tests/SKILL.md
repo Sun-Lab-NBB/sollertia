@@ -11,8 +11,8 @@ user-invocable: false
 
 # Sollertia Unity test suite
 
-Documents the Unity Test Framework suite under `Assets/Tests/` and the assembly definitions every
-`sollertia-virtual-reality` script compiles into.
+Documents the Unity Test Framework suite under `Assets/Tests/` and the assembly definitions into which every
+`sollertia-virtual-reality` script compiles.
 
 **Reference-only skill.** No upstream. Agents arrive here from `/task-generator`, `/zone-prefabs`, `/mqtt-contract`,
 `/gimbl-framework`, `/unity-mcp-environment-setup`, and `/play-mode` whenever a C# change needs a matching fixture, a
@@ -47,7 +47,7 @@ new script folder needs an assembly, or a fixture that pins a contract has start
 |----------------------------|--------------------------|----------------------------------------------|
 | `Sollertia.Tests.EditMode` | `Assets/Tests/EditMode/` | 31 fixtures driven without a player loop     |
 | `Sollertia.Tests.PlayMode` | `Assets/Tests/PlayMode/` | 4 fixtures driven under the real player loop |
-| `Sollertia.Tests.Support`  | `Assets/Tests/Support/`  | 10 helper types both test assemblies draw on |
+| `Sollertia.Tests.Support` | `Assets/Tests/Support/` | 10 helper types on which both test assemblies draw |
 
 **EditMode** drives the private Unity lifecycle callbacks (`Awake`, `Start`, `Update`, `OnTriggerEnter`,
 `OnTriggerExit`) through the Support assembly's `PrivateAccess` reflection helper, which keeps every transition
@@ -92,7 +92,7 @@ once and used from either mode.
 | `YamlScalar`        | Renders numbers, strings, and booleans as invariant YAML scalars, including `.nan` and `.inf`    |
 | `MqttTestHarness`   | Installs an `MQTTClient` singleton and captures every payload published on every known topic     |
 | `ZoneRig`           | Assembles a `Task` plus trigger zone hierarchy and exposes the transitions a test drives         |
-| `ZoneRigOptions`    | Selects which zone components a `ZoneRig` assembles and the field values they start from         |
+| `ZoneRigOptions` | Selects which zone components a `ZoneRig` assembles and the field values from which they start |
 
 `TemplateWorkspace` reproduces the two-directory shape `ConfigLoader` requires, because a cue texture resolves relative
 to the template file as `<template directory>/../Textures`.
@@ -191,7 +191,7 @@ separator and whitespace tests.
 test. Rename the two test methods whose names spell the count and the range, because those names encode the numbers they
 assert.
 
-**`ControllerTests`** pins the `ControllerTypes` contract that `MainWindow.BuildControllerSpecs` depends on, because
+**`ControllerTests`** pins the `ControllerTypes` contract on which `MainWindow.BuildControllerSpecs` depends, because
 `EnsureControllers` instantiates one controller GameObject per enum member from the resolved spec table.
 `ControllerTypes_MemberSet_HoldsExactlyTwoNamesInDeclarationOrder` fixes the count and the order, and
 `ControllerTypes_EveryMemberName_ResolvesToAControllerObjectSubclass` requires a `Gimbl.<MemberName>` type deriving from

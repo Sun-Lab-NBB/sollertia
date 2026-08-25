@@ -1,8 +1,8 @@
 # Template validation and the two-repo field mirror
 
 What `ConfigLoader` rejects before `CreateTask` writes anything, and the field-by-field inventory the manual C#/Python
-template mirror has to stay in lockstep with. Read this when adding a template field, extending the validation surface,
-or diagnosing a `create_task` failure whose message names a template field rather than an asset.
+template mirror must match. Read this when adding a template field, extending the validation surface, or diagnosing a
+`create_task` failure whose message names a template field rather than an asset.
 
 `ConfigLoader.LoadTemplate` deserializes with `UnderscoredNamingConvention` and `IgnoreUnmatchedProperties`, so an
 unrecognized YAML key is dropped in silence and surfaces only as the downstream validation failure of whichever field

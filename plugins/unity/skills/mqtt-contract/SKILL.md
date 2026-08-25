@@ -1,8 +1,8 @@
 ---
 name: mqtt-contract
 description: >-
-  Documents every MQTT topic sollertia-virtual-reality publishes or subscribes to, with its payload
-  shape, direction, and owning script, covering the bidirectional MQTT 5.0 contract with
+  Documents every MQTT topic to which sollertia-virtual-reality publishes or subscribes, with its
+  payload shape, direction, and owning script, covering the bidirectional MQTT 5.0 contract with
   sollertia-experiment. All topics are flat PascalCase constants centralized in
   Assets/Gimbl/Scripts/MQTT/MQTTTopics.cs. Use when authoring or modifying MQTT wiring, diagnosing a
   missed message, or adding a new trigger zone, lifecycle marker, or UI subscriber.
@@ -24,7 +24,7 @@ alternative for `RequireInteraction` / `RequireWait`), and `/play-mode` (mid-run
 ## Scope
 
 **Covers:**
-- Every MQTT topic published or subscribed to by `sollertia-virtual-reality` scripts
+- Every MQTT topic with a `sollertia-virtual-reality` publisher or subscriber
 - Payload shapes (trigger-only vs JSON-serialized typed messages)
 - Owning script and initialization site for each channel
 - Required topic conventions (flat PascalCase, no trailing slash, centralized constants)

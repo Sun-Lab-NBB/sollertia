@@ -272,8 +272,8 @@ hardcoded path.`
 **Active-scene swap.** When the scene being deleted is the Editor's active scene, the tool opens
 `Assets/Scenes/ExperimentTemplate.unity` in single mode first, so the Editor is left on the template scene once the
 delete finishes. The swap is conditional on that scene being the open one, and the response reports nothing about it.
-You MUST re-open the scene you intend to work in through `/task-scenes` before any skill that reads the active scene
-runs, including `/task-parameters`, `/play-mode`, and `/task-scenes` itself.
+You MUST re-open your intended working scene through `/task-scenes` before any skill that reads the active scene runs,
+including `/task-parameters`, `/play-mode`, and `/task-scenes` itself.
 
 Unlike `create_task_tool` and `open_scene_tool`, `delete_task_tool` takes no `unsaved_changes` argument and does not
 consult the unsaved-changes policy: the swap opens the template scene unconditionally, so unsaved edits in the scene
@@ -427,7 +427,7 @@ children look wrong.
 | `/task-generator` (this plugin)              | Reference for the `CreateTask` pipeline this tool invokes             |
 | `/mqtt-contract` (this plugin)               | Reference for MQTT topics wired by generated zone scripts             |
 | `/gimbl-framework` (this plugin)             | Reference for `ActorObject` coordinate frame usage                    |
-| `assets:task-templates`                      | Upstream, owns the YAML template the prefab is built from             |
+| `assets:task-templates` | Upstream, owns the YAML template from which the prefab is built |
 | `assets:experiment-configuration`            | Downstream, per-project instantiation of the template                 |
 | `assets:assets-mcp-environment-setup`        | Run first, owns the slsa MCP server diagnostic                        |
 | `experiment:vr-driver-interface`             | Host consumes the cues and zones in the generated prefab at runtime   |
