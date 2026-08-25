@@ -81,9 +81,9 @@ than a routine extension.
 Two properties of that table decide how it is used:
 
 - `SYSTEM_RAW_DATA_REGISTRY` is the only one of the eight that is not re-exported from the package root, so import it
-  as `from sollertia_shared_assets.registries import SYSTEM_RAW_DATA_REGISTRY`. The other six registries and
-  `SESSION_TYPES_USING_VR_TASK` are importable from `sollertia_shared_assets` directly.
-- `SESSION_TYPES_USING_VR_TASK` is the seventh system-tier touch point and the one system-tier touch point no
+  as `from sollertia_shared_assets.registries import SYSTEM_RAW_DATA_REGISTRY`. The other five registries,
+  `SYSTEM_SESSION_TYPES`, and `SESSION_TYPES_USING_VR_TASK` are importable from `sollertia_shared_assets` directly.
+- `SESSION_TYPES_USING_VR_TASK` is the sixth system-tier touch point and the one system-tier touch point no
   import-time check covers. Extend it whenever a new session type runs the corridor task, because it decides whether
   `SessionData.required_raw_assets` demands the `vr_configuration.yaml` snapshot.
 
@@ -108,7 +108,7 @@ the mapping the current reference system implements.
 
 | Check                                         | What it enforces                                                                                                                                                                                                         |
 |-----------------------------------------------|--------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
-| `_assert_registry_coverage()`                 | Every member of the six keyed enums has a dispatch entry, every acquisition system declares at least one session type, and every session type is claimed by at least one system                                          |
+| `_assert_registry_coverage()`                 | Every member of the four keying enums has an entry in each of the six dispatch registries it keys, every acquisition system declares at least one session type, and every session type is claimed by at least one system |
 | `_assert_descriptor_contract()`               | Every registered descriptor declares a field named `incomplete`                                                                                                                                                          |
 | `_assert_experiment_configuration_contract()` | Every registered `<System>ExperimentConfiguration` declares `experiment_states`, `trial_structures`, and `unity_scene_name`, and provides a callable `from_task_template`                                                |
 | `_experiment_builder_signature_gaps()`        | `template`, `unity_scene_name`, and `state_count` are reachable by keyword on `from_task_template`, which rules out `POSITIONAL_ONLY` unless the builder accepts `**kwargs`, and every other parameter carries a default |

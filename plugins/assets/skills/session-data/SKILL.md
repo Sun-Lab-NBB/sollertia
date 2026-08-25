@@ -183,8 +183,10 @@ Python code that needs a per-session file path should read it from the `SessionD
 attributes rather than concatenating filenames by hand. The shared-assets library packages every canonical session
 filename and directory into three enums (`RawDataFiles`, `Directories`, `ProcessingTrackers`) and dispatches them onto
 three runtime-only sub-dataclasses populated by `SessionData._build_sub_dataclasses()` (called from both `create` and
-`load`). Every `ProcessingTrackers` member except `ProcessingTrackers.FORGING`, which lives at the forged dataset root,
-and `ProcessingTrackers.MANIFEST`, which lives at the project root, is dispatched onto a session sub-dataclass field:
+`load`). Five of the eight `ProcessingTrackers` members are dispatched onto a session sub-dataclass field. The three
+that are not are `ProcessingTrackers.FORGING`, which lives at the forged dataset root, `ProcessingTrackers.MANIFEST`,
+which lives at the project root, and `ProcessingTrackers.CINDRA_MULTI_RECORDING`, which cindra writes one level below
+`cindra_multi_recording_path` in a dataset-named directory rather than at one fixed per-session path:
 
 - **`instance.raw_data` (`RawData`)** — system-agnostic raw assets:
   `session_data_path`, `session_descriptor_path`, `surgery_metadata_path`, `hardware_state_path`,
@@ -292,9 +294,14 @@ in the sense that this is where the read pattern is documented and where other s
 hand off when they need them. Both are read-only and may also be called as natural shares.
 `list_processing_trackers_tool` is the canonical reference for the eight `ProcessingTrackers`
 members, covering the checksum, runtime, microcontroller, video, two-photon, cindra
-multi-recording, forging, and manifest pipelines. Six of the eight resolve to a field on a session sub-dataclass.
+multi-recording, forging, and manifest pipelines. Five of the eight resolve to a field on a session sub-dataclass.
 `ProcessingTrackers.FORGING` resolves at the forged dataset root and `ProcessingTrackers.MANIFEST` at the project root,
 so neither appears in a session's `raw_data_files` or `processed_data_subdirs` inventory.
+`ProcessingTrackers.CINDRA_MULTI_RECORDING` carries no field either, because cindra writes one copy per dataset in a
+lowercased dataset-named directory one level below `cindra_multi_recording_path`, and only inside that dataset's main
+recording, the first of its recordings in natural sort order. A session therefore holds zero to N copies and no fixed
+path addresses any of them. The `cindra_multi_recording_path` field resolves to the `multi_recording` directory that
+holds those dataset directories, not to a tracker file.
 
 ### Repairing a marker with `write_session_data_tool`
 
