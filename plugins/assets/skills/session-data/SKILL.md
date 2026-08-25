@@ -183,10 +183,9 @@ Python code that needs a per-session file path should read it from the `SessionD
 attributes rather than concatenating filenames by hand. The shared-assets library packages every canonical session
 filename and directory into three enums (`RawDataFiles`, `Directories`, `ProcessingTrackers`) and dispatches them onto
 three runtime-only sub-dataclasses populated by `SessionData._build_sub_dataclasses()` (called from both `create` and
-`load`). Five of the eight `ProcessingTrackers` members are dispatched onto a session sub-dataclass field. The three
-that are not are `ProcessingTrackers.FORGING`, which lives at the forged dataset root, `ProcessingTrackers.MANIFEST`,
-which lives at the project root, and `ProcessingTrackers.CINDRA_MULTI_RECORDING`, which cindra writes one level below
-`cindra_multi_recording_path` in a dataset-named directory rather than at one fixed per-session path:
+`load`). Five of the seven `ProcessingTrackers` members are dispatched onto a session sub-dataclass field. The two that
+are not are `ProcessingTrackers.FORGING`, which lives at the forged dataset root, and `ProcessingTrackers.MANIFEST`,
+which lives at the project root:
 
 - **`instance.raw_data` (`RawData`)** — system-agnostic raw assets:
   `session_data_path`, `session_descriptor_path`, `surgery_metadata_path`, `hardware_state_path`,
@@ -195,15 +194,19 @@ which lives at the project root, and `ProcessingTrackers.CINDRA_MULTI_RECORDING`
   `vr_configuration_path` is populated only when the session runs the corridor task (check
   `.exists()` before reading). Microcontroller raw data is bundled into the DataLogger archives
   under `behavior_data_path`, so there is no separate raw microcontroller field.
-- **`instance.processed_data` (`ProcessedData`)** declares nine system-agnostic processed assets:
+- **`instance.processed_data` (`ProcessedData`)** declares eight system-agnostic processed assets:
   `runtime_data_path`, `runtime_tracker_path`, `video_data_path`, `video_tracker_path`,
-  `microcontroller_data_path`, `microcontroller_tracker_path`, `cindra_data_path`,
-  `two_photon_tracker_path`, `cindra_multi_recording_path`. `video_data_path` covers both the
+  `microcontroller_data_path`, `microcontroller_tracker_path`, `cindra_data_path`, and
+  `two_photon_tracker_path`. `video_data_path` covers both the
   per-frame camera timestamps extracted from the camera log archives and the re-packaged
   pose-estimation output, so a single field serves the whole video stage. The raw-side
   `behavior_data_path` on `RawData` and the processed-side `runtime_data_path` here are separate
   fields on separate sub-dataclasses. Cindra fields live here (not under a system-specific
   sub-dataclass) because cindra is reusable by any photometry-data-generating acquisition system.
+  Only cindra's single-recording stage is addressed here. Its multi-recording outputs are written
+  once per dataset inside a dataset-named directory that no fixed per-session path reaches, so the
+  library declares no field for them and sollertia-forgery resolves them through cindra's own
+  `resolve_dataset_path`.
 - **`instance.system_raw_data`** — acquisition-system-specific raw assets, dispatched from
   `SYSTEM_RAW_DATA_REGISTRY` keyed by `acquisition_system`. Each system registers its
   `<System>RawData` builder in `SYSTEM_RAW_DATA_REGISTRY`, so the fields exposed here vary by system.
@@ -292,16 +295,13 @@ is what you actually need.
 `list_supported_session_types_tool` and `list_processing_trackers_tool` are owned by this skill
 in the sense that this is where the read pattern is documented and where other skills should
 hand off when they need them. Both are read-only and may also be called as natural shares.
-`list_processing_trackers_tool` is the canonical reference for the eight `ProcessingTrackers`
-members, covering the checksum, runtime, microcontroller, video, two-photon, cindra
-multi-recording, forging, and manifest pipelines. Five of the eight resolve to a field on a session sub-dataclass.
+`list_processing_trackers_tool` is the canonical reference for the seven `ProcessingTrackers`
+members, covering the checksum, runtime, microcontroller, video, two-photon, forging, and manifest
+pipelines. Five of the seven resolve to a field on a session sub-dataclass.
 `ProcessingTrackers.FORGING` resolves at the forged dataset root and `ProcessingTrackers.MANIFEST` at the project root,
-so neither appears in a session's `raw_data_files` or `processed_data_subdirs` inventory.
-`ProcessingTrackers.CINDRA_MULTI_RECORDING` carries no field either, because cindra writes one copy per dataset in a
-lowercased dataset-named directory one level below `cindra_multi_recording_path`, and only inside that dataset's main
-recording, the first of its recordings in natural sort order. A session therefore holds zero to N copies and no fixed
-path addresses any of them. The `cindra_multi_recording_path` field resolves to the `multi_recording` directory that
-holds those dataset directories, not to a tracker file.
+so neither appears in a session's `raw_data_files` or `processed_data_subdirs` inventory. Cindra's multi-recording
+tracker has no member here, because cindra writes one copy per dataset in a lowercased dataset-named directory, and
+only inside that dataset's main recording, so no fixed per-session path addresses it.
 
 ### Repairing a marker with `write_session_data_tool`
 
