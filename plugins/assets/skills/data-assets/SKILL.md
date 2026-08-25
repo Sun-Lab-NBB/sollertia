@@ -11,17 +11,15 @@ user-invocable: false
 
 # Sollertia data assets
 
-Reads, writes, and describes the platform's **read assets** via the `slsa mcp` MCP server. A read
-asset is metadata the platform reads from an external source (e.g., a Google Sheet) and caches on
-disk as a typed dataclass; the canonical set is the `READ_ASSET_REGISTRY` in `sollertia-shared-assets`
-(see assets `/library-extension`). This skill is the **exclusive** owner of `read_data_asset_tool`,
-`write_data_asset_tool`, and `describe_data_asset_schema_tool`.
+Reads, writes, and describes the platform's **read assets** via the `slsa mcp` MCP server. A read asset is metadata the
+platform reads from an external source (e.g., a Google Sheet) and caches on disk as a typed dataclass. The canonical set
+is the `READ_ASSET_REGISTRY` in `sollertia-shared-assets` (see `/library-extension`). This skill is the **exclusive**
+owner of `read_data_asset_tool`, `write_data_asset_tool`, and `describe_data_asset_schema_tool`.
 
-Every tool is keyed by a **`data_asset`** identifier (a `ReadAssets` value such as `"surgery_data"`)
-that selects the on-disk dataclass. The interface is generic — one tool set serves every registered
-read asset — so new assets become available here automatically once registered, with no new tools.
-**Surgery data is the current worked example** and the only registered read asset today; the rest of
-this skill uses it to illustrate the generic flow.
+Every tool is keyed by a **`data_asset`** identifier (a `ReadAssets` value such as `"surgery_data"`) that selects the
+on-disk dataclass. The interface is generic, with one tool set serving every registered read asset, so new assets become
+available here automatically once registered, with no new tools. **Surgery data is the current worked example** and the
+only registered read asset today. The rest of this skill uses it to illustrate the generic flow.
 
 ---
 
@@ -30,25 +28,24 @@ this skill uses it to illustrate the generic flow.
 **Covers:**
 - Reading any read-asset YAML (full payload) via `read_data_asset_tool(file_path, data_asset)`
 - Amending any read-asset YAML in place, or authoring a new copy at a path that does not yet exist, via
-  `write_data_asset_tool(file_path, data_asset, data_asset_payload)` (full-record replacement that does not
-  propagate to the upstream source or to any other copy)
+  `write_data_asset_tool(file_path, data_asset, data_asset_payload)` (full-record replacement that does not propagate to
+  the upstream source or to any other copy)
 - Schema introspection via `describe_data_asset_schema_tool(data_asset)`
 - Enumerating the registered read assets via `list_supported_data_assets_tool`
-- Resolving the `data_asset` identifier (prefer automatic resolution; see below)
+- Resolving the `data_asset` identifier, preferring automatic resolution as described below
 - The surgery-data worked example: its `SurgeryData` model, provenance, and file locations
 
 **Does not cover:**
-- Adding a **new** read asset (the dataclass + `ReadAssets` member + registry entry) — owned by
-  assets `/library-extension` ("Adding a new read asset")
-- Durable corrections to an asset's upstream source. For read assets captured from a Google Sheet,
-  the authoritative source is the sheet; the MCP layer **does not query it at runtime** and writes
-  here amend only the one on-disk file the caller points at. Edit the upstream source for a fix that
-  should apply to every future capture.
-- Propagating an amendment from one copy of the file to another — copies are independent on disk
-- Partial/per-section updates — the write tool validates and replaces the **full** payload. To change
-  one field, read the current file, mutate the returned dict, then write it back whole.
-- Resolving the canonical `file_path` for you. The caller (or a collaborating skill) supplies the
-  absolute path; this skill only reads and writes.
+- Adding a **new** read asset, meaning the dataclass, the `ReadAssets` member, and the registry entry, which
+  `/library-extension` owns under "Adding a new read asset"
+- Durable corrections to an asset's upstream source. For read assets captured from a Google Sheet, the authoritative
+  source is the sheet. The MCP layer **does not query it at runtime**, and writes here amend only the one on-disk file
+  the caller points at. Edit the upstream source for a fix that should apply to every future capture.
+- Propagating an amendment from one copy of the file to another, because copies are independent on disk
+- Partial or per-section updates. The write tool validates and replaces the **full** payload. To change one field, read
+  the current file, mutate the returned dict, then write it back whole.
+- Resolving the canonical `file_path` for you. The caller, or a collaborating skill, supplies the absolute path, and
+  this skill only reads and writes.
 - Discovering animals (see `/project-hierarchy`)
 - Reading session-level data (see `/session-data`, `/session-descriptors`, `/session-hardware-state`)
 
@@ -61,7 +58,7 @@ this skill uses it to illustrate the generic flow.
 | `read_data_asset_tool`            | Loads a read-asset YAML, parsing it with the dataclass for the given `data_asset` (exclusive)       |
 | `write_data_asset_tool`           | Writes a validated full payload to a path, validated against the `data_asset` dataclass (exclusive) |
 | `describe_data_asset_schema_tool` | Returns the schema (nested dataclasses recursed inline) for the given `data_asset` (exclusive)      |
-| `list_supported_data_assets_tool` | Enumerates the registered read assets — `value`, `name`, and `data_asset_class` for each            |
+| `list_supported_data_assets_tool` | Enumerates the registered read assets, giving `value`, `name`, and `data_asset_class` for each      |
 
 Signatures: `read_data_asset_tool(file_path, data_asset)`,
 `write_data_asset_tool(file_path, data_asset, data_asset_payload, *, overwrite=True)`, and
@@ -71,8 +68,8 @@ mutate the returned dict, and write it back whole.
 
 This skill is where the read pattern for `list_supported_data_assets_tool` is documented and where every other skill
 hands off for it. The tool is read-only, takes no parameters, and lives on the same `slsa mcp` server as the other
-three. It returns its entries under `data_assets`, and each entry's `value` is the `data_asset` argument the other
-three tools take.
+three. It returns its entries under `data_assets`, and each entry's `value` is the `data_asset` argument the other three
+tools take.
 
 `overwrite` is keyword-only and defaults to `True`, so a write replaces an existing file silently. Passing
 `overwrite=False` refuses the write instead and returns
@@ -81,13 +78,13 @@ creates any missing parent directories, so it also authors a new read-asset copy
 rather than failing on the absent directory.
 
 What a `write_*` tool actually validates is the plugin-wide contract in the `## Response contract` section of
-`/assets-mcp-environment-setup`. The mechanism is a round trip: the payload is dumped to a temporary sibling file and
+`/assets-mcp-environment-setup`. The mechanism is a round trip. The payload is dumped to a temporary sibling file and
 loaded back through the resolved dataclass, so the **destination** is never touched by a bad payload, though the parent
 directory chain is created before the round trip runs. `SurgeryData` defines no `__post_init__`, so no value checking
 runs for surgery data and the write is a shape check only.
 
-For downstream Python callers working in code rather than through MCP, `resolve_read_asset` is the code-path
-counterpart of `read_data_asset_tool`'s dispatch and is documented in `/library-extension`.
+For downstream Python callers working in code rather than through MCP, `resolve_read_asset` is the code-path counterpart
+of `read_data_asset_tool`'s dispatch and is documented in `/library-extension`.
 
 ### Response payloads
 
@@ -115,35 +112,34 @@ The fifth failure, an invalid `data_asset`, is covered under [Resolving the `dat
 
 ## Resolving the `data_asset`
 
-`data_asset` is **required** — there is no default. Resolve it **automatically** wherever possible and
-only fall back to asking the user:
+`data_asset` is **required** and carries no default. Resolve it **automatically** wherever possible and only fall back
+to asking the user:
 
-1. **Infer from context first.** A `surgery_metadata.yaml` file, or a request about an animal's
-   surgical history / implants / drugs, resolves to `data_asset="surgery_data"`. The thing being read
-   or the user's intent almost always determines the asset.
-2. **Enumerate when unsure.** Call `list_supported_data_assets_tool` to see the registered assets
-   (`value` is the `data_asset` argument; `data_asset_class` is the dataclass it resolves to). With one
-   registered asset today, the choice is unambiguous.
-3. **Prompt the user only as a fallback** — when the asset genuinely cannot be inferred and the list
-   does not disambiguate, or when the user is explicitly choosing. Prefer automatic resolution to
-   prompting.
+1. **Infer from context first.** A `surgery_metadata.yaml` file, or a request about an animal's surgical history /
+   implants / drugs, resolves to `data_asset="surgery_data"`. The thing being read or the user's intent almost always
+   determines the asset.
+2. **Enumerate when unsure.** Call `list_supported_data_assets_tool` to see the registered assets (`value` is the
+   `data_asset` argument, and `data_asset_class` is the dataclass it resolves to). With one registered asset today, the
+   choice is unambiguous.
+3. **Prompt the user only as a fallback**, when the asset genuinely cannot be inferred and the list does not
+   disambiguate, or when the user is explicitly choosing. Prefer automatic resolution to prompting.
 
-An invalid `data_asset` returns an error naming the valid `ReadAssets` values, so a wrong guess fails
-loudly rather than silently mis-parsing.
+An invalid `data_asset` returns an error naming the valid `ReadAssets` values, so a wrong guess fails loudly rather than
+silently mis-parsing.
 
 ---
 
 ## Worked example: surgery data (`data_asset="surgery_data"`)
 
-Surgery data is the platform's current read asset: one `SurgeryData` YAML (`surgery_metadata.yaml`) is
-the complete record of a **surgical intervention performed on a research animal prior to data
-acquisition** — what was done, by whom, when, with which drugs, and what was implanted or injected
-where. One file per animal-surgery, aggregating every surgery-time fact into five sections.
+Surgery data is the platform's current read asset. One `SurgeryData` YAML (`surgery_metadata.yaml`) is the complete
+record of a **surgical intervention performed on a research animal prior to data acquisition**, covering what was done,
+by whom, when, with which drugs, and what was implanted or injected where. There is one file per animal-surgery,
+aggregating every surgery-time fact into five sections.
 
 ### The `SurgeryData` model
 
-`SurgeryData` is a **monolithic single-file record** with five nested sections; none is an independent
-on-disk artifact. Callers project the sections they need from the returned `data` dict.
+`SurgeryData` is a **monolithic single-file record** with five nested sections, none of which is an independent on-disk
+artifact. Callers project the sections they need from the returned `data` dict.
 
 | Section      | Nested dataclass  | Captures                                                                                        |
 |--------------|-------------------|-------------------------------------------------------------------------------------------------|
@@ -153,23 +149,23 @@ on-disk artifact. Callers project the sections they need from the returned `data
 | `implants`   | `ImplantData[]`   | Per-implant: name, target region, manufacturer code, AP/ML/DV stereotactic coordinates          |
 | `injections` | `InjectionData[]` | Per-injection: name, target, volume (nL), manufacturer code, AP/ML/DV stereotactic coordinates  |
 
-`drugs`, `implants`, and `injections` are **lists** (0..N entries); `subject` and `procedure` are singletons.
-Section projection is **caller-side**: the returned `data` dict has top-level keys `subject`, `procedure`,
-`drugs`, `implants`, `injections` — pick the one you need. There are no per-section MCP tools.
+`drugs`, `implants`, and `injections` are **lists** holding zero or more entries, while `subject` and `procedure` are
+singletons. Section projection is **caller-side**. The returned `data` dict has top-level keys `subject`, `procedure`,
+`drugs`, `implants`, and `injections`, so pick the one you need. There are no per-section MCP tools.
 
-**Units and encodings** (call `describe_data_asset_schema_tool(data_asset="surgery_data")` for the
-authoritative schema): timestamps (`*_us`) are `int` microseconds since the UTC epoch; `weight_g` is
-`float` grams; drug volumes are `float` mL; `injection_volume_nl` is `float` nL (note the mL/nL
-mismatch); stereotactic coordinates (`*_ap/ml/dv_coordinate_mm`) are `float` mm relative to bregma;
-`surgery_quality` is `int` 0–3 (0 = unusable … 3 = high-tier publication-grade, default 0); `cage` and
-subject `id` are `int`; all other identifiers/codes/notes are strings.
+**Units and encodings.** Call `describe_data_asset_schema_tool(data_asset="surgery_data")` for the authoritative schema.
+Timestamps (`*_us`) are `int` microseconds since the UTC epoch, `weight_g` is `float` grams, drug volumes are `float`
+mL, and `injection_volume_nl` is `float` nL, so note the mL against nL mismatch. Stereotactic coordinates
+(`*_ap/ml/dv_coordinate_mm`) are `float` mm relative to bregma. `surgery_quality` is an `int` from 0 to 3, where 0 is
+unusable and 3 is high-tier publication-grade, defaulting to 0. `cage` and subject `id` are `int`, and all other
+identifiers, codes, and notes are strings.
 
 ### Provenance and file locations
 
-Surgery data is **animal-scoped** — an animal accumulates records within whichever project owns it
-(each animal belongs to exactly one project; see `/project-hierarchy`). The authoritative source is the
-upstream Google Sheet; the MCP layer **does not query it at runtime** and only reads the YAML file the
-caller points at. `surgery_metadata.yaml` (`RawDataFiles.SURGERY_METADATA`) is materialized into:
+Surgery data is **animal-scoped**, so an animal accumulates records within whichever project owns it, and each animal
+belongs to exactly one project (see `/project-hierarchy`). The authoritative source is the upstream Google Sheet. The
+MCP layer **does not query it at runtime** and only reads the YAML file the caller points at. `surgery_metadata.yaml`
+(`RawDataFiles.SURGERY_METADATA`) is materialized into:
 
 | Location                                        | Populated by                                                        | Discovery path                                                                  |
 |-------------------------------------------------|---------------------------------------------------------------------|---------------------------------------------------------------------------------|
@@ -177,66 +173,66 @@ caller points at. `surgery_metadata.yaml` (`RawDataFiles.SURGERY_METADATA`) is m
 | `<dataset_root>/<animal>/surgery_metadata.yaml` | Forging pipeline (from the animal's latest session)                 | `DatasetData.animals`, then `DatasetAnimal.surgery_path` (owned by `/datasets`) |
 
 Prefer the MCP route to path arithmetic on either side. `inspect_sessions_tool` (`/session-data`) reports the session
-copy under `raw_data_files`, and `inspect_datasets_tool` (`/datasets`) reports each animal's `animal_path` together
-with its `surgery_metadata` artifact entry.
+copy under `raw_data_files`, and `inspect_datasets_tool` (`/datasets`) reports each animal's `animal_path` together with
+its `surgery_metadata` artifact entry.
 
-All copies are **snapshots** of the Google Sheet state when their pipeline ran; none is a live view,
-and a write to one does not update any sibling copy or flow back to the sheet.
+All copies are **snapshots** of the Google Sheet state when their pipeline ran, and none is a live view. A write to one
+does not update any sibling copy or flow back to the sheet.
 
-`surgery_metadata.yaml` is never a required raw asset. Neither the session inventory nor the dataset inventory flags
-its absence, so a missing file means the upstream capture skipped the animal rather than that the session or the
-dataset is broken. Route that case to `experiment:google-sheets-processing`, which owns the capture, rather than to a
-repair write here.
+`surgery_metadata.yaml` is never a required raw asset. Neither the session inventory nor the dataset inventory flags its
+absence, so a missing file means the upstream capture skipped the animal rather than that the session or the dataset is
+broken. Route that case to `experiment:google-sheets-processing`, which owns the capture, rather than to a repair write
+here.
 
 ---
 
 ## Workflows
 
-Every workflow reduces to: **resolve the `data_asset` and the `file_path` → read / write**. The
-`data_asset` is resolved per [Resolving the data_asset](#resolving-the-data_asset); the `file_path`
-resolution depends on where the file lives.
+Every workflow reduces to: **resolve the `data_asset` and the `file_path`, then read or write**. The `data_asset` is
+resolved per [Resolving the data_asset](#resolving-the-data_asset), and the `file_path` resolution depends on where the
+file lives.
 
 ### Reading a read asset
 
-1. **Verify prerequisites:** MCP server connected (else `/assets-mcp-environment-setup`); the target
-   file exists at the path you will pass.
-2. **Resolve the `data_asset`** (infer from context; `list_supported_data_assets_tool` if unsure).
-3. **Resolve the `file_path`** via the owning hand-off. For surgery data: the session snapshot via
-   `/project-hierarchy` and `/session-discovery` (confirm with `inspect_sessions_tool` in `/session-data`), the dataset
-   per-animal copy via `/datasets` (`inspect_datasets_tool` reports each animal's `animal_path` and its
-   `surgery_metadata` entry), or an ad-hoc path the user supplies.
+1. **Verify prerequisites:** the MCP server is connected, else `/assets-mcp-environment-setup`, and the target file
+   exists at the path you will pass.
+2. **Resolve the `data_asset`**, inferring it from context, or calling `list_supported_data_assets_tool` if unsure.
+3. **Resolve the `file_path`** via the owning hand-off. For surgery data: the session snapshot via `/project-hierarchy`
+   and `/session-discovery` (confirm with `inspect_sessions_tool` in `/session-data`), the dataset per-animal copy via
+   `/datasets` (`inspect_datasets_tool` reports each animal's `animal_path` and its `surgery_metadata` entry), or an
+   ad-hoc path the user supplies.
 4. **Read:** `read_data_asset_tool(file_path="<absolute path>", data_asset="<asset>")`.
-5. **Project the section(s)** the user asked about from `response["data"]`, then report. If the read
-   came from a snapshot, remind the user the values reflect the upstream state when the copy was written.
+5. **Project the section(s)** the user asked about from `response["data"]`, then report. If the read came from a
+   snapshot, remind the user the values reflect the upstream state when the copy was written.
 
 ### Amending a read asset in place
 
-Use when a single copy has an error and a durable upstream correction is not warranted or not yet
-available. The amendment affects only the one file whose path is passed.
+Use when a single copy has an error and a durable upstream correction is not warranted or not yet available. The
+amendment affects only the one file whose path is passed.
 
 1. **Resolve `data_asset` and `file_path`** as above.
 2. **Read the current record** so you mutate a validated baseline:
    `read_data_asset_tool(file_path="<absolute path>", data_asset="<asset>")`.
-3. **Mutate `response["data"]`** in memory — change only the fields that need correcting; keep every
-   other section intact (the write replaces the full record).
+3. **Mutate `response["data"]`** in memory. Change only the fields that need correcting, and keep every other section
+   intact, because the write replaces the full record.
 4. **Write back to the same path:**
-   `write_data_asset_tool(file_path="<absolute path>", data_asset="<asset>", data_asset_payload=<mutated dict>)`.
-   The payload round-trips through a temporary sibling file before the destination is touched, so a malformed edit
-   fails without damaging the file. `SurgeryData` defines no `__post_init__`, so nothing checks the values themselves.
-5. **Tell the user which copy was amended** and that the change does not propagate to sibling copies or
-   to the upstream source.
+   `write_data_asset_tool(file_path="<absolute path>", data_asset="<asset>", data_asset_payload=<mutated dict>)`. The
+   payload round-trips through a temporary sibling file before the destination is touched, so a malformed edit fails
+   without damaging the file. `SurgeryData` defines no `__post_init__`, so nothing checks the values themselves.
+5. **Tell the user which copy was amended** and that the change does not propagate to sibling copies or to the upstream
+   source.
 
 ### Amendment vs. upstream correction (surgery example)
 
 | Scenario                                                                            | Use                                                                                      |
 |-------------------------------------------------------------------------------------|------------------------------------------------------------------------------------------|
-| One session's snapshot has a data-entry error; re-acquiring is overkill             | `write_data_asset_tool` on the session file                                              |
+| One session's snapshot has a data-entry error, and re-acquiring is overkill         | `write_data_asset_tool` on the session file                                              |
 | A dataset's per-animal copy is wrong                                                | `write_data_asset_tool` on the dataset file                                              |
-| The same field is wrong in both the session snapshot and the dataset copy           | `write_data_asset_tool` against each file separately — there is no propagation           |
-| A field is wrong for the animal itself and should be right for every future capture | Edit the upstream Google Sheet; next acquisition (and downstream forge) captures the fix |
-| Both a past file and future captures need fixing                                    | Do both — write tool for the existing file(s), the source for future captures            |
+| The same field is wrong in both the session snapshot and the dataset copy           | `write_data_asset_tool` against each file separately, because there is no propagation    |
+| A field is wrong for the animal itself and should be right for every future capture | Edit the upstream Google Sheet, and the next acquisition, plus the downstream forge, captures the fix |
+| Both a past file and future captures need fixing                                    | Do both, using the write tool for the existing file(s) and the source for future captures |
 
-The MCP layer never pushes an amendment back upstream; copies stay separate until the next capture.
+The MCP layer never pushes an amendment back upstream, and copies stay separate until the next capture.
 
 ---
 
@@ -247,10 +243,10 @@ The MCP layer never pushes an amendment back upstream; copies stay separate unti
 | `/assets-mcp-environment-setup`       | Run first if the MCP server is not connected                                                                                                                   |
 | `/working-directory`                  | Bootstraps the working directory and the Google credentials the acquisition-side capture depends on. The data-asset tools take absolute paths and need neither |
 | `/library-extension`                  | Adds a **new** read asset (dataclass + `ReadAssets` member + `READ_ASSET_REGISTRY` entry) and owns `resolve_read_asset`                                        |
-| `/project-hierarchy`                  | Owns `get_data_root_overview_tool` and the project tree walk; enumerates animals                                                                               |
+| `/project-hierarchy`                  | Owns `get_data_root_overview_tool` and the project tree walk, and enumerates animals                                                                          |
 | `/session-discovery`                  | Resolves session roots for session-snapshot paths                                                                                                              |
 | `/session-data`                       | Owns `inspect_sessions_tool` that classifies read-asset files under a session                                                                                  |
-| `/session-descriptors`                | Sibling — descriptors capture per-session runtime state (separate from read assets)                                                                            |
+| `/session-descriptors`                | Sibling whose descriptors capture per-session runtime state, held separately from read assets                                                                 |
 | `/datasets`                           | Owns `inspect_datasets_tool` and resolves the dataset per-animal `surgery_metadata.yaml` path                                                                  |
 | `experiment:google-sheets-processing` | Owns the reader that captures a read asset from its external source into the on-disk dataclass                                                                 |
 
@@ -265,8 +261,8 @@ The MCP layer never pushes an amendment back upstream; copies stay separate unti
 - [ ] file_path resolved via the right owner (/session-data or /session-discovery for session snapshots,
       /datasets for dataset copies, or the user directly for ad-hoc paths) and is absolute
 - [ ] The target file exists at the resolved path
-- [ ] Section extraction was done caller-side from response["data"]["<section>"] — no per-section MCP tool exists
-- [ ] If writing: the full payload was supplied to write_data_asset_tool — no partial-update path exists
+- [ ] Section extraction was done caller-side from response["data"]["<section>"], since no per-section MCP tool exists
+- [ ] If writing: the full payload was supplied to write_data_asset_tool, since no partial-update path exists
 - [ ] If writing: the user was told which single copy was amended and that the change does not propagate
       to sibling copies or to the upstream source
 ```

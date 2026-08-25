@@ -1,24 +1,21 @@
 ---
 name: experiment-configuration
 description: >-
-  Authors per-project, per-system experiment configuration YAMLs via the sollertia-shared-assets MCP
-  server. Owns the system-agnostic create / write / validate experiment configuration tools, the
-  EXPERIMENT_CONFIGURATION_REGISTRY dispatch keyed by AcquisitionSystems, schema introspection, and
-  the generic configuration contract. Use when creating a new experiment configuration, customizing
-  per-trial parameters, or instantiating a task template for a project. For a specific system's
-  concrete trial and experiment field schema, defer to that system's schema skill (for Mesoscope-VR,
-  mesoscope:mesoscope-vr-experiment-schema).
+  Authors per-project, per-system experiment configuration YAMLs via the sollertia-shared-assets MCP server. Owns the
+  system-agnostic create, write, and validate tools, the EXPERIMENT_CONFIGURATION_REGISTRY dispatch keyed by
+  AcquisitionSystems, and the generic configuration contract. Use when creating a configuration, customizing per-trial
+  parameters, or instantiating a task template. For a system's concrete field schema, defer to its schema skill (for
+  Mesoscope-VR, mesoscope:mesoscope-vr-experiment-schema).
 user-invocable: false
 ---
 
 # Sollertia experiment configuration
 
-Authors and modifies per-project, system-specific experiment configuration YAML files for
-`sollertia-shared-assets` using the `slsa mcp` MCP server. The configuration class is resolved per
-system through `EXPERIMENT_CONFIGURATION_REGISTRY` keyed by `AcquisitionSystems`, and both the
-registry and the configuration base are deliberately extensible — additional systems contribute
-their own subclasses, and this skill owns the system-agnostic tooling for all of them. This skill is
-the **exclusive** owner of:
+Authors and modifies per-project, system-specific experiment configuration YAML files for `sollertia-shared-assets`
+using the `slsa mcp` MCP server. The configuration class is resolved per system through
+`EXPERIMENT_CONFIGURATION_REGISTRY` keyed by `AcquisitionSystems`. Both the registry and the configuration base are
+deliberately extensible, so additional systems contribute their own subclasses, and this skill owns the system-agnostic
+tooling for all of them. This skill is the **exclusive** owner of:
 
 - `write_experiment_configuration_tool`
 - `create_experiment_from_vr_template_tool`
@@ -27,15 +24,14 @@ the **exclusive** owner of:
 
 No other skill in the marketplace may call these tools.
 
-Every Sollertia acquisition system runs in Virtual Reality, presenting a Unity task in the linear infinite
-corridor, so every experiment configuration is seeded from a corridor task template and satisfies one stable
-contract (`experiment_states`, `trial_structures`, `unity_scene_name`, and the `from_task_template` builder). The
-final form is system-specific: each acquisition system contributes its **own** `<System>ExperimentConfiguration`
-subclass (by extending `sollertia-shared-assets`; see `/library-extension`) that satisfies the contract and
-expands it with its own fields and trial classes. This skill stays generic — for a system's concrete field-level
-schema, trial classes, and trigger-type mapping, read `describe_experiment_configuration_schema_tool` for that
-system and defer to the system's schema skill (for Mesoscope-VR, see
-`mesoscope:mesoscope-vr-experiment-schema`).
+Every Sollertia acquisition system runs in Virtual Reality, presenting a Unity task in the linear infinite corridor, so
+every experiment configuration is seeded from a corridor task template and satisfies one stable contract
+(`experiment_states`, `trial_structures`, `unity_scene_name`, and the `from_task_template` builder). The final form is
+system-specific: each acquisition system contributes its **own** `<System>ExperimentConfiguration` subclass, by
+extending `sollertia-shared-assets` as `/library-extension` describes, that satisfies the contract and expands it with
+its own fields and trial classes. This skill stays generic. For a system's concrete field-level schema, trial classes,
+and trigger-type mapping, read `describe_experiment_configuration_schema_tool` for that system and defer to the system's
+schema skill (for Mesoscope-VR, see `mesoscope:mesoscope-vr-experiment-schema`).
 
 ---
 
@@ -44,13 +40,11 @@ system and defer to the system's schema skill (for Mesoscope-VR, see
 **Covers:**
 - Authoring or repairing a full experiment configuration payload for any acquisition system via
   `write_experiment_configuration_tool`
-- Seeding an experiment configuration from a Unity VR task template via
-  `create_experiment_from_vr_template_tool`
-- Experiment state machines (`ExperimentState`, seeded by the resolved subclass's
-  `from_task_template` builder)
+- Seeding an experiment configuration from a Unity VR task template via `create_experiment_from_vr_template_tool`
+- Experiment state machines (`ExperimentState`, seeded by the resolved subclass's `from_task_template` builder)
 - Schema introspection for experiment configurations
-- Reading the frozen experiment configuration captured at session start (pass the per-session
-  snapshot path to `read_experiment_configuration_tool`)
+- Reading the frozen experiment configuration captured at session start (pass the per-session snapshot path to
+  `read_experiment_configuration_tool`)
 
 **Does not cover:**
 - Authoring task templates themselves (see `/task-templates`)
@@ -62,130 +56,125 @@ system and defer to the system's schema skill (for Mesoscope-VR, see
 
 ---
 
-## Templates vs experiment configurations
+## Templates vs. experiment configurations
 
-A **task template** (`TaskTemplate`) is the corridor task asset every experiment is seeded from. It is project-
-and system-agnostic — the same template can back many experiment configurations across many projects.
+A **task template** (`TaskTemplate`) is the corridor task asset every experiment is seeded from. It is project- and
+system-agnostic, so the same template can back many experiment configurations across many projects.
 
 | Concept                           | What it is                                         | Owning skill      |
 |-----------------------------------|----------------------------------------------------|-------------------|
 | `TaskTemplate`                    | Reusable corridor environment, trials, cue catalog | `/task-templates` |
 | System-specific experiment config | Per-project state machine + per-trial parameters   | this skill        |
 
-The template defines **what is possible**, and the experiment configuration picks a template (by
-`unity_scene_name`) and parameterizes it (state durations, reward volumes, project-specific overrides). The
-template and the experiment configuration are owned by two different skills.
+The template defines **what is possible**, and the experiment configuration picks a template (by `unity_scene_name`) and
+parameterizes it (state durations, reward volumes, project-specific overrides). The template and the experiment
+configuration are owned by two different skills.
 
 ---
 
 ## How experiment configurations are executed at runtime
 
-An experiment configuration is the contract between the agent-authored definition of what should
-happen during a session and the acquisition runtime that actually conducts that session. The
-description below is intentionally conceptual; for the precise call sequence and tool surface
-of any specific consumer, defer to the runtime package's own documentation.
+An experiment configuration is the contract between the agent-authored definition of what should happen during a session
+and the acquisition runtime that actually conducts that session. The description below is intentionally conceptual. For
+the precise call sequence and tool surface of any specific consumer, defer to the runtime package's own documentation.
 
 ### The state machine
 
-`experiment_states` is a **`dict[str, ExperimentState]`** iterated in **insertion order**. That ordering is the
-sequence in which states fire, and the string keys give each state a stable, human-readable identifier for logs and
-analysis without forcing positional indexing. The key format is set by the target system's `from_task_template`
-builder rather than by the platform, and Mesoscope-VR emits 1-indexed `state_1`, `state_2`, and so on (see
-`mesoscope:mesoscope-vr-experiment-schema`). Each state holds for `state_duration_s` seconds, then control falls
-through to the next state. The session ends when the last state's timer expires.
+`experiment_states` is a **`dict[str, ExperimentState]`** iterated in **insertion order**. That ordering is the sequence
+in which states fire, and the string keys give each state a stable, human-readable identifier for logs and analysis
+without forcing positional indexing. The key format is set by the target system's `from_task_template` builder rather
+than by the platform, and Mesoscope-VR emits 1-indexed `state_1`, `state_2`, and so on (see
+`mesoscope:mesoscope-vr-experiment-schema`). Each state holds for `state_duration_s` seconds, then control falls through
+to the next state. The session ends when the last state's timer expires.
 
-The dict-of-named-states shape (rather than a list) lets you add, rename, or reorder states by
-editing keys and re-emitting the YAML, without renumbering downstream references. The keys
-appear verbatim in the log stream that the analysis pipeline aligns trials against.
+The dict-of-named-states shape (rather than a list) lets you add, rename, or reorder states by editing keys and
+re-emitting the YAML, without renumbering downstream references. The keys appear verbatim in the log stream that the
+analysis pipeline aligns trials against.
 
 `ExperimentState` declares three required fields with no default (`experiment_state_code`, `system_state_code`,
-`state_duration_s`), `supports_trials` defaulting to `True`, and six guidance counters each defaulting to `0`. The
-class declares no `__post_init__` and performs no validation of its own, so a negative `state_duration_s`, a negative
-counter, or a `NaN` duration constructs and serializes successfully. Nothing in the library enforces plausible
-biological ranges for these values, which makes the range check in this skill's verification checklist an agent-side
-responsibility rather than a guarantee the platform provides.
+`state_duration_s`), `supports_trials` defaulting to `True`, and six guidance counters each defaulting to `0`. The class
+declares no `__post_init__` and performs no validation of its own, so a negative `state_duration_s`, a negative counter,
+or a `NaN` duration constructs and serializes successfully. Nothing in the library enforces plausible biological ranges
+for these values, which makes the range check in this skill's verification checklist an agent-side responsibility rather
+than a guarantee the platform provides.
 
-### Experiment states vs system states
+### Experiment states vs. system states
 
 Each `ExperimentState` carries two distinct codes:
 
-- **`experiment_state_code: int`** — the phase's unique integer identifier code, required with no default, emitted
-  into the data log when the state begins so downstream analysis can slice trials by phase. Builders seed it 1-based
-  (Mesoscope-VR: `state_index + 1`). Use a human-readable phase name only for the `experiment_states` dict key, never
-  for this field, because a string written here loads silently (per-field type checking is disabled) and reaches the
-  runtime as a wrong type.
-- **`system_state_code`** — the hardware-mode snapshot that the acquisition runtime should
-  install for the duration of the state. The valid codes are system-specific, defined by the
-  target system's system-state enum in `sollertia-experiment`; consult that system's schema skill
-  for the accepted values (for Mesoscope-VR, see `mesoscope:mesoscope-vr-experiment-schema`).
+- **`experiment_state_code: int`** is the phase's unique integer identifier code, required with no default, and emitted
+  into the data log when the state begins so downstream analysis can slice trials by phase. Builders seed it 1-based, so
+  Mesoscope-VR uses `state_index + 1`. Use a human-readable phase name only for the `experiment_states` dict key, never
+  for this field, because a string written here loads silently, since per-field type checking is disabled, and reaches
+  the runtime as a wrong type.
+- **`system_state_code`** is the hardware-mode snapshot that the acquisition runtime should install for the duration of
+  the state. The valid codes are system-specific, defined by the target system's system-state enum in
+  `sollertia-experiment`. Consult that system's schema skill for the accepted values (for Mesoscope-VR, see
+  `mesoscope:mesoscope-vr-experiment-schema`).
 
-The two codes are deliberately decoupled. Two consecutive experiment states can reuse the same
-system state (so the hardware mode does not change between phases) while differing in duration
-or guidance settings. For example, a "ramp" phase and a "performance" phase that share the same
-active hardware mode but apply different guidance counters. This decoupling is why both
-fields exist on the schema; collapsing them would force a hardware reconfiguration on every
-phase boundary.
+The two codes are deliberately decoupled. Two consecutive experiment states can reuse the same system state (so the
+hardware mode does not change between phases) while differing in duration or guidance settings. For example, a "ramp"
+phase and a "performance" phase that share the same active hardware mode but apply different guidance counters. This
+decoupling is why both fields exist on the schema, because collapsing them would force a hardware reconfiguration on
+every phase boundary.
 
-`ExperimentState.supports_trials` (default `True`) determines whether trials are executed during this experiment
-state. The downstream forging and analysis pipelines (`sollertia-forgery`) also read it as metadata recording whether
-a phase is *expected* to contain trials, so dataset forging and analysis know whether to look for trial data in that
-phase. A trial-free phase is realized by choosing a `system_state_code` whose hardware mode drives no trials, with
+`ExperimentState.supports_trials` (default `True`) determines whether trials are executed during this experiment state.
+The downstream forging and analysis pipelines (`sollertia-forgery`) also read it as metadata recording whether a phase
+is *expected* to contain trials, so dataset forging and analysis know whether to look for trial data in that phase. A
+trial-free phase is realized by choosing a `system_state_code` whose hardware mode drives no trials, with
 `supports_trials` set to `False` to match, so the runtime and the forging side read the phase the same way.
 
 ### Where the trial sequence comes from
 
-The experiment configuration **never enumerates or schedules trials** — it contributes only the
-**per-trial-type parameters** (the system-specific runtime fields on each trial class). The trial
-sequence is owned by Unity (`sollertia-virtual-reality`): at session init the acquisition runtime requests a cue
-sequence materialized from the template's per-trial `transitions` (see `/task-templates`), then identifies trial
-boundaries by motif matching against each `TrialStructure`. Relative frequencies are encoded in the template's
-transition probabilities. The runtime joins each decomposed trial name back to this configuration's
-`trial_structures` to attach the per-trial parameters. The configuration carries no schedule; it carries
-per-trial parameters and the phase-level state machine.
+The experiment configuration **never enumerates or schedules trials**, and contributes only the **per-trial-type
+parameters**, meaning the system-specific runtime fields on each trial class. The trial sequence is owned by Unity
+(`sollertia-virtual-reality`): at session init the acquisition runtime requests a cue sequence materialized from the
+template's per-trial `transitions` (see `/task-templates`), then identifies trial boundaries by motif matching against
+each `TrialStructure`. Relative frequencies are encoded in the template's transition probabilities. The runtime joins
+each decomposed trial name back to this configuration's `trial_structures` to attach the per-trial parameters. The
+configuration carries no schedule, only per-trial parameters and the phase-level state machine.
 
 ### Guidance is per-state, not per-trial-class
 
-Each `ExperimentState` carries reinforcing and aversive guidance counters
-(`*_initial_guided_trials`, `*_recovery_failed_threshold`, `*_recovery_guided_trials`). At state
-entry the runtime configures the counters from these fields and zeros any prior failure streak.
-During the state, completed trials count down the guided-trials budget; sustained failure
-streaks re-engage guidance for a recovery window.
+Each `ExperimentState` carries reinforcing and aversive guidance counters (`*_initial_guided_trials`,
+`*_recovery_failed_threshold`, `*_recovery_guided_trials`). At state entry the runtime configures the counters from
+these fields and zeros any prior failure streak. During the state, completed trials count down the guided-trials budget,
+and sustained failure streaks re-engage guidance for a recovery window.
 
-The guidance counters live on `ExperimentState` rather than on the trial classes because
-guidance behavior is fundamentally a **phase-level** decision. A typical training paradigm
-sweeps through a "ramp" phase (heavy initial guidance, low recovery threshold), a "performance"
-phase (no initial guidance, modest recovery support), and a "no help" phase (zero on both
-counters). All reusing the same trial classes and the same template. One experiment
-configuration captures that whole arc by chaining states with different guidance settings.
+The guidance counters live on `ExperimentState` rather than on the trial classes because guidance behavior is
+fundamentally a **phase-level** decision. A typical training paradigm sweeps through three phases, all reusing the same
+trial classes and the same template. A "ramp" phase carries heavy initial guidance and a low recovery threshold, a
+"performance" phase carries no initial guidance and modest recovery support, and a "no help" phase carries zero on both
+counters. One experiment configuration captures that whole arc by chaining states with different guidance settings.
 
 ### The experiment configuration contract
 
-Every `<System>ExperimentConfiguration` shares one **stable contract** — `experiment_states`,
-`trial_structures`, `unity_scene_name`, and the `from_task_template` builder. Everything else is
-**system-specific**: the concrete class adds whatever further fields its acquisition system needs and defines its
-own runtime trial classes, so the contract is the floor, not the whole schema. Always read the actual field set
-from `describe_experiment_configuration_schema_tool` for the system you target — its `nested_classes` are
-introspected from the resolved class and reflect that system's own dataclasses. The bullets below name the
-contract members only; for a system's concrete trial classes, trigger-type pairings, and per-field defaults, read
-that system's schema skill (for Mesoscope-VR, see `mesoscope:mesoscope-vr-experiment-schema`).
+Every `<System>ExperimentConfiguration` shares one **stable contract**, holding `experiment_states`, `trial_structures`,
+`unity_scene_name`, and the `from_task_template` builder. Everything else is **system-specific**: the concrete class
+adds whatever further fields its acquisition system needs and defines its own runtime trial classes, so the contract is
+the floor rather than the whole schema. Always read the actual field set from
+`describe_experiment_configuration_schema_tool` for the system you target, because its `nested_classes` are introspected
+from the resolved class and reflect that system's own dataclasses. The bullets below name the contract members only. For
+a system's concrete trial classes, trigger-type pairings, and per-field defaults, read that system's schema skill (for
+Mesoscope-VR, see `mesoscope:mesoscope-vr-experiment-schema`).
 
-- **`experiment_states: dict[str, ExperimentState]`** — the experiment state machine, required on every subclass
+- **`experiment_states: dict[str, ExperimentState]`** is the experiment state machine, required on every subclass
   because every experiment is a state machine.
-- **`trial_structures`** — the trials the experiment runs, required on every subclass: a per-trial dict whose
+- **`trial_structures`** holds the trials the experiment runs, required on every subclass as a per-trial dict whose
   values are the **system's own** runtime trial classes. The task template provides each trial's spatial
   `TrialStructure` and the configuration pairs it with a runtime trial class by trial name.
-  `list_supported_trial_types_tool` derives the trial list from this field. The platform `trigger_type` taxonomy
-  has **five** modes (`interaction`, `collision`, `occupancy_disarm`, `occupancy_arm`, `occupancy_trigger`), but
-  each acquisition system maps only the **subset** it supports through its `from_task_template` builder, pairing
-  each supported `trigger_type` with one of its own runtime trial classes to match the zone prefab Unity
-  instantiates. A `trigger_type` a system does not map raises a clear "not mapped to a runtime trial class" error.
-  Read `describe_experiment_configuration_schema_tool` for the target system to learn its `trial_structures`
-  annotation and trial classes, and the system's schema skill for which `trigger_type` members it maps.
-- **`unity_scene_name`** — a mandatory contract field. It identifies the paired `TaskTemplate` by filename stem and
-  is verified against the scene loaded in Unity at session start. `SessionData.create` resolves
+  `list_supported_trial_types_tool` derives the trial list from this field. The platform `trigger_type` taxonomy has
+  **five** modes (`interaction`, `collision`, `occupancy_disarm`, `occupancy_arm`, `occupancy_trigger`). Each
+  acquisition system maps only the **subset** it supports, through its `from_task_template` builder. That builder pairs
+  each supported `trigger_type` with one of its own runtime trial classes, matching the zone prefab Unity instantiates.
+  A `trigger_type` a system does not map raises a clear "not mapped to a runtime trial class" error. Read
+  `describe_experiment_configuration_schema_tool` for the target system to learn its `trial_structures` annotation and
+  trial classes, and the system's schema skill for which `trigger_type` members it maps.
+- **`unity_scene_name`** is a mandatory contract field. It identifies the paired `TaskTemplate` by filename stem and is
+  verified against the scene loaded in Unity at session start. `SessionData.create` resolves
   `<templates-directory>/<unity_scene_name>.yaml` to cache the session's VR snapshot, so the value must equal the
-  template filename stem exactly. Nothing validates the match when the configuration is built, so a stem typo
-  surfaces only at session creation.
+  template filename stem exactly. Nothing validates the match when the configuration is built, so a stem typo surfaces
+  only at session creation.
 
 ---
 
@@ -213,10 +202,10 @@ members as `value` / `name` pairs, which is the canonical way to learn what to p
 
 ## Path conventions
 
-All read / write / validate / create tools in this skill take **explicit file paths** plus a required
-**`acquisition_system`** — the experiment-config dataclass is selected per system through the registry.
-The caller resolves both; the tools never consult `root_directory`, a project name, an experiment name,
-or a template name. The canonical paths are:
+All read, write, validate, and create tools in this skill take **explicit file paths** plus a required
+**`acquisition_system`**, because the experiment-config dataclass is selected per system through the registry. The
+caller resolves both, and the tools never consult `root_directory`, a project name, an experiment name, or a template
+name. The canonical paths are:
 
 | Asset                                         | Canonical path                                     |
 |-----------------------------------------------|----------------------------------------------------|
@@ -224,15 +213,14 @@ or a template name. The canonical paths are:
 | Task template                                 | `<templates-directory>/<template-name>.yaml`       |
 | Per-session frozen experiment-config snapshot | `<session>/raw_data/experiment_configuration.yaml` |
 
-Use `discover_experiments_tool(root_directory=..., project=...)` to enumerate existing configs and
-their absolute paths; use `discover_templates_tool()` to enumerate template paths.
+Use `discover_experiments_tool(root_directory=..., project=...)` to enumerate existing configs and their absolute paths,
+and use `discover_templates_tool()` to enumerate template paths.
 
-**Resolving `acquisition_system`.** It is required — there is no default. Resolve it **automatically**
-wherever possible and prompt the user only as a fallback. For a **per-session snapshot**, read it from
-the session's own `SessionData` — `inspect_sessions_tool` (`/session-data`) reports
-`identity.acquisition_system`, or read the marker directly via `read_session_data_tool`. For
-**per-project authoring**, use the system the project/host targets (enumerate options with
-`list_supported_acquisition_systems_tool`). Pass the resolved value to every tool below.
+**Resolving `acquisition_system`.** It is required and carries no default. Resolve it **automatically** wherever
+possible and prompt the user only as a fallback. For a **per-session snapshot**, read it from the session's own
+`SessionData`, where `inspect_sessions_tool` (`/session-data`) reports `identity.acquisition_system`, or read the marker
+directly via `read_session_data_tool`. For **per-project authoring**, use the system the project or host targets, and
+enumerate the options with `list_supported_acquisition_systems_tool`. Pass the resolved value to every tool below.
 
 ---
 
@@ -241,16 +229,15 @@ the session's own `SessionData` — `inspect_sessions_tool` (`/session-data`) re
 ### Step 1: Verify prerequisites
 
 - MCP server connected (else `/assets-mcp-environment-setup`).
-- The target project directory does **not** have to exist before authoring. Both
-  `write_experiment_configuration_tool` and `create_experiment_from_vr_template_tool` create any missing parent
-  directories, including the project and its `configuration` subdirectory, so an absent project never blocks the
-  write. Mint the project explicitly anyway, by handing off to `/project-hierarchy`, which owns `create_project_tool`
-  and the `slsa configure project -p <name>` CLI command (the CLI takes the project name alone and uses the
-  configured platform data root). The reason is downstream: `SessionData.create` raises `FileNotFoundError` when the
-  project is missing, so a session cannot be created against a tree that only the configuration write brought into
-  existence.
-- The target task template exists at a known path. If it doesn't, hand off to `/task-templates` to author
-  it — this skill must not call `write_template_tool` directly. The templates directory can be enumerated via
+- The target project directory does **not** have to exist before authoring. Both `write_experiment_configuration_tool`
+  and `create_experiment_from_vr_template_tool` create any missing parent directories, including the project and its
+  `configuration` subdirectory, so an absent project never blocks the write. Mint the project explicitly anyway, by
+  handing off to `/project-hierarchy`, which owns `create_project_tool` and the `slsa configure project -p <name>` CLI
+  command (the CLI takes the project name alone and uses the configured platform data root). The reason is downstream:
+  `SessionData.create` raises `FileNotFoundError` when the project is missing, so a session cannot be created against a
+  tree that only the configuration write brought into existence.
+- The target task template exists at a known path. If it does not, hand off to `/task-templates` to author it, because
+  this skill must not call `write_template_tool` directly. The templates directory can be enumerated via
   `discover_templates_tool`, which also returns absolute paths.
 
 ### Step 2: Discover existing experiments under the project
@@ -262,12 +249,11 @@ discover_experiments_tool(
 )
 ```
 
-`discover_experiments_tool` returns every experiment's absolute `path`, which is what you'll pass
-to the read/write/validate tools below. If a similar experiment already exists, prefer reading it
-and modifying a copy.
+`discover_experiments_tool` returns every experiment's absolute `path`, which is what you pass to the read, write, and
+validate tools below. If a similar experiment already exists, prefer reading it and modifying a copy.
 
-`project` is optional. Omitting it enumerates every project under the root, silently skipping any project directory
-that has no `configuration` subdirectory. `root_directory` is **required** and has no data-root fallback, unlike
+`project` is optional. Omitting it enumerates every project under the root, silently skipping any project directory that
+has no `configuration` subdirectory. `root_directory` is **required** and has no data-root fallback, unlike
 `create_project_tool`, so the caller must resolve the root before calling. Discovery globs `*.yaml` only, so a
 configuration saved with a `.yml` extension never appears in the listing even though `from_yaml` would load it.
 
@@ -278,17 +264,16 @@ describe_experiment_configuration_schema_tool(acquisition_system="<system>")
 ```
 
 Use the schema as the source of truth for field names and nesting. It always reports the contract fields
-(`experiment_states`, `trial_structures`, and `unity_scene_name`) plus whatever system-specific fields the
-resolved subclass adds.
-Its `nested_classes` are derived from the resolved configuration class, so they reflect that system's actual
-nested dataclasses — never assume the Mesoscope-VR set applies verbatim.
+(`experiment_states`, `trial_structures`, and `unity_scene_name`) plus whatever system-specific fields the resolved
+subclass adds. Its `nested_classes` are derived from the resolved configuration class, so they reflect that system's
+actual nested dataclasses. Never assume the Mesoscope-VR set applies verbatim.
 
 ### Step 4: Create the configuration
 
-Seed the configuration from a Unity VR task template with `create_experiment_from_vr_template_tool`. The tool
-dispatches through `EXPERIMENT_CONFIGURATION_REGISTRY` (keyed by `AcquisitionSystems`) to the resolved
+Seed the configuration from a Unity VR task template with `create_experiment_from_vr_template_tool`. The tool dispatches
+through `EXPERIMENT_CONFIGURATION_REGISTRY` (keyed by `AcquisitionSystems`) to the resolved
 `<System>ExperimentConfiguration` and calls its `from_task_template` builder. To author or repair a full payload
-directly — without re-seeding from the template — use `write_experiment_configuration_tool` (see Step 5).
+directly, without re-seeding from the template, use `write_experiment_configuration_tool` (see Step 5).
 
 Pass the destination path and the template path explicitly:
 
@@ -304,18 +289,18 @@ create_experiment_from_vr_template_tool(
 )
 ```
 
-This loads the template via `TaskTemplate.from_yaml`, then calls the resolved config class's
-`from_task_template` classmethod. That classmethod maps the template's trial structures to runtime trials and seeds
-`state_count` default-valued runtime states in the `experiment_states` dict.
+This loads the template via `TaskTemplate.from_yaml`, then calls the resolved config class's `from_task_template`
+classmethod. That classmethod maps the template's trial structures to runtime trials and seeds `state_count`
+default-valued runtime states in the `experiment_states` dict.
 
-**Heads up:** the autopopulated states have a placeholder `system_state_code` that is typically not a valid
-hardware mode for the target system. Each state must be edited to set `system_state_code` to a value the system
-accepts before the session can run; consult the system's schema skill for the accepted codes (for Mesoscope-VR, see
+**Heads up:** the autopopulated states have a placeholder `system_state_code` that is typically not a valid hardware
+mode for the target system. Each state must be edited to set `system_state_code` to a value the system accepts before
+the session can run. Consult the system's schema skill for the accepted codes (for Mesoscope-VR, see
 `mesoscope:mesoscope-vr-experiment-schema`).
 
-How a builder seeds the guidance counters is **system-specific**, and `ExperimentState` itself defaults every counter
-to `0`. Mesoscope-VR seeds the reinforcing block only when the template produced a water trial and the aversive block
-only when it produced a puff trial (see `mesoscope:mesoscope-vr-experiment-schema`).
+How a builder seeds the guidance counters is **system-specific**, and `ExperimentState` itself defaults every counter to
+`0`. Mesoscope-VR seeds the reinforcing block only when the template produced a water trial and the aversive block only
+when it produced a puff trial (see `mesoscope:mesoscope-vr-experiment-schema`).
 
 ### Step 5: Customize state machine and trial parameters
 
@@ -328,26 +313,24 @@ read_experiment_configuration_tool(
 )
 ```
 
-Mutate the payload to override the fields the user wants to customize. The fields below are the generic contract
-members shared by every subclass; for the target system's concrete trial-class fields and per-field defaults, read
-`describe_experiment_configuration_schema_tool` with the matching `acquisition_system` value and the system's
-schema skill (for Mesoscope-VR, see `mesoscope:mesoscope-vr-experiment-schema`).
+Mutate the payload to override the fields the user wants to customize. The fields below are the generic contract members
+shared by every subclass. For the target system's concrete trial-class fields and per-field defaults, read
+`describe_experiment_configuration_schema_tool` with the matching `acquisition_system` value and the system's schema
+skill (for Mesoscope-VR, see `mesoscope:mesoscope-vr-experiment-schema`).
 
-- `trial_structures` — a per-trial dict whose values are the **system's own** runtime trial classes, each a
-  standalone, system-specific dataclass carrying **only** runtime parameters and defined in the owning system's
-  subpackage. The matching spatial fields (cue sequence, zones, trigger type, occupancy duration) live on the
-  paired `TaskTemplate`'s `trial_structures[<same name>]` and are joined at session init. Read the schema tool for
-  the concrete trial classes and their fields. A hand-authored trial entry must also carry whatever discriminator
-  field the target system's trial union requires, so the loader can pick the right runtime trial class. Defer to the
-  system's schema skill for the field name and its accepted values (for Mesoscope-VR, `trial_kind`, see
-  `mesoscope:mesoscope-vr-experiment-schema`).
-- `experiment_states: dict[str, ExperimentState]` — a dict, **not a list**. Access by string key, not by
-  integer index. The seeded state keys and placeholder `system_state_code` depend on the system's
-  `from_task_template` builder (for Mesoscope-VR, 1-indexed `state_1`…; see
+- `trial_structures` is a per-trial dict whose values are the **system's own** runtime trial classes, each a standalone,
+  system-specific dataclass carrying **only** runtime parameters and defined in the owning system's subpackage. The
+  matching spatial fields (cue sequence, zones, trigger type, occupancy duration) live on the paired `TaskTemplate`'s
+  `trial_structures[<same name>]` and are joined at session init. Read the schema tool for the concrete trial classes
+  and their fields. A hand-authored trial entry must also carry whatever discriminator field the target system's trial
+  union requires, so the loader can pick the right runtime trial class. Defer to the system's schema skill for the field
+  name and its accepted values (for Mesoscope-VR, `trial_kind`, see `mesoscope:mesoscope-vr-experiment-schema`).
+- `experiment_states: dict[str, ExperimentState]` is a dict rather than a list, so access it by string key rather than
+  by integer index. The seeded state keys and placeholder `system_state_code` depend on the system's
+  `from_task_template` builder, and Mesoscope-VR uses 1-indexed `state_1` onward (see
   `mesoscope:mesoscope-vr-experiment-schema`). `ExperimentState` fields include `experiment_state_code`,
   `system_state_code`, `state_duration_s`, `supports_trials`, and the reinforcing/aversive guidance counters.
-- `unity_scene_name: str` — a mandatory contract field identifying the paired `TaskTemplate` YAML by filename
-  stem.
+- `unity_scene_name: str` is a mandatory contract field identifying the paired `TaskTemplate` YAML by filename stem.
 
 Then write it back:
 
@@ -386,18 +369,18 @@ payload on semantic grounds (for Mesoscope-VR, every trial must resolve to a run
 
 The experiment configuration does not carry the corridor task's spatial data, so cross-template validation (cue
 sequences, zone bounds, trigger-type pairing) is the responsibility of `/task-templates` and its
-`validate_template_tool` on the paired template. At session init the acquisition runtime joins the two by trial
-name, validating that every `trial_structures` key matches a key in the template.
+`validate_template_tool` on the paired template. At session init the acquisition runtime joins the two by trial name,
+validating that every `trial_structures` key matches a key in the template.
 
 The tool reports three distinct outcomes:
 
 - `valid=True` inside a success envelope, carrying a `summary` with `trial_count`, `state_count`, and
   `unity_scene_name`.
-- `valid=False` inside a **success** envelope, carrying a single-element `issues` list with the load or
-  `__post_init__` failure. The envelope is still `success: true`, so branching on `success` alone reports a broken
-  configuration as a passing one. Always read `valid`.
-- `success: false` with an `error` message when the file does not exist or the `acquisition_system` does not
-  resolve. A missing file is **not** reported as `valid=False`.
+- `valid=False` inside a **success** envelope, carrying a single-element `issues` list with the load or `__post_init__`
+  failure. The envelope is still `success: true`, so branching on `success` alone reports a broken configuration as a
+  passing one. Always read `valid`.
+- `success: false` with an `error` message when the file does not exist or the `acquisition_system` does not resolve. A
+  missing file is **not** reported as `valid=False`.
 
 Fix any reported issues and re-write. The `## Response contract` section of `/assets-mcp-environment-setup` documents
 this envelope split for every tool that follows it.
@@ -406,8 +389,8 @@ this envelope split for every tool that follows it.
 
 ## Reading the frozen configuration from a session
 
-After a session has run, the experiment configuration that was active at session start is captured
-as a frozen YAML at `<session>/raw_data/experiment_configuration.yaml`. To read it:
+After a session has run, the experiment configuration that was active at session start is captured as a frozen YAML at
+`<session>/raw_data/experiment_configuration.yaml`. To read it:
 
 ```text
 read_experiment_configuration_tool(
@@ -416,10 +399,10 @@ read_experiment_configuration_tool(
 )
 ```
 
-This is a read-only operation. Do not attempt to write to the frozen file — modifying historical
-session metadata is the responsibility of `mesoscope:mesoscope-vr-snapshots` (which deals with position
-snapshots, not the experiment config). If a frozen experiment config needs to be amended for some
-reason, that is currently not supported by the sollertia-shared-assets MCP layer.
+This is a read-only operation. Do not attempt to write to the frozen file, because modifying historical session metadata
+is the responsibility of `mesoscope:mesoscope-vr-snapshots`, which deals with position snapshots rather than the
+experiment config. The sollertia-shared-assets MCP layer currently supports no path for amending a frozen experiment
+config.
 
 ---
 
@@ -437,8 +420,8 @@ template live in [references/authoring-patterns.md](references/authoring-pattern
 
 `read_experiment_configuration_tool`, `write_experiment_configuration_tool`,
 `describe_experiment_configuration_schema_tool`, `validate_experiment_configuration_tool`, and
-`list_supported_trial_types_tool` all route `acquisition_system` through the same private resolver, which fails in
-two distinct ways:
+`list_supported_trial_types_tool` all route `acquisition_system` through the same private resolver, which fails in two
+distinct ways:
 
 | Failure                                          | Where to go                               |
 |--------------------------------------------------|-------------------------------------------|
@@ -446,10 +429,10 @@ two distinct ways:
 | The member has no registered configuration class | `/library-extension`                      |
 
 The first failure names the offending value and lists the valid enum values. It is a typo or a system that does not
-exist on this platform, so re-read the enum with `list_supported_acquisition_systems_tool` and pass one of the
-reported `value` entries verbatim. The second failure names the value and lists the registered systems. It means the
-enum member exists but `EXPERIMENT_CONFIGURATION_REGISTRY` holds no class for it, which is a library gap rather than
-a caller mistake, so hand off to `/library-extension` to register the subclass.
+exist on this platform, so re-read the enum with `list_supported_acquisition_systems_tool` and pass one of the reported
+`value` entries verbatim. The second failure names the value and lists the registered systems. It means the enum member
+exists but `EXPERIMENT_CONFIGURATION_REGISTRY` holds no class for it, which is a library gap rather than a caller
+mistake, so hand off to `/library-extension` to register the subclass.
 
 `create_experiment_from_vr_template_tool` does not use that resolver. It validates the enum itself and subscripts the
 registry directly, so an invalid value comes back worded as a create failure rather than a resolve failure, and that
@@ -461,17 +444,17 @@ path has no separate "no class is registered" message.
 
 | Skill                                      | Relationship                                                                                                                                                                                                                                                                |
 |--------------------------------------------|-----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
-| `/working-directory`                       | Provides the templates directory so `/task-templates` knows where to enumerate; this skill needs only absolute paths                                                                                                                                                        |
+| `/working-directory`                       | Provides the templates directory so `/task-templates` knows where to enumerate. This skill needs only absolute paths                                                                                                                                                        |
 | `/assets-mcp-environment-setup`            | Run first if the MCP server is not connected                                                                                                                                                                                                                                |
-| `/task-templates`                          | Required dependency — owns corridor template authoring and exposes `discover_templates_tool` for absolute template paths                                                                                                                                                    |
-| `/project-hierarchy`                       | Discovers the project tree; owns project creation (`create_project_tool` / `slsa configure project`)                                                                                                                                                                        |
-| `mesoscope:mesoscope-vr-experiment-schema` | Owns Mesoscope-VR's concrete instance — the trial-class and experiment field schema, the trigger-type-to-trial mapping, the system-state codes, and the `from_task_template` defaults this skill defers to                                                                  |
+| `/task-templates`                          | Required dependency that owns corridor template authoring and exposes `discover_templates_tool` for template paths                                                                                                                                                    |
+| `/project-hierarchy`                       | Discovers the project tree and owns project creation (`create_project_tool` and `slsa configure project`)                                                                                                                                                                        |
+| `mesoscope:mesoscope-vr-experiment-schema` | Owns Mesoscope-VR's concrete instance, covering the trial-class and experiment field schema, the trigger-type-to-trial mapping, the system-state codes, and the `from_task_template` defaults this skill defers to                                                                  |
 | `experiment:acquisition-system-design`     | Documents the per-system system-configuration pattern (Mesoscope-VR instance: `MesoscopeSystemConfiguration`)                                                                                                                                                               |
-| `experiment:data-management`               | Downstream consumer — `SessionData.create` copies the authored `experiment_configuration.yaml` into every new experiment session at acquisition time                                                                                                                        |
+| `experiment:data-management`               | Downstream consumer whose `SessionData.create` copies the authored `experiment_configuration.yaml` into every new experiment session at acquisition time                                                                                                                        |
 | `unity:task-prefabs`                       | Validates template values against the Unity prefab state                                                                                                                                                                                                                    |
 | `experiment:pipeline`                      | Phase 4 of the experiment lifecycle (experiment authoring) hands off to this skill                                                                                                                                                                                          |
-| `/library-extension`                       | Cross-cutting recipe to add a new `AcquisitionSystems`, runtime trial class, or `TriggerType` member (a new `TriggerType` member does **not** require a `from_task_template` branch — a system may leave it unmapped); lists the prose here that needs updating in lockstep |
-| `experiment:vr-driver-interface`           | Verifies `unity_scene_name` against the live scene; consumes the per-trial parameters at runtime                                                                                                                                                                            |
+| `/library-extension`                       | Cross-cutting recipe to add a new `AcquisitionSystems`, runtime trial class, or `TriggerType` member. A new `TriggerType` member does **not** require a `from_task_template` branch, because a system may leave it unmapped. Lists the prose here that needs updating in lockstep |
+| `experiment:vr-driver-interface`           | Verifies `unity_scene_name` against the live scene and consumes the per-trial parameters at runtime                                                                                                                                                                            |
 
 ---
 

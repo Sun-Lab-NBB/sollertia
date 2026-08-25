@@ -40,8 +40,8 @@ live, and it treats the contents of those artifacts as opaque.
   agents writing downstream Python
 
 **Does not cover:**
-- Composing or growing a dataset on disk, which applies an admission policy this skill's write tool does not
-  (see `forging:dataset-definition`, `define_forging_dataset_tool`)
+- Composing or growing a dataset on disk, which applies an admission policy this skill's write tool does not (see
+  `forging:dataset-definition`, `define_forging_dataset_tool`)
 - Forging job state and planning (see `forging:dataset-definition` and `forging:dataset-forging`)
 - What the described columns actually contain (see `forging:dataset-forging-results` and, for Mesoscope-VR,
   `mesoscope:mesoscope-vr-dataset-assembly`)
@@ -90,8 +90,8 @@ directories, and the shared hierarchy walkers recognize, skip, or count them by 
 | `surgery_metadata.yaml`         | animal  | Never                                                               |
 
 Whether `vr_configuration.yaml` is required is decided by registry membership, not by the file itself: the dataset's
-`session_type` is tested against `SESSION_TYPES_USING_VR_TASK`, and only a session type inside that frozen set makes
-the snapshot's absence a defect. The rule is generic and the membership is registry-owned, so hand off to
+`session_type` is tested against `SESSION_TYPES_USING_VR_TASK`, and only a session type inside that frozen set makes the
+snapshot's absence a defect. The rule is generic and the membership is registry-owned, so hand off to
 `mesoscope:mesoscope-vr-dataset-assembly` for which session types belong to it today.
 
 `surgery_metadata.yaml` is reported at the animal level and is never required, because the forging pipeline skips the
@@ -122,8 +122,8 @@ an instance rehydrated from disk passes through, since no other method re-resolv
 
 `DatasetSession` carries `session`, `animal`, and `session_path`, and serializes only the first two, because
 `session_path` is excluded from the marker the same way `dataset_data_path` is. `DatasetAnimal` carries `animal` and
-`animal_path` and never reaches the marker at all, since the dataset derives its animals from the session list on
-demand and returns them sorted by identifier. `DatasetData` is a plain mutable dataclass, while `DatasetSession` and
+`animal_path` and never reaches the marker at all, since the dataset derives its animals from the session list on demand
+and returns them sorted by identifier. `DatasetData` is a plain mutable dataclass, while `DatasetSession` and
 `DatasetAnimal` are frozen and slotted, so assigning to one of their fields raises `FrozenInstanceError`.
 
 Both excluded path fields are re-derived by `DatasetData.load` from the marker's own on-disk location, which is what
@@ -147,19 +147,19 @@ Every property is a pure path join with no existence check, so a caller reading 
 ## Column descriptions
 
 `data_descriptions.feather` is written once at the dataset root, not per session and not per animal, because every
-session in a dataset shares one data format. It is an Arrow IPC table of exactly two `pl.String` columns named
-`column` and `description`, and it is the interpretation contract for every session the dataset holds.
+session in a dataset shares one data format. It is an Arrow IPC table of exactly two `pl.String` columns named `column`
+and `description`, and it is the interpretation contract for every session the dataset holds.
 
 `DatasetData.create()` is its only author, and it writes the companion **before** the marker, so a dataset that
 discovery can find always carries one. The `slsa mcp` server exposes no tool that writes or repairs the companion, and
-`write_dataset_data_tool` writes the marker alone. A dataset whose companion is genuinely lost is rebuilt by the
-forging pipeline rather than patched from here.
+`write_dataset_data_tool` writes the marker alone. A dataset whose companion is genuinely lost is rebuilt by the forging
+pipeline rather than patched from here.
 
 Verification is one-directional. A described column that no session emits passes, because columns are emitted
-conditionally, while a column written into a session's `data.feather` with no matching description is a violation.
-The check reads only the Arrow footer schema of each session's feather, so no session data is materialized, and it
-aggregates every offending column and the sessions that emit it into a single message rather than aborting on the
-first. Run it once the dataset is fully composed, meaning every session's `data.feather` is on disk.
+conditionally, while a column written into a session's `data.feather` with no matching description is a violation. The
+check reads only the Arrow footer schema of each session's feather, so no session data is materialized, and it
+aggregates every offending column and the sessions that emit it into a single message rather than aborting on the first.
+Run it once the dataset is fully composed, meaning every session's `data.feather` is on disk.
 
 The two description tools disagree deliberately about a missing companion, and the disagreement is the point:
 
@@ -197,11 +197,11 @@ Neither resolver searches recursively, so a project root holding one dataset is 
 ### Discovery
 
 `discover_datasets_tool` resolves the root, optionally narrows the scan to `<root>/<project>`, indexes every
-`dataset.yaml` under it, and loads each marker. Its `counts` vocabulary is `{ok, error}` and reports whether each
-marker **loads**, saying nothing about whether the dataset it describes is complete. Both keys are always present,
-including at zero. A marker that fails to load becomes a four-key entry carrying `dataset_path`, `marker_path`,
-`status: "error"`, and `error_detail`, and a loaded one carries the dataset's identity, its session and animal counts,
-its sorted animal list, and a `has_descriptions` flag.
+`dataset.yaml` under it, and loads each marker. Its `counts` vocabulary is `{ok, error}` and reports whether each marker
+**loads**, saying nothing about whether the dataset it describes is complete. Both keys are always present, including at
+zero. A marker that fails to load becomes a four-key entry carrying `dataset_path`, `marker_path`, `status: "error"`,
+and `error_detail`, and a loaded one carries the dataset's identity, its session and animal counts, its sorted animal
+list, and a `has_descriptions` flag.
 
 Failure modes: a `root_directory` that does not exist or is not a directory, a `project` filter naming a directory
 absent from the root, and an unreadable directory encountered mid-scan. Each returns the error envelope.
@@ -214,9 +214,9 @@ through `forging:dataset-definition`. This tool expands the per-project `dataset
 ### Inspection
 
 `inspect_datasets_tool` produces the structural report. Its `counts` vocabulary is `{complete, incomplete, error}` and
-is not interchangeable with discovery's. `complete` and `incomplete` come from whether a loaded dataset's `issues`
-list is empty, while `error` counts the paths that never resolved or never loaded. An entry in that third group holds
-the **raw input string** rather than a resolved path, so a typo is visible in the report.
+is not interchangeable with discovery's. `complete` and `incomplete` come from whether a loaded dataset's `issues` list
+is empty, while `error` counts the paths that never resolved or never loaded. An entry in that third group holds the
+**raw input string** rather than a resolved path, so a typo is visible in the report.
 
 Each loaded report carries `dataset_path`, `marker_path`, an `identity` block, `status`, `session_count`,
 `animal_count`, a `descriptions` block, the per-animal `animals` list, the per-session `sessions` list, and `issues`.
@@ -229,17 +229,17 @@ then each required session artifact that is absent.
 `DatasetData`, and it reports the five serialized keys alone.
 
 `write_dataset_data_tool` is **repair only**. It applies no admission policy, creates none of the session directories
-its payload names, and writes a payload that names a session the hierarchy does not hold, or that repeats an animal
-and session pair, exactly as supplied. Its validation covers the session-type and acquisition-system vocabulary and
-nothing else. Its `overwrite` parameter is keyword-only and defaults to `True`, inverting the underlying helper's
-default, so a marker is replaced unless `overwrite=False` is passed deliberately. Run `inspect_datasets_tool`
-afterwards to confirm the repaired marker matches the tree it describes.
+its payload names, and writes a payload that names a session the hierarchy does not hold, or that repeats an animal and
+session pair, exactly as supplied. Its validation covers the session-type and acquisition-system vocabulary and nothing
+else. Its `overwrite` parameter is keyword-only and defaults to `True`, inverting the underlying helper's default, so a
+marker is replaced unless `overwrite=False` is passed deliberately. Run `inspect_datasets_tool` afterwards to confirm
+the repaired marker matches the tree it describes.
 
 What a `write_*` tool validates on this server, and why every amendment MUST be a read-mutate-write of the complete
 record, is documented in the `## Response contract` section of `/assets-mcp-environment-setup`.
 
-The payload shape `describe_dataset_data_schema_tool` returns is documented in that same section. Its one addition is
-a `nested_classes` mapping, which resolves `DatasetSession` out of the `sessions` tuple annotation. `DatasetAnimal` is
+The payload shape `describe_dataset_data_schema_tool` returns is documented in that same section. Its one addition is a
+`nested_classes` mapping, which resolves `DatasetSession` out of the `sessions` tuple annotation. `DatasetAnimal` is
 absent from that mapping, since no `DatasetData` field annotation references it. Use `inspect_datasets_tool` for
 animal-level facts.
 
@@ -275,8 +275,8 @@ animal-level facts.
 ### Repairing a corrupted marker
 
 1. **Fetch the schema** with `describe_dataset_data_schema_tool()` and read `required` off each field.
-2. **Recover the current content**, through `read_dataset_data_tool(file_path=…)` when the file still loads, or
-   through `inspect_datasets_tool` and a directory listing when it does not.
+2. **Recover the current content**, through `read_dataset_data_tool(file_path=…)` when the file still loads, or through
+   `inspect_datasets_tool` and a directory listing when it does not.
 3. **Write the complete record**, carrying every field, because an omitted field is written back at its dataclass
    default rather than rejected:
    ```text
@@ -294,24 +294,24 @@ validate_dataset_descriptions_tool(dataset_path="<absolute dataset root>")
 read_dataset_column_descriptions_tool(dataset_path="<absolute dataset root>")
 ```
 
-Call the validator for the verdict, since it reports a missing companion and missing session data as `valid: false`
-with one aggregated message in `issues`. Call the reader when the mapping itself is what you need, and expect the
-error envelope from it when the companion is absent. A pass returns `summary` with `session_count` and
+Call the validator for the verdict, since it reports a missing companion and missing session data as `valid: false` with
+one aggregated message in `issues`. Call the reader when the mapping itself is what you need, and expect the error
+envelope from it when the companion is absent. A pass returns `summary` with `session_count` and
 `described_column_count`, and `summary` and `issues` never appear together.
 
 ### Resolving a forged session's or animal's artifacts
 
 Take the `sessions[*].artifacts[*].path` and `animals[*].surgery_metadata.path` values from an `inspect_datasets_tool`
-report, then hand the path to the skill that owns the file: `/session-descriptors` for the descriptor, `/data-assets`
-for the surgery record, `/experiment-configuration` for the experiment snapshot, and `/task-templates` for the VR
-configuration snapshot. Read the assembled `data.feather` itself through `forging:dataset-forging-results`.
+report, then hand the path to the skill that owns the file. `/session-descriptors` owns the descriptor and
+`/data-assets` owns the surgery record. `/experiment-configuration` owns the experiment snapshot, and `/task-templates`
+owns the VR configuration snapshot. Read the assembled `data.feather` itself through `forging:dataset-forging-results`.
 
 ---
 
 ## Library API
 
-Three `DatasetData` members mutate a dataset on disk, and no MCP tool exposes any of them. Python code running where
-the dataset lives reaches them directly.
+Three `DatasetData` members mutate a dataset on disk, and no MCP tool exposes any of them. Python code running where the
+dataset lives reaches them directly.
 
 | Member                        | Effect                                                                                   |
 |-------------------------------|------------------------------------------------------------------------------------------|
@@ -321,15 +321,15 @@ the dataset lives reaches them directly.
 
 `create()` screens the name, the session type, the acquisition system, the session list, every animal and session
 identifier, and every column-description entry before it creates a single directory, and it refuses a destination that
-already exists. `add_sessions()` refuses a session the dataset already holds and a pair repeated inside one request,
-and it enforces the structural invariants alone, leaving the question of whether a session belongs in the dataset to
-its caller. `remove_animal()` unlinks an animal directory that is a symlink in place, so the tree it points at stays
-whole, and it verifies the directory is gone before rewriting the marker.
+already exists. `add_sessions()` refuses a session the dataset already holds and a pair repeated inside one request, and
+it enforces the structural invariants alone, leaving the question of whether a session belongs in the dataset to its
+caller. `remove_animal()` unlinks an animal directory that is a symlink in place, so the tree it points at stays whole,
+and it verifies the directory is gone before rewriting the marker.
 
 The read-only helpers need no MCP round trip either: `animals`, `get_animal()`, `get_sessions_for_animal()`,
 `get_session()`, `column_descriptions()`, `get_column_description()`, and `verify_data_descriptions()`.
-`get_sessions_for_animal()` returns an empty tuple for an unknown animal, while `get_animal()` and `get_session()`
-raise `ValueError`.
+`get_sessions_for_animal()` returns an empty tuple for an unknown animal, while `get_animal()` and `get_session()` raise
+`ValueError`.
 
 Composing or growing a dataset through these mutators skips the admission policy `forging:dataset-definition` applies,
 so prefer `define_forging_dataset_tool` for any dataset a forging run will consume.

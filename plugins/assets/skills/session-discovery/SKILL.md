@@ -9,43 +9,40 @@ description: >-
 user-invocable: false
 ---
 
-# Session discovery
+# Sollertia session discovery
 
-Discovers and filters Sollertia sessions via the sollertia-shared-assets MCP tools. This skill is
-domain-agnostic — it provides the raw discover → filter surface that any downstream batch skill
-can chain from. For behavior-processing eligibility rules, see the forging plugin's
-`forging:behavior-input-format`.
+Discovers and filters Sollertia sessions via the sollertia-shared-assets MCP tools. This skill is domain-agnostic,
+providing the raw discover and filter surface that any downstream batch skill can chain from. For behavior-processing
+eligibility rules, see the forging plugin's `forging:behavior-input-format`.
 
 ---
 
 ## Scope
 
 **Covers:**
-- Recursively discovering sessions under a data root via `session_data.yaml` markers using
+- Recursively discovering sessions under a data root via `session_data.yaml` markers, using
   `get_data_root_overview_tool`
-- Post-discovery filtering by date range, animal inclusion-exclusion, and session
-  inclusion-exclusion via `filter_sessions_tool`
+- Post-discovery filtering by date range, animal inclusion-exclusion, and session inclusion-exclusion via
+  `filter_sessions_tool`
 - Producing confirmed `session_paths` lists for downstream batch skills
 
 **Does not cover:**
-- Walking the full project tree (projects, animals, experiments) as a primary workflow — see
-  `/project-hierarchy`, which owns `get_data_root_overview_tool`
-- Reading individual `SessionData` markers or full session health reports — see `/session-data`
-- Reading or generating project manifest files — see the forging plugin's
-  `forging:project-manifest`
-- Checksum verification or regeneration — see the forging plugin's `forging:checksum-verification`
-- Behavior-processing eligibility rules — see the forging plugin's `forging:behavior-input-format`
-- MCP server connectivity issues — see `/assets-mcp-environment-setup`
+- Walking the full project tree (projects, animals, experiments) as a primary workflow, see `/project-hierarchy`, which
+  owns `get_data_root_overview_tool`
+- Reading individual `SessionData` markers or full session health reports, see `/session-data`
+- Reading or generating project manifest files, see the forging plugin's `forging:project-manifest`
+- Checksum verification or regeneration, see the forging plugin's `forging:checksum-verification`
+- Behavior-processing eligibility rules, see the forging plugin's `forging:behavior-input-format`
+- MCP server connectivity issues, see `/assets-mcp-environment-setup`
 
 ---
 
 ## Agent requirements
 
-You MUST use the sollertia-shared-assets MCP tools for session discovery. Do not scan the
-filesystem manually or import `sollertia_shared_assets.discover_sessions` directly.
+You MUST use the sollertia-shared-assets MCP tools for session discovery. Do not scan the filesystem manually or import
+`sollertia_shared_assets.discover_sessions` directly.
 
-You MUST confirm the root directory path with the user before calling
-`get_data_root_overview_tool`.
+You MUST confirm the root directory path with the user before calling `get_data_root_overview_tool`.
 
 ---
 
@@ -64,10 +61,9 @@ You MUST confirm the root directory path with the user before calling
 | `root_directory` | `str` | (required) | Absolute path to the root directory, searched recursively                     |
 | `strategy`       | `str` | `markers`  | `markers` or `directories`, both owned and documented by `/project-hierarchy` |
 
-There is no server-side `project`, `animal_id`, or `session_types` narrowing. The tool scans the
-entire root and returns the full hierarchy; callers filter client-side (for project / animal /
-session-type) or via `filter_sessions_tool` (for date range, include / exclude session names, and
-include / exclude animals).
+There is no server-side `project`, `animal_id`, or `session_types` narrowing. The tool scans the entire root and
+returns the full hierarchy. Callers filter client-side for project, animal, and session type, or via
+`filter_sessions_tool` for date range, session-name inclusion and exclusion, and animal inclusion and exclusion.
 
 **Return structure (excerpt):**
 
@@ -113,8 +109,8 @@ user before handing off.
 |------------------------|-----------------------------------------------------------------------|
 | `filter_sessions_tool` | Filters a session list by date range and inclusion-exclusion criteria |
 
-Designed for chaining with `get_data_root_overview_tool`: accepts the flat `sessions` list from
-its output and returns a filtered subset with the same structure.
+Designed for chaining with `get_data_root_overview_tool`, this tool accepts the flat `sessions` list from that output
+and returns a filtered subset with the same structure.
 
 **Parameters:**
 
@@ -129,10 +125,9 @@ its output and returns a filtered subset with the same structure.
 | `exclude_animals`  | `list[str] / None` | `None`     | Animal IDs to exclude (precedence over `include_animals`)                                                            |
 | `utc_timezone`     | `bool`             | `True`     | Keyword-only. Interpret dates in UTC, `False` for host local time                                                    |
 
-**Filtering precedence:** Animal filtering is applied before session filtering. Exclusion always
-takes precedence over inclusion. The `exclude_sessions` list overrides both `include_sessions` and
-date range criteria. Each input entry must carry `session_name` and `animal` keys (matching the
-shape produced by `get_data_root_overview_tool`).
+**Filtering precedence:** Animal filtering is applied before session filtering. Exclusion always takes precedence over
+inclusion. The `exclude_sessions` list overrides both `include_sessions` and date range criteria. Each input entry must
+carry `session_name` and `animal` keys, matching the shape produced by `get_data_root_overview_tool`.
 
 The date-range pass runs only when `start_date` or `end_date` is supplied. Inside that pass, a session whose name does
 not parse as the 7-component `YYYY-MM-DD-HH-MM-SS-microseconds` grammar is dropped without an error. With no date bound
@@ -150,18 +145,16 @@ entries lack the required `session_name` or `animal` fields.
 
 ### Step 1: Confirm root directory
 
-Ask the user for the absolute path to the directory to search. A data-root or project-level
-root is the typical input. When the host has a data root persisted via `/working-directory`,
-`read_data_root_tool` supplies a default to confirm with the user rather than asking them to type it.
-For project hierarchy conventions, see `/project-hierarchy`.
+Ask the user for the absolute path to the directory to search. A data-root or project-level root is the typical input.
+When the host has a data root persisted via `/working-directory`, `read_data_root_tool` supplies a default to confirm
+with the user rather than asking them to type it. For project hierarchy conventions, see `/project-hierarchy`.
 
 ### Step 2: Run discovery
 
-Call `get_data_root_overview_tool` with the confirmed `root_directory`. Present the result as a
-readable summary:
+Call `get_data_root_overview_tool` with the confirmed `root_directory`. Present the result as a readable summary:
 
 ```text
-**Session Discovery** — /data/projects/my_project
+**Session Discovery** for /data/projects/my_project
 Found 12 session(s): 9 acquired, 2 processed, 1 error (descriptor load failure)
 
 | Session                          | Animal | Type                 | Status       |
@@ -172,14 +165,14 @@ Found 12 session(s): 9 acquired, 2 processed, 1 error (descriptor load failure)
 | 2026-03-07-11-00-00-000000       | 3      | window checking      | error        |
 ```
 
-Surface any sessions with `status="error"` and their `error_detail` — broken session metadata
-may require repair via `/session-data` or `/session-descriptors`.
+Surface any sessions with `status="error"` and their `error_detail`, because broken session metadata may require repair
+via `/session-data` or `/session-descriptors`.
 
 ### Step 3: Optionally narrow by session type or project (client-side)
 
-`get_data_root_overview_tool` does not accept server-side session-type, project, or animal
-filters. When the user wants to operate only on certain session types or on a specific project
-or animal, filter the flat `sessions` list client-side before step 4:
+`get_data_root_overview_tool` does not accept server-side session-type, project, or animal filters. When the user wants
+to operate only on certain session types or on a specific project or animal, filter the flat `sessions` list
+client-side before step 4:
 
 ```text
 filtered = [entry for entry in response["sessions"]
@@ -189,18 +182,15 @@ filtered = [entry for entry in response["sessions"]
 
 ### Step 4: Optionally filter by date / name / animal
 
-If the user wants to narrow the list by date range, animal, or specific session names, call
-`filter_sessions_tool` with the `sessions` list from step 2 (or the client-side-narrowed list
-from step 3) and the requested criteria.
+If the user wants to narrow the list by date range, animal, or specific session names, call `filter_sessions_tool` with
+the `sessions` list from step 2, or the client-side-narrowed list from step 3, and the requested criteria.
 
 ### Step 5: Confirm and hand off
 
-Present the final `session_paths` list to the user. Once confirmed, hand off to the appropriate
-downstream skill:
+Present the final `session_paths` list to the user. Once confirmed, hand off to the appropriate downstream skill:
 - The forging plugin's `forging:checksum-verification` for data integrity operations
 - The forging plugin's `forging:project-manifest` for manifest generation
-- The forging plugin's `forging:behavior-processing` for behavior extraction (filter by eligible
-  session types first)
+- The forging plugin's `forging:behavior-processing` for behavior extraction, filtering by eligible session types first
 - The forging plugin's `forging:dataset-forging` for dataset assembly
 
 ---
@@ -215,23 +205,23 @@ instead in the `error_detail` field of a session entry or the `filter_error` fie
 | Error message                                                                       | Resolution                                                                                                       |
 |-------------------------------------------------------------------------------------|------------------------------------------------------------------------------------------------------------------|
 | `Unable to resolve the root data directory. The path <path> does not exist.`        | Verify the root directory path with the user                                                                     |
-| `Unable to resolve the root data directory. The path <path> is not a directory.`    | Path points at a file or symlink; ask for the directory                                                          |
+| `Unable to resolve the root data directory. The path <path> is not a directory.`    | Path points at a file or symlink. Ask for the directory                                                          |
 | `Unable to resolve the data root from <root_directory>.`                            | Defensive resolver branch. Re-confirm the root directory path with the user                                      |
 | `Unable to scan the data root <root> for session and dataset markers: <reason>`     | The scan hit a directory it cannot read. Fix the permissions or scan a readable root                             |
-| `Failed to load SessionData: <reason>` (per-entry, status="error")                  | Session marker is corrupt or missing required keys; repair via `/session-data` / `/session-descriptors`          |
+| `Failed to load SessionData: <reason>` (per-entry, status="error")                  | Session marker is corrupt or missing required keys. Repair via `/session-data` or `/session-descriptors`         |
 | `Descriptor file not found at <path>` (per-entry, status="error")                   | The marker loaded, the descriptor did not. Repair via `/session-descriptors`                                     |
 | `Missing required 'session_name' or 'animal' field.` (per-entry, `invalid_entries`) | The key is absent or carries a `null` value. Entries not produced by `get_data_root_overview_tool` often lack it |
 | `filter_sessions_tool` raises instead of returning a response                       | `start_date` or `end_date` is unparsable. Pass `YYYY-MM-DD` or `YYYY-MM-DD HH:MM:SS`                             |
-| `sessions=[]` or `total_eligible=0` (no error, empty result)                        | No markers matched; verify the search root or filter criteria                                                    |
+| `sessions=[]` or `total_eligible=0` (no error, empty result)                        | No markers matched. Verify the search root or filter criteria                                                    |
 | MCP tool call raises at the transport layer                                         | Invoke `/assets-mcp-environment-setup`                                                                           |
 
 ---
 
 ## Library API
 
-The functions below are the public session-discovery surface `sollertia_shared_assets` exports at the package root.
-They serve library and pipeline code that runs outside an MCP session. You MUST NOT import them to drive discovery from
-an agent, because the MCP tools above already wrap them and return a structured response.
+The functions below are the public session-discovery surface `sollertia_shared_assets` exports at the package root. They
+serve library and pipeline code that runs outside an MCP session. You MUST NOT import them to drive discovery from an
+agent, because the MCP tools above already wrap them and return a structured response.
 
 ```python
 validate_directory(directory: str) -> str | None

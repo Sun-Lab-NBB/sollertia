@@ -3,10 +3,9 @@ name: session-descriptors
 description: >-
   Reads, writes, and validates per-session-type session descriptor YAMLs via the sollertia-shared-assets MCP server.
   Descriptors dispatch on SessionTypes alone through DESCRIPTOR_REGISTRY, so the parsing class varies by session type
-  while the file-path contract and the tool surface stay generic. Owns write_session_descriptor_tool and
-  describe_session_descriptor_schema_tool. Tools are file-path based, accepting raw session snapshots or forged
-  dataset copies. Use when repairing, amending, or inspecting a descriptor for any session type. For Mesoscope-VR's
-  concrete descriptor schema, see mesoscope:mesoscope-vr-session-schema.
+  while the file-path contract stays generic. Owns write_session_descriptor_tool and
+  describe_session_descriptor_schema_tool. Use when repairing, amending, or inspecting a descriptor for any session
+  type. For Mesoscope-VR's concrete descriptor schema, see mesoscope:mesoscope-vr-session-schema.
 user-invocable: false
 ---
 
@@ -19,9 +18,9 @@ the marketplace may call these.
 Descriptors are treated as **standalone per-session records** keyed on their schema, meaning the descriptor dataclass
 that matches a given `SessionTypes` value via `DESCRIPTOR_REGISTRY`. The tools operate on whatever absolute `file_path`
 the caller supplies, and they do not care whether that path points at a raw session snapshot, a forged dataset copy, or
-an ad-hoc location. The caller is responsible for resolving the path and supplying `session_type` so the right
-dataclass is used to parse or validate the file. This skill owns the **generic per-session-type descriptor contract**.
-The concrete field-level schema for any one system lives in that system's schema skill (for Mesoscope-VR,
+an ad-hoc location. The caller is responsible for resolving the path and supplying `session_type` so the right dataclass
+is used to parse or validate the file. This skill owns the **generic per-session-type descriptor contract**. The
+concrete field-level schema for any one system lives in that system's schema skill (for Mesoscope-VR,
 `mesoscope:mesoscope-vr-session-schema`).
 
 ---
@@ -29,24 +28,21 @@ The concrete field-level schema for any one system lives in that system's schema
 ## Scope
 
 **Covers:**
-- Reading any `session_descriptor.yaml` (any supported session type) via
-  `read_session_descriptor_tool`
-- Writing or repairing any `session_descriptor.yaml` via `write_session_descriptor_tool` (full-record replacement
-  behind a shape-only check, which does not propagate to any sibling copy of the same descriptor)
+- Reading any `session_descriptor.yaml` (any supported session type) via `read_session_descriptor_tool`
+- Writing or repairing any `session_descriptor.yaml` via `write_session_descriptor_tool` (full-record replacement behind
+  a shape-only check, which does not propagate to any sibling copy of the same descriptor)
 - Schema introspection via `describe_session_descriptor_schema_tool`
 - The relationship between `SessionTypes` enum values and descriptor classes
-- Guidance on where `session_descriptor.yaml` is expected to live (raw session snapshot and
-  forged dataset per-session copy) and how callers resolve those paths
+- Guidance on where `session_descriptor.yaml` is expected to live (raw session snapshot and forged dataset per-session
+  copy) and how callers resolve those paths
 
 **Does not cover:**
-- Propagating an amendment from one copy of a descriptor to another. The raw session snapshot
-  and the forged dataset copy are independent files on disk — writing to one does not update
-  any other.
-- Partial/per-field updates — the write tool validates and replaces the **full** descriptor
-  payload. To change one field, read the current file, mutate the returned dict, then write
-  it back whole.
-- Resolving the canonical path for you. The caller (or a collaborating skill) supplies the
-  absolute `file_path`; this skill only reads and writes.
+- Propagating an amendment from one copy of a descriptor to another. The raw session snapshot and the forged dataset
+  copy are independent files on disk, so writing to one does not update any other.
+- Partial or per-field updates. The write tool validates and replaces the **full** descriptor payload. To change one
+  field, read the current file, mutate the returned dict, then write it back whole.
+- Resolving the canonical path for you. The caller, or a collaborating skill, supplies the absolute `file_path`, and
+  this skill only reads and writes.
 - Documenting any one system's concrete descriptor field-level schema (descriptor classes, field names, types,
   defaults). For Mesoscope-VR, see `mesoscope:mesoscope-vr-session-schema`. For any session type, call
   `describe_session_descriptor_schema_tool` for that session type.
@@ -55,8 +51,8 @@ The concrete field-level schema for any one system lives in that system's schema
 - Reading the frozen `ZaberPositions` and `MesoscopePositions` snapshots (see `mesoscope:mesoscope-vr-snapshots`)
 - Reading read assets (surgery metadata today) (see `/data-assets`)
 - Discovering sessions (see `/project-hierarchy` for `get_data_root_overview_tool`)
-- Resolving the forged per-session descriptor path and auditing dataset structure (see `/datasets`). For which
-  sessions a dataset claims in the first place, see `forging:dataset-definition`.
+- Resolving the forged per-session descriptor path and auditing dataset structure (see `/datasets`). For which sessions
+  a dataset claims in the first place, see `forging:dataset-definition`.
 
 ---
 
@@ -69,11 +65,11 @@ contract, the full-record-replacement semantics, and the MCP tool surface are al
 
 **Descriptors dispatch on session type alone.** All three tools take `session_type: str` and nothing system-related.
 There is no acquisition-system parameter anywhere on this surface, and no per-system variant of a descriptor class.
-`DESCRIPTOR_REGISTRY` is deliberately flat: a session type maps to exactly one descriptor class platform-wide, so an
-acquisition system that needs a different descriptor MUST mint a new `SessionTypes` member rather than register a
-second class against an existing one (see `/library-extension`). This is the opposite of the hardware-state trio, which
-**is** system-keyed: it dispatches on `acquisition_system` through `HARDWARE_STATE_REGISTRY`, so two systems there do
-carry different classes (see `/session-hardware-state`). Do not carry that mental model across.
+`DESCRIPTOR_REGISTRY` is deliberately flat. A session type maps to exactly one descriptor class platform-wide, so an
+acquisition system that needs a different descriptor MUST mint a new `SessionTypes` member rather than register a second
+class against an existing one (see `/library-extension`). The hardware-state trio works the other way and **is**
+system-keyed. It dispatches on `acquisition_system` through `HARDWARE_STATE_REGISTRY`, so two systems there do carry
+different classes (see `/session-hardware-state`). Do not carry that mental model across.
 
 Each descriptor captures the **per-session** metadata that varies between sessions of the same type (reward volume
 actually delivered, water restriction status, observed behavior summary, experimenter notes). It is **distinct from**
@@ -81,8 +77,8 @@ actually delivered, water restriction status, observed behavior summary, experim
 
 This skill does not enumerate the concrete descriptor classes or their fields. To learn which descriptor class a given
 session type resolves to and what fields it carries, call `describe_session_descriptor_schema_tool` for that session
-type (see **What a descriptor stores and how it is used** below). For Mesoscope-VR's concrete descriptor schema,
-meaning the per-session-type descriptor classes and their exact field names, types, and defaults, see
+type (see **What a descriptor stores and how it is used** below). For Mesoscope-VR's concrete descriptor schema, meaning
+the per-session-type descriptor classes and their exact field names, types, and defaults, see
 `mesoscope:mesoscope-vr-session-schema`.
 
 To enumerate the canonical `SessionTypes` strings, hand off to `/session-data` for the
@@ -92,10 +88,9 @@ To enumerate the canonical `SessionTypes` strings, hand off to `/session-data` f
 
 ## What a descriptor stores and how it is used
 
-This section orients an agent before it reads or amends a descriptor, without committing to any one system's field
-set. The concrete fields a descriptor carries depend on the session type, so **the schema tool is the canonical field
-reference, not this skill**: call `describe_session_descriptor_schema_tool` for the session type to obtain the exact
-field names, types, and defaults. For Mesoscope-VR's concrete descriptor schema, see
+The concrete fields a descriptor carries depend on the session type, so **the schema tool is the canonical field
+reference rather than this skill**. Call `describe_session_descriptor_schema_tool` for the session type to obtain the
+exact field names, types, and defaults. For Mesoscope-VR's concrete descriptor schema, see
 `mesoscope:mesoscope-vr-session-schema`.
 
 Regardless of system, every descriptor is a **per-session provenance and bookkeeping record**: who ran the session, how
@@ -104,78 +99,77 @@ the animal behaved, how much water it received, and whether the runtime complete
 `incomplete` is the one descriptor field this skill names unconditionally, because it is contractual rather than
 conventional. Every descriptor dataclass registered in `DESCRIPTOR_REGISTRY` MUST declare `incomplete: bool = True`.
 `_assert_descriptor_contract()` enforces that at import time and raises `RuntimeError` naming the offending session
-types when a registered descriptor omits the field, so a descriptor without it cannot reach the tool surface at all.
-The library helper `read_descriptor_incomplete` reads the field to decide whether a session's data is complete and
-eligible for unsupervised processing. `incomplete=True` means the session ran past initialization but hit a runtime
-issue and may have data gaps, yet still holds real data and should not be purged. This is distinct from the `nk.bin`
-**uninitialized** marker described in `/session-data`: `nk.bin` presence means the runtime never finished initializing
-the session at all, so there is no data of value and the session is a purge target. The two signals are orthogonal and
-are surfaced as independent keys (`uninitialized` and `incomplete`) by `get_data_root_overview_tool` and
-`inspect_sessions_tool`.
+types when a registered descriptor omits the field, so a descriptor without it cannot reach the tool surface at all. The
+library helper `read_descriptor_incomplete` reads the field to decide whether a session's data is complete and eligible
+for unsupervised processing. `incomplete=True` means the session ran past initialization but hit a runtime issue and may
+have data gaps, yet still holds real data and should not be purged. This is distinct from the `nk.bin` **uninitialized**
+marker described in `/session-data`. A present `nk.bin` means the runtime never finished initializing the session at
+all, so there is no data of value and the session is a purge target. The two signals are orthogonal and are surfaced as
+independent keys (`uninitialized` and `incomplete`) by `get_data_root_overview_tool` and `inspect_sessions_tool`.
 
 ### Lifecycle (high level)
 
 The acquisition runtime is the only authorized **primary** writer of the raw-session copy:
 
-1. At session start, it builds a precursor descriptor seeded with the known starting metadata for
-   that session and system. Some systems seed session-type-specific values (such as training
-   thresholds) from the previous session's descriptor cached at the per-animal `persistent_data/`
-   slot (see `/project-hierarchy`), so those values carry across days without manual re-entry.
-2. At session end, the runtime records the runtime-collected fields and flips the data-quality
-   signal (`incomplete`) to its clean-end value.
+1. At session start, it builds a precursor descriptor seeded with the known starting metadata for that session and
+   system. Some systems seed session-type-specific values (such as training thresholds) from the previous session's
+   descriptor cached at the per-animal `persistent_data/` slot (see `/project-hierarchy`), so those values carry across
+   days without manual re-entry.
+2. At session end, the runtime records the runtime-collected fields and flips the data-quality signal (`incomplete`) to
+   its clean-end value.
 3. The runtime then blocks shutdown until the experimenter replaces the default placeholder text with real content.
    Descriptors commonly carry a placeholder notes field. See the system's schema skill for the exact field name.
-4. After verification, the descriptor is copied to the per-animal persistent cache, which
-   becomes the seed for the next session of the same type.
+4. After verification, the descriptor is copied to the per-animal persistent cache, which becomes the seed for the next
+   session of the same type.
 
-For the concrete per-system field set that participates in this lifecycle (which fields are
-seeded, which are runtime-recorded), call `describe_session_descriptor_schema_tool`; for
-Mesoscope-VR specifically, see `mesoscope:mesoscope-vr-session-schema`.
+For the concrete per-system field set that participates in this lifecycle, meaning which fields are seeded and which are
+runtime-recorded, call `describe_session_descriptor_schema_tool`. For Mesoscope-VR specifically, see
+`mesoscope:mesoscope-vr-session-schema`.
 
-The forging pipeline later writes a **secondary, independent** copy into the forged dataset
-hierarchy next to each session's `data.feather` (see **Known file locations** below). That
-copy is frozen at the moment the dataset was assembled and is read by downstream analysis code
-that consumes forged datasets without reaching back into the raw session.
+The forging pipeline later writes a **secondary, independent** copy into the forged dataset hierarchy next to each
+session's `data.feather` (see **Known file locations** below). That copy is frozen at the moment the dataset was
+assembled and is read by downstream analysis code that consumes forged datasets without reaching back into the raw
+session.
 
-`write_session_descriptor_tool` (this skill) is for **post-acquisition repair or amendment** of
-whichever copy the caller supplies a path to. The acquisition runtime never goes through slsa
-MCP, and neither does forging's initial copy step.
+`write_session_descriptor_tool` (this skill) is for **post-acquisition repair or amendment** of whichever copy the
+caller supplies a path to. The acquisition runtime never goes through slsa MCP, and neither does forging's initial copy
+step.
 
 ### Post-creation consumers
 
-After a descriptor exists on disk, downstream code reads it for several generic purposes; the
-specific fields each consumer routes are system-dependent, so defer to the consumer's owning skill
-(and the system's schema skill) for exact field names:
+After a descriptor exists on disk, downstream code reads it for several generic purposes. The specific fields each
+consumer routes are system-dependent, so defer to the consumer's owning skill, and to the system's schema skill, for
+exact field names:
 
-- **Cross-session continuity** — the next session's precursor reads the per-animal
-  persistent-cache copy to inherit carried-over values from the previous session of the same type.
-- **Per-animal record logging** — the acquisition system's preprocessing step reads
-  session-summary fields from the raw session copy and writes them to the relevant per-animal log.
-- **Project manifest assembly** — the forging library reads the descriptor's status fields from
-  the raw session copy for the project-level manifest.
-- **Dataset eligibility and inclusion** — the forging library's dataset assembly verifies the
-  descriptor exists in the raw session and copies it next to `data.feather` in the forged
-  dataset so downstream analysis has experimenter context without touching raw data.
+- **Cross-session continuity.** The next session's precursor reads the per-animal persistent-cache copy to inherit
+  carried-over values from the previous session of the same type.
+- **Per-animal record logging.** The acquisition system's preprocessing step reads session-summary fields from the raw
+  session copy and writes them to the relevant per-animal log.
+- **Project manifest assembly.** The forging library reads the descriptor's status fields from the raw session copy for
+  the project-level manifest.
+- **Dataset eligibility and inclusion.** The forging library's dataset assembly verifies the descriptor exists in the
+  raw session and copies it next to `data.feather` in the forged dataset, so downstream analysis has experimenter
+  context without touching raw data.
 
 For exact paths, fields, and call sites, defer to the owning skills, which are `experiment:data-management` for
 per-animal record logging, `forging:project-manifest` for the project-level manifest, `forging:dataset-forging` for the
 assembly-time copy, and the system's schema skill (`mesoscope:mesoscope-vr-session-schema` for Mesoscope-VR).
 Descriptors themselves are primarily a **provenance and bookkeeping record**, capturing what happened, who ran it, and
-how much water the animal got, not an input to numerical processing.
+how much water the animal got, rather than an input to numerical processing.
 
 ### Known file locations
 
-The descriptor is written by different pipelines into several canonical locations. The raw session
-snapshot and the forged dataset copy both carry the filename `session_descriptor.yaml`
-(`RawDataFiles.SESSION_DESCRIPTOR`), while the per-animal persistent cache names its file after the
-session type. All of them hold the same schema and are read and written by the same tools, and this
-skill does not distinguish between them beyond helping the caller resolve the right path.
+The descriptor is written by different pipelines into several canonical locations. The raw session snapshot and the
+forged dataset copy both carry the filename `session_descriptor.yaml` (`RawDataFiles.SESSION_DESCRIPTOR`), while the
+per-animal persistent cache names its file after the session type. All of them hold the same schema and are read and
+written by the same tools, and this skill does not distinguish between them beyond helping the caller resolve the right
+path.
 
-| Location                                                    | Populated by                                                                   | Discovery path                                                                                                                        |
-|-------------------------------------------------------------|--------------------------------------------------------------------------------|---------------------------------------------------------------------------------------------------------------------------------------|
+| Location                                                    | Populated by                                                                   | Discovery path                                                                                                            |
+|-------------------------------------------------------------|--------------------------------------------------------------------------------|-----------------------------------------------------------------------------------------------------------------------------|
 | `<session>/raw_data/session_descriptor.yaml`                | Acquisition runtime at session end (primary on-disk copy)                      | Session root from `/session-discovery`. `inspect_sessions_tool` (`/session-data`) confirms presence via `required_assets` |
-| `<dataset_root>/<animal>/<session>/session_descriptor.yaml` | Forging pipeline (copy alongside `data.feather` at dataset assembly)           | `/datasets`, whose `inspect_datasets_tool` returns the absolute path directly                                                        |
-| `<animal>/persistent_data/<session-type>_descriptor.yaml`   | Acquisition runtime (per-animal cache used to seed the next same-type session) | `/project-hierarchy`                                                                                                                  |
+| `<dataset_root>/<animal>/<session>/session_descriptor.yaml` | Forging pipeline (copy alongside `data.feather` at dataset assembly)           | `/datasets`, whose `inspect_datasets_tool` returns the absolute path directly                                            |
+| `<animal>/persistent_data/<session-type>_descriptor.yaml`   | Acquisition runtime (per-animal cache used to seed the next same-type session) | `/project-hierarchy`                                                                                                     |
 
 Other locations are possible, because the tools take any absolute path, but the three above are the ones populated
 automatically. The dataset root is the directory that holds the dataset's `dataset.yaml` marker, which `DatasetData`
@@ -202,11 +196,11 @@ cache). For a correction that should apply everywhere, amend each file explicitl
 `session_descriptor.yaml` is a **required** raw asset for **every** session type, with no exceptions. That has two
 consequences for how you check whether one exists:
 
-- `inspect_sessions_tool` (`/session-data`) reports the descriptor **twice** per session. It appears in
-  `raw_data_files` under the dataclass field name `session_descriptor_path`, and again in `required_assets` under the
-  filename `session_descriptor.yaml`. You MUST read the presence check off `required_assets` (its `present` flag) or
-  off `issues`, never off `raw_data_files`, which lists the path whether or not anything is on disk. An absent
-  descriptor adds the `issues` string `Missing required session_descriptor.yaml at <path>`.
+- `inspect_sessions_tool` (`/session-data`) reports the descriptor **twice** per session. It appears in `raw_data_files`
+  under the dataclass field name `session_descriptor_path`, and again in `required_assets` under the filename
+  `session_descriptor.yaml`. You MUST read the presence check off `required_assets` (its `present` flag) or off
+  `issues`, never off `raw_data_files`, which lists the path whether or not anything is on disk. An absent descriptor
+  adds the `issues` string `Missing required session_descriptor.yaml at <path>`.
 - A missing or unparseable descriptor collapses the session's `status` to `"error"` in both status-reporting tools
   (`get_data_root_overview_tool` and `inspect_sessions_tool`), sets `incomplete` to `null`, and puts the reason in
   `error_detail`. That collapsed status is the usual reason this skill gets invoked.
@@ -234,8 +228,8 @@ Path-resolution hand-offs:
 - Per-animal persistent cache: `/project-hierarchy`.
 - Ad-hoc location: the user supplies the path directly.
 
-If you do not know the session type for a given file and it is a raw session snapshot, hand off to `/session-data`.
-Call `inspect_sessions_tool` on the session root and read `identity.session_type` from the report, or read the marker
+If you do not know the session type for a given file and it is a raw session snapshot, hand off to `/session-data`. Call
+`inspect_sessions_tool` on the session root and read `identity.session_type` from the report, or read the marker
 directly with `read_session_data_tool(file_path="<session>/raw_data/session_data.yaml")`. For forged dataset copies or
 ad-hoc paths where no sibling `session_data.yaml` is reachable, the caller MUST supply `session_type` directly.
 `/datasets` can surface the session type stored in the dataset marker.
@@ -243,27 +237,27 @@ ad-hoc paths where no sibling `session_data.yaml` is reachable, the caller MUST 
 ### What the write actually checks
 
 `write_session_descriptor_tool` also accepts `descriptor_payload: dict[str, Any]` (the full record) and a keyword-only
-`overwrite: bool = True`. What that write validates is the plugin-wide contract in the `## Response contract` section
-of `/assets-mcp-environment-setup`. Read it there. Two consequences are specific to descriptors:
+`overwrite: bool = True`. What that write validates is the plugin-wide contract in the `## Response contract` section of
+`/assets-mcp-environment-setup`. Read it there. Two consequences are specific to descriptors:
 
 - **No value checking runs at all.** None of the registered descriptor classes defines `__post_init__`, so the write
-  reduces to a shape check. An out-of-range number, a nonsensical string, or a wrong-typed value is persisted exactly
-  as supplied.
+  reduces to a shape check. An out-of-range number, a nonsensical string, or a wrong-typed value is persisted exactly as
+  supplied.
 - **Every omitted field is silently reset.** A field left out of the payload is written back at its dataclass default
-  rather than rejected, and descriptors declare a default for nearly every field they carry. A partial payload
-  therefore succeeds and quietly resets everything it did not mention. Read the `required` marker off
+  rather than rejected, and descriptors declare a default for nearly every field they carry. A partial payload therefore
+  succeeds and quietly resets everything it did not mention. Read the `required` marker off
   `describe_session_descriptor_schema_tool` (see **Schema payload shape** under the `## Response contract` section of
-  `/assets-mcp-environment-setup`) to learn which fields have no default, and never treat the absence of a rejection
-  as evidence the payload was complete.
+  `/assets-mcp-environment-setup`) to learn which fields have no default, and never treat the absence of a rejection as
+  evidence the payload was complete.
 
-There is no partial-update tool. To change a single field, you MUST read the current file, mutate the returned dict,
-and write the whole record back.
+There is no partial-update tool. To change a single field, you MUST read the current file, mutate the returned dict, and
+write the whole record back.
 
-`write_session_descriptor_tool` also creates any missing parent directories before writing, so an unverified
-`file_path` does not error. It writes a stray descriptor into a newly created tree. You MUST confirm the destination
-path exists before writing to a path you did not just read from, either from a prior successful read or from
-`inspect_sessions_tool` (`/session-data`). The read path is not symmetric: `read_session_descriptor_tool` against a
-path that does not exist fails with `Unable to read <Class> from <path>: the file does not exist.`
+`write_session_descriptor_tool` also creates any missing parent directories before writing, so an unverified `file_path`
+does not error. It writes a stray descriptor into a newly created tree. You MUST confirm the destination path exists
+before writing to a path you did not just read from, either from a prior successful read or from `inspect_sessions_tool`
+(`/session-data`). The read path is not symmetric: `read_session_descriptor_tool` against a path that does not exist
+fails with `Unable to read <Class> from <path>: the file does not exist.`
 
 `describe_session_descriptor_schema_tool` returns two keys: `session_type` (the caller's input string, echoed back) and
 `schema` (the field schema of the session type's descriptor dataclass).
@@ -307,33 +301,29 @@ resolves.
 
 ## Workflows
 
-All workflows reduce to: **resolve the path → pick the session type → read / write**. The
-resolution step changes depending on where the file lives; the read/write step is the same
-everywhere.
+All workflows reduce to: **resolve the path, pick the session type, then read or write**. The resolution step changes
+depending on where the file lives, and the read and write step is the same everywhere.
 
 ### Reading a descriptor (generic)
 
-1. **Verify prerequisites:** MCP server connected (else `/assets-mcp-environment-setup`), and the
-   target descriptor file exists at the path you are about to pass.
+1. **Verify prerequisites:** MCP server connected (else `/assets-mcp-environment-setup`), and the target descriptor file
+   exists at the path you are about to pass.
 2. **Resolve the `file_path`** using the hand-off that matches the container:
-   - **Raw session snapshot** → session root from `/project-hierarchy` or
-     `/session-discovery`; optionally confirm the file is present via
-     `inspect_sessions_tool` (`/session-data`). Path is
+   - **Raw session snapshot**: session root from `/project-hierarchy` or `/session-discovery`, optionally confirming the
+     file is present via `inspect_sessions_tool` (`/session-data`). The path is
      `<session>/raw_data/session_descriptor.yaml`.
    - **Forged dataset copy**: hand off to `/datasets` and read the `session_descriptor.yaml` artifact entry that
      `inspect_datasets_tool` returns for the session. Path shape is
      `<dataset_root>/<animal>/<session>/session_descriptor.yaml`.
-   - **Per-animal persistent cache** → hand off to `/project-hierarchy`. Path shape is
-     `<animal>/persistent_data/<session-type>_descriptor.yaml`, with the system's hardcoded
-     snake_case filename in place of the placeholder (see **Known file locations**).
-   - **Ad-hoc location** → the user supplies the path directly.
+   - **Per-animal persistent cache**: hand off to `/project-hierarchy`. The path shape is
+     `<animal>/persistent_data/<session-type>_descriptor.yaml`, with the system's hardcoded snake_case filename in place
+     of the placeholder (see **Known file locations**).
+   - **Ad-hoc location**: the user supplies the path directly.
 3. **Determine `session_type`.**
-   - If the file sits in a raw session snapshot, hand off to `/session-data` — either call
-     `inspect_sessions_tool(session_paths=["<session root>"])` and read
-     `identity.session_type` from the report, or read the marker directly with
-     `read_session_data_tool(file_path="<session>/raw_data/session_data.yaml")`.
-   - Otherwise, the caller supplies `session_type` directly (e.g., from a dataset marker or
-     from the user).
+   - If the file sits in a raw session snapshot, hand off to `/session-data`. Either call
+     `inspect_sessions_tool(session_paths=["<session root>"])` and read `identity.session_type` from the report, or read
+     the marker directly with `read_session_data_tool(file_path="<session>/raw_data/session_data.yaml")`.
+   - Otherwise, the caller supplies `session_type` directly (e.g., from a dataset marker or from the user).
 4. **Read the descriptor:**
    ```text
    read_session_descriptor_tool(
@@ -341,19 +331,17 @@ everywhere.
        session_type="<type>",
    )
    ```
-5. **Project or report the fields the user asked about** from `response["data"]`. If the read
-   came from a snapshot, remind the user the values reflect the state at the moment that copy
-   was written; they do not live-track any sibling copy.
+5. **Project or report the fields the user asked about** from `response["data"]`. If the read came from a snapshot,
+   remind the user the values reflect the state at the moment that copy was written, and do not live-track any sibling
+   copy.
 
 ### Amending a descriptor in place
 
-Use this when a single copy has an error and a durable correction to every other copy is
-either not warranted or will be handled separately. The amendment affects only the one file
-whose path is passed.
+Use this when a single copy has an error and a durable correction to every other copy is either not warranted or will be
+handled separately. The amendment affects only the one file whose path is passed.
 
 1. **Resolve the `file_path` and `session_type`** as in the read workflow.
-2. **Read the current record** so you mutate a validated baseline rather than constructing one
-   from scratch:
+2. **Read the current record** so you mutate a validated baseline rather than constructing one from scratch:
    ```text
    read_session_descriptor_tool(file_path="<absolute path>", session_type="<type>")
    ```
@@ -365,28 +353,28 @@ whose path is passed.
    carry every other field through untouched, because the write replaces the full record and any field you drop is
    written back at its dataclass default instead of being rejected. Never hand-build a payload from a subset of the
    fields.
-5. **Confirm the planned write with the user.** `write_session_descriptor_tool` defaults to
-   `overwrite=True`, so it silently clobbers the existing descriptor file with no backup. If
-   the user wants the call to refuse-on-existing instead, pass `overwrite=False` explicitly.
-6. **Write the corrected payload back to the same path you read from.** The tool creates missing parent directories,
-   so a mistyped path succeeds and plants a stray descriptor in a new tree. Confirm the destination is the path the
-   read in step 2 returned before you call:
+5. **Confirm the planned write with the user.** `write_session_descriptor_tool` defaults to `overwrite=True`, so it
+   silently clobbers the existing descriptor file with no backup. If the user wants the call to refuse-on-existing
+   instead, pass `overwrite=False` explicitly.
+6. **Write the corrected payload back to the same path you read from.** The tool creates missing parent directories, so
+   a mistyped path succeeds and plants a stray descriptor in a new tree. Confirm the destination is the path the read in
+   step 2 returned before you call:
    ```text
    write_session_descriptor_tool(
        file_path="<absolute path>",
        session_type="<type>",
        descriptor_payload=<mutated dict>,
-       overwrite=True,  # default; set to False to refuse-on-existing
+       overwrite=True,  # the default, set to False to refuse-on-existing
    )
    ```
-   Descriptors define no `__post_init__`, so this is a shape check only. A malformed payload fails without damaging
-   the file, but a wrong-typed or out-of-range value is written exactly as supplied.
+   Descriptors define no `__post_init__`, so this is a shape check only. A malformed payload fails without damaging the
+   file, but a wrong-typed or out-of-range value is written exactly as supplied.
 7. **Re-read and diff to verify:**
    ```text
    read_session_descriptor_tool(file_path="<absolute path>", session_type="<type>")
    ```
-   Compare every key in the returned `data` against the payload you intended. This is the only way to catch a field
-   that was silently reset to its default, and you MUST do it before reporting success.
+   Compare every key in the returned `data` against the payload you intended. This is the only way to catch a field that
+   was silently reset to its default, and you MUST do it before reporting success.
 8. **Tell the user which copy was amended** and that the change does not propagate to any sibling copy (raw session,
    forged dataset, persistent cache). If other copies should match, amend each explicitly.
 
@@ -398,8 +386,8 @@ Same as **Reading a descriptor** above, stopping at step 4.
 
 ## Amendment propagation
 
-The three on-disk copies are independent — writing to one does not touch any other. Pick the
-target(s) that match the durability the user actually wants:
+The three on-disk copies are independent, so writing to one does not touch any other. Pick the target or targets that
+match the durability the user actually wants:
 
 | Scenario                                                                              | Action                                                                                                                                                 |
 |---------------------------------------------------------------------------------------|--------------------------------------------------------------------------------------------------------------------------------------------------------|

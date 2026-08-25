@@ -12,9 +12,9 @@ user-invocable: false
 # Sollertia library extension
 
 Extends `sollertia-shared-assets` along its registry-backed extension points and keeps the sibling skills aligned with
-the new state of the library. The library README owns the line-by-line code recipes, and this skill owns the model
-those recipes assume, the guardrails that verify the result, and the cross-skill and repository-level touches the
-README leaves implicit.
+the new state of the library. The library README owns the line-by-line code recipes, and this skill owns the model those
+recipes assume, the guardrails that verify the result, and the cross-skill and repository-level touches the README
+leaves implicit.
 
 You MUST read this entire skill before extending the library, then read
 [references/extension-recipes.md](references/extension-recipes.md) for the scenario you are applying and
@@ -54,18 +54,18 @@ checklist before reporting an extension complete.
 ## Registry model
 
 `sollertia-shared-assets` dispatches every system-specific and asset-specific behavior through six registries, defined
-as fully populated literals in the top-level `registries.py` module. Each maps a member of one of the four enums in
-the leaf `enums.py` module to the Python class, or the canonical filename, that the MCP tools use to parse, validate,
-or build the corresponding asset. Two further structures live beside them in the same module. `SYSTEM_SESSION_TYPES`
-is an association rather than a dispatch registry, recording which session types each acquisition system can run, and
+as fully populated literals in the top-level `registries.py` module. Each maps a member of one of the four enums in the
+leaf `enums.py` module to the Python class, or the canonical filename, that the MCP tools use to parse, validate, or
+build the corresponding asset. Two further structures live beside them in the same module. `SYSTEM_SESSION_TYPES` is an
+association rather than a dispatch registry, recording which session types each acquisition system can run, and
 `SESSION_TYPES_USING_VR_TASK` is an unkeyed gate. The enum members live in `enums.py`, the dispatched classes live in
-the system subpackages and the `data_classes/` contract package, and `registries.py` imports both without
-circularity, so a registry entry is added by editing `registries.py` directly.
+the system subpackages and the `data_classes/` contract package, and `registries.py` imports both without circularity,
+so a registry entry is added by editing `registries.py` directly.
 
-Two governance tiers divide the eight structures. The **system tier** grows with every new acquisition system or
-session type and is the extension point this skill orchestrates. The **contract tier**, `READ_ASSET_REGISTRY` and
-`CREDENTIALS_FILE_REGISTRY`, is maintainer-curated, so adding an entry there is a platform-contract decision rather
-than a routine extension.
+Two governance tiers divide the eight structures. The **system tier** grows with every new acquisition system or session
+type and is the extension point this skill orchestrates. The **contract tier**, `READ_ASSET_REGISTRY` and
+`CREDENTIALS_FILE_REGISTRY`, is maintainer-curated, so adding an entry there is a platform-contract decision rather than
+a routine extension.
 
 | Structure                           | Tier     | Keyed by             | Maps to                                        |
 |-------------------------------------|----------|----------------------|------------------------------------------------|
@@ -80,25 +80,25 @@ than a routine extension.
 
 Two properties of that table decide how it is used:
 
-- `SYSTEM_RAW_DATA_REGISTRY` is the only one of the eight that is not re-exported from the package root, so import it
-  as `from sollertia_shared_assets.registries import SYSTEM_RAW_DATA_REGISTRY`. The other five registries,
+- `SYSTEM_RAW_DATA_REGISTRY` is the only one of the eight that is not re-exported from the package root, so import it as
+  `from sollertia_shared_assets.registries import SYSTEM_RAW_DATA_REGISTRY`. The other five registries,
   `SYSTEM_SESSION_TYPES`, and `SESSION_TYPES_USING_VR_TASK` are importable from `sollertia_shared_assets` directly.
-- `SESSION_TYPES_USING_VR_TASK` is the sixth system-tier touch point and the one system-tier touch point no
-  import-time check covers. Extend it whenever a new session type runs the corridor task, because it decides whether
+- `SESSION_TYPES_USING_VR_TASK` is the sixth system-tier touch point and the one system-tier touch point no import-time
+  check covers. Extend it whenever a new session type runs the corridor task, because it decides whether
   `SessionData.required_raw_assets` demands the `vr_configuration.yaml` snapshot.
 
 Every `<System>ExperimentConfiguration` shares one contract: an `experiment_states` field holding the experiment state
 machine, a `trial_structures` field holding the trials the experiment runs, a `unity_scene_name` field naming the
-corridor scene the system presents, and a `from_task_template` builder. Fields beyond the contract are
-system-specific, and the concrete trial classes vary per system. `list_supported_trial_types_tool(acquisition_system)`
-derives a system's trial vocabulary from the `trial_structures` annotation through the `collect_field_dataclasses`
-helper, so a trial class absent from that annotation never surfaces in the tooling.
+corridor scene the system presents, and a `from_task_template` builder. Fields beyond the contract are system-specific,
+and the concrete trial classes vary per system. `list_supported_trial_types_tool(acquisition_system)` derives a system's
+trial vocabulary from the `trial_structures` annotation through the `collect_field_dataclasses` helper, so a trial class
+absent from that annotation never surfaces in the tooling.
 
-Each system's `from_task_template` maps only the subset of `TriggerType` members it implements to runtime trial
-classes and leaves the rest unmapped. A configuration that uses an unmapped member raises the "not mapped to a runtime
-trial class" error, which is the intended unsupported-on-this-system signal rather than a wiring bug, so a new
-`TriggerType` member does not require a branch in every system. `mesoscope:mesoscope-vr-experiment-schema` documents
-the mapping the current reference system implements.
+Each system's `from_task_template` maps only the subset of `TriggerType` members it implements to runtime trial classes
+and leaves the rest unmapped. A configuration that uses an unmapped member raises the "not mapped to a runtime trial
+class" error. That error is the intended unsupported-on-this-system signal rather than a wiring bug, so a new
+`TriggerType` member does not require a branch in every system. `mesoscope:mesoscope-vr-experiment-schema` documents the
+mapping the current reference system implements.
 
 ---
 
@@ -121,21 +121,21 @@ the touch it names.
 
 ### What the checks do not catch
 
-Six touch points pass a bare import and fail later, so tests rather than a guardrail cover each one: the four
+Six touch points pass a bare import and fail later, so tests rather than a guardrail cover each one. They are the four
 trial-kind discriminator edits, the `trial_structures` type union, the trigger-to-trial mapping, the
 `_SystemRawDataBuilder.build` contract, `SESSION_TYPES_USING_VR_TASK` membership, and a stale registry key left behind
-by a removed enum member, which passes because the coverage check computes only `expected - actual`.
+by a removed enum member. The last one passes because the coverage check computes only `expected - actual`.
 [references/guardrails.md](references/guardrails.md) carries how each omission surfaces and where to cover it.
 
 ---
 
 ## Registry introspection
 
-Seven MCP tools report the live contents of the enums and registries, which makes them the runtime confirmation that
-an extension landed. Each is a comprehension over the live vocabulary, so a new enum member appears the moment its
-registry entry lands and no MCP tool and no CLI option is added or edited for it. The
-`slsa configure credentials --category` choice list auto-extends the same way. Every response carries the envelope
-documented under `## Response contract` in `assets:assets-mcp-environment-setup`.
+Seven MCP tools report the live contents of the enums and registries, which makes them the runtime confirmation that an
+extension landed. Each is a comprehension over the live vocabulary, so a new enum member appears the moment its registry
+entry lands and no MCP tool and no CLI option is added or edited for it. The `slsa configure credentials --category`
+choice list auto-extends the same way. Every response carries the envelope documented under `## Response contract` in
+`assets:assets-mcp-environment-setup`.
 
 | Tool                                                         | Keying enum                | Source structure                                     | Payload key                                   |
 |--------------------------------------------------------------|----------------------------|------------------------------------------------------|-----------------------------------------------|
@@ -164,8 +164,8 @@ into that directory, import `mcp` from `.mcp_instance`, and decorate each functi
 ## Extension scenarios
 
 Pick exactly one row, read the README section it names, then apply the recipe it points at. The reference adds the
-cross-skill and repository-level touches on top of each README recipe, so it completes the recipe rather than
-replacing it.
+cross-skill and repository-level touches on top of each README recipe, so it completes the recipe rather than replacing
+it.
 
 | Scenario                        | README section                          | Recipe                                                                                       |
 |---------------------------------|-----------------------------------------|----------------------------------------------------------------------------------------------|
@@ -178,8 +178,8 @@ replacing it.
 
 ### Reading the Mesoscope-VR reference
 
-Mesoscope-VR is the only registered acquisition system today and the worked example a new system mirrors. Read the
-four skills that document it in this order, against the three modules of the `<system>/` subpackage you are authoring:
+Mesoscope-VR is the only registered acquisition system today and the worked example a new system mirrors. Read the four
+skills that document it in this order, against the three modules of the `<system>/` subpackage you are authoring:
 
 | Read                                       | What it documents                                                                                                                                 | Module you are authoring                                      |
 |--------------------------------------------|---------------------------------------------------------------------------------------------------------------------------------------------------|---------------------------------------------------------------|
@@ -188,15 +188,15 @@ four skills that document it in this order, against the three modules of the `<s
 | `mesoscope:mesoscope-vr-snapshots`         | The reference raw-data layout the system's path builder produces                                                                                  | `<system>/raw_data.py`                                        |
 | `mesoscope:mesoscope-vr`                   | The sollertia-experiment side of the reference system, where its runtime, configuration, and CLI live                                             | None here. Hand off to `experiment:acquisition-system-design` |
 
-Mirror the shape and leave the values behind. Every concrete Mesoscope-VR field name, enum member, and filename stays
-in the mesoscope plugin, and a new system's equivalents are recorded in that system's own schema skill.
+Mirror the shape and leave the values behind. Every concrete Mesoscope-VR field name, enum member, and filename stays in
+the mesoscope plugin, and a new system's equivalents are recorded in that system's own schema skill.
 
 ---
 
 ## Cross-skill touch table
 
-Each recipe names the skills its scenario touches. This table is the inverse view, which is what a review of a
-finished extension checks against.
+Each recipe names the skills its scenario touches. This table is the inverse view, which is what a review of a finished
+extension checks against.
 
 | Skill                                                             | Touched by                                                 | What changes                                                                                                                                                                                              |
 |-------------------------------------------------------------------|------------------------------------------------------------|-----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
@@ -220,38 +220,37 @@ finished extension checks against.
 
 ### Step 1: Identify the extension scenario
 
-Pick exactly one row of the scenario table. A change that spans several scenarios, such as a new acquisition system
-that also introduces a new session type, applies their recipes sequentially rather than interleaved, because the
-import-time checks report one structure at a time.
+Pick exactly one row of the scenario table. A change that spans several scenarios, such as a new acquisition system that
+also introduces a new session type, applies their recipes sequentially rather than interleaved, because the import-time
+checks report one structure at a time.
 
 ### Step 2: Apply the code touches
 
 Read the README section the scenario table names for **every** scenario, then apply the touch list in
 [references/extension-recipes.md](references/extension-recipes.md), which adds the cross-skill and repository-level
 updates on top of each README recipe. The credentials scenario has no README section, so its recipe carries the whole
-flow. Run `python -c "import sollertia_shared_assets"` once the code touches land, then run the test suite, because
-the import-time checks cover the dispatch registries alone and every touch point under "What the checks do not catch"
-needs explicit test coverage.
+flow. Run `python -c "import sollertia_shared_assets"` once the code touches land, then run the test suite, because the
+import-time checks cover the dispatch registries alone and every touch point under "What the checks do not catch" needs
+explicit test coverage.
 
 ### Step 3: Apply the skill touches
 
-Work through every row the recipe names, cross-checked against the cross-skill touch table above. A row naming
-content to update points at a SKILL.md edited directly. A row naming where concrete per-system material belongs points
-at the owning system's schema skill, so record the new material there. Enumerate the new member alongside the existing
-one explicitly rather than rewriting "currently only X" into a longer chain, and leave the skills the recipe omits
-alone.
+Work through every row the recipe names, cross-checked against the cross-skill touch table above. A row naming content
+to update points at a SKILL.md edited directly. A row naming where concrete per-system material belongs points at the
+owning system's schema skill, so record the new material there. Enumerate the new member alongside the existing one
+explicitly rather than rewriting "currently only X" into a longer chain, and leave the skills the recipe omits alone.
 
 ### Step 4: Coordinate with downstream libraries
 
 Each recipe lists the downstream libraries that need parallel changes. Hand those off to the matching skill in the
-affected plugin rather than attempting them here, and list the hand-offs in the pull request description so the
-reviewer is able to confirm the cross-repository coordination happened.
+affected plugin rather than attempting them here, and list the hand-offs in the pull request description so the reviewer
+is able to confirm the cross-repository coordination happened.
 
 ### Step 5: Verify
 
 Run the verification checklist below. The import-time checks are the safety net for the dispatch registries, the
-`list_supported_*` family confirms the new member reached the tooling, and the manual items cover everything neither
-one reaches.
+`list_supported_*` family confirms the new member reached the tooling, and the manual items cover everything neither one
+reaches.
 
 ---
 
