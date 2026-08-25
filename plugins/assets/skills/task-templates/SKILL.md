@@ -296,10 +296,10 @@ Build the template dictionary in this order:
    `Cue_<name>_<length>cm` asset filename and in the cue-sequence signature that identifies a trial.
 3. **Trial structures.** Populate the `trial_structures` dict, mapping each trial name to a `TrialStructure`. That
    covers the cue sequence, the stimulus trigger zone start and end, the stimulus location, whether the collision
-   boundary is visible, the trigger type from `list_supported_trigger_types_tool`, and an optional `transitions` dict
-   mapping target trial names to probabilities summing to 1.0. Set `occupancy_duration_ms` on every occupancy-mode trial
-   and leave it `None` on every other trial. `None` is how a template says the field is unused, while `0` is a real
-   duration and is rejected on every trial whatever its trigger type.
+   boundary is visible, and the trigger type from `list_supported_trigger_types_tool`. It also covers an optional
+   `transitions` dict that maps target trial names to probabilities summing to 1.0. Set `occupancy_duration_ms` on every
+   occupancy-mode trial and leave it `None` on every other trial. `None` is how a template says the field is unused,
+   while `0` is a real duration and is rejected on every trial whatever its trigger type.
 
 Reward sizes, gas-puff durations, experiment states, and the choice of trial class (on Mesoscope-VR,
 `MesoscopeWaterRewardTrial` versus `MesoscopeGasPuffTrial`) are **not** part of the template, and they are added

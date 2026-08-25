@@ -200,7 +200,7 @@ Neither resolver searches recursively, so a project root holding one dataset is 
 `dataset.yaml` under it, and loads each marker. Its `counts` vocabulary is `{ok, error}` and reports whether each marker
 **loads**, saying nothing about whether the dataset it describes is complete. Both keys are always present, including at
 zero. A marker that fails to load becomes a four-key entry carrying `dataset_path`, `marker_path`, `status: "error"`,
-and `error_detail`, and a loaded one carries the dataset's identity, its session and animal counts, its sorted animal
+and `error_detail`. A loaded marker carries the dataset's identity, its session and animal counts, its sorted animal
 list, and a `has_descriptions` flag.
 
 Failure modes: a `root_directory` that does not exist or is not a directory, a `project` filter naming a directory

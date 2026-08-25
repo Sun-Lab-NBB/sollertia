@@ -260,10 +260,10 @@ call.
 | `Unable to reach the Unity Editor`    | McpBridge / Editor offline               | See `unity:unity-mcp-environment-setup`    |
 | `did not answer within 30 seconds`    | Editor main thread busy                  | Wait for the Editor, then retry the call   |
 
-The two path getters each raise `FileNotFoundError` in three conditions, not one: the cached path record does not exist
-(`as it has not been set`), the record exists but is empty (`as the cached path record is empty`), and the record names
-a directory that no longer exists on disk. `assets:working-directory` owns the full taxonomy and the repair procedure
-for all three.
+The two path getters each raise `FileNotFoundError` in three conditions, not one. Those three conditions are the
+following: the cached path record does not exist (`as it has not been set`), the record exists but is empty
+(`as the cached path record is empty`), and the record names a directory that no longer exists on disk.
+`assets:working-directory` owns the full taxonomy and the repair procedure for all three.
 
 ---
 

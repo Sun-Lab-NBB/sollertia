@@ -24,8 +24,8 @@ tooling for all of them. This skill is the **exclusive** owner of:
 
 No other skill in the marketplace may call these tools.
 
-Every Sollertia acquisition system runs in Virtual Reality, presenting a Unity task in the linear infinite corridor, so
-every experiment configuration is seeded from a corridor task template and satisfies one stable contract
+Every Sollertia acquisition system runs in Virtual Reality, presenting a Unity task in the linear infinite corridor.
+Therefore, every experiment configuration is seeded from a corridor task template and satisfies one stable contract
 (`experiment_states`, `trial_structures`, `unity_scene_name`, and the `from_task_template` builder). The final form is
 system-specific: each acquisition system contributes its **own** `<System>ExperimentConfiguration` subclass, by
 extending `sollertia-shared-assets` as `/library-extension` describes, that satisfies the contract and expands it with

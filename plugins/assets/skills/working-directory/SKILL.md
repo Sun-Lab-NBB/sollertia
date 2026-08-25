@@ -109,8 +109,9 @@ sessions.
 The data root path is persisted via `platformdirs`, independently of the working directory. Persisting it lets the
 project-hierarchy and session-discovery workflows resolve the project tree without the caller re-supplying the root each
 time. Its consumers are the `slsa get` CLI commands that resolve against it (`slsa get projects`,
-`slsa get experiments`, `slsa get data-root`), `create_project_tool` when its optional `root_directory` argument is
-omitted, and `slsa configure project`, which resolves the root from `get_data_root()` and accepts no override at all.
+`slsa get experiments`, `slsa get data-root`). `create_project_tool` also consumes it when its optional `root_directory`
+argument is omitted. `slsa configure project` consumes it as well, resolving the root from `get_data_root()` and
+accepting no override at all.
 
 The MCP discovery and inventory tools do **not** default to the persisted root. `get_data_root_overview_tool`,
 `discover_experiments_tool`, and `discover_datasets_tool` all take `root_directory` as a required argument. Reading the
