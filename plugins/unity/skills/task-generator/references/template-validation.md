@@ -117,6 +117,6 @@ at `create_task` time, far from the edit that caused it, in the other repo. Ther
 their cm field by `cmPerUnityUnit`. They are not template fields and have no Python counterpart.
 
 Mode-aware zone, boundary, and ordering validation lives on the Python side alone, in
-`TaskTemplate._validate_zone_positions` (`sollertia-shared-assets`, `configuration/vr_configuration.py`), where
-`collision` validates only `stimulus_location`, `occupancy_trigger` validates only the trigger zone, and `interaction`,
+`TaskTemplate._validate_zone_positions` (`sollertia-shared-assets`, `configuration/vr_configuration.py`). There,
+`collision` validates only `stimulus_location`, and `occupancy_trigger` validates only the trigger zone. `interaction`,
 `occupancy_disarm`, and `occupancy_arm` validate the zone, the boundary, and their ordering.

@@ -95,11 +95,11 @@ canonical occupancy prefab exactly.
 ### Step 6: Wire downstream per `SKILL.md` Step 7
 
 - New `TriggerType` member `OCCUPANCY_TRIGGER_CUMULATIVE` (`occupancy_trigger_cumulative`) via
-  `assets:library-extension`, plus the matching literal in **both** `ConfigLoader.ValidateTemplate` gates: the accepted
-  `trigger_type` set (`ConfigLoader.cs:223-227`, and its error message at `231-232`) and the separate `isOccupancy`
-  predicate (`ConfigLoader.cs:241-244`) that makes `occupancy_duration_ms` mandatory. The `BuildSegmentPrefabs` dispatch
-  branch passes `trial.occupancyDurationMs.Value` unguarded (`CreateTask.cs:1077`), so a literal missing from the second
-  gate lets a template omit the duration and throws at generation time.
+  `assets:library-extension`. The matching literal also goes into **both** `ConfigLoader.ValidateTemplate` gates: the
+  accepted `trigger_type` set (`ConfigLoader.cs:223-227`, and its error message at `231-232`) and the separate
+  `isOccupancy` predicate (`ConfigLoader.cs:241-244`) that makes `occupancy_duration_ms` mandatory. The
+  `BuildSegmentPrefabs` dispatch branch passes `trial.occupancyDurationMs.Value` unguarded (`CreateTask.cs:1077`), so a
+  literal missing from the second gate lets a template omit the duration and throws at generation time.
 - A `PlaceCumulativeOccupancyZone` helper in `CreateTask.cs` (clone `PlaceOccupancyZone`) that instantiates
   `CumulativeOccupancyTriggerZone.prefab` and sets the root `StimulusTriggerZone.triggerMode =
   TriggerMode.OccupancyTrigger`. The variant reuses the occupancy-trigger **firing** rule and only customizes the timer
@@ -167,10 +167,11 @@ Under `Assets/InfiniteCorridorTask/Scripts/SpeedInteractionTriggerZone.cs` (invo
   final `else` branch is the one that would run whenever `requireInteraction` is false, firing on bare `_inZone` with no
   sensor involvement at all.
 - Override `OnTriggerExit` as well. `StimulusTriggerZone.OnTriggerExit` (`StimulusTriggerZone.cs:151-165`) resolves an
-  interaction trial on the boundary crossing via `TriggerStimulus(delivered: _interactionDetectedInZone, cause:
-  BehaviorCause)`, so a subclass that gates only `UpdateInteractionMode` still delivers on exit whenever the animal
-  engaged the sensor inside the zone, however slowly it traversed the speed-test region. The speed gate has to apply on
-  both paths or the conjunction the example promises is not real.
+  interaction trial on the boundary crossing via
+  `TriggerStimulus(delivered: _interactionDetectedInZone, cause: BehaviorCause)`. A subclass that gates only
+  `UpdateInteractionMode` therefore still delivers on exit whenever the animal engaged the sensor inside the zone,
+  however slowly it traversed the speed-test region. The speed gate has to apply on both paths or the conjunction the
+  example promises is not real.
 - Inherit `ResetState` from `StimulusTriggerZone`, because `SpeedZone.ResetState` handles its own state.
 
 Subclassing means:

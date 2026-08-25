@@ -15,8 +15,8 @@ Documents the Unity Test Framework suite under `Assets/Tests/` and the assembly 
 `sollertia-virtual-reality` script compiles.
 
 **Reference-only skill.** No upstream. Agents arrive here from `/task-generator`, `/zone-prefabs`, `/mqtt-contract`,
-`/gimbl-framework`, `/unity-mcp-environment-setup`, and `/play-mode` whenever a C# change needs a matching fixture, a
-new script folder needs an assembly, or a fixture that pins a contract has started failing.
+`/gimbl-framework`, `/unity-mcp-environment-setup`, and `/play-mode`. They arrive whenever a C# change needs a matching
+fixture, a new script folder needs an assembly, or a fixture that pins a contract has started failing.
 
 ---
 
@@ -51,13 +51,14 @@ new script folder needs an assembly, or a fixture that pins a contract has start
 
 **EditMode** drives the private Unity lifecycle callbacks (`Awake`, `Start`, `Update`, `OnTriggerEnter`,
 `OnTriggerExit`) through the Support assembly's `PrivateAccess` reflection helper, which keeps every transition
-deterministic and free of frames and physics. It holds three groups: the runtime state machines, the editor-only surface
-(`CreateTask`, `McpBridge`, `MiniJson`, `MainWindow`, `Monitor`, and the full-screen view classes), and the pure schema
-and serialization classes (`ConfigLoader`, `TaskTemplate`, `Cue`, `TrialStructure`, `VREnvironment`, `MQTTTopics`). The
-`CreateTask`, `McpBridge`, `MiniJson`, and `MainWindow` fixtures can only live here, because `Sollertia.Tests.EditMode`
-is the only test assembly referencing `Sollertia.Gimbl.Editor` and `Sollertia.InfiniteCorridorTask.Editor`. `Monitor`
-and the full-screen view classes compile into `Sollertia.Gimbl` behind `#if UNITY_EDITOR` guards, so they join the same
-group for their editor-only surface rather than for an assembly reference.
+deterministic and free of frames and physics. It holds three groups. The first is the runtime state machines, and the
+second is the editor-only surface (`CreateTask`, `McpBridge`, `MiniJson`, `MainWindow`, `Monitor`, and the full-screen
+view classes). The third is the pure schema and serialization classes (`ConfigLoader`, `TaskTemplate`, `Cue`,
+`TrialStructure`, `VREnvironment`, `MQTTTopics`). The `CreateTask`, `McpBridge`, `MiniJson`, and `MainWindow` fixtures
+can only live here. The reason is that `Sollertia.Tests.EditMode` is the only test assembly referencing
+`Sollertia.Gimbl.Editor` and `Sollertia.InfiniteCorridorTask.Editor`. `Monitor` and the full-screen view classes compile
+into `Sollertia.Gimbl` behind `#if UNITY_EDITOR` guards. They therefore join the same group for their editor-only
+surface rather than for an assembly reference.
 
 **PlayMode** holds the tests needing something Edit Mode cannot supply: real frames, the trigger callbacks Unity's own
 physics raises against a Rigidbody-carrying actor, real elapsed wall-clock time, and the engine-invoked `Awake` /
@@ -115,9 +116,9 @@ factory, so a fixture holds each one in a `using` block or disposes it in `TearD
 ## Assembly definitions
 
 Every script compiles into a named assembly declared by an `.asmdef`, because a test assembly is unable to reference
-Unity's predefined `Assembly-CSharp`. A new script folder joins an existing assembly by sitting inside its subtree, or
-declares its own `.asmdef` and is referenced from every assembly consuming it, including `Sollertia.Tests.Support`,
-`Sollertia.Tests.EditMode`, and `Sollertia.Tests.PlayMode`, or the tests cannot see the type.
+Unity's predefined `Assembly-CSharp`. A new script folder joins an existing assembly by sitting inside its subtree.
+Otherwise, the folder declares its own `.asmdef` and is referenced from every assembly consuming it, including
+`Sollertia.Tests.Support`, `Sollertia.Tests.EditMode`, and `Sollertia.Tests.PlayMode`, or the tests cannot see the type.
 
 | Assembly                                | Folder                                        | References                                                 |
 |-----------------------------------------|-----------------------------------------------|------------------------------------------------------------|
@@ -200,8 +201,8 @@ assert.
 **`McpBridgeTests`** carries the per-tool registration a new bridge tool joins.
 `Dispatch_DeclaredToolName_DoesNotFallThroughToUnknownTool` takes one `[TestCase]` per tool name and currently covers
 eleven of the fifteen names `McpBridge.Dispatch` handles. Its XML remark states that count and names the four
-exclusions, so the remark is updated alongside the case list. The exclusions are deliberate: `enter_play_mode` would
-strand the Editor in Play Mode for the rest of the run and is covered by `McpBridgePlayModeTests` instead, while
+exclusions, so the remark is updated alongside the case list. The exclusions are deliberate. `enter_play_mode` would
+strand the Editor in Play Mode for the rest of the run and is covered by `McpBridgePlayModeTests` instead.
 `read_task_parameters`, `write_task_parameters`, and `refresh_monitors` need the `FullScreenViewManager` fixture and are
 covered by `McpBridgeTaskParametersTests`. A new tool joins whichever of the three fixtures its handler's prerequisites
 allow. `DeleteAsset_ProtectedHandAuthoredAsset_RefusesWithoutDeletingIt` takes one `[TestCase]` per entry in

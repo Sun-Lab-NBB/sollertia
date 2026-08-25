@@ -174,8 +174,8 @@ You MUST hand off to the owning skill (`/task-scenes`, `/task-prefabs`) only aft
   window. The MQTT section, the Task section, and the Camera Mapping `Show Full-Screen Views` control are disabled at
   runtime, so you SHOULD flip the Task flags via MQTT (`/mqtt-contract`) instead of `/task-parameters` during a Play
   Mode run. Note the GUI disable is cosmetic from the agent's side. The bridge itself has no play-state guard on
-  `write_task_parameters` (`EditorApplication.isPlaying` is referenced only by the three play-state handlers,
-  `McpBridge.cs:1211`, `:1233`, `:1250`), so a write issued during Play Mode is accepted and applied to the runtime
+  `write_task_parameters`. `EditorApplication.isPlaying` is referenced only by the three play-state handlers
+  (`McpBridge.cs:1211`, `:1233`, `:1250`). Thus a write issued during Play Mode is accepted and applied to the runtime
   scene instance. The scene-component values (the Task flags) revert when Play Mode exits, so that half of the write is
   silently lost. The MQTT ip/port values additionally persist to EditorPrefs (`McpBridge.cs:1861-1869`), which
   `MainWindow.EnsureMqttDefaults` (`MainWindow.cs:159-183`) and `MQTTClient.Awake` (`MQTTClient.cs:96-97`) re-apply to

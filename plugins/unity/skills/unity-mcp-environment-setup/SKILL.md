@@ -338,7 +338,7 @@ The Unity half is unreachable from Claude until a matching wrapper exists in
 
 ### Finish the change
 
-- Add a row to the tool-ownership table in this skill's "Architecture" section naming the owning skill, and bump all
+- Add a row to the tool-ownership table in this skill's "Architecture" section naming the owning skill. Then bump all
   three counts ("The 15 relayed tools are:", "All 15 tools require ...", and the "fifteen arms" count in "Adding a
   bridge tool"). An unowned tool breaks the plugin's exclusive-ownership lattice.
 - Update the `sollertia-virtual-reality` README's "Editor MCP Bridge" table **and** its `The bridge dispatches **15

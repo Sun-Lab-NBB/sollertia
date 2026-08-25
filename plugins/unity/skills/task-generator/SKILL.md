@@ -228,8 +228,8 @@ stimulus publishes. A change to `CreateTask` MUST keep all of them unreachable f
   `CreateTask` assembles the prefab first.
 - **`configPath` must resolve.** An empty `configPath`, or one that does not resolve to a file under
   `Application.dataPath`, logs `Task: configuration YAML not found. configPath='<p>', resolved='<r>'.` The path is
-  stored project-relative (`InfiniteCorridorTask/Configurations/<template>.yaml`) with leading separators stripped, so a
-  task prefab generated from a template outside `Assets/` is how this fires. A template that no longer loads fails the
+  stored project-relative (`InfiniteCorridorTask/Configurations/<template>.yaml`) with leading separators stripped. This
+  bailout fires for a task prefab generated from a template outside `Assets/`. A template that no longer loads fails the
   same way through the adjacent `Failed to load task template from YAML file '<path>'` bailout.
 - **Track length must cover the corridor depth.** When maze generation yields fewer segments than
   `segments_per_corridor`, `Task` logs `Task: trackLength <n> is too short for template '<name>'. Maze generation
@@ -315,8 +315,8 @@ zone or a standalone `IResettable` whose concrete type is added to `Task.FindRes
 supervisor only when the behavior needs a new MQTT topic, new `Task.cs` runtime mechanics, or geometry outside a single
 corridor segment. Those are paradigm-level and have no author-derived recipe.
 
-This skill owns the **`CreateTask` pipeline edits** for a new `TriggerType`. The full cross-cutting recipe is split
-four ways:
+This skill owns the **`CreateTask` pipeline edits** for a new `TriggerType`. The full cross-cutting recipe is split four
+ways:
 
 | Slice                                   | Owning skill                    |
 |-----------------------------------------|---------------------------------|

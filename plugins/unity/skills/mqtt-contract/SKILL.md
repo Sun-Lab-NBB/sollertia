@@ -135,11 +135,12 @@ resolves the per-trial outcome from them.
 `cause` is derived per mode, and the derivation is not "did the animal act":
 
 - **Occupancy modes** (`occupancy_disarm`, `occupancy_arm`, `occupancy_trigger`): `cause` is `guidance` exactly when
-  this zone's child `OccupancyGuidanceZone` already published `Delay` earlier in the same lap, otherwise `behavior`, per
+  this zone's child `OccupancyGuidanceZone` already published `Delay` earlier in the same lap, otherwise `behavior`.
+  That derivation comes from
   `bool brakeGuided = _occupancyGuidanceZone != null && _occupancyGuidanceZone.BrakeTriggered;`
-  (`StimulusTriggerZone.cs:263-265`), where `BrakeTriggered` latches inside `TriggerBrakeActivation` immediately after
-  the `Delay` send (`OccupancyGuidanceZone.cs:35,103-104`). Publishing `Delay` therefore deterministically changes the
-  later `Stimulus.cause` on that lap.
+  (`StimulusTriggerZone.cs:263-265`). `BrakeTriggered` latches inside `TriggerBrakeActivation` immediately after the
+  `Delay` send (`OccupancyGuidanceZone.cs:35,103-104`). Publishing `Delay` therefore deterministically changes the later
+  `Stimulus.cause` on that lap.
 - **Interaction mode**: `guidance` marks the two fallback resolutions, which are entering the nested `GuidanceZone`
   while `requireInteraction` is false (`StimulusTriggerZone.cs:219-221`), or entering the stimulus zone at all when no
   `GuidanceZone` exists (`:227-229`). `behavior` marks a sensor interaction inside the zone (`:206`, `:214`) **and** the

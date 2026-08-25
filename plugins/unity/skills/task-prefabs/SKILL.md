@@ -383,11 +383,11 @@ value, so neither `triggerMode` nor `showBoundary` can be read back from its out
 GameObject's name, its child shape, and its `collider_size.z`, then confirm the intended mode from the template's
 `trigger_type`.
 
-The five `trigger_type` modes (`interaction`, `collision`, `occupancy_disarm`, `occupancy_arm`, `occupancy_trigger`),
-their per-mode hierarchy trees, the collider math behind each annotation, and the key markers that separate a healthy
-prefab from a miswired one live in [references/generated-prefab-anatomy.md](references/generated-prefab-anatomy.md).
-Read it whenever an inspection result has to be judged against a template's `trigger_type`, or when a segment's zone
-children look wrong.
+[references/generated-prefab-anatomy.md](references/generated-prefab-anatomy.md) covers the five `trigger_type` modes
+(`interaction`, `collision`, `occupancy_disarm`, `occupancy_arm`, `occupancy_trigger`) and their per-mode hierarchy
+trees. That reference also carries the collider math behind each annotation, and the key markers that separate a healthy
+prefab from a miswired one. Read it whenever an inspection result has to be judged against a template's `trigger_type`,
+or when a segment's zone children look wrong.
 
 ---
 

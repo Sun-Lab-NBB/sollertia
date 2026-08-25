@@ -350,7 +350,7 @@ must convert to finite floats but are not range-checked, and nothing downstream 
 passes `currentBrightness` straight to the display shader, so an out-of-range value writes and takes effect silently.
 `task.track_length` must be strictly positive and finite, so zero and negative values are rejected, and that bridge
 bound is the only check applied here. A `track_length` too short to cover the template's corridor still writes
-successfully and then disables the `Task` at the next Play Mode entry with
+successfully. That value then disables the `Task` at the next Play Mode entry with
 `Task: trackLength <n> is too short for template '<name>'.` `/task-generator` owns that runtime contract and
 `ValidateTrackLengthCoversCorridor`, the generation-time gate that keeps it unreachable at the generated value.
 `task.track_seed` must convert to a 32-bit integer.
