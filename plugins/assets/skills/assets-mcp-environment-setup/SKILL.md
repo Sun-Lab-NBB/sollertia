@@ -112,8 +112,8 @@ A `write_*` tool dumps the payload to a temporary sibling file, loads it back th
 `__post_init__` when the class defines one, and only then writes the destination. The loader runs with per-field type
 checking disabled and does not reject unrecognized keys, so three things pass silently. A wrong-typed value is persisted
 as written, a misspelled or unrecognized key is dropped, and a field omitted from the payload is written back at its
-dataclass default. The rejections that do fire are a malformed payload, a field the class requires and gives no default
-for, and a `__post_init__` raise. `TaskTemplate`, `Cue`, `TrialStructure`, `VREnvironment`, `SessionData`,
+dataclass default. The rejections that do fire are a malformed payload, a field that the class requires and leaves
+without a default, and a `__post_init__` raise. `TaskTemplate`, `Cue`, `TrialStructure`, `VREnvironment`, `SessionData`,
 `MesoscopeExperimentConfiguration`, `MesoscopeWaterRewardTrial`, `MesoscopeGasPuffTrial`, and `DatasetData` define
 `__post_init__` and therefore validate semantically. The four session descriptors, `MesoscopeHardwareState`,
 `ExperimentState`, and `SurgeryData` define none, so for those the write is a shape check only. Because omissions are

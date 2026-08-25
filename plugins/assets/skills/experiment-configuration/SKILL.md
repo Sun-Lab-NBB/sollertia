@@ -58,7 +58,7 @@ schema skill (for Mesoscope-VR, see `mesoscope:mesoscope-vr-experiment-schema`).
 
 ## Templates vs. experiment configurations
 
-A **task template** (`TaskTemplate`) is the corridor task asset every experiment is seeded from. It is project- and
+A **task template** (`TaskTemplate`) is the corridor task asset that seeds every experiment. It is project- and
 system-agnostic, so the same template can back many experiment configurations across many projects.
 
 | Concept                           | What it is                                         | Owning skill      |
@@ -88,8 +88,8 @@ than by the platform, and Mesoscope-VR emits 1-indexed `state_1`, `state_2`, and
 to the next state. The session ends when the last state's timer expires.
 
 The dict-of-named-states shape (rather than a list) lets you add, rename, or reorder states by editing keys and
-re-emitting the YAML, without renumbering downstream references. The keys appear verbatim in the log stream that the
-analysis pipeline aligns trials against.
+re-emitting the YAML, without renumbering downstream references. The keys appear verbatim in the log stream against
+which the analysis pipeline aligns trials.
 
 `ExperimentState` declares three required fields with no default (`experiment_state_code`, `system_state_code`,
 `state_duration_s`), `supports_trials` defaulting to `True`, and six guidance counters each defaulting to `0`. The class
@@ -124,7 +124,7 @@ is *expected* to contain trials, so dataset forging and analysis know whether to
 trial-free phase is realized by choosing a `system_state_code` whose hardware mode drives no trials, with
 `supports_trials` set to `False` to match, so the runtime and the forging side read the phase the same way.
 
-### Where the trial sequence comes from
+### The source of the trial sequence
 
 The experiment configuration **never enumerates or schedules trials**, and contributes only the **per-trial-type
 parameters**, meaning the system-specific runtime fields on each trial class. The trial sequence is owned by Unity
@@ -448,7 +448,7 @@ path has no separate "no class is registered" message.
 | `/assets-mcp-environment-setup`            | Run first if the MCP server is not connected                                                                                                                                                                                                                                |
 | `/task-templates`                          | Required dependency that owns corridor template authoring and exposes `discover_templates_tool` for template paths                                                                                                                                                    |
 | `/project-hierarchy`                       | Discovers the project tree and owns project creation (`create_project_tool` and `slsa configure project`)                                                                                                                                                                        |
-| `mesoscope:mesoscope-vr-experiment-schema` | Owns Mesoscope-VR's concrete instance, covering the trial-class and experiment field schema, the trigger-type-to-trial mapping, the system-state codes, and the `from_task_template` defaults this skill defers to                                                                  |
+| `mesoscope:mesoscope-vr-experiment-schema` | Owns Mesoscope-VR's concrete instance, covering the trial-class and experiment field schema, the trigger-type-to-trial mapping, the system-state codes, and the `from_task_template` defaults to which this skill defers |
 | `experiment:acquisition-system-design`     | Documents the per-system system-configuration pattern (Mesoscope-VR instance: `MesoscopeSystemConfiguration`)                                                                                                                                                               |
 | `experiment:data-management`               | Downstream consumer whose `SessionData.create` copies the authored `experiment_configuration.yaml` into every new experiment session at acquisition time                                                                                                                        |
 | `unity:task-prefabs`                       | Validates template values against the Unity prefab state                                                                                                                                                                                                                    |

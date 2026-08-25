@@ -116,7 +116,7 @@ directory does.
 
 `__post_init__` converts `session_type` and `acquisition_system` through their enums unconditionally, raising
 `ValueError` when either identifier falls outside the platform vocabulary. That conversion is the only vocabulary gate
-an instance rehydrated from disk passes through, since no other method re-resolves either field.
+applied to an instance rehydrated from disk, since no other method re-resolves either field.
 
 ### Session and animal records
 
@@ -323,7 +323,7 @@ dataset lives reaches them directly.
 identifier, and every column-description entry before it creates a single directory, and it refuses a destination that
 already exists. `add_sessions()` refuses a session the dataset already holds and a pair repeated inside one request, and
 it enforces the structural invariants alone, leaving the question of whether a session belongs in the dataset to its
-caller. `remove_animal()` unlinks an animal directory that is a symlink in place, so the tree it points at stays whole,
+caller. `remove_animal()` unlinks an animal directory that is a symlink in place, so the tree it targets stays whole,
 and it verifies the directory is gone before rewriting the marker.
 
 The read-only helpers need no MCP round trip either: `animals`, `get_animal()`, `get_sessions_for_animal()`,
@@ -341,15 +341,15 @@ so prefer `define_forging_dataset_tool` for any dataset a forging run will consu
 | Skill                                     | Relationship                                                                                         |
 |-------------------------------------------|------------------------------------------------------------------------------------------------------|
 | `/assets-mcp-environment-setup`           | Run first if the MCP server is not connected, and owns the response, write, and schema contracts     |
-| `/working-directory`                      | Required prerequisite, bootstraps the working directory and data root that paths resolve against     |
+| `/working-directory` | Required prerequisite, bootstraps the working directory and data root that anchor path resolution |
 | `/project-hierarchy`                      | Owns `get_data_root_overview_tool`, whose per-project `dataset_count` this skill's discovery expands |
-| `/session-discovery`                      | Filters the candidate sessions a dataset is defined from                                             |
-| `/session-data`                           | Owns the source session marker each forged session copy was produced from                            |
+| `/session-discovery` | Filters the candidate sessions from which a dataset is defined |
+| `/session-data` | Owns the source session marker from which each forged session copy was produced |
 | `/session-descriptors`                    | Owns the schema behind each forged `session_descriptor.yaml` copy                                    |
 | `/data-assets`                            | Owns the surgery record behind each forged per-animal `surgery_metadata.yaml` copy                   |
 | `/experiment-configuration`               | Owns the schema behind each forged `experiment_configuration.yaml` copy                              |
 | `/task-templates`                         | Owns the VR task template behind each forged `vr_configuration.yaml` copy                            |
-| `/library-extension`                      | Recipe for adding the `SessionTypes` and `AcquisitionSystems` members the marker validates against   |
+| `/library-extension` | Recipe for adding the `SessionTypes` and `AcquisitionSystems` members against which the marker validates |
 | `forging:dataset-definition`              | Composes and grows datasets under an admission policy, and reports their forging job state           |
 | `forging:dataset-forging`                 | Runs the per-session `data.feather` assembly whose output this container holds                       |
 | `forging:dataset-forging-results`         | Interprets the assembled feathers and the dataset-level forging trackers                             |

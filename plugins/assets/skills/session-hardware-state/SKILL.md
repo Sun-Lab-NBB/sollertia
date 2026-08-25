@@ -69,7 +69,7 @@ modified afterward. Downstream processing pipelines read it to translate raw acq
 and to know which modules were exercised.
 
 For the canonical field list and types call `describe_session_hardware_state_schema_tool` with the `acquisition_system`
-the file belongs to, and read the returned payload instead of a handwritten field table that may drift from the slsa
+that owns the file, and read the returned payload instead of a handwritten field table that may drift from the slsa
 source of truth. The shape of that payload is documented in the `## Response contract` section of
 `/assets-mcp-environment-setup`.
 
@@ -107,8 +107,8 @@ local to the one file whose path was passed and does not flow back to any siblin
 | `write_session_hardware_state_tool`           | Writes a validated full hardware-state payload to a `file_path` (exclusive). Defaults to `overwrite=True`            |
 | `describe_session_hardware_state_schema_tool` | Returns the hardware-state schema for a given acquisition system (exclusive). `acquisition_system` is required       |
 
-All three tools take an explicit `acquisition_system` and dispatch on it through `HARDWARE_STATE_REGISTRY` to select
-the matching dataclass, so class selection is the caller's responsibility. `read_session_hardware_state_tool` and
+All three tools take an explicit `acquisition_system` and dispatch on it through `HARDWARE_STATE_REGISTRY` to select the
+matching dataclass, so class selection is the caller's responsibility. `read_session_hardware_state_tool` and
 `write_session_hardware_state_tool` additionally take `file_path`, and path resolution is also the caller's
 responsibility.
 
@@ -164,9 +164,8 @@ Four error messages are specific to this surface:
   in a correctly imported library, so route it to `/library-extension`.
 - **The file does not exist.** `Unable to read <Class> from <path>: the file does not exist.` This is how you learn a
   session carries no snapshot.
-- **The write was refused.** `Unable to write <Class> to <path>: a file already exists at this path. Pass
-  overwrite=True to replace it.` Only reachable when the caller passed `overwrite=False`, because the default is
-  `True`.
+- **The write was refused.** `Unable to write <Class> to <path>: a file already exists at this path. Pass overwrite=True
+  to replace it.` Only reachable when the caller passed `overwrite=False`, because the default is `True`.
 
 ---
 
@@ -177,12 +176,12 @@ changes depending on where the file lives, and the read and write step is the sa
 
 ### Reading a hardware-state snapshot (generic)
 
-1. **Verify the MCP server is connected**, else `/assets-mcp-environment-setup`. Do not pre-check that the file
-   exists. Some session types exercise no hardware modules and produce no snapshot, and the read tool answers that case
+1. **Verify the MCP server is connected**, else `/assets-mcp-environment-setup`. Do not pre-check that the file exists.
+   Some session types exercise no hardware modules and produce no snapshot, and the read tool answers that case
    authoritatively with the file-does-not-exist error listed under Failure modes above.
 2. **Resolve the `file_path`** using the hand-off that matches the container:
-   - **Raw session snapshot**: session root from `/project-hierarchy` or `/session-discovery`, then the
-     `raw_data_files` entry whose `field` is `hardware_state_path` from `inspect_sessions_tool` (`/session-data`).
+   - **Raw session snapshot**: session root from `/project-hierarchy` or `/session-discovery`, then the `raw_data_files`
+     entry whose `field` is `hardware_state_path` from `inspect_sessions_tool` (`/session-data`).
    - **Ad-hoc location**: the user supplies the path directly.
 3. **Determine `acquisition_system`.** For a raw session snapshot, hand off to `/session-data`. Either call
    `inspect_sessions_tool(session_paths=["<session root>"])` and read `identity.acquisition_system` from the report, or
@@ -195,10 +194,9 @@ changes depending on where the file lives, and the read and write step is the sa
        acquisition_system="<system>",
    )
    ```
-5. **Read the record from `response["data"]`** and interpret its null fields against the owning system's null
-   semantics rather than assuming they mean missing data.
-6. **Report to the user.** Values reflect the rig state at session start. They are frozen and do not live-track the
-   rig.
+5. **Read the record from `response["data"]`** and interpret its null fields against the owning system's null semantics
+   rather than assuming they mean missing data.
+6. **Report to the user.** Values reflect the rig state at session start. They are frozen and do not live-track the rig.
 
 ### Repairing or amending a hardware-state snapshot in place
 
@@ -215,11 +213,11 @@ conventionally immutable once written, so confirm with the user before every wri
    ```text
    describe_session_hardware_state_schema_tool(acquisition_system="<system>")
    ```
-4. **Mutate `response["data"]` from step 2 into the new payload.** Change only the fields that need correcting and
-   carry every other field through unchanged. The write tool replaces the full record, so a field you drop is written
-   back at its dataclass default. The population rules and the null semantics are system-specific.
-5. **Confirm the planned write with the user.** This file is normally written only by the acquisition runtime at
-   session start. `write_session_hardware_state_tool` defaults to `overwrite=True`, so it silently clobbers the existing
+4. **Mutate `response["data"]` from step 2 into the new payload.** Change only the fields that need correcting and carry
+   every other field through unchanged. The write tool replaces the full record, so a field you drop is written back at
+   its dataclass default. The population rules and the null semantics are system-specific.
+5. **Confirm the planned write with the user.** This file is normally written only by the acquisition runtime at session
+   start. `write_session_hardware_state_tool` defaults to `overwrite=True`, so it silently clobbers the existing
    snapshot with no backup. If the user wants the call to refuse-on-existing instead, pass `overwrite=False` explicitly.
    Confirm that the parent directory of `file_path` already exists as well, because the tool creates any missing parent
    directories and a mistyped path therefore produces a stray file instead of an error.
@@ -232,14 +230,14 @@ conventionally immutable once written, so confirm with the user before every wri
        overwrite=True,  # the default, set to False to refuse-on-existing
    )
    ```
-   The hardware-state class defines no `__post_init__`, so this write is a shape check only and a dropped or
-   misspelled key persists as `None` instead of failing.
+   The hardware-state class defines no `__post_init__`, so this write is a shape check only and a dropped or misspelled
+   key persists as `None` instead of failing.
 7. **Re-read and diff. This step is mandatory, not a formality:**
    ```text
    read_session_hardware_state_tool(file_path="<absolute path>", acquisition_system="<system>")
    ```
-   Compare the returned `data` field by field against the payload you intended. A key the write dropped surfaces here
-   as `None`, and this diff is the only thing that catches it. Report success only after the diff is clean.
+   Compare the returned `data` field by field against the payload you intended. A key the write dropped surfaces here as
+   `None`, and this diff is the only thing that catches it. Report success only after the diff is clean.
 8. **Tell the user which copy was amended** and that the change does not propagate to any other copy that may exist.
 
 ---

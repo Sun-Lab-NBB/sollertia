@@ -12,7 +12,7 @@ user-invocable: false
 # Sollertia session discovery
 
 Discovers and filters Sollertia sessions via the sollertia-shared-assets MCP tools. This skill is domain-agnostic,
-providing the raw discover and filter surface that any downstream batch skill can chain from. For behavior-processing
+providing the raw discover and filter surface from which any downstream batch skill can chain. For behavior-processing
 eligibility rules, see the forging plugin's `forging:behavior-input-format`.
 
 ---
@@ -61,9 +61,9 @@ You MUST confirm the root directory path with the user before calling `get_data_
 | `root_directory` | `str` | (required) | Absolute path to the root directory, searched recursively                     |
 | `strategy`       | `str` | `markers`  | `markers` or `directories`, both owned and documented by `/project-hierarchy` |
 
-There is no server-side `project`, `animal_id`, or `session_types` narrowing. The tool scans the entire root and
-returns the full hierarchy. Callers filter client-side for project, animal, and session type, or via
-`filter_sessions_tool` for date range, session-name inclusion and exclusion, and animal inclusion and exclusion.
+There is no server-side `project`, `animal_id`, or `session_types` narrowing. The tool scans the entire root and returns
+the full hierarchy. Callers filter client-side for project, animal, and session type, or via `filter_sessions_tool` for
+date range, session-name inclusion and exclusion, and animal inclusion and exclusion.
 
 **Return structure (excerpt):**
 
@@ -133,11 +133,11 @@ The date-range pass runs only when `start_date` or `end_date` is supplied. Insid
 not parse as the 7-component `YYYY-MM-DD-HH-MM-SS-microseconds` grammar is dropped without an error. With no date bound
 the pass is skipped and such names survive.
 
-**Return structure:** Structurally identical to the input shape, carrying `sessions`, `session_paths`,
-`total_sessions`, and `total_eligible`. Entries with `status="error"`, and entries carrying no `session_path` key, are
-excluded from `session_paths` but remain in `sessions` so the agent can surface them to the user. `sessions` is sorted
-by `(session_name, animal, session_path)` and `session_paths` by path. An `invalid_entries` key appears when input
-entries lack the required `session_name` or `animal` fields.
+**Return structure:** Structurally identical to the input shape, carrying `sessions`, `session_paths`, `total_sessions`,
+and `total_eligible`. Entries with `status="error"`, and entries carrying no `session_path` key, are excluded from
+`session_paths` but remain in `sessions` so the agent can surface them to the user. `sessions` is sorted by
+`(session_name, animal, session_path)` and `session_paths` by path. An `invalid_entries` key appears when input entries
+lack the required `session_name` or `animal` fields.
 
 ---
 
@@ -171,8 +171,8 @@ via `/session-data` or `/session-descriptors`.
 ### Step 3: Optionally narrow by session type or project (client-side)
 
 `get_data_root_overview_tool` does not accept server-side session-type, project, or animal filters. When the user wants
-to operate only on certain session types or on a specific project or animal, filter the flat `sessions` list
-client-side before step 4:
+to operate only on certain session types or on a specific project or animal, filter the flat `sessions` list client-side
+before step 4:
 
 ```text
 filtered = [entry for entry in response["sessions"]
@@ -198,9 +198,9 @@ Present the final `session_paths` list to the user. Once confirmed, hand off to 
 ## Error routing
 
 The table below covers the literal messages the library emits via `resolve_root_directory` and the discovery / filter
-tools, plus the conditions that surface outside the response's `error` key. The envelope every message rides in is
-documented in the `## Response contract` section of `/assets-mcp-environment-setup`. A per-entry failure arrives
-instead in the `error_detail` field of a session entry or the `filter_error` field of an `invalid_entries` entry.
+tools, plus the conditions that surface outside the response's `error` key. Every message rides in the envelope
+documented in the `## Response contract` section of `/assets-mcp-environment-setup`. A per-entry failure arrives instead
+in the `error_detail` field of a session entry or the `filter_error` field of an `invalid_entries` entry.
 
 | Error message                                                                       | Resolution                                                                                                       |
 |-------------------------------------------------------------------------------------|------------------------------------------------------------------------------------------------------------------|
@@ -262,7 +262,7 @@ that does not exist or is not a directory. Its message string is surfaced verbat
 | Skill                           | Relationship                                                                      |
 |---------------------------------|-----------------------------------------------------------------------------------|
 | `/assets-mcp-environment-setup` | Prerequisite: MCP server connectivity                                             |
-| `/working-directory`            | Required prerequisite. Persists the data root `read_data_root_tool` defaults from |
+| `/working-directory` | | `/working-directory` | Required prerequisite. Persists the data root that `read_data_root_tool` supplies as the default | |
 | `/project-hierarchy`            | Owns `get_data_root_overview_tool` as the tree walk                               |
 | `/session-data`                 | Reference: SessionData marker and `inspect_sessions_tool` for per-session health  |
 | `/session-descriptors`          | Reference: per-session descriptor repair                                          |

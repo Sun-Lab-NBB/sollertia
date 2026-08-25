@@ -231,8 +231,8 @@ type, so the tool omits it. Descriptor schemas are owned by `/session-descriptor
 
 Session types are paired with acquisition systems by `SYSTEM_SESSION_TYPES`. Each acquisition system declares the
 session types it can run, and `SessionData.create()` rejects a session-type and acquisition-system pairing that is not
-declared. Pass the system as `list_supported_session_types_tool(acquisition_system=...)` whenever you already know which
-one you are operating within, such as on a configured host or after reading a session's `acquisition_system`. The result
+declared. Pass the system as `list_supported_session_types_tool(acquisition_system=...)` whenever you already know the
+current acquisition system, such as on a configured host or after reading a session's `acquisition_system`. The result
 then reflects what that system can actually run. Omit the argument only when you genuinely need the platform-wide list.
 `list_session_type_support_tool` returns the full system-to-session-type map in one call.
 
@@ -421,10 +421,9 @@ list_supported_session_types_tool()
 list_session_type_support_tool()
 ```
 
-Use the system-scoped form to validate a session-type string against the acquisition system you are working with before
-handing off to another tool (e.g., to `/session-descriptors` to read a descriptor). Default to the scoped form whenever
-you know the acquisition system, because the unscoped form returns every platform session type regardless of which
-system can run it.
+Use the system-scoped form to validate a session-type string against your current acquisition system before handing off
+to another tool (e.g., to `/session-descriptors` to read a descriptor). Default to the scoped form whenever you know the
+acquisition system, because the unscoped form returns every platform session type regardless of which system can run it.
 
 ---
 

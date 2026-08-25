@@ -162,8 +162,8 @@ one, enumerating both explicitly rather than lengthening a "currently only X" ch
 | `/session-data`             | The `instance.system_raw_data` bullet under "Path-resolution sub-dataclasses on `SessionData`", which gains the new `<System>RawData` field list                                                        |
 | `/session-hardware-state`   | The per-system schema-skill pointers in the intro, the read and amend workflows, and the checklist. Add a parallel pointer to the new system's schema skill and a matching Related-skills row           |
 | `/experiment-configuration` | The frontmatter description's per-system schema-skill pointer and the pointers in the body. The new system reuses `create_experiment_from_vr_template_tool` once its `from_task_template` builder lands |
-| `/task-templates`           | The statement naming the experiment-configuration classes a template can be built into                                                                                                                  |
-| `/datasets`                 | The acquisition-system vocabulary a dataset records, since `DatasetData` carries the acquisition system its sessions were acquired on                                                                   |
+| `/task-templates` | The statement naming the experiment-configuration classes into which a template can be built |
+| `/datasets` | The acquisition-system vocabulary a dataset records, since `DatasetData` carries the acquisition system on which its sessions were acquired |
 
 **Downstream coordination:**
 
@@ -242,9 +242,9 @@ The full extension is split four ways, and each skill owns its slice:
 1. Append the member to `TriggerType` in `configuration/vr_configuration.py`, which is where the enum lives rather than
    in the leaf `enums.py` module.
 2. For each system that supports the new member, add the matching branch to that system's `from_task_template`,
-   instantiating the runtime trial class the trigger resolves to. A system that leaves the member unmapped raises the
-   "not mapped to a runtime trial class" error for it, which is the intended unsupported-on-this-system signal rather
-   than a wiring bug, so record the per-system decision explicitly.
+   instantiating the runtime trial class to which the trigger resolves. A system that leaves the member unmapped raises
+   the "not mapped to a runtime trial class" error for it, which is the intended unsupported-on-this-system signal
+   rather than a wiring bug, so record the per-system decision explicitly.
 3. Cover the new branch in the experiment-configuration tests. No import-time check covers trigger coverage.
 
 **Skill touches:**

@@ -1,8 +1,8 @@
 ---
 name: task-templates
 description: >-
-  Authors, modifies, and validates reusable TaskTemplate YAMLs, the Virtual-Reality task asset every
-  corridor-task session is acquired against (VR environment, cue catalog, trial structures with
+  Authors, modifies, and validates reusable TaskTemplate YAMLs, the Virtual-Reality task asset against
+  which every corridor-task session is acquired (VR environment, cue catalog, trial structures with
   per-trial cue sequences and zones), via the sollertia-shared-assets MCP server. Owns
   write_template_tool, validate_template_tool, and the schema and trigger-type introspection helpers.
   Use when designing or modifying a task template for a VR experiment.
@@ -42,7 +42,7 @@ runtime trial classes an experiment configuration can pair with a template's tri
 
 ## What is a task template
 
-A `TaskTemplate` is the Virtual-Reality task asset every corridor-task session is acquired against: a reusable
+A `TaskTemplate` is the Virtual-Reality task asset against which every corridor-task session is acquired: a reusable
 description of a VR behavioral paradigm, holding the VR environment, the cue catalog, and the trial structures. Each
 trial owns its own cue sequence, zone geometry, and trigger type, and is materialized into a single segment prefab named
 `<TemplateName>-<TrialName>.prefab` at generation time. A session whose type is listed in `SESSION_TYPES_USING_VR_TASK`
@@ -57,13 +57,14 @@ configurations across many projects. Mesoscope-VR is the only acquisition system
 A `TaskTemplate` YAML exists in two places, both parsed by the same `TaskTemplate` dataclass:
 
 - **Live template**, at `<templates-directory>/<template-name>.yaml`. This is the authoring surface owned by this skill,
-  shared across projects and sessions, and the source of truth that Unity generation reads from. Editing here is
+  shared across projects and sessions, and the source of truth from which Unity generation reads. Editing here is
   intentional and affects every future session that picks the template.
 - **Per-session frozen snapshot**, at `<session>/raw_data/vr_configuration.yaml`. This is an immutable copy that
   `SessionData.create()` caches into the session's `raw_data` directory when the session names an experiment **and** its
   session type is listed in `SESSION_TYPES_USING_VR_TASK`. The snapshot is keyed off the experiment configuration's
-  `unity_scene_name` and records the exact template the session was acquired against. Downstream processing, covering
-  forgery and analysis, joins the snapshot to behavioral data, so it must not drift after the session is created.
+  `unity_scene_name` and records the exact template against which the session was acquired. Downstream processing,
+  covering forgery and analysis, joins the snapshot to behavioral data, so it must not drift after the session is
+  created.
 
 The same MCP tools serve both. Pass the live path to author or modify a template, and pass the session snapshot path to
 read or validate the frozen copy. `write_template_tool` targets the live surface only. Snapshots are produced
@@ -155,7 +156,7 @@ Four levels describe the corridor's composition, finest to coarsest: cue, segmen
 
 ***Note,*** a **segment** is the Unity prefab that materializes a **trial**, so the two terms refer to the same unit of
 behavior at different layers. "Trial" is how the template describes it abstractly, and every entry under
-`trial_structures` is a trial. "Segment" is how Unity names the prefab the runtime instantiates and the animal
+`trial_structures` is a trial. "Segment" is how Unity names the prefab that the runtime instantiates and that the animal
 traverses.
 
 ```text
@@ -215,7 +216,7 @@ human-supervised.
 
 The per-field consumer roles, the firing rule of each of the five `TriggerType` modes, and the rationale behind the
 template's shape live in [references/field-semantics.md](references/field-semantics.md). Read it when authoring a new
-trial structure, picking a trigger mode, or deciding which side of the template / experiment split a parameter sits on.
+trial structure, picking a trigger mode, or deciding on which side of the template / experiment split a parameter sits.
 
 ---
 
@@ -330,9 +331,9 @@ when intentionally replacing an existing template.
 - cue codes are in `[0, 255]`
 - cue names are unique
 - each cue name is non-empty and matches `^[A-Za-z0-9_]+$`, the same pattern trial names use, because the name is
-  embedded in the `Cue_<name>_<length>cm` asset filename and in the space-joined cue-sequence signature Unity compares
-  trials on. Unity enforces the pattern on the template filename stem and on trial names, so the cue-name half is caught
-  only here
+  embedded in the `Cue_<name>_<length>cm` asset filename and in the space-joined cue-sequence signature on which Unity
+  compares trials. Unity enforces the pattern on the template filename stem and on trial names, so the cue-name half is
+  caught only here
 - each cue `length_cm` is positive and finite
 - each cue `texture` is a non-empty filename, because the field is required and carries no default
 - each trial name matches `^[A-Za-z0-9_]+$`, used verbatim in the Unity-side `<TemplateName>-<TrialName>.prefab` segment
@@ -364,7 +365,8 @@ when intentionally replacing an existing template.
 validation failure returns `success=True` with `valid=False` and a single-element `issues` list holding the first
 violated constraint. A pass returns `valid=True` with a `summary` carrying `cue_count`, `trial_count`, and
 `cue_offset_cm`. `__post_init__` stops at the first failure, so fix one issue and re-validate to surface the next. The
-envelope this verdict rides in is documented in the `## Response contract` section of `/assets-mcp-environment-setup`.
+envelope in which this verdict rides is documented in the `## Response contract` section of
+`/assets-mcp-environment-setup`.
 
 `write_template_tool` re-serializes through the canonical `to_yaml`, so it writes no comments and drops any that a
 rewritten file already carried. Re-apply the mandatory header block and the filename convention owned by
@@ -431,7 +433,7 @@ for instantiating templates into experiment configurations.
 | `unity:task-prefabs`                       | Downstream step that generates and validates the Unity prefab                                             |
 | `unity:task-scenes`                        | Downstream step that opens and inspects the scene `create_task_tool` produced                             |
 | `unity:zone-prefabs`                       | Owns the zone prefab each `TriggerType` mode bakes                                                        |
-| `unity:mqtt-contract`                      | Owns the wire contract every trigger mode publishes over                                                  |
+| `unity:mqtt-contract` | Owns the wire contract over which every trigger mode publishes |
 | `unity:task-generator`                     | Owns the `CreateTask` pipeline and the two-repo mirror recipe for adding a new template-driven field      |
 | `experiment:vr-driver-interface`           | Consumer that decomposes the cue sequence into trials using these motifs and trigger types                |
 

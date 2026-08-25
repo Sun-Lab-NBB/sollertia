@@ -61,8 +61,8 @@ A project bundles three kinds of state that this skill covers:
 
 Acquisition-machine-specific artifacts (multi-destination topology, acquisition vs. storage-tier placement rules) are
 **out of scope** for this skill and are owned by the experiment plugin. `get_data_root_overview_tool` treats the
-supplied `root_directory` as a single opaque destination and does not interpret which node in a distributed system it
-points at.
+supplied `root_directory` as a single opaque destination and does not interpret which node in a distributed system that
+path identifies.
 
 ### Why the structure is shaped this way
 
@@ -74,8 +74,8 @@ points at.
   hierarchy ("animal at top, projects under it") would require duplicating animal metadata per project and would not
   match the session-path shape `<root>/<project>/<animal>/<session>/` that every tool consumes.
 - **`configuration/` is per-project**, not per-animal or per-session, because experiment paradigms are a project-scope
-  decision. A frozen per-session snapshot lives inside each session's `raw_data/experiment_configuration.yaml`, and the
-  master copy under `configuration/` is what new sessions are instantiated from.
+  decision. A frozen per-session snapshot lives inside each session's `raw_data/experiment_configuration.yaml`, and new
+  sessions are instantiated from the master copy under `configuration/`.
 - **Sessions are flat under each animal**, with no `experiments/<exp-name>/<session>/` grouping, because the timestamped
   session name already gives chronological ordering and each session's marker file (`SessionData.experiment_name`) names
   the experiment used. Forcing experiment grouping into the directory structure would prevent training and
@@ -120,9 +120,9 @@ transfers all the animal's session data from the source project to the destinati
 The project-to-animal binding is determined by the `project_name` field inside each session's `SessionData` rather than
 by directory placement. `get_data_root_overview_tool` groups the `projects` list by `SessionData.project_name`, and the
 `animals` list under each project reflects every animal with at least one session naming that project. An animal whose
-sessions name different projects appears under every project it has contributed to, and a healthy data root has each
-animal under exactly one project. Subject-level metadata (surgery, implants, drugs, injections) is owned by
-`/data-assets` and is outside the scope of this skill.
+sessions name different projects appears under every one of those projects, and a healthy data root has each animal
+under exactly one project. Subject-level metadata (surgery, implants, drugs, injections) is owned by `/data-assets` and
+is outside the scope of this skill.
 
 Datasets are a higher-level grouping that aggregates sessions across animals **within a single project**. The
 `DatasetData` schema carries a single `project` field, so a dataset belongs to exactly one project. A dataset is a
@@ -214,7 +214,7 @@ One `get_data_root_overview_tool` call returns the whole project, animal, and se
 aggregates. Those aggregates (`sessions_by_type`, `experiment_count`, `dataset_count`) are carried inside each
 `projects[*]` entry, and callers that want the overview of a single project filter `projects[*]` by `name == "<name>"`.
 The corresponding key on the flat `sessions` entries is `project`. `dataset_count` attributes each `dataset.yaml` marker
-to the top-level project directory it sits under, at any depth below that directory, and a marker sitting directly at
+to the top-level project directory that contains it, at any depth below that directory, and a marker sitting directly at
 the data root is attributed to no project at all. `discover_datasets_tool` (`/datasets`) expands that count into
 per-dataset identity and membership. The flat `sessions` list is shaped for downstream chaining with
 `filter_sessions_tool` (see `/session-discovery`).

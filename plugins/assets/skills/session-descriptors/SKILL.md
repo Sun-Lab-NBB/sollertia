@@ -75,10 +75,10 @@ Each descriptor captures the **per-session** metadata that varies between sessio
 actually delivered, water restriction status, observed behavior summary, experimenter notes). It is **distinct from**
 `SessionData`, which is the canonical session marker file.
 
-This skill does not enumerate the concrete descriptor classes or their fields. To learn which descriptor class a given
-session type resolves to and what fields it carries, call `describe_session_descriptor_schema_tool` for that session
-type (see **What a descriptor stores and how it is used** below). For Mesoscope-VR's concrete descriptor schema, meaning
-the per-session-type descriptor classes and their exact field names, types, and defaults, see
+This skill does not enumerate the concrete descriptor classes or their fields. To learn which descriptor class serves a
+given session type and what fields it carries, call `describe_session_descriptor_schema_tool` for that session type (see
+**What a descriptor stores and how it is used** below). For Mesoscope-VR's concrete descriptor schema, meaning the
+per-session-type descriptor classes and their exact field names, types, and defaults, see
 `mesoscope:mesoscope-vr-session-schema`.
 
 To enumerate the canonical `SessionTypes` strings, hand off to `/session-data` for the
@@ -131,8 +131,8 @@ session's `data.feather` (see **Known file locations** below). That copy is froz
 assembled and is read by downstream analysis code that consumes forged datasets without reaching back into the raw
 session.
 
-`write_session_descriptor_tool` (this skill) is for **post-acquisition repair or amendment** of whichever copy the
-caller supplies a path to. The acquisition runtime never goes through slsa MCP, and neither does forging's initial copy
+`write_session_descriptor_tool` (this skill) is for **post-acquisition repair or amendment** of the copy at whatever
+path the caller supplies. The acquisition runtime never goes through slsa MCP, and neither does forging's initial copy
 step.
 
 ### Post-creation consumers
@@ -255,9 +255,9 @@ write the whole record back.
 
 `write_session_descriptor_tool` also creates any missing parent directories before writing, so an unverified `file_path`
 does not error. It writes a stray descriptor into a newly created tree. You MUST confirm the destination path exists
-before writing to a path you did not just read from, either from a prior successful read or from `inspect_sessions_tool`
-(`/session-data`). The read path is not symmetric: `read_session_descriptor_tool` against a path that does not exist
-fails with `Unable to read <Class> from <path>: the file does not exist.`
+before writing to a path from which you did not just read, either from a prior successful read or from
+`inspect_sessions_tool` (`/session-data`). The read path is not symmetric: `read_session_descriptor_tool` against a path
+that does not exist fails with `Unable to read <Class> from <path>: the file does not exist.`
 
 `describe_session_descriptor_schema_tool` returns two keys: `session_type` (the caller's input string, echoed back) and
 `schema` (the field schema of the session type's descriptor dataclass).
@@ -331,9 +331,8 @@ depending on where the file lives, and the read and write step is the same every
        session_type="<type>",
    )
    ```
-5. **Project or report the fields the user asked about** from `response["data"]`. If the read came from a snapshot,
-   remind the user the values reflect the state at the moment that copy was written, and do not live-track any sibling
-   copy.
+5. **Project or report the fields the user requested** from `response["data"]`. If the read came from a snapshot, remind
+   the user the values reflect the state at the moment that copy was written, and do not live-track any sibling copy.
 
 ### Amending a descriptor in place
 
@@ -356,9 +355,9 @@ handled separately. The amendment affects only the one file whose path is passed
 5. **Confirm the planned write with the user.** `write_session_descriptor_tool` defaults to `overwrite=True`, so it
    silently clobbers the existing descriptor file with no backup. If the user wants the call to refuse-on-existing
    instead, pass `overwrite=False` explicitly.
-6. **Write the corrected payload back to the same path you read from.** The tool creates missing parent directories, so
-   a mistyped path succeeds and plants a stray descriptor in a new tree. Confirm the destination is the path the read in
-   step 2 returned before you call:
+6. **Write the corrected payload back to the same path the read returned.** The tool creates missing parent directories,
+   so a mistyped path succeeds and plants a stray descriptor in a new tree. Confirm the destination is the path the read
+   in step 2 returned before you call:
    ```text
    write_session_descriptor_tool(
        file_path="<absolute path>",

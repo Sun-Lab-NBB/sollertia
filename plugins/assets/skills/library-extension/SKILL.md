@@ -163,7 +163,7 @@ into that directory, import `mcp` from `.mcp_instance`, and decorate each functi
 
 ## Extension scenarios
 
-Pick exactly one row, read the README section it names, then apply the recipe it points at. The reference adds the
+Pick exactly one row, read the README section it names, then apply the recipe listed beside it. The reference adds the
 cross-skill and repository-level touches on top of each README recipe, so it completes the recipe rather than replacing
 it.
 
@@ -195,8 +195,8 @@ the mesoscope plugin, and a new system's equivalents are recorded in that system
 
 ## Cross-skill touch table
 
-Each recipe names the skills its scenario touches. This table is the inverse view, which is what a review of a finished
-extension checks against.
+Each recipe names the skills its scenario touches. This table is the inverse view, and a review of a finished extension
+checks against it.
 
 | Skill                                                             | Touched by                                                 | What changes                                                                                                                                                                                              |
 |-------------------------------------------------------------------|------------------------------------------------------------|-----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
@@ -204,7 +204,7 @@ extension checks against.
 | `/session-descriptors`                                            | New session type                                           | The generic `<session-type>_descriptor.yaml` placeholder shape and the path-resolution handoff. The skill carries no per-system filename roster                                                           |
 | `/session-hardware-state`                                         | New acquisition system                                     | The per-system schema-skill pointers and the matching Related-skills row. The skill stays system-agnostic across new session types                                                                        |
 | `/experiment-configuration`                                       | New session type, acquisition system, trial class, trigger | The per-system schema-skill pointers, the trigger to trial-class pairing convention, and the rule that any session created with an `experiment_name` is required to carry `experiment_configuration.yaml` |
-| `/task-templates`                                                 | New trial class, new trigger type, new acquisition system  | The `TriggerType` enumeration and primitives table, the trial-class enumeration, and the experiment-configuration classes a template builds into                                                          |
+| `/task-templates` | New trial class, new trigger type, new acquisition system | The `TriggerType` enumeration and primitives table, the trial-class enumeration, and the experiment-configuration classes into which a template builds |
 | `/data-assets`                                                    | New read asset                                             | Nothing structural. Add the asset to the worked examples when it is notable                                                                                                                               |
 | `/datasets`                                                       | New read asset, new acquisition system                     | The acquisition-system vocabulary a dataset records and the read-asset artifacts an inventory reports per animal                                                                                          |
 | `/working-directory`                                              | New credentials category                                   | The credentials-category roster documented alongside `list_supported_credentials_tool`                                                                                                                    |

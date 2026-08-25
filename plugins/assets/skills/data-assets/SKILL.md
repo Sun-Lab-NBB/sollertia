@@ -40,7 +40,7 @@ only registered read asset today. The rest of this skill uses it to illustrate t
   `/library-extension` owns under "Adding a new read asset"
 - Durable corrections to an asset's upstream source. For read assets captured from a Google Sheet, the authoritative
   source is the sheet. The MCP layer **does not query it at runtime**, and writes here amend only the one on-disk file
-  the caller points at. Edit the upstream source for a fix that should apply to every future capture.
+  whose path the caller passes. Edit the upstream source for a fix that should apply to every future capture.
 - Propagating an amendment from one copy of the file to another, because copies are independent on disk
 - Partial or per-section updates. The write tool validates and replaces the **full** payload. To change one field, read
   the current file, mutate the returned dict, then write it back whole.
@@ -97,9 +97,9 @@ the module that names the resolved class, so a caller can confirm the dispatch w
 
 ### Failure modes
 
-The envelope every response rides in is documented in the `## Response contract` section of
-`/assets-mcp-environment-setup`. Four failure messages are shared with every other read and write tool on the server,
-and a caller routes on the message text:
+The `## Response contract` section of `/assets-mcp-environment-setup` documents the envelope that carries every
+response. Four failure messages are shared with every other read and write tool on the server, and a caller routes on
+the message text:
 
 - **The file does not exist.** `Unable to read <Class> from <path>: the file does not exist.`
 - **The file does not parse as the resolved class.** `Unable to load <path> as <Class>: <exception>`
@@ -119,8 +119,8 @@ to asking the user:
    implants / drugs, resolves to `data_asset="surgery_data"`. The thing being read or the user's intent almost always
    determines the asset.
 2. **Enumerate when unsure.** Call `list_supported_data_assets_tool` to see the registered assets (`value` is the
-   `data_asset` argument, and `data_asset_class` is the dataclass it resolves to). With one registered asset today, the
-   choice is unambiguous.
+   `data_asset` argument, and `data_asset_class` is the dataclass resolved from it). With one registered asset today,
+   the choice is unambiguous.
 3. **Prompt the user only as a fallback**, when the asset genuinely cannot be inferred and the list does not
    disambiguate, or when the user is explicitly choosing. Prefer automatic resolution to prompting.
 
@@ -164,8 +164,8 @@ identifiers, codes, and notes are strings.
 
 Surgery data is **animal-scoped**, so an animal accumulates records within whichever project owns it, and each animal
 belongs to exactly one project (see `/project-hierarchy`). The authoritative source is the upstream Google Sheet. The
-MCP layer **does not query it at runtime** and only reads the YAML file the caller points at. `surgery_metadata.yaml`
-(`RawDataFiles.SURGERY_METADATA`) is materialized into:
+MCP layer **does not query it at runtime** and only reads the YAML file whose path the caller passes.
+`surgery_metadata.yaml` (`RawDataFiles.SURGERY_METADATA`) is materialized into:
 
 | Location                                        | Populated by                                                        | Discovery path                                                                  |
 |-------------------------------------------------|---------------------------------------------------------------------|---------------------------------------------------------------------------------|
@@ -202,7 +202,7 @@ file lives.
    `/datasets` (`inspect_datasets_tool` reports each animal's `animal_path` and its `surgery_metadata` entry), or an
    ad-hoc path the user supplies.
 4. **Read:** `read_data_asset_tool(file_path="<absolute path>", data_asset="<asset>")`.
-5. **Project the section(s)** the user asked about from `response["data"]`, then report. If the read came from a
+5. **Project the section(s)** the user's question names from `response["data"]`, then report. If the read came from a
    snapshot, remind the user the values reflect the upstream state when the copy was written.
 
 ### Amending a read asset in place
@@ -241,7 +241,7 @@ The MCP layer never pushes an amendment back upstream, and copies stay separate 
 | Skill                                 | Relationship                                                                                                                                                   |
 |---------------------------------------|----------------------------------------------------------------------------------------------------------------------------------------------------------------|
 | `/assets-mcp-environment-setup`       | Run first if the MCP server is not connected                                                                                                                   |
-| `/working-directory`                  | Bootstraps the working directory and the Google credentials the acquisition-side capture depends on. The data-asset tools take absolute paths and need neither |
+| `/working-directory` | Bootstraps the working directory and the Google credentials required by the acquisition-side capture. The data-asset tools take absolute paths and need neither |
 | `/library-extension`                  | Adds a **new** read asset (dataclass + `ReadAssets` member + `READ_ASSET_REGISTRY` entry) and owns `resolve_read_asset`                                        |
 | `/project-hierarchy`                  | Owns `get_data_root_overview_tool` and the project tree walk, and enumerates animals                                                                          |
 | `/session-discovery`                  | Resolves session roots for session-snapshot paths                                                                                                              |
