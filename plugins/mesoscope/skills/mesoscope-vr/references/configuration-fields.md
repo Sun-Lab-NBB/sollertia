@@ -4,9 +4,9 @@ State snapshot of every field in `MesoscopeSystemConfiguration` and its nested c
 dataclasses, as defined in `sollertia_experiment/mesoscope_vr/system.py`.
 
 This file is the authoritative per-field reference for the Mesoscope-VR YAML configuration. See
-[`../SKILL.md`](../SKILL.md) for the system overview, binding-class composition, and modification
-workflows. Update this file whenever any field is added, removed, renamed, or has its
-type/units/default changed.
+[`../SKILL.md`](../SKILL.md) for the system overview and binding-class composition, and
+[`modification-workflows.md`](modification-workflows.md) for the modification workflows. Update this
+file whenever any field is added, removed, renamed, or has its type/units/default changed.
 
 ---
 
@@ -36,8 +36,9 @@ type/units/default changed.
 
 ## MesoscopeFileSystem
 
-Captures filesystem layout — two fields. Both default to empty paths; the user MUST set them
-per-host.
+Captures filesystem layout — two fields. Both default to empty paths, but only `mesoscope_directory` MUST be set
+per-host: leaving it unset raises `ValueError` when the session filesystem layout is resolved. Individual
+`storage_directories` entries are optional.
 
 | Field                 | Type              | Default                             | Purpose                                                                                                                                                                                                                                                                                                                                                                                    |
 |-----------------------|-------------------|-------------------------------------|--------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
@@ -48,20 +49,44 @@ The local **data root** (the directory under which projects are stored on this m
 this section — it is the platform-shared data root, resolved with `get_data_root()` and set with
 `slsa configure data-root`.
 
-**Mount checks:** `check_system_mounts_tool` is an agent-invoked MCP tool that returns a diagnostic
-report covering the platform `data_root`, `mesoscope_directory`, and every `storage_directories`
-path. Each path is reported `ok` when it exists and is writable. A storage root left as an empty
-path is reported as `{"configured": False, "ok": True}`, because configuring every destination is
-optional. Call the tool yourself as a pre-flight check. The acquisition runtime resolves these paths
-without its own existence check, and it records unset storage roots under
-`unconfigured_destinations`, which produces a preprocessing warning about the skipped backup.
+**Mount checks:** `check_system_mounts_tool` is an agent-invoked MCP tool that returns a diagnostic report covering
+every path the configuration declares, keyed as `data_root`, `mesoscope_directory`, one `storage_directory:<name>`
+entry per declared destination, `face_camera_configuration`, `body_camera_configuration`, and `dlc_project`. The
+directories are reported `ok` when they exist and are writable, and the three optional input files when they exist and
+are readable. An unset storage root or input file is reported as `{"configured": False, "ok": True}`, because
+configuring those is optional, while an unset `mesoscope_directory` is reported as `{"configured": False, "ok": False}`.
+`validate_system_configuration_tool` builds its own `paths` report from the same source. Call one of them yourself as a
+pre-flight check. The acquisition runtime performs no on-disk existence check of its own, but `MesoscopeData.__init__`
+rejects an unset `mesoscope_directory` with `ValueError` before any path is resolved, while unset storage roots are
+recorded under `unconfigured_destinations` and only produce a preprocessing warning about the skipped backup.
+
+### MesoscopeData
+
+`MesoscopeData` (in `sollertia_experiment/mesoscope_vr/system.py`) is the class that turns the `filesystem`
+configuration section into resolved paths. It is constructed from the system configuration and a `SessionData`
+instance, and exposes:
+
+- `vrpc_data` — the per-animal VRPC `persistent_data` layout for the session's type.
+- `scanimagepc_data` — the ScanImagePC layout under the Mesoscope acquisition mount, including that machine's own
+  per-animal `persistent_data` directory.
+- `destinations` — one resolved storage destination per configured storage root, in configuration order, which decides
+  which long-term backups run.
+- `unconfigured_destinations` — the names of the storage roots left unset, which preprocessing warns about.
+
+This class is where an unset `mesoscope_directory` raises `ValueError`, before any path is resolved.
+
+For the on-disk hierarchy these resolved paths address, see `assets:project-hierarchy`. For the transfer, verification,
+and removal workflows that consume `destinations`, see `experiment:data-management`.
 
 ---
 
 ## MesoscopeGoogleSheets
 
-Captures Google Sheets identifiers — two `str` fields. Both default to empty strings; the user
-MUST populate them per-host.
+Captures Google Sheets identifiers — two `str` fields. Both identifiers are optional and default to empty strings. An
+unset identifier skips that exchange with a warning, and leaving both unset disables the Google Sheets integration
+entirely. Configuring **either** identifier makes the Google service-account credentials mandatory: preprocessing
+resolves them before either exchange and aborts with `FileNotFoundError` when they are missing or unconfigured. Set
+them with `slsa configure credentials` (`assets:working-directory`).
 
 | Field                | Type  | Default | Purpose                                                                                     |
 |----------------------|-------|---------|---------------------------------------------------------------------------------------------|
@@ -93,14 +118,15 @@ Captures per-camera configuration. The Mesoscope-VR system uses two cameras (fac
 
 **Source of values:**
 - Camera indices come from `experiment:acquisition-system-setup` discovery
-  (`video:camera-setup`'s `list_cameras` tool, ataraxis marketplace). Do NOT guess.
+  (`video:camera-setup`'s `list_cameras_tool`, ataraxis marketplace). Do NOT guess.
 - Display frame rates, quantization, and presets are deployment defaults that have produced good
   results on the reference rig. Override only with measured / preferred values.
 - Configuration paths are **optional**. Set them only for cameras whose GenICam node configuration
   is captured to a YAML (the standard practice for GenTL/GenICam cameras). By convention these files
   live in the working-directory `configuration/` folder, next to `*_system_configuration.yaml`
-  (e.g. `face_camera_configuration.yaml`). See the Cameras section in SKILL.md for the
+  (e.g. `face_camera_configuration.yaml`). See [`modification-workflows.md`](modification-workflows.md) for the
   verify / dump / restore workflow.
+  The file is an `ataraxis-video-system` `GenicamConfiguration` YAML.
 
 ---
 
@@ -109,6 +135,10 @@ Captures per-camera configuration. The Mesoscope-VR system uses two cameras (fac
 Captures port assignments + per-module calibration for the three Teensy 4.1 boards (ACTOR, SENSOR,
 ENCODER). See [Microcontrollers section in SKILL.md](../SKILL.md#hardware-subsystem-microcontrollers)
 for board roles.
+
+The ~25 calibration fields parameterize seven of the eight module wrappers running on the three boards (brake
+strength, lick thresholds, torque calibration, encoder PPR, wheel diameter, screen pulse duration, sensor polling
+delays, valve calibration table). `GasPuffValveInterface` takes no configuration.
 
 ### Port and keepalive
 
@@ -123,7 +153,7 @@ Default ports use the Linux device-path form (`/dev/ttyACM*`); the value is OS-s
 Windows) and is set per host from discovery.
 
 Ports come from `experiment:acquisition-system-setup` discovery
-(`communication:microcontroller-setup`'s `list_microcontrollers` tool). The user must confirm which
+(`communication:microcontroller-setup`'s `list_microcontrollers_tool`). The user must confirm which
 physical Teensy plays the ACTOR / SENSOR / ENCODER role and assign ports accordingly.
 
 ### Brake calibration (consumes `BrakeInterface`)
@@ -230,8 +260,7 @@ resulting measurements. Replace the entire tuple; do NOT mix old and new measure
 ## MesoscopeAcquisition
 
 Captures the online motion-estimation and z-stack acquisition configuration delivered to the
-ScanImagePC. See [Mesoscope acquisition section in
-SKILL.md](../SKILL.md#hardware-subsystem-mesoscope-acquisition) for the `MesoscopeDriver` MQTT
+ScanImagePC. See [`mesoscope-driver.md`](mesoscope-driver.md) for the `MesoscopeDriver` MQTT
 contract that carries these parameters to the `runAcquisition` MATLAB function. Eight fields.
 
 | Field                        | Type                        | Default        | Purpose                                                                                                                                                                                                   |
@@ -307,14 +336,16 @@ multi-PC rigs. The geometric VR parameters (cue catalog, corridor geometry, cm-p
 NOT stored here — they are resolved at experiment start from the matching `TaskTemplate` YAML. See
 `experiment:vr-driver-interface`.
 
+Scene activation and Play Mode are driven over the editor MCP Bridge on a fixed loopback endpoint
+(`127.0.0.1:8090`) and are deliberately NOT configured here.
+
 ---
 
 ## MesoscopeVideoTracking
 
 Captures the DeepLabCut pose-inference configuration that analyzes the face-camera video during
-experiment-session preprocessing. Seven fields. See [Video tracking section in
-SKILL.md](../SKILL.md#mesoscopevideotracking) for the `conda run` subprocess boundary, the placement
-inside the preprocessing pipeline, and the transfer-abort failure mode.
+experiment-session preprocessing. Seven fields, plus the `conda run` subprocess boundary, the placement inside the
+preprocessing pipeline, and the transfer-abort failure mode.
 
 | Field               | Type   | Default  | Purpose                                                                                                                                                                      |
 |---------------------|--------|----------|------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
@@ -345,34 +376,50 @@ shipped to long-term storage as raw data.
 unset path reports as not configured with an ok status, matching the storage destinations. The
 `conda_environment` name sits outside that report, so confirm it separately.
 
+### Face-tracking subprocess
+
+`_launch_face_tracking` (in `sollertia_experiment/mesoscope_vr/data_preprocessing.py`) applies that gate and
+launches the subprocess.
+
+The pose model runs in a separate process. `sollertia-video-tracking` (slvt) requires Python 3.12
+and numpy 1.x because DeepLabCut 3.0.0 constrains both, while the rest of the Sollertia stack runs
+Python 3.14 and numpy 2, so the acquisition process reaches slvt across a `conda run` boundary:
+
+```text
+conda run -n <conda_environment> slvt infer --config-path <dlc_project_path>
+  --videos <session>/raw_data/camera_data/<session>_face_camera.mp4
+  --shuffle <shuffle> --device cuda --gpus 0 --batch-size <batch_size> --chunks <chunks>
+  --compile-model on|off --no-progress [--crop <crop>]
+```
+
+slvt ships no MCP server and no plugin, so the `slvt` CLI is its only agent-facing surface and this
+binding is documented on the `sollertia-experiment` side.
+
+Preprocessing launches inference asynchronously right after `rename_session_videos`, and only for
+`SessionTypes.MESOSCOPE_EXPERIMENT` sessions, so it overlaps the CPU-bound and disk-bound stages on
+the rig's otherwise-idle GPU. `_join_face_tracking` waits for it immediately before
+`push_session_data`. A successful run writes the DeepLabCut `.h5` file and its companion pickles
+beside the face-camera video in `raw_data/camera_data/`, which is the `slvt infer` default when
+`--output` is omitted. They are therefore covered by the raw-data checksum and shipped to long-term
+storage as raw data, where the forging plugin's video pipeline consumes them.
+
+A non-zero exit status or zero written `.h5` prediction files raises `RuntimeError`, aborts the
+transfer to long-term storage, and retains the local session copy for a manual retry. The transient
+log lives at `<tmp>/slvt_infer_<session_name>.log`, is removed on success, and is retained on
+failure, with its last 2000 characters echoed into the error.
+
 ---
 
-## Field-naming convention recap
+## Field-naming convention
 
-All configuration fields follow `<device-or-module>_<parameter>_<unit>` per
-`experiment:acquisition-system-design`'s [Configuration field naming convention
-](../../../../experiment/skills/acquisition-system-design/references/layer-patterns.md#field-naming-convention):
-
-| Component            | Examples                                                    |
-|----------------------|-------------------------------------------------------------|
-| `<device-or-module>` | `face_camera`, `lick`, `torque`, `wheel_encoder`, `headbar` |
-| `<parameter>`        | `index`, `threshold`, `delta_threshold`, `ppr`, `port`      |
-| `<unit>`             | `adc`, `us`, `ms`, `cm`, `g_cm`, `pulse`                    |
-
-Adding a new field that violates this convention is a maintenance hazard — future agents auditing
-configuration values will need extra context to interpret the value's units.
+Field naming follows `experiment:acquisition-system-design`'s [Configuration field naming convention
+](../../../../experiment/skills/acquisition-system-design/references/layer-patterns.md#field-naming-convention). The
+`<unit>` suffixes in use across the Mesoscope-VR schema are `adc`, `us`, `ms`, `cm`, `g_cm`, and `pulse`.
 
 ---
 
-## Schema versioning rule
+## Schema versioning
 
-Any change to a field (add, remove, rename, type-change, unit-change) is a schema change and MUST
-be paired with a `sollertia-experiment` version bump in `pyproject.toml`. Per
-`experiment:acquisition-system-design`'s [Contract 2: Schema versioning
-](../../../../experiment/skills/acquisition-system-design/references/layer-patterns.md#contract-2-schema-versioning):
-
-- **Add field**: bump minor version. Older YAML files load with the new field at default.
-- **Remove field**: bump major version. Older YAML files load with the removed field silently ignored.
-- **Rename field**: bump major version. Add a one-cycle deprecation migration in `__post_init__`.
-- **Change type or units**: bump major version. Add validation in `__post_init__` that detects
-  old shape and raises a clear migration error.
+Schema changes follow `experiment:acquisition-system-design`'s [Contract 2: Schema versioning
+](../../../../experiment/skills/acquisition-system-design/references/layer-patterns.md#contract-2-schema-versioning).
+The package whose version a Mesoscope-VR schema change MUST bump is `sollertia-experiment`.

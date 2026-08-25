@@ -38,6 +38,8 @@ the output schema of the assembly stage but does not own the enum definition.
 - Runtime-dataset distance-indexed interpolation of `trial` / `trial_type` / `cue` and trigger-zone membership
 - Sentinel masking outside the run state (`cue` 255, `trial` 65535, `trial_type` `"undefined"`) and the conditional
   guidance-state columns
+- Which session type makes `vr_configuration.yaml` a required artifact of a forged Mesoscope-VR dataset (the current
+  `SESSION_TYPES_USING_VR_TASK` membership)
 
 **Does not cover:**
 - Fluorescence frame alignment that produces the reference vector (see `mesoscope:mesoscope-vr-fluorescence-alignment`)
@@ -48,6 +50,9 @@ the output schema of the assembly stage but does not own the enum definition.
 - The forged-feather output schema reference, fluorescence array shapes, and dataset hierarchy (see
   `forging:dataset-forging-results`)
 - The dataset-forging batch orchestration and the agnostic processing design (see `forging:data-processing-design`)
+- The forged-dataset container itself: the `DatasetData` marker, the two-level layout, and the column-description
+  companion (see `assets:datasets`)
+- Composing a dataset from filtered sessions and tracking its forging job state (see `forging:dataset-definition`)
 
 ---
 
@@ -89,9 +94,13 @@ Producing the reference vector is out of scope here — see `mesoscope:mesoscope
 
 ## Behavior-dataset interpolation rules and special cases
 
-`assemble_behavior_dataset` reads the behavior feather files from `processed_data/behavior_data` (by their
-`BehaviorDataFiles` names) and the session's `MesoscopeHardwareState` from the raw-data directory, then interpolates
-each source onto `reference_time`.
+`assemble_behavior_dataset` reads its sources from two processed-data directories, matching its
+`assemble_behavior_dataset(microcontroller_data_path, runtime_data_path, ...)` signature: the module-parsed feathers
+(encoder, lick, valve, brake, torque, screen) come from the session's `processed_data/microcontroller_data`
+directory, and the runtime system-state feather comes from `processed_data/runtime_data`, both addressed by their
+`BehaviorDataFiles` names. The session's `MesoscopeHardwareState` is read from `raw_data/hardware_state.yaml`. Each
+source is then interpolated onto `reference_time`. The full feather-to-directory mapping is owned by
+`mesoscope:mesoscope-vr-processing-schema`.
 
 ### Always-present sources
 
@@ -104,7 +113,7 @@ each source onto `reference_time`.
 
 ### Conditional sources
 
-Each of these is included only when its feather exists in the behavior-data directory:
+Each of these is included only when its feather exists in the microcontroller-data directory:
 
 | Source feather              | Aligned column | `is_discrete` | Present for                                  |
 |-----------------------------|----------------|---------------|----------------------------------------------|
@@ -257,16 +266,32 @@ upstream guidance feathers existed; all other assembly columns are present in ev
 
 ---
 
+## VR configuration as a forged-dataset artifact
+
+A forged dataset re-exports each session's `vr_configuration.yaml` next to the assembled `data.feather`, and dataset
+inspection treats that copy as required only when the dataset's own `session_type` belongs to
+`SESSION_TYPES_USING_VR_TASK`. That frozen set holds exactly one member today, `SessionTypes.MESOSCOPE_EXPERIMENT`,
+so `vr_configuration.yaml` is a required dataset artifact only for datasets whose `session_type` is
+`"mesoscope experiment"`. In a dataset of lick-training, run-training, or window-checking sessions, a missing
+`vr_configuration.yaml` describes the source sessions rather than a defective dataset.
+
+The registry-dispatched mechanism behind that rule, the `DatasetData` marker it is read from, and the inspection
+report that applies it belong to `assets:datasets`.
+
+---
+
 ## Related skills
 
-| Skill                                       | Relationship                                                                                  |
-|---------------------------------------------|-----------------------------------------------------------------------------------------------|
-| `forging:data-processing-design`            | Owns the agnostic batch orchestration and stage seam this skill concretizes                    |
-| `forging:dataset-forging-results`           | Owns the forged-feather output schema at the reference level; points here for the algorithm     |
+| Skill                                           | Relationship                                                                                |
+|-------------------------------------------------|---------------------------------------------------------------------------------------------|
+| `forging:data-processing-design`                | Owns the agnostic batch orchestration and stage seam this skill concretizes                 |
+| `forging:dataset-forging-results`               | Owns the forged-feather output schema at the reference level; points here for the algorithm |
+| `forging:dataset-definition`                    | Composes a dataset from filtered sessions and owns its forging job state                    |
+| `assets:datasets`                               | Owns the `DatasetData` marker, the dataset layout, and the seven slsa dataset tools         |
 | `mesoscope:mesoscope-vr-fluorescence-alignment` | Produces the `reference_time` vector this stage aligns onto                                 |
-| `mesoscope:mesoscope-vr-trial-decomposition` | Produces the `trial` / `cue` / `vr_trigger_zone` feathers consumed by the runtime assembly     |
-| `mesoscope:mesoscope-vr-module-parsing`     | Produces the per-module behavior feathers consumed by the behavior assembly                     |
-| `mesoscope:mesoscope-vr-processing-schema`  | Owns the `DatasetColumn` and `BehaviorDataFiles` enum definitions this stage instantiates       |
+| `mesoscope:mesoscope-vr-trial-decomposition`    | Produces the `trial` / `cue` / `vr_trigger_zone` feathers consumed by the runtime assembly  |
+| `mesoscope:mesoscope-vr-module-parsing`         | Produces the per-module behavior feathers consumed by the behavior assembly                 |
+| `mesoscope:mesoscope-vr-processing-schema`      | Owns the `DatasetColumn` and `BehaviorDataFiles` enum definitions this stage instantiates   |
 
 ---
 
@@ -282,7 +307,13 @@ upstream guidance feathers existed; all other assembly columns are present in ev
 - [ ] Behavior column order quoted exactly; drop_time_columns removes time_us and elapsed_minutes
 - [ ] Conditional columns (encoder/screen/brake/torque, reinforcing_guided, aversive_guided) gated on file existence
 - [ ] No invented symbols, filenames, tolerances, or event codes — all derived from the cited source files
+- [ ] Behavior sources homed in processed_data/microcontroller_data and processed_data/runtime_data, hardware state
+      in raw_data/hardware_state.yaml; no processed_data/behavior_data claim
+- [ ] vr_configuration.yaml stated as a required dataset artifact only for the "mesoscope experiment" session type,
+      the sole SESSION_TYPES_USING_VR_TASK member
 - [ ] Did not redefine the DatasetColumn / BehaviorDataFiles enums — handed off to
       mesoscope:mesoscope-vr-processing-schema
+- [ ] Did not restate the DatasetData marker, the dataset layout, or the dataset tools — handed off to
+      assets:datasets
 - [ ] No reStructuredText specifiers; cross-references use the plugin:skill syntax
 ```

@@ -1,7 +1,7 @@
 ---
 name: server-configuration
 description: >-
-  Authors and modifies the ServerConfiguration YAML for sollertia-forgery via the `sl-mcp` MCP
+  Authors and modifies the ServerConfiguration YAML for sollertia-forgery via the `slf mcp`
   server (remote storage transfer settings, cloud compute server credentials). Use when
   setting up remote data transfer for a new Sollertia host or rotating server credentials.
 user-invocable: false
@@ -9,7 +9,7 @@ user-invocable: false
 
 # Sollertia server configuration
 
-Authors and modifies the `ServerConfiguration` YAML file for `sollertia-forgery` using the `sl-mcp`
+Authors and modifies the `ServerConfiguration` YAML file for `sollertia-forgery` using the `slf mcp`
 MCP server. This skill is the **exclusive** owner of `ServerConfiguration` reads and writes — no other
 skill in the marketplace may call `read_server_configuration_tool` or `write_server_configuration_tool`.
 
@@ -24,7 +24,7 @@ skill in the marketplace may call `read_server_configuration_tool` or `write_ser
   `sle manage` after a session is preprocessed
 
 **Does not cover:**
-- `MesoscopeSystemConfiguration` authoring (see `/system-configuration`)
+- Acquisition system configuration YAML authoring (see `experiment:acquisition-system-design`)
 - Working directory or credentials setup (see `assets:working-directory`)
 - Diagnosing MCP server connectivity (see `/forging-mcp-environment-setup`)
 
@@ -62,7 +62,7 @@ whole thing back.
 
 ### Step 1: Verify prerequisites
 
-- The `sollertia-forgery` `sl-mcp` server is connected (else hand off to `/forging-mcp-environment-setup`).
+- The `sollertia-forgery` `slf mcp` server is connected (else hand off to `/forging-mcp-environment-setup`).
 - The working directory is set (else hand off to `assets:working-directory`).
 
 ### Step 2: Determine whether to create or modify
@@ -106,7 +106,7 @@ Call `read_server_configuration_tool` and confirm the returned configuration mat
 
 ```text
 - [ ] assets:working-directory has been run on this host (assets plugin)
-- [ ] sollertia-forgery sl-mcp server is connected
+- [ ] sollertia-forgery `slf mcp` server is connected
 - [ ] read_server_configuration_tool returned the expected configuration before any write
 - [ ] write_server_configuration_tool succeeded without schema errors
 - [ ] read_server_configuration_tool returned the expected configuration after the write
@@ -118,9 +118,9 @@ Call `read_server_configuration_tool` and confirm the returned configuration mat
 
 ## Related skills
 
-| Skill                                    | Relationship                                                            |
-|------------------------------------------|-------------------------------------------------------------------------|
-| `assets:working-directory`               | Required prerequisite — owned by the assets plugin                      |
-| `/forging-mcp-environment-setup`         | Run first if the sl-mcp server is not connected                         |
-| `/system-configuration` (config plugin)  | Sibling — both configurations live in the same working directory        |
-| `experiment:data-management`             | Triggers remote transfers using the values authored by this skill       |
+| Skill                                   | Relationship                                                       |
+|-----------------------------------------|--------------------------------------------------------------------|
+| `assets:working-directory`              | Required prerequisite, owned by the assets plugin                  |
+| `/forging-mcp-environment-setup`        | Run first if the `slf mcp` server is not connected                 |
+| `experiment:acquisition-system-design`  | Sibling: both configurations live in the same working directory    |
+| `experiment:data-management`            | Triggers remote transfers using the values authored by this skill  |

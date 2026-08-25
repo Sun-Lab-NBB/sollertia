@@ -1,7 +1,7 @@
 {
   "name": "assets",
-  "version": "1.2.0",
-  "description": "Agentic access to the sollertia-shared-assets library. Authors, validates, and manages the configuration and metadata backbone of the Sollertia ecosystem, and owns the session-discovery and session-filtering workflows consumed by every downstream batch plugin. Backed by the sollertia-shared-assets MCP server (slsa).",
+  "version": "1.3.0",
+  "description": "Agentic access to the sollertia-shared-assets library. Authors, validates, and manages the configuration and metadata backbone of the Sollertia ecosystem, owns the session-discovery, session-filtering, and forged-dataset workflows consumed by every downstream batch plugin, and owns the library's extension path, the registry system by which a new acquisition system, session type, trial class, trigger type, read asset, or credentials category is added. Backed by the sollertia-shared-assets MCP server (slsa).",
   "repository": "https://github.com/Sun-Lab-NBB/sollertia",
   "license": "Apache-2.0",
   "skills": "./skills/",

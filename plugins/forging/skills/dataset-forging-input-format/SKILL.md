@@ -30,7 +30,8 @@ experiment configuration authoring to the assets plugin.
 - The per-session forged outputs (`data.feather`, the copied `session_descriptor.yaml`, and the
   `trial_geometry.yaml` data file)
 - Behavior feather inputs (which files, which columns) read from the canonical
-  `processed_data/behavior_data/` directory produced by `forging:behavior-processing`
+  `processed_data/microcontroller_data/` and `processed_data/runtime_data/` directories produced by
+  `forging:behavior-processing`
 - Cindra single-recording outputs (fluorescence arrays, classification, metadata) read from the
   canonical `processed_data/cindra/` directory
 - Cindra multi-day outputs read from `processed_data/cindra/multi_recording/{animal}_{dataset_name}/`
@@ -151,14 +152,17 @@ Key facts:
 
 ## Upstream prerequisite: behavior-processing output
 
-The forging pipeline resolves the behavior data directory to the canonical
-`{processed_data}/behavior_data/` location via the loaded session's path-resolution
-properties — it does not search for the tracker at arbitrary depth. The directory must
-exist; a missing directory raises `FileNotFoundError` naming the expected
-`behavior_processing_tracker.yaml` it is expected to contain.
+The forging pipeline resolves the behavior data directories to the canonical
+`{processed_data}/microcontroller_data/` and `{processed_data}/runtime_data/` locations via the
+loaded session's path-resolution properties — it does not search for the trackers at arbitrary
+depth. Both directories must exist; a missing directory raises `FileNotFoundError` naming the
+expected `microcontroller_processing_tracker.yaml` or `runtime_processing_tracker.yaml` it is
+expected to contain.
 
-The pipeline then reads the following feathers from the behavior data directory. All
-are uncompressed Arrow IPC (`.feather`) produced by `forging:behavior-processing`:
+The pipeline then reads the following feathers from those two directories. All are uncompressed
+Arrow IPC (`.feather`) produced by `forging:behavior-processing`; see
+`mesoscope:mesoscope-vr-processing-schema` for which producer writes each file into which
+directory:
 
 ### Always required
 
@@ -373,7 +377,8 @@ Dataset Forging Prerequisites:
 -   [ ] experiment_states defined with experiment_state_code values
 - [ ] raw_data/session_descriptor.yaml present on every session
 - [ ] raw_data/surgery_metadata.yaml present on each animal's latest (natural-sorted) session
-- [ ] forging:behavior-processing completed — behavior_processing_tracker.yaml + feathers present
+- [ ] forging:behavior-processing completed — runtime_processing_tracker.yaml and
+      microcontroller_processing_tracker.yaml + feathers present
 -   [ ] mesoscope_frame_data.feather
 -   [ ] system_state_data.feather, lick_data.feather, valve_data.feather
 -   [ ] encoder_data.feather

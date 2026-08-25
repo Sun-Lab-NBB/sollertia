@@ -215,7 +215,7 @@ seeds its configuration from a corridor task template.
 - **Actions:** Once a session is preprocessed and transferred to long-term storage, hand off to the
   forging plugin's behavior processing subsystem — batch behavior processing
   (`forging:behavior-processing`), output verification (`forging:behavior-results`), and dataset
-  curation (`forging:datasets`).
+  composition (`forging:dataset-definition`).
 - **Handoff condition:** The preprocessed session is present on the storage destination the forging
   plugin reads from.
 
@@ -264,7 +264,8 @@ systems** registry).
 | Read or repair a session descriptor               | `assets:session-descriptors`                                                       |
 | Read or patch a frozen runtime snapshot           | `mesoscope:mesoscope-vr-snapshots`                                                 |
 | Look up animal surgery / implants / drugs         | `assets:data-assets`                                                               |
-| Curate or read a dataset                          | `forging:datasets`                                                                 |
+| Inspect, read, or repair a forged dataset         | `assets:datasets`                                                                  |
+| Compose or grow a dataset                         | `forging:dataset-definition`                                                       |
 | Discover GenICam cameras                          | `video:camera-setup`                                                               |
 | Test camera acquisition interactively             | `video:camera-setup`                                                               |
 | Verify a camera against its stored GenICam config | `/system-health-check` (verify) / `/acquisition-system-setup` (at bringup)         |

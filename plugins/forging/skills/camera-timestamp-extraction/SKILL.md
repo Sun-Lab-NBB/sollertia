@@ -31,19 +31,21 @@ the pipeline as manifest data registered at acquisition time, not as a constant 
 - Parsing the numeric camera source ID from a log filename via `extract_camera_source_id`
 - Resolving each registered source ID to its `{name}_timestamps.feather` output name via
   `resolve_camera_output_names`, which reads the camera manifest through the ataraxis-video-system `CameraManifest`
-- The source and sink boundary: raw archives are read from the session's raw `camera_data_path` and the renamed
-  timestamp feathers are written into the session's processed `behavior_data_path`
+- The source and sink boundary: raw archives are read from the session's raw `behavior_data_path` and the named
+  timestamp feathers are written into the session's processed `video_data_path`
 - Re-extraction of logged timestamps into an uncompressed-IPC feather with a `frame_time_us` `uint64` column via
   `process_camera_log`
-- The self-contained per-source stage orchestrator `run_video_processing_pipeline` and the camera
-  `ProcessingTracker` at the session's `camera_tracker_path`
+- The self-contained per-source stage orchestrator `run_video_processing_pipeline` and the video
+  `ProcessingTracker` at the session's `video_tracker_path`
 - Why camera output names enter as manifest data rather than as a hardcoded registry
 
 **Does not cover:**
 - The concrete Mesoscope-VR camera roles and source IDs (the GenICam cameras and their assigned source IDs come
   from the manifest at acquisition time; the hardware-composition inventory is owned by `mesoscope:mesoscope-vr`)
-- Upstream axvs camera log production and the axvs camera-timestamps landing directory (see
+- Upstream axvs camera log production and the naming the extraction binding gives its own parsed feathers (see
   `ataraxis@video:log-processing` and `ataraxis@video:log-input-format`)
+- The producer-to-directory mapping covering every processed feather the pipeline writes (owned by
+  `mesoscope:mesoscope-vr-processing-schema`, the single home of that table)
 - The ataraxis-video-system `CameraManifest`, the `CAMERA_MANIFEST_FILENAME` constant, and the
   `extract_logged_camera_timestamps` internals — these are upstream axvs symbols re-used here (see
   `ataraxis@video:log-processing` and `ataraxis@video:log-input-format`)
@@ -57,9 +59,11 @@ the pipeline as manifest data registered at acquisition time, not as a constant 
 
 ## Discovering raw VideoSystem logs and source IDs
 
-The stage consumes the raw camera logs a VideoSystem leaves in the session's raw camera data directory,
-`session.raw_data.camera_data_path` (the on-disk `camera_data` directory). Each raw archive is named
-`{source_id}_log.npz`, matching the DataLogger source-ID naming convention shared across the Sollertia stack.
+The stage consumes the raw camera logs a VideoSystem leaves in the session's raw behavior data directory,
+`session.raw_data.behavior_data_path` (the on-disk `behavior_data` directory), which collects the NPZ archives
+every DataLogger-backed source writes during acquisition. Each raw archive is named `{source_id}_log.npz`,
+matching the DataLogger source-ID naming convention shared across the Sollertia stack. The separate raw
+`camera_data_path` directory holds the camera recordings themselves rather than their log archives.
 
 `find_camera_logs(data_directory)` discovers these archives with a **non-recursive** glob over the directory using
 the `*_log.npz` pattern, then returns the matches sorted. It does not descend into subdirectories. If the directory
@@ -75,9 +79,9 @@ component as an `int`.
 
 ## Resolving output names from the camera manifest
 
-`resolve_camera_output_names(data_directory)` is the contract that makes this stage system-agnostic. Every
-VideoSystem writes a camera manifest alongside its log archives in the same raw camera data directory. The function
-reads that manifest and projects each registered source into its canonical output filename.
+`resolve_camera_output_names(data_directory)` is the contract that makes this stage system-agnostic. Every VideoSystem
+writes a camera manifest alongside its log archives in the same raw behavior data directory. The function reads that
+manifest and projects each registered source into its canonical output filename.
 
 The function performs a deferred import of `CAMERA_MANIFEST_FILENAME` and `CameraManifest` from
 ataraxis-video-system, joins `CAMERA_MANIFEST_FILENAME` onto the data directory to locate the manifest, and raises
@@ -95,24 +99,25 @@ this skill documents how they are consumed, not their definitions.
 
 ## Source and sink directories
 
-This stage has an explicit, non-trivial source/sink boundary that distinguishes the refactored design from the
-previous one:
+This stage has an explicit source/sink boundary, and both halves resolve as `SessionData` fields:
 
-| Role   | Session path                            | On-disk directory   | Contents                                                       |
-|--------|-----------------------------------------|---------------------|---------------------------------------------------------------|
-| Source | `session.raw_data.camera_data_path`     | `raw_data/camera_data`     | Raw `{source_id}_log.npz` archives and the camera manifest    |
-| Sink   | `session.processed_data.behavior_data_path` | `processed_data/behavior_data` | The renamed `{name}_timestamps.feather` outputs               |
+| Role   | Session path                             | On-disk directory           | Contents                                                            |
+|--------|------------------------------------------|-----------------------------|---------------------------------------------------------------------|
+| Source | `session.raw_data.behavior_data_path`    | `raw_data/behavior_data`    | Raw `{source_id}_log.npz` archives and the camera manifest          |
+| Sink   | `session.processed_data.video_data_path` | `processed_data/video_data` | The named `{name}_timestamps.feather` outputs and the video tracker |
 
-The stage **re-extracts** the timestamps from the raw logs in `camera_data_path` and writes the named feathers into
-`behavior_data_path`. It does **not** write into the upstream axvs camera-timestamps landing directory
-(`session.processed_data.camera_timestamps_path`, the `camera_timestamps` directory), and it does **not** hardlink
-an already-extracted upstream feather. This is the key behavioral change from the prior architecture, which
-hardlinked the upstream `camera_{source_id}_timestamps.feather` files into the processed tree (see Related skills
-for the skills that previously documented that behavior).
+The stage **re-extracts** the timestamps from the raw logs in `behavior_data_path` and writes the named feathers
+into `video_data_path`, which is the single processed directory this stage writes into. There is no separate
+camera-timestamps landing directory anywhere in the processed tree, and `ProcessedData` carries no
+`camera_timestamps_path` field. Note that `behavior_data` is a raw-side directory only: it is the DataLogger
+archive directory under `raw_data`, and no processed feather is ever written into a `processed_data/behavior_data`
+path. For the full mapping of every processed feather to the directory that receives it, defer to
+`mesoscope:mesoscope-vr-processing-schema`.
 
-The camera `ProcessingTracker`, by contrast, lives at `session.processed_data.camera_tracker_path`, which resolves
-to the `camera_processing_tracker.yaml` file inside the `camera_timestamps` directory — the tracker location is
-independent of the feather sink directory.
+The video `ProcessingTracker` lives at `session.processed_data.video_tracker_path`, which resolves to the
+`video_processing_tracker.yaml` file inside that same `video_data` directory. The tracker and the timestamp
+feathers therefore share one directory; there is no `camera_processing_tracker.yaml` and no separate tracker
+location to reason about.
 
 ---
 
@@ -148,8 +153,8 @@ execution in one call. It does not use the shared prepare-then-execute `JobExecu
 
 The orchestrator proceeds as follows:
 
-1. Loads the session via `SessionData.load(session_path=session_path)` and resolves the raw camera data directory
-   from `session.raw_data.camera_data_path`.
+1. Loads the session via `SessionData.load(session_path=session_path)` and resolves the raw behavior data
+   directory from `session.raw_data.behavior_data_path`.
 2. Calls `resolve_camera_output_names` once to obtain the source-ID-to-output-name mapping from the manifest.
 3. Discovers logs with `find_camera_logs`, parses each source ID with `extract_camera_source_id`, and registers a
    job only when that source ID is present in the resolved manifest mapping (archives whose source ID is not
@@ -157,8 +162,8 @@ The orchestrator proceeds as follows:
 4. Builds a job registry keyed by the `(VIDEO_JOB_NAME, str(source_id))` tuple, where `VIDEO_JOB_NAME` is the
    module constant `"camera_timestamp_extraction"`.
 5. Raises `ValueError` when no registered camera log archives are discovered.
-6. Ensures the behavior data output directory exists, constructs a `ProcessingTracker` bound to
-   `session.processed_data.camera_tracker_path`, and aligns the tracker's job registry with the discovered job
+6. Ensures the processed video data output directory exists, constructs a `ProcessingTracker` bound to
+   `session.processed_data.video_tracker_path`, and aligns the tracker's job registry with the discovered job
    tuples via the shared `prepare_tracker` helper.
 
 Each `(job_name, specifier)` tuple is the unit of work, and the specifier is the string form of the source ID. The
@@ -209,17 +214,18 @@ defer to `mesoscope:mesoscope-vr`, the hardware-composition skill that owns that
 
 ## Related skills
 
-| Skill                              | Relationship                                                                                       |
-|------------------------------------|----------------------------------------------------------------------------------------------------|
-| `forging:data-processing-design`   | Owns the shared prepare-then-execute `JobExecutionState` batch model this stage deliberately differs from |
-| `forging:behavior-processing`      | Sibling behavior batch pipeline (runtime/microcontroller jobs); the camera stage is run separately by the `process video` CLI command in `interfaces/mesoscope_vr.py`, not by behavior processing |
-| `forging:behavior-input-format`    | Extended to retire its hardcoded-registry / hardlink camera input description and point here         |
-| `forging:behavior-results`         | Extended to retire its hardcoded-registry / hardlink camera output description and point here        |
-| `forging:microcontroller-primitives` | Sibling cross_system contract for microcontroller module feather parsing                           |
-| `mesoscope:mesoscope-vr`           | Owns the per-system camera inventory (roles and source IDs) deferred from this skill                |
-| `ataraxis@video:log-processing`    | Upstream axvs stage that produces the raw camera logs and owns the `CameraManifest` and extraction binding |
-| `ataraxis@video:log-input-format`  | Upstream axvs reference for the raw camera log archive format, source-ID semantics, and `CameraManifest` |
-| `ataraxis@video:camera-interface`  | Upstream axvs reference for the VideoSystem acquisition surface and system-ID allocation             |
+| Skill                                      | Relationship                                                                                                                                                                                      |
+|--------------------------------------------|---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| `forging:data-processing-design`           | Owns the shared prepare-then-execute `JobExecutionState` batch model this stage deliberately differs from                                                                                         |
+| `forging:behavior-processing`              | Sibling behavior batch pipeline (runtime/microcontroller jobs); the camera stage is run separately by the `process video` CLI command in `interfaces/mesoscope_vr.py`, not by behavior processing |
+| `forging:behavior-input-format`            | Defers its camera log archive input description to this skill                                                                                                                                     |
+| `forging:behavior-results`                 | Defers its camera timestamp feather output description to this skill                                                                                                                              |
+| `forging:microcontroller-primitives`       | Sibling cross_system contract for microcontroller module feather parsing                                                                                                                          |
+| `mesoscope:mesoscope-vr`                   | Owns the per-system camera inventory (roles and source IDs) deferred from this skill                                                                                                              |
+| `mesoscope:mesoscope-vr-processing-schema` | Owns the producer-to-directory mapping for the processed feathers, referenced here rather than duplicated                                                                                         |
+| `ataraxis@video:log-processing`            | Upstream axvs stage that produces the raw camera logs and owns the `CameraManifest` and extraction binding                                                                                        |
+| `ataraxis@video:log-input-format`          | Upstream axvs reference for the raw camera log archive format, source-ID semantics, and `CameraManifest`                                                                                          |
+| `ataraxis@video:camera-interface`          | Upstream axvs reference for the VideoSystem acquisition surface and system-ID allocation                                                                                                          |
 
 ---
 
@@ -228,15 +234,17 @@ defer to `mesoscope:mesoscope-vr`, the hardware-composition skill that owns that
 You MUST verify your work against this checklist before submitting.
 
 ```text
-- [ ] Source/sink boundary described correctly: raw logs read from session.raw_data.camera_data_path, named
-      feathers written into session.processed_data.behavior_data_path
-- [ ] Output is NOT written to camera_timestamps_path and is NOT a hardlink of an upstream axvs feather
+- [ ] Source/sink boundary described correctly: raw logs read from session.raw_data.behavior_data_path, named
+      feathers written into session.processed_data.video_data_path (processed_data/video_data)
+- [ ] No processed_data/behavior_data claim anywhere (behavior_data is the raw-side DataLogger archive directory)
+- [ ] No camera_timestamps directory, no camera_timestamps_path field, and no camera_processing_tracker.yaml
 - [ ] Discovery is non-recursive glob over *_log.npz; empty list on missing or empty directory
 - [ ] Output names come from resolve_camera_output_names reading the camera manifest via CameraManifest, not from a
       hardcoded source-ID registry
 - [ ] Output column is frame_time_us, dtype uint64, written as uncompressed Arrow IPC
 - [ ] VIDEO_JOB_NAME is "camera_timestamp_extraction" and the job tuple is (VIDEO_JOB_NAME, str(source_id))
-- [ ] Tracker is the camera ProcessingTracker at session.processed_data.camera_tracker_path
+- [ ] Tracker is the video ProcessingTracker at session.processed_data.video_tracker_path, resolving to
+      video_processing_tracker.yaml inside the same video_data directory that receives the feathers
 - [ ] Local mode (job_id is None) runs all jobs sequentially; remote mode runs only the matching job_id
 - [ ] Stage is described as self-contained, distinct from the JobExecutionState batch model owned by
       forging:data-processing-design

@@ -44,7 +44,7 @@ You MUST have confirmed session paths from `assets:session-discovery` before cal
 `prepare_checksum_batch_tool`. Do not guess or derive paths manually.
 
 You MUST respect the single-execution-session constraint: only one checksum batch may run at a
-time per `sl-mcp` process. Cancel any active session before starting a new batch.
+time per `slf mcp` server process. Cancel any active session before starting a new batch.
 
 ---
 

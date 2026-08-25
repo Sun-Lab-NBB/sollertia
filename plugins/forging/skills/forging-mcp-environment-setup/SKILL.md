@@ -17,7 +17,7 @@ Diagnoses and resolves sollertia-forgery MCP server connectivity and environment
 
 **Covers:**
 - Verifying the sollertia-forgery MCP server is reachable and functional
-- Diagnosing why the `sl-mcp` command is unavailable
+- Diagnosing why the `slf` command is unavailable
 - Checking Python version compatibility (`>=3.14,<3.15`)
 - Validating sollertia-forgery package installation and core dependencies
 - Environment-specific guidance for conda, pip, and uv workflows
@@ -35,47 +35,47 @@ Diagnoses and resolves sollertia-forgery MCP server connectivity and environment
 
 ## Architecture
 
-sollertia-forgery provides a single MCP server accessed through the `sl-mcp` CLI entry point defined in
+sollertia-forgery provides a single MCP server, started by the `mcp` subcommand of the `slf` console script defined in
 `pyproject.toml`:
 
 ```toml
 [project.scripts]
-sl-mcp = "sollertia_forgery.interfaces.mcp_server:run_mcp_server"
+slf = "sollertia_forgery.interfaces.entry_points:slf_cli"
 ```
 
 | Server              | CLI command | Purpose                                                       |
 |---------------------|-------------|---------------------------------------------------------------|
-| `sollertia-forgery` | `sl-mcp`    | Session discovery, batch behavior processing, output querying |
+| `sollertia-forgery` | `slf mcp`   | Session discovery, batch behavior processing, output querying |
 
-The server runs with stdio transport. The sollertia forging plugin's `plugin.json` configures the Claude
-assistant to launch the server automatically:
+The `mcp` subcommand takes one option, `-t/--transport`, which defaults to `stdio`. The sollertia forging plugin's
+`plugin.json` configures the Claude assistant to launch the server automatically:
 
 ```json
 {
   "mcpServers": {
     "sollertia-forgery": {
-      "command": "sl-mcp",
-      "args": []
+      "command": "slf",
+      "args": ["mcp"]
     }
   }
 }
 ```
 
-The `sl-mcp` command must be on PATH when the Claude assistant starts. This means the Python environment
+The `slf` command must be on PATH when the Claude assistant starts. This means the Python environment
 where sollertia-forgery is installed must be active before launching the assistant.
 
 ### Dual-distribution model
 
 The sollertia forging plugin's Claude integration is split across two distribution channels:
 
-| Component                                                                 | Distributed via                 | What it provides                                                        |
-|---------------------------------------------------------------------------|---------------------------------|-------------------------------------------------------------------------|
-| Skills (`assets:session-discovery`, `/behavior-processing`, etc.) | sollertia forging plugin        | Skill files that guide agents through workflows                         |
-| MCP server registration                                                   | sollertia forging plugin        | Plugin entry that tells the Claude assistant how to start the server    |
-| MCP server code (`sl-mcp`)                                                | sollertia-forgery pip package   | The actual CLI command and server implementation                        |
+| Component                                                         | Distributed via               | What it provides                                                     |
+|-------------------------------------------------------------------|-------------------------------|----------------------------------------------------------------------|
+| Skills (`assets:session-discovery`, `/behavior-processing`, etc.) | sollertia forging plugin      | Skill files that guide agents through workflows                      |
+| MCP server registration                                           | sollertia forging plugin      | Plugin entry that tells the Claude assistant how to start the server |
+| MCP server code (`slf mcp`)                                       | sollertia-forgery pip package | The actual CLI command and server implementation                     |
 
 Installing the plugin alone registers the MCP server and makes skills available, but the server will fail
-to start because the `sl-mcp` CLI command is not present. The pip package must also be installed in the
+to start because the `slf` CLI command is not present. The pip package must also be installed in the
 active Python environment for the MCP server to function.
 
 This is the most common cause of MCP failures after initial setup: the plugin is installed but the pip
@@ -97,13 +97,13 @@ connection error, continue to step 2.
 ### Step 2: Verify CLI command availability
 
 ```bash
-which sl-mcp
+which slf
 ```
 
-Expected outcome: `which sl-mcp` prints a path inside the active environment (conda env, venv, or
-uv tool dir). If `which` returns nothing, the package is not installed in the active environment —
-see "Installation workflows" below. Do NOT try `sl-mcp --help`: the entry point takes no arguments
-and would immediately launch the stdio MCP server instead of printing usage.
+Expected outcome: `which slf` prints a path inside the active environment (conda env, venv, or uv tool dir). If `which`
+returns nothing, the package is not installed in the active environment, see "Installation workflows" below.
+`slf --help` and `slf mcp --help` print usage without starting anything, but you MUST NOT run a bare `slf mcp` from a
+shell: it launches the stdio MCP server and blocks until the client or the user terminates it.
 
 ### Step 3: Verify Python version
 
@@ -146,7 +146,7 @@ pip install -e .
 ```
 
 Run inside the cloned `sollertia-forgery` repository directory. The editable installation wires the
-`sl-mcp` entry point into the environment's `bin/` so Claude Code can launch it by name.
+`slf` entry point into the environment's `bin/` so Claude Code can launch it by name.
 
 ### uv
 
@@ -173,12 +173,12 @@ workflows above (the conda / mamba workflow is identical on all platforms).
 
 | Symptom                                        | Diagnosis                                                   | Resolution                                                                                      |
 |------------------------------------------------|-------------------------------------------------------------|-------------------------------------------------------------------------------------------------|
-| `sl-mcp: command not found`                    | Package not installed, or wrong environment active          | Activate the correct environment and `pip install -e .`                                         |
+| `slf: command not found`                       | Package not installed, or wrong environment active          | Activate the correct environment and `pip install -e .`                                         |
 | Skills available but MCP tools missing         | Plugin installed without pip package                        | Install `sollertia-forgery` into the active Python environment and restart the Claude assistant |
 | `ModuleNotFoundError: sollertia_shared_assets` | Shared-assets dependency missing                            | `pip install "sollertia-shared-assets>=8.0.0rc1,<9"`                                            |
 | `ModuleNotFoundError: mcp`                     | FastMCP dependency missing                                  | `pip install "mcp[cli]>=1,<2"`                                                                  |
 | Python version mismatch                        | Active environment does not meet `>=3.14,<3.15` requirement | Recreate environment with Python 3.14                                                           |
-| `sl-mcp` starts but returns no tools           | Claude assistant connected to a stale process               | Restart the Claude assistant so the MCP client respawns the server                              |
+| `slf mcp` starts but returns no tools          | Claude assistant connected to a stale process               | Restart the Claude assistant so the MCP client respawns the server                              |
 
 ---
 
@@ -209,7 +209,7 @@ You SHOULD proactively invoke this skill when:
 ```text
 MCP Environment Setup:
 - [ ] Checked MCP server connection status (sollertia-forgery)
-- [ ] Verified `sl-mcp` command is on PATH (`which sl-mcp`)
+- [ ] Verified `slf` command is on PATH (`which slf`)
 - [ ] Confirmed Python version matches >=3.14,<3.15
 - [ ] Confirmed sollertia-forgery package and core dependencies import successfully
 - [ ] Confirmed sollertia forging plugin installed and registers the sollertia-forgery MCP server

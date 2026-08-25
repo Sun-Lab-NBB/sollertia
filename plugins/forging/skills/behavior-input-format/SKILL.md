@@ -326,18 +326,19 @@ The raw camera frame timestamps originate with the `ataraxis-video-system` (axvs
 raw `{source_id}_log.npz` archive plus a shared camera manifest under `session.raw_data.camera_data_path`. The
 forging pipeline does NOT consume the upstream axvs `camera_timestamps/` landing directory and does NOT hardlink
 any feather: it re-extracts the logged timestamps from the raw camera logs and writes a `{name}_timestamps.feather`
-into `session.processed_data.behavior_data_path`, where the per-camera output name comes from the camera manifest
+into `session.processed_data.video_data_path`, where the per-camera output name comes from the camera manifest
 recorded at acquisition time (not from a hardcoded source-ID registry).
 
 Camera-timestamp extraction is a fully separate cross-system pipeline (`cross_system/video.py`, job
 name `camera_timestamp_extraction` exposed as `VIDEO_JOB_NAME`, backed by its own
-`camera_tracker_path` tracker). It is NOT a behavior-pipeline job — `_discover_jobs` never produces a
+`video_tracker_path` tracker). It is NOT a behavior-pipeline job — `_discover_jobs` never produces a
 camera job, and `BehaviorJobNames` has only `RUNTIME` and `MICROCONTROLLER`. The complete camera
 stage — raw-log discovery, source-ID parsing, manifest-driven output naming, the `frame_time_us`
 re-extraction, and its self-contained tracker-backed orchestrator — is owned by
 `forging:camera-timestamp-extraction`. This skill documents only that camera timestamps enter behavior processing
-as `{name}_timestamps.feather` files under `behavior_data/`. The concrete per-system camera roles (for example,
-face and body cameras) are part of the Mesoscope-VR hardware composition owned by `mesoscope:mesoscope-vr` and
+as `{name}_timestamps.feather` files under `processed_data/video_data/`. The concrete per-system camera roles
+(for example, face and body cameras) are part of the Mesoscope-VR hardware composition owned by
+`mesoscope:mesoscope-vr` and
 enter purely as manifest data, so no camera names are hardcoded here.
 
 ---
@@ -455,7 +456,7 @@ required separate pre-run of that pipeline.
 
 The camera timestamps enter behavior processing through the separate cross-system camera-timestamp
 extraction stage (see `forging:camera-timestamp-extraction`), which re-extracts the raw `camera_data/`
-logs into `{name}_timestamps.feather` files under `behavior_data/`. This is not a behavior-pipeline
+logs into `{name}_timestamps.feather` files under `processed_data/video_data/`. This is not a behavior-pipeline
 job: `_discover_jobs` only produces `runtime_processing` and `microcontroller_processing` jobs.
 
 **What gating actually applies:** If you run the behavior pipeline against a session whose

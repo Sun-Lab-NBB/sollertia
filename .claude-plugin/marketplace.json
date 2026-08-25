@@ -7,7 +7,7 @@
     {
       "name": "assets",
       "source": "./plugins/assets",
-      "description": "Provides configuration authoring, session and subject metadata discovery skills for sollertia-shared-assets. Includes MCP bindings for reading, writing, and validating every Sollertia platform shared asset (configuration files, session YAMLs, subject records, and task templates). Backed by the sollertia-shared-assets MCP server (slsa); system-specific record schemas live in the per-system companion plugin (e.g. the mesoscope plugin)."
+      "description": "Provides configuration authoring, session and read-asset discovery (surgery metadata today) skills for sollertia-shared-assets. Includes MCP bindings for reading, writing, and validating every Sollertia platform shared asset (configuration files, session YAMLs, subject records, task templates, and forged-dataset markers and column descriptions), and serves the Unity Editor relay tools the unity plugin consumes. Owns the library's extension path, the registry system by which a new acquisition system, session type, trial class, trigger type, read asset, or credentials category is added. Backed by the sollertia-shared-assets MCP server (slsa). System-specific record schemas live in the per-system companion plugin (e.g. the mesoscope plugin)."
     },
     {
       "name": "unity",
@@ -22,12 +22,12 @@
     {
       "name": "mesoscope",
       "source": "./plugins/mesoscope",
-      "description": "Provides Mesoscope-VR system-specific skills covering the sollertia-experiment system-specific layer (hardware subsystem inventory and MesoscopeSystemConfiguration, the runtime state machine, orchestrator, UIs, `sle mesoscope` CLI, and per-session Zaber and Mesoscope position snapshots) and the sollertia-shared-assets Mesoscope-VR record schemas (session descriptors, MesoscopeHardwareState, and MesoscopeExperimentConfiguration trial structures). Optional system plugin layered on the core plugins; relies on and requires both the experiment plugin's sollertia-experiment MCP server (sle mcp) and the assets plugin's sollertia-shared-assets MCP server (slsa mcp)."
+      "description": "Provides the Mesoscope-VR reference acquisition system, the worked example an agent copies when implementing a new system through `assets:library-extension`. Covers the sollertia-experiment system-specific layer (hardware subsystem inventory and MesoscopeSystemConfiguration, the runtime state machine, orchestrator, UIs, `sle mesoscope` CLI, and per-session Zaber and Mesoscope position snapshots), the sollertia-shared-assets Mesoscope-VR record schemas (session descriptors, MesoscopeHardwareState, and MesoscopeExperimentConfiguration trial structures), and the sollertia-forgery Mesoscope-VR processing layer (module parsing, trial decomposition, fluorescence alignment, dataset assembly, and the BehaviorDataFiles and DatasetColumn rosters). Optional system plugin layered on the core plugins. Relies on and requires both the experiment plugin's sollertia-experiment MCP server (sle mcp) and the assets plugin's sollertia-shared-assets MCP server (slsa mcp), and on the forging plugin's sollertia-forgery MCP server (slf mcp) for the processing and forging half."
     },
     {
       "name": "forging",
       "source": "./plugins/forging",
-      "description": "Umbrella plugin for sollertia-forgery skill systems. Currently ships the behavior processing subsystem (session discovery, batch preparation and execution, output verification, and feather data querying) and is structured to accommodate future forging, managing, and analysis subsystems. Backed by the sollertia-forgery MCP server (slf)."
+      "description": "Provides the sollertia-forgery data processing and dataset forging skills: behavior processing with its input artifacts and output feathers, cross-system camera timestamp extraction, the agnostic microcontroller feather-parsing primitives, checksum verification, project manifests, dataset definition and batch dataset forging with their input and output formats, remote server configuration, and the platform-general data-processing design doctrine. Delegates session discovery, filtering, and dataset container reads and writes to the assets plugin, and defers per-system stage schemas to the acquisition system's companion plugin (e.g. the mesoscope plugin). Backed by the sollertia-forgery MCP server (slf)."
     }
   ]
 }
