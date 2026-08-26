@@ -21,7 +21,7 @@ Diagnoses and resolves the **Unity-side** wiring of the Unity Editor relay used 
 **Covers:**
 - Verifying the Unity Editor is running with the `sollertia-virtual-reality` project open
 - Verifying the `McpBridge` HTTP listener is active on `127.0.0.1:8090`, `[::1]:8090`, and `localhost:8090`
-- Verifying the macOS / Linux monitor enumeration helper the Camera Mapping tools depend on
+- Verifying the macOS / Linux monitor enumeration helper on which the Camera Mapping tools depend
 - Testing the relay from the command line
 - Diagnosing why Unity relay tools return "Unable to reach the Unity Editor at ..." or "Unable to complete the request
   to the Unity Editor at ..."
@@ -315,8 +315,8 @@ Claude.
 6. **Respect the deletion bounds** whenever the tool removes anything:
    - A new deletable asset root joins `DeleteAllowedPrefixes` (`McpBridge.cs:55-61`).
    - A new hand-authored asset joins `DeleteProtectedPaths` (`McpBridge.cs:70-80`), which `delete_asset` consults
-     through `IsDeleteAllowed` (`McpBridge.cs:2060-2089`) and `delete_task` consults itself (`McpBridge.cs:413`) before
-     removing a scene.
+     through `IsDeleteAllowed` (`McpBridge.cs:2060-2089`) and which `delete_task` consults itself (`McpBridge.cs:413`)
+     before removing a scene.
    - Scenes are deliberately absent from `DeleteAllowedPrefixes`. They are removed only through `delete_task`, so the
      per-scene companion cascade can never be bypassed, and a new per-scene companion joins
      `TryDeleteScenePerSceneCompanions` (`McpBridge.cs:1082-1108`) in the same change.
@@ -338,7 +338,7 @@ The Unity half is unreachable from Claude until a matching wrapper exists in
 
 ### Finish the change
 
-- Add a row to the tool-ownership table in this skill's "Architecture" section naming the owning skill, and bump all
+- Add a row to the tool-ownership table in this skill's "Architecture" section naming the owning skill. Then bump all
   three counts ("The 15 relayed tools are:", "All 15 tools require ...", and the "fifteen arms" count in "Adding a
   bridge tool"). An unowned tool breaks the plugin's exclusive-ownership lattice.
 - Update the `sollertia-virtual-reality` README's "Editor MCP Bridge" table **and** its `The bridge dispatches **15
@@ -348,6 +348,11 @@ The Unity half is unreachable from Claude until a matching wrapper exists in
 - Bump the remaining counts: the `sollertia-virtual-reality` README's "15 Editor operations" bullet, its `CLAUDE.md`
   "dispatches 15 tools" line, the `eleven of the fifteen` counts in `/unity-tests`, and the `<remarks>` count on
   `Dispatch_DeclaredToolName_DoesNotFallThroughToUnknownTool` in `McpBridgeTests.cs`.
+- Bump the count in `plugins/assets/skills/assets-mcp-environment-setup/SKILL.md`, which says "15 Unity-relay tools,
+  spanning seven families". Its family grouping must still partition the full roster: a new tool either joins one of
+  the seven families or makes an eighth, so update the family count in the same edit.
+- Bump the `fifteen-tool` wording in the plugin descriptions, meaning `plugins/unity/.claude-plugin/plugin.json` and the
+  unity plugin's entry in `.claude-plugin/marketplace.json`, because both advertise the relay's tool surface.
 - Document the tool in the owning skill's own tool surface, and register the handler with whichever bridge fixture its
   prerequisites allow, meaning `McpBridgeTests`, `McpBridgeTaskParametersTests`, or `McpBridgePlayModeTests` (see
   `/unity-tests`).

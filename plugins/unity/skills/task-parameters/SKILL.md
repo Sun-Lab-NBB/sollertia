@@ -100,7 +100,7 @@ in `/scene-setup` "Scene-specific vs project-wide state", which is the canonical
 - `actor.controller` is the assigned `ControllerOutput`'s GameObject name (`"None"` when null).
 - `display.current_brightness` is the live runtime brightness (the "blank display" toggle in the GUI flips this to 0 or
   back to `brightness`).
-- `display.brightness` is the configured default that the "Show Display" button restores to. When the active
+- `display.brightness` is the configured default to which the "Show Display" button restores. When the active
   `DisplayObject` has no `DisplaySettings` asset assigned, the snapshot substitutes `100` for `brightness` and `0` for
   `height_in_vr` so the response stays well-formed, and writes to those two fields are silently dropped in that state
   (see [Validation rules](#validation-rules)).
@@ -213,7 +213,7 @@ trusted. The two such writes are `actor.model`, which destroys the previous `Mod
 new one, and `actor.controller`, which can change what `ControllerOutput` list a later read returns.
 
 On error the response is **only** `{"success": false, "error": "..."}`, with no `state`, `options`, or `visibility`
-keys. A rejected write applies nothing, so the state the failed call reports on is exactly the state the preceding
+keys. A rejected write applies nothing, so the failed call reports on exactly the state the preceding
 `read_task_parameters_tool()` returned, and no recovery read is required after a rejection.
 
 `Undo` coverage is asymmetric. Only the `task` section registers an undo step (`Undo.RecordObject(task, "Write Task
@@ -252,7 +252,7 @@ an active-scene change, so a plain `read_task_parameters_tool()` keeps reporting
 GUI's `Refresh Monitor Positions` button is the same code path (`FullScreenViewManager.RefreshMonitorPositions`), so the
 two re-detect identically.
 
-Two consequences you MUST account for:
+You MUST account for two consequences:
 
 - **Assignments carry across by monitor index, not by identity.** Removing a monitor from the middle of the arrangement
   shifts every later assignment up one slot. Re-read `state.camera_mapping` after a refresh and re-bind explicitly
@@ -345,15 +345,15 @@ GUI would have preserved.
 
 `mqtt.ip` is the only field the bridge accepts unconditionally (any string, and a non-string value is ignored rather
 than rejected). `mqtt.port` is bounded to `[0, 65535]` because the value reaches both the live client and the
-`EditorPrefs` entry a fresh session reloads from. `display.current_brightness` / `brightness` / `height_in_vr` must
-convert to finite floats but are not range-checked, and nothing downstream clamps or warns. `PerspectiveProjection`
+`EditorPrefs` entry from which a fresh session reloads. `display.current_brightness` / `brightness` / `height_in_vr`
+must convert to finite floats but are not range-checked, and nothing downstream clamps or warns. `PerspectiveProjection`
 passes `currentBrightness` straight to the display shader, so an out-of-range value writes and takes effect silently.
 `task.track_length` must be strictly positive and finite, so zero and negative values are rejected, and that bridge
 bound is the only check applied here. A `track_length` too short to cover the template's corridor still writes
-successfully and then disables the `Task` at the next Play Mode entry with `Task: trackLength <n> is too short for
-template '<name>'.` `/task-generator` owns that runtime contract and `ValidateTrackLengthCoversCorridor`, the
-generation-time gate that keeps it unreachable at the generated value. `task.track_seed` must convert to a 32-bit
-integer.
+successfully. That value then disables the `Task` at the next Play Mode entry with
+`Task: trackLength <n> is too short for template '<name>'.` `/task-generator` owns that runtime contract and
+`ValidateTrackLengthCoversCorridor`, the generation-time gate that keeps it unreachable at the generated value.
+`task.track_seed` must convert to a 32-bit integer.
 
 The zone-gated rejection of `require_interaction` and `require_wait` is **intentional**, because a successful write
 guarantees the flag will actually take effect at runtime. The bridge says so verbatim, in `Cannot set

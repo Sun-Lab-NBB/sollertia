@@ -376,7 +376,7 @@ See `/scene-setup` for the user-facing workflow and `/task-parameters` for the p
 
 ## GIMBL vs `SL.*` responsibility split
 
-Use this table to decide which layer a change belongs in.
+Use this table to decide in which layer a change belongs.
 
 | Concern                                     | Owner       | Example files                                      |
 |---------------------------------------------|-------------|----------------------------------------------------|

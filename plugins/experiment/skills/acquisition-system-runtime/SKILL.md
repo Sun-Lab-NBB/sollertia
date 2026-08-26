@@ -43,7 +43,8 @@ see `mesoscope:mesoscope-vr-runtime`.
 - Concrete Mesoscope-VR runtime behavior (its states, modes, CLI, visualizer) — see `mesoscope:mesoscope-vr-runtime`
 - Per-firmware-module wrapper APIs the orchestrator consumes — see `/microcontroller-interface`
 - The Unity VR task driver event source — see `/vr-driver-interface`
-- Session descriptors / `SessionTypes` authoring — owned by `assets:session-descriptors`
+- Authoring a new `SessionTypes` member and its descriptor dataclass — owned by `assets:library-extension`
+- Reading, amending, and validating an existing session descriptor — owned by `assets:session-descriptors`
 - Session-data lifecycle after acquisition (preprocess, transfer, delete) — see `/data-management`
 
 ---
@@ -247,8 +248,9 @@ descriptor). The CLI is the only public surface for starting a session.
 
 ## Workflow: adding a runtime mode
 
-1. **Author the descriptor** (`assets:session-descriptors`): add the `SessionTypes` member and
-   the descriptor dataclass; bump `sollertia-shared-assets`.
+1. **Author the descriptor** (`assets:library-extension`): add the `SessionTypes` member, its
+   `SYSTEM_SESSION_TYPES` claim, and the descriptor dataclass, then bump `sollertia-shared-assets`. A member
+   without that claim fails the import-time parity check, which takes down every `sle` entry point.
 2. **Extend the state machine** if the mode needs a new hardware configuration: add a state enum member
    and a state-driving method that logs the transition.
 3. **Add a visualizer mode** if the display needs differ from existing modes.
@@ -306,7 +308,8 @@ pattern not captured here, add it.
 | `mesoscope:mesoscope-vr`         | The current worked instance of the static design pattern                                     |
 | `/microcontroller-interface`     | Per-module wrapper APIs and the SharedMemoryArray accessors the loop reads                   |
 | `/vr-driver-interface`           | The typed-event asset-subsystem source (`VRTaskEvent`) the loop dispatches                   |
-| `assets:session-descriptors`     | Authors the descriptors and `SessionTypes` the runtime consumes                              |
+| `assets:session-descriptors`     | Reads, amends, and validates the descriptors the runtime writes                              |
+| `assets:library-extension`       | Authors new `SessionTypes` members and their descriptor dataclasses                          |
 | `/data-management`               | Post-acquisition session-data lifecycle                                                      |
 | `/pipeline`                      | Where the runtime phase sits in the end-to-end lifecycle                                     |
 

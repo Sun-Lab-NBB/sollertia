@@ -40,7 +40,8 @@ and must be invoked by hand-off.
 - Reading session descriptors → `assets:session-descriptors`
 - Reading frozen runtime snapshots → `mesoscope:mesoscope-vr-snapshots`
 - Reading subject metadata → `assets:data-assets`
-- Reading or curating datasets → `forging:datasets`
+- Reading or inspecting forged datasets → `assets:datasets`
+- Composing or growing a dataset → `forging:dataset-definition`
 
 You MUST NOT call any `slsa` MCP tool that mutates state. Read-only `read_*` and `discover_*`
 tools from the assets plugin's MCP server may be called as a "natural share" only when verifying that

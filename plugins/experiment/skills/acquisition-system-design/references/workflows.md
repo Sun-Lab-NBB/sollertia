@@ -86,14 +86,27 @@ only microcontrollers gains a camera), follow these steps:
    inherited unchanged. Without this module the new system is CLI-driveable but exposes no
    system-specific MCP surface to agents.
 
-10. **(Optional but recommended) Author dedicated agentic assets for the new system.** A new
-    acquisition system optionally benefits from its own per-system instance skill in this plugin,
-    documenting the system's hardware subsystems, configuration field surface, binding-class composition, and
-    lifecycle. Follow the structure of `mesoscope:mesoscope-vr`. The system runs without it, but
-    omitting it leaves the system driveable yet undocumented for agents (and the pattern skills above
-    keep pointing at Mesoscope-VR as the sole worked instance).
+10. **Author the system's dedicated companion plugin.** System-specific skills do not live in the experiment
+    plugin, which stays system-agnostic. They live in a dedicated companion plugin at `plugins/<system>/`,
+    mirroring `plugins/mesoscope/`. That plugin is a required deliverable rather than an optional one: the
+    pattern skills above and the assets plugin's schema skills carry pointers that assume the per-system skills
+    exist, so a system without them is driveable yet undocumented for agents. Author three things:
 
-11. **(Optional but recommended) Author a per-system runtime skill** when the system has non-trivial
+    - `plugins/<system>/skills/<system>/SKILL.md` — the per-system instance skill, documenting the system's
+      hardware subsystems, configuration field surface, binding-class composition, and lifecycle. Follow the
+      structure of `mesoscope:mesoscope-vr`.
+    - `plugins/<system>/.claude-plugin/plugin.json` — the plugin manifest, carrying `name` (the `<system>`
+      token), `version`, a `description` naming the layers the plugin covers and the MCP servers it relies on,
+      `repository`, `license`, and `"skills": "./skills/"`. A companion plugin declares no `mcpServers` block
+      of its own, and it consumes the servers the core plugins declare.
+    - An entry in the marketplace manifest at `.claude-plugin/marketplace.json`, appended to its `plugins`
+      array with `name`, `source` (`./plugins/<system>`), and a `description`. Without that entry the plugin
+      is not installable from the marketplace.
+
+    `assets:library-extension` owns the full cross-repo touch list for a new acquisition system and names these
+    same deliverables. Work through it alongside this step so no coupled touch is missed.
+
+11. **Author a per-system runtime skill** in the same companion plugin when the system has non-trivial
     runtime modes / state machines / training behaviors. Follow the structure of
     `mesoscope:mesoscope-vr-runtime`.
 

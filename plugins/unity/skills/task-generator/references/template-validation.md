@@ -1,8 +1,8 @@
 # Template validation and the two-repo field mirror
 
 What `ConfigLoader` rejects before `CreateTask` writes anything, and the field-by-field inventory the manual C#/Python
-template mirror has to stay in lockstep with. Read this when adding a template field, extending the validation surface,
-or diagnosing a `create_task` failure whose message names a template field rather than an asset.
+template mirror must match. Read this when adding a template field, extending the validation surface, or diagnosing a
+`create_task` failure whose message names a template field rather than an asset.
 
 `ConfigLoader.LoadTemplate` deserializes with `UnderscoredNamingConvention` and `IgnoreUnmatchedProperties`, so an
 unrecognized YAML key is dropped in silence and surfaces only as the downstream validation failure of whichever field
@@ -117,6 +117,6 @@ at `create_task` time, far from the edit that caused it, in the other repo. Ther
 their cm field by `cmPerUnityUnit`. They are not template fields and have no Python counterpart.
 
 Mode-aware zone, boundary, and ordering validation lives on the Python side alone, in
-`TaskTemplate._validate_zone_positions` (`sollertia-shared-assets`, `configuration/vr_configuration.py`), where
-`collision` validates only `stimulus_location`, `occupancy_trigger` validates only the trigger zone, and `interaction`,
+`TaskTemplate._validate_zone_positions` (`sollertia-shared-assets`, `configuration/vr_configuration.py`). There,
+`collision` validates only `stimulus_location`, and `occupancy_trigger` validates only the trigger zone. `interaction`,
 `occupancy_disarm`, and `occupancy_arm` validate the zone, the boundary, and their ordering.

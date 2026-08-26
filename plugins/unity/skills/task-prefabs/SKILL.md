@@ -272,8 +272,8 @@ hardcoded path.`
 **Active-scene swap.** When the scene being deleted is the Editor's active scene, the tool opens
 `Assets/Scenes/ExperimentTemplate.unity` in single mode first, so the Editor is left on the template scene once the
 delete finishes. The swap is conditional on that scene being the open one, and the response reports nothing about it.
-You MUST re-open the scene you intend to work in through `/task-scenes` before any skill that reads the active scene
-runs, including `/task-parameters`, `/play-mode`, and `/task-scenes` itself.
+You MUST re-open your intended working scene through `/task-scenes` before any skill that reads the active scene runs,
+including `/task-parameters`, `/play-mode`, and `/task-scenes` itself.
 
 Unlike `create_task_tool` and `open_scene_tool`, `delete_task_tool` takes no `unsaved_changes` argument and does not
 consult the unsaved-changes policy: the swap opens the template scene unconditionally, so unsaved edits in the scene
@@ -383,11 +383,11 @@ value, so neither `triggerMode` nor `showBoundary` can be read back from its out
 GameObject's name, its child shape, and its `collider_size.z`, then confirm the intended mode from the template's
 `trigger_type`.
 
-The five `trigger_type` modes (`interaction`, `collision`, `occupancy_disarm`, `occupancy_arm`, `occupancy_trigger`),
-their per-mode hierarchy trees, the collider math behind each annotation, and the key markers that separate a healthy
-prefab from a miswired one live in [references/generated-prefab-anatomy.md](references/generated-prefab-anatomy.md).
-Read it whenever an inspection result has to be judged against a template's `trigger_type`, or when a segment's zone
-children look wrong.
+[references/generated-prefab-anatomy.md](references/generated-prefab-anatomy.md) covers the five `trigger_type` modes
+(`interaction`, `collision`, `occupancy_disarm`, `occupancy_arm`, `occupancy_trigger`) and their per-mode hierarchy
+trees. That reference also carries the collider math behind each annotation, and the key markers that separate a healthy
+prefab from a miswired one. Read it whenever an inspection result has to be judged against a template's `trigger_type`,
+or when a segment's zone children look wrong.
 
 ---
 
@@ -427,7 +427,7 @@ children look wrong.
 | `/task-generator` (this plugin)              | Reference for the `CreateTask` pipeline this tool invokes             |
 | `/mqtt-contract` (this plugin)               | Reference for MQTT topics wired by generated zone scripts             |
 | `/gimbl-framework` (this plugin)             | Reference for `ActorObject` coordinate frame usage                    |
-| `assets:task-templates`                      | Upstream, owns the YAML template the prefab is built from             |
+| `assets:task-templates` | Upstream, owns the YAML template from which the prefab is built |
 | `assets:experiment-configuration`            | Downstream, per-project instantiation of the template                 |
 | `assets:assets-mcp-environment-setup`        | Run first, owns the slsa MCP server diagnostic                        |
 | `experiment:vr-driver-interface`             | Host consumes the cues and zones in the generated prefab at runtime   |

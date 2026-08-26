@@ -1,8 +1,8 @@
 ---
 name: mqtt-contract
 description: >-
-  Documents every MQTT topic sollertia-virtual-reality publishes or subscribes to, with its payload
-  shape, direction, and owning script, covering the bidirectional MQTT 5.0 contract with
+  Documents every MQTT topic to which sollertia-virtual-reality publishes or subscribes, with its
+  payload shape, direction, and owning script, covering the bidirectional MQTT 5.0 contract with
   sollertia-experiment. All topics are flat PascalCase constants centralized in
   Assets/Gimbl/Scripts/MQTT/MQTTTopics.cs. Use when authoring or modifying MQTT wiring, diagnosing a
   missed message, or adding a new trigger zone, lifecycle marker, or UI subscriber.
@@ -24,7 +24,7 @@ alternative for `RequireInteraction` / `RequireWait`), and `/play-mode` (mid-run
 ## Scope
 
 **Covers:**
-- Every MQTT topic published or subscribed to by `sollertia-virtual-reality` scripts
+- Every MQTT topic with a `sollertia-virtual-reality` publisher or subscriber
 - Payload shapes (trigger-only vs JSON-serialized typed messages)
 - Owning script and initialization site for each channel
 - Required topic conventions (flat PascalCase, no trailing slash, centralized constants)
@@ -135,11 +135,12 @@ resolves the per-trial outcome from them.
 `cause` is derived per mode, and the derivation is not "did the animal act":
 
 - **Occupancy modes** (`occupancy_disarm`, `occupancy_arm`, `occupancy_trigger`): `cause` is `guidance` exactly when
-  this zone's child `OccupancyGuidanceZone` already published `Delay` earlier in the same lap, otherwise `behavior`, per
+  this zone's child `OccupancyGuidanceZone` already published `Delay` earlier in the same lap, otherwise `behavior`.
+  That derivation comes from
   `bool brakeGuided = _occupancyGuidanceZone != null && _occupancyGuidanceZone.BrakeTriggered;`
-  (`StimulusTriggerZone.cs:263-265`), where `BrakeTriggered` latches inside `TriggerBrakeActivation` immediately after
-  the `Delay` send (`OccupancyGuidanceZone.cs:35,103-104`). Publishing `Delay` therefore deterministically changes the
-  later `Stimulus.cause` on that lap.
+  (`StimulusTriggerZone.cs:263-265`). `BrakeTriggered` latches inside `TriggerBrakeActivation` immediately after the
+  `Delay` send (`OccupancyGuidanceZone.cs:35,103-104`). Publishing `Delay` therefore deterministically changes the later
+  `Stimulus.cause` on that lap.
 - **Interaction mode**: `guidance` marks the two fallback resolutions, which are entering the nested `GuidanceZone`
   while `requireInteraction` is false (`StimulusTriggerZone.cs:219-221`), or entering the stimulus zone at all when no
   `GuidanceZone` exists (`:227-229`). `behavior` marks a sensor interaction inside the zone (`:206`, `:214`) **and** the

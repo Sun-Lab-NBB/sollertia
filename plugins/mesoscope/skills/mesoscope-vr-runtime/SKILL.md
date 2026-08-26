@@ -39,7 +39,9 @@ Unity VR task driver the orchestrator uses to couple to the game engine, see
 - The platform-general runtime pattern — see `experiment:acquisition-system-runtime`
 - The Unity VR task driver, its MQTT topic vocabulary, and trial decomposition — see `experiment:vr-driver-interface`
 - Per-firmware-module wrappers and slmc Module classes — see `experiment:microcontroller-interface`
-- Session descriptors and `SessionTypes` enum — owned by `assets:session-descriptors`
+- Descriptor and hardware-state field schemas — owned by `/mesoscope-vr-session-schema`
+- The generic descriptor tools — owned by `assets:session-descriptors`
+- The `SessionTypes` member and its `DESCRIPTOR_REGISTRY` entry — owned by `assets:library-extension`
 - Task template and trial-structure authoring — owned by `assets:task-templates`
 - Per-experiment configuration — owned by `assets:experiment-configuration`
 - Session-data lifecycle (preprocessing, transfer, deletion) — owned by `experiment:data-management`
@@ -88,17 +90,18 @@ Unity VR task driver the orchestrator uses to couple to the game engine, see
 
 ## Authoritative bases
 
-| Concern                                   | Authority                               |
-|-------------------------------------------|-----------------------------------------|
-| Platform-general runtime pattern          | `experiment:acquisition-system-runtime` |
-| Mesoscope-VR hardware composition         | `/mesoscope-vr`                         |
-| Unity VR task driver + MQTT contract      | `experiment:vr-driver-interface`        |
-| Per-firmware-module wrapper API           | `experiment:microcontroller-interface`  |
-| `SessionTypes` enum                       | `assets:session-descriptors`            |
-| Session descriptor dataclass authoring    | `assets:session-descriptors`            |
-| Task template authoring (trial structure) | `assets:task-templates`                 |
-| Experiment configuration authoring        | `assets:experiment-configuration`       |
-| Session-data lifecycle                    | `experiment:data-management`            |
+| Concern                                               | Authority                               |
+|-------------------------------------------------------|-----------------------------------------|
+| Platform-general runtime pattern                      | `experiment:acquisition-system-runtime` |
+| Mesoscope-VR hardware composition                     | `/mesoscope-vr`                         |
+| Unity VR task driver + MQTT contract                  | `experiment:vr-driver-interface`        |
+| Per-firmware-module wrapper API                       | `experiment:microcontroller-interface`  |
+| `SessionTypes` member and `DESCRIPTOR_REGISTRY` entry | `assets:library-extension`              |
+| Descriptor and hardware-state field schemas           | `/mesoscope-vr-session-schema`          |
+| Generic descriptor read and write tooling             | `assets:session-descriptors`            |
+| Task template authoring (trial structure)             | `assets:task-templates`                 |
+| Experiment configuration authoring                    | `assets:experiment-configuration`       |
+| Session-data lifecycle                                | `experiment:data-management`            |
 
 This skill documents how the runtime *consumes* descriptors, session data, and task templates. It
 does NOT document how to author them.
@@ -280,59 +283,8 @@ are documented in `experiment:vr-driver-interface`. The Unity side of the contra
 
 ## Per-mode runtime logic functions
 
-Each runtime mode has a top-level function in `sollertia_experiment/mesoscope_vr/data_acquisition.py`
-that:
-
-1. Validates inputs and prepares the output directories (builds the `SessionData` hierarchy).
-2. Builds the session-specific descriptor from default values, the previous same-type session's
-   parameters (when available), and per-flag overrides; experiment sessions additionally load the
-   `MesoscopeExperimentConfiguration` from its YAML.
-3. Builds the hardware assets the mode needs. `lick_training_logic`, `run_training_logic`, and
-   `experiment_logic` construct `MesoscopeVRSystem`, which owns and starts its own `DataLogger`.
-   `window_checking_logic` and `maintenance_logic` construct their own `DataLogger` and hardware
-   assets directly, with no orchestrator.
-4. Runs the session's control loop. The three `MesoscopeVRSystem` modes drive state transitions and
-   call `runtime_cycle()` each iteration.
-5. Tears down on completion or error.
-
-Current functions:
-
-| Function                | Purpose                                                                          |
-|-------------------------|----------------------------------------------------------------------------------|
-| `window_checking_logic` | Cranial window maintenance session (no behavior)                                 |
-| `lick_training_logic`   | Lickport-only training (animal learns to operate the lickport for water rewards) |
-| `run_training_logic`    | Wheel-only training (animal learns to run for water rewards)                     |
-| `experiment_logic`      | Full Mesoscope-VR experiment session with VR trial structure                     |
-| `maintenance_logic`     | Hardware maintenance (valve calibration, motor positioning, brake testing)       |
-
-Every session-running function takes the experimenter, project, and animal identifiers and builds the
-`SessionData` and descriptor internally. `lick_training_logic`, `run_training_logic`, and
-`experiment_logic` additionally take the animal weight and per-flag parameter overrides, and
-`experiment_logic` also takes `experiment_name`. `window_checking_logic` takes exactly the three
-identifiers. `maintenance_logic()` takes no session.
-
-### Session descriptor consumption
-
-The descriptor dataclasses are owned by `sollertia-shared-assets` and documented via
-`assets:session-descriptors`. The per-mode logic function instantiates the descriptor with default
-values, layers in the previous same-type session's parameters (when available) and per-flag overrides,
-and parameterizes the state machine from it.
-
-The runtime both consumes and completes the descriptor:
-
-- At construction the orchestrator caches the partially configured descriptor to the session's
-  `raw_data` directory, so the session can be preprocessed even if the runtime terminates
-  unexpectedly.
-- During runtime it records runtime-discovered values into the descriptor in place: the dispensed and
-  pause-dispensed water volumes, the pre-filled experimenter-delivered water volume, the `incomplete`
-  flag, and (for run-training sessions) the final speed and duration thresholds as the operator
-  adjusts them through the control UI.
-- At session end `_generate_session_descriptor()` calls `finalize_session_descriptor(...)`, which
-  collects the supervising experimenter's notes through a blocking `questionary` terminal prompt and,
-  for window-checking sessions, a 0-3 cranial-window quality rating; stores both on the descriptor;
-  writes the completed descriptor to the session's `raw_data` directory; and copies it to the animal's
-  persistent directory, where it is used to restore the training parameters across sessions of the
-  same type.
+The sequence every per-mode logic function follows, the table of the current functions, and the session-descriptor
+consumption pattern are documented in [`references/runtime-surface.md`](references/runtime-surface.md).
 
 ---
 
@@ -345,6 +297,11 @@ constructed by the orchestrator and `open()`ed in the mode selected for the sess
 `RuntimeControlUI` (in `sollertia_experiment/mesoscope_vr/runtime_ui.py`) is the interactive control
 GUI surfaced during a session — pause/resume, run-training threshold modifiers, and manual reward
 delivery. The maintenance GUI lives separately in `maintenance_ui.py`.
+
+The module-level `RUN_TRAINING_THRESHOLD_LIMITS` (a frozen `RunTrainingThresholdLimits` in `mesoscope_vr/system.py`)
+fixes the run-training speed bounds at 0.1-5.0 cm/s and the duration bounds at 0.05-5.0 s. The run-training logic
+clamps the effective thresholds to these bounds and the control GUI constrains its spin boxes to them, so a requested
+value outside the range is silently clamped rather than rejected.
 
 ### VisualizerMode
 
@@ -377,35 +334,8 @@ lifecycle documentation for the SharedMemoryArray pattern.
 
 ## CLI command surface
 
-The user-facing entry points live in `sollertia_experiment/interfaces/mesoscope_vr.py`, registered
-under the `sle mesoscope` command group (itself registered on the top-level `sle` group in
-`interfaces/entry_points.py`):
-
-| Command                              | Calls                                  | Notes                                                    |
-|--------------------------------------|----------------------------------------|----------------------------------------------------------|
-| `sle mesoscope configure system`     | `create_system_configuration_file`     | Writes the system configuration YAML                     |
-| `sle mesoscope configure experiment` | `create_experiment_configuration_file` | Creates an experiment configuration from a task template |
-| `sle mesoscope maintain`             | `maintenance_logic`                    | Hardware maintenance GUI (no session)                    |
-| `sle mesoscope run window-checking`  | `window_checking_logic`                | Cranial-window maintenance mode                          |
-| `sle mesoscope run lick-training`    | `lick_training_logic`                  | Defaults match the lick-training descriptor              |
-| `sle mesoscope run run-training`     | `run_training_logic`                   | Absolute speed/duration threshold targets via flags      |
-| `sle mesoscope run experiment`       | `experiment_logic`                     | Takes `--experiment` for the experiment configuration    |
-| `sle mesoscope preprocess`           | (session data lifecycle)               | See `experiment:data-management`                         |
-| `sle mesoscope delete`               | (session data lifecycle)               | See `experiment:data-management`                         |
-| `sle mesoscope migrate`              | (session data lifecycle)               | See `experiment:data-management`                         |
-
-`sle mesoscope configure` is a command group with two targets. `configure system` takes no options
-and writes the system configuration YAML under the working directory. `configure experiment` takes
-the required `-p/--project`, `-e/--experiment`, and `-t/--template` options plus `-sc/--state-count`
-(default 1), `--reward-size` (default 5.0), `--reward-tone-duration` (default 300), and
-`--puff-duration` (default 100), and writes the experiment configuration under the configured data
-root. See `assets:experiment-configuration` for the configuration contract itself.
-
-`sle mesoscope run` is a command group. The `--user`, `--project`, `--animal`, and `--animal-weight`
-options are supplied on `run` and shared by every session subcommand. Each session subcommand reads
-those shared values out of the Click context, adds its own per-flag overrides, and calls the matching
-per-mode logic function, which builds the `SessionData` and the descriptor. The CLI is the only
-public surface for starting a session.
+The `sle mesoscope` command table and the option surfaces of the `configure` and `run` command groups are documented
+in [`references/runtime-surface.md`](references/runtime-surface.md).
 
 ---
 
@@ -416,9 +346,14 @@ touch repositories outside `sollertia-experiment` are delegated via explicit han
 
 ### Step 1: Author the session descriptor (assets plugin)
 
-Hand off to `assets:session-descriptors` to add the new `SessionTypes` member, create the descriptor
-dataclass, register it in the preprocessing map, export it, and bump the `sollertia-shared-assets`
-version.
+Hand off to `assets:library-extension`, which owns the full touch list for adding a new `SessionTypes` member. The one
+Mesoscope-VR-specific point is that the new member MUST be claimed by `AcquisitionSystems.MESOSCOPE_VR` in
+`SYSTEM_SESSION_TYPES` to be runnable on this system.
+
+That skill's registry-model and import-time-guardrail sections carry the rest of the touch list, and its "What the
+checks do not catch" section carries the touch points a bare import never rejects.
+
+The descriptor's field surface is documented in `/mesoscope-vr-session-schema`.
 
 ### Step 2: Extend the state machine (this repo)
 
@@ -479,7 +414,9 @@ This skill is updated when:
 
 This skill is NOT updated when:
 
-- A descriptor's field surface or the `SessionTypes` enum changes (owned by `assets:session-descriptors`).
+- A descriptor's or the hardware state's field surface changes (owned by `/mesoscope-vr-session-schema`).
+- The `SessionTypes` enum or its `DESCRIPTOR_REGISTRY` entry changes (owned by `assets:library-extension`).
+- The generic descriptor read and write tooling changes (owned by `assets:session-descriptors`).
 - Hardware composition changes (owned by `/mesoscope-vr`).
 - Per-firmware-module wrapper APIs change (owned by `experiment:microcontroller-interface`).
 - The Unity VR driver, MQTT topics, or trial decomposition change (owned by `experiment:vr-driver-interface`).
@@ -500,7 +437,8 @@ reconcile this skill against ground truth.
 | `experiment:acquisition-system-design`  | Platform-general static composition pattern.                                             |
 | `experiment:vr-driver-interface`        | The `VRTaskDriver` the orchestrator uses for Unity coupling; MQTT + trial decomposition. |
 | `experiment:microcontroller-interface`  | Per-module wrapper API the orchestrator and visualizer consume.                          |
-| `assets:session-descriptors`            | Authors descriptors and the `SessionTypes` enum the runtime consumes.                    |
+| `assets:session-descriptors`            | Generic descriptor read and write tooling for the descriptors the runtime writes.        |
+| `assets:library-extension`              | Adds the `SessionTypes` member and its `DESCRIPTOR_REGISTRY` entry a new mode needs.     |
 | `assets:task-templates`                 | Authors task templates the experiment runtime loads.                                     |
 | `assets:experiment-configuration`       | Authors experiment configurations the runtime loads.                                     |
 | `experiment:data-management`            | Downstream session-data lifecycle (preprocess, transfer, delete).                        |
@@ -519,8 +457,8 @@ reconcile this skill against ground truth.
 When adding a new runtime mode:
 
 Cross-repo handoffs:
-- [ ] Session descriptor authored via assets:session-descriptors
-- [ ] SessionTypes enum extended via assets:session-descriptors
+- [ ] assets:library-extension's verification checklist completed for the new SessionTypes member
+- [ ] Descriptor field surface documented via /mesoscope-vr-session-schema
 - [ ] sollertia-shared-assets version bumped
 
 This repo (sollertia-experiment):

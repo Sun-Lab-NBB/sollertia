@@ -123,8 +123,8 @@ OccupancyGuidanceRegion.BoxCollider.center = (0, 0, occupancyCenterOffset + zone
 For interaction-mode trials the generator places the zone root at the zone's center such that `zone_z =
 zone.transform.localPosition.z` equals `(zone_end + zone_start) / (2 * cm_per_unity_unit)`, and the `BoxCollider.size.z`
 equals `(zone_end - zone_start) / cm_per_unity_unit`. For the three occupancy modes (`occupancy_disarm`,
-`occupancy_arm`, `occupancy_trigger`) the generator instead places the root at `rootZ`, past the waiting range, so the
-root collider marks the boundary and the wait region lives on the child `OccupancyRegion`. For collision mode the root
-is a 0.4-deep boundary wall centered at `stimulus_location + 0.2`, with no occupancy region and no guidance child.
-Anyone auditing a generated segment via `inspect_prefab_tool` should apply the appropriate formula per `trigger_type`
-when comparing the prefab against the template's zone-cm fields.
+`occupancy_arm`, `occupancy_trigger`) the generator instead places the root at `rootZ`, past the waiting range. The root
+collider marks the boundary, and the wait region lives on the child `OccupancyRegion`. For collision mode the root is a
+0.4-deep boundary wall centered at `stimulus_location + 0.2`, with no occupancy region and no guidance child. Anyone
+auditing a generated segment via `inspect_prefab_tool` should apply the appropriate formula per `trigger_type` when
+comparing the prefab against the template's zone-cm fields.

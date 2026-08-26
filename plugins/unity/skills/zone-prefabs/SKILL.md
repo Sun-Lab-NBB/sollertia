@@ -310,7 +310,7 @@ handles routine variants in one call.
   later lap uses. `Task.ResetZoneStates` then re-invokes it at every corridor advance. The serialized value is therefore
   not what gates first-frame firing, so do not "fix" behavior by flipping it.
 - **Skipping `inspect_prefab_tool`.** Unity will silently load broken prefabs into the Editor but produce import errors
-  that are easy to miss. `inspect_prefab_tool` returns a structured failure the agent can act on.
+  that are easy to miss. `inspect_prefab_tool` returns a structured failure on which the agent can act.
 - **Forgetting `DeleteProtectedPaths`.** A new hand-authored prefab without protection will be removed by a future
   `delete_asset_tool` cleanup pass. Always update `McpBridge.cs` in the same PR that introduces the prefab.
 

@@ -58,7 +58,7 @@ sessions cannot be forged even though they produce behavior feathers. Eligibilit
 enforced by `_create_dataset` inside the pipeline.
 
 You MUST respect the single-execution-session constraint: only one batch may run at a
-time per `sl-mcp` process. Cancel any active session before starting a new batch.
+time per `slf mcp` server process. Cancel any active session before starting a new batch.
 
 Per-session forged output is written to `{session_root}/data.feather` — directly under
 the session's own directory, NOT under `processed_data/`. The session's
@@ -240,8 +240,8 @@ Key architectural facts:
   `{project_root}/{dataset_name}/`.
 - **ProcessingTracker lifecycle:** `SCHEDULED` → `RUNNING` → `SUCCEEDED` / `FAILED`,
   persisted as YAML.
-- **Single execution session constraint:** one batch per `sl-mcp` process. Cancel
-  before starting another.
+- **Single execution session constraint:** one batch per `slf mcp` server process.
+  Cancel before starting another.
 - **Remote execution mode:** each worker subprocess runs
   `run_forging_pipeline(name=..., session_names=(), project_root=..., job_id=...)` so
   that only the single session identified by `job_id` is assembled.

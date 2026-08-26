@@ -58,12 +58,16 @@ it.
 `assemble_cindra_dataset` in `mesoscope_vr/fluorescence.py` is the stage entry point. It takes four directory
 paths and returns a single Polars DataFrame:
 
-| Parameter             | Supplies                                                                            |
-|-----------------------|-------------------------------------------------------------------------------------|
-| `cindra_data_path`    | Single-recording cindra outputs: fluorescence traces, `cell_classification.npy`, metadata |
-| `behavior_data_path`  | The microcontroller mesoscope-frame TTL feather (`mesoscope_frame_data.feather`)    |
-| `multiday_data_path`  | The session's multi-recording cindra outputs (`cell_fluorescence.npy` and companions) |
-| `raw_data_path`       | The session `raw_data` directory; resolves the ScanImage metadata archive for the fallback path |
+| Parameter                   | Supplies                                                                                      |
+|-----------------------------|-----------------------------------------------------------------------------------------------|
+| `cindra_data_path`          | Single-recording cindra outputs: fluorescence traces, `cell_classification.npy`, metadata     |
+| `microcontroller_data_path` | The session's processed microcontroller-data directory holding `mesoscope_frame_data.feather` |
+| `multiday_data_path`        | The session's multi-recording cindra outputs (`cell_fluorescence.npy` and companions)         |
+| `raw_data_path`             | The session `raw_data` directory. Holds the ScanImage metadata archive the fallback resolves  |
+
+`microcontroller_data_path` is the session's `processed_data/microcontroller_data` directory, the tree the module
+parsers write their feathers into. The filename roster that directory follows is owned by
+`mesoscope:mesoscope-vr-processing-schema`.
 
 The authoritative target frame count comes from the cindra `cell_fluorescence.npy` array. The function reads its
 shape through a memory-mapped header read (`np.load(..., mmap_mode="r").shape`) and unpacks the second axis as
@@ -216,13 +220,14 @@ downstream place-cell, reward-cell, and SCE detectors treat as valid analysis in
 
 ## Related skills
 
-| Skill                                    | Relationship                                                                 |
-|------------------------------------------|------------------------------------------------------------------------------|
-| `forging:data-processing-design`         | Owns the agnostic processing-stage doctrine this stage concretizes           |
-| `forging:dataset-forging-input-format`   | Documents the upstream cindra single-recording and multi-day fluorescence inputs |
-| `forging:dataset-forging-results`        | Owns the forged fluorescence array shapes and output-schema reference        |
-| `mesoscope:mesoscope-vr-dataset-assembly`| Consumes the frame-aligned reference vector produced here                     |
-| `mesoscope:mesoscope-vr-module-parsing`  | Produces the upstream mesoscope-frame TTL feather                            |
+| Skill                                      | Relationship                                                                     |
+|--------------------------------------------|----------------------------------------------------------------------------------|
+| `forging:data-processing-design`           | Owns the agnostic processing-stage doctrine this stage concretizes               |
+| `forging:dataset-forging-input-format`     | Documents the upstream cindra single-recording and multi-day fluorescence inputs |
+| `forging:dataset-forging-results`          | Owns the forged fluorescence array shapes and output-schema reference            |
+| `mesoscope:mesoscope-vr-dataset-assembly`  | Consumes the frame-aligned reference vector produced here                        |
+| `mesoscope:mesoscope-vr-module-parsing`    | Produces the upstream mesoscope-frame TTL feather                                |
+| `mesoscope:mesoscope-vr-processing-schema` | Owns the processed-data filename roster this stage reads its TTL feather from    |
 
 ---
 

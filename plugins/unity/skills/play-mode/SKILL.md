@@ -26,8 +26,9 @@ No other skill in the marketplace may call these.
 
 **Does not cover:**
 - The acquisition-runtime side of Play Mode. `sollertia-experiment`'s `VRTaskDriver` owns the runtime enter/exit
-  sequence and its handshake (see `experiment:vr-driver-interface`). The platform-general runtime pattern it sits inside
-  is `experiment:acquisition-system-runtime`, and each acquisition system's own CLI is owned by that system's plugin
+  sequence and its handshake (see `experiment:vr-driver-interface`). The platform-general runtime pattern inside which
+  it sits is `experiment:acquisition-system-runtime`, and each acquisition system's own CLI is owned by that system's
+  plugin
 - The automated Play Mode test suite. `Assets/Tests/PlayMode/` (assembly `Sollertia.Tests.PlayMode`) runs under the Test
   Runner or headlessly via `Unity -batchmode -nographics -projectPath . -runTests -testPlatform PlayMode`. The Test
   Runner drives its own Play Mode transitions and MUST NOT be interleaved with these tools (see `/unity-tests`)
@@ -163,9 +164,9 @@ You MUST hand off to the owning skill (`/task-scenes`, `/task-prefabs`) only aft
   Play Mode entry when the active scene has compile errors. In that case `get_play_state_tool` keeps reporting `edit`.
 - **Play Mode publishes on the configured broker.** Entering Play Mode makes the scene's `MQTTClient` connect to the
   IP/port in the MQTT section and broadcast `SessionStart`. Exiting broadcasts `SessionStop` (`MQTTClient.cs:117-133`).
-  Trigger zones publish `Stimulus` and `Delay` while playing. If that broker is the one an acquisition runtime is
-  attached to, an interactive Play Mode run injects real messages into the live session. Point the MQTT section at an
-  isolated broker, or leave the broker unreachable, before exercising a task interactively.
+  Trigger zones publish `Stimulus` and `Delay` while playing. If an acquisition runtime is attached to that broker, an
+  interactive Play Mode run injects real messages into the live session. Point the MQTT section at an isolated broker,
+  or leave the broker unreachable, before exercising a task interactively.
 - **Task Parameters re-opens on Play Mode entry.** `MainWindow.RegisterAutoOpen` registers an
   `EditorApplication.playModeStateChanged` hook that calls `EnsureWindowOpen` when the editor reaches
   `PlayModeStateChange.EnteredPlayMode`. The exception is a batch-mode Editor, where `RegisterAutoOpen` returns before
@@ -173,8 +174,8 @@ You MUST hand off to the owning skill (`/task-scenes`, `/task-prefabs`) only aft
   window. The MQTT section, the Task section, and the Camera Mapping `Show Full-Screen Views` control are disabled at
   runtime, so you SHOULD flip the Task flags via MQTT (`/mqtt-contract`) instead of `/task-parameters` during a Play
   Mode run. Note the GUI disable is cosmetic from the agent's side. The bridge itself has no play-state guard on
-  `write_task_parameters` (`EditorApplication.isPlaying` is referenced only by the three play-state handlers,
-  `McpBridge.cs:1211`, `:1233`, `:1250`), so a write issued during Play Mode is accepted and applied to the runtime
+  `write_task_parameters`. `EditorApplication.isPlaying` is referenced only by the three play-state handlers
+  (`McpBridge.cs:1211`, `:1233`, `:1250`). Thus a write issued during Play Mode is accepted and applied to the runtime
   scene instance. The scene-component values (the Task flags) revert when Play Mode exits, so that half of the write is
   silently lost. The MQTT ip/port values additionally persist to EditorPrefs (`McpBridge.cs:1861-1869`), which
   `MainWindow.EnsureMqttDefaults` (`MainWindow.cs:159-183`) and `MQTTClient.Awake` (`MQTTClient.cs:96-97`) re-apply to
@@ -210,7 +211,7 @@ You MUST hand off to the owning skill (`/task-scenes`, `/task-prefabs`) only aft
 | `/unity-tests` (this plugin)                 | Owns the automated EditMode / PlayMode suite, which drives its own Play Mode transitions                                                                                           |
 | `/mqtt-contract` (this plugin)               | Reference for topics that drive runtime behavior and runtime alternatives to Task Parameters writes                                                                                |
 | `experiment:vr-driver-interface`             | Counterpart, owns the runtime-side use of these same three bridge tools (`_arm_unity` / `_stop_unity`)                                                                             |
-| `experiment:acquisition-system-runtime`      | Reference for the platform-general runtime state machine and per-cycle loop the VR driver plugs into, and it delegates the Unity driver itself to `experiment:vr-driver-interface` |
+| `experiment:acquisition-system-runtime` | Reference for the platform-general runtime state machine and per-cycle loop into which the VR driver plugs, and it delegates the Unity driver itself to `experiment:vr-driver-interface` |
 | `assets:assets-mcp-environment-setup`        | Upstream, owns the slsa MCP server diagnostic                                                                                                                                      |
 
 ---

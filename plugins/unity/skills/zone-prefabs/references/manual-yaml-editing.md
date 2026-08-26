@@ -30,7 +30,7 @@ Copying a template imports every invariant for free. You MUST NOT modify the fol
 Every `Place*Zone` overwrites the root Transform's whole local position at generation (`CreateTask.cs:1130`, `:1195`,
 `:1247`), so the serialized vector only governs how the prefab previews in the Editor and never reaches the generated
 scene. `StimulusTriggerZone` additionally declares `triggerMode` and `trialName` (`StimulusTriggerZone.cs:34`, `:52`)
-that neither template serializes and `CreateTask` writes per trial at generation (`CreateTask.cs:1153`, `:1155`,
+that neither template serializes and that `CreateTask` writes per trial at generation (`CreateTask.cs:1153`, `:1155`,
 `:1210`, `:1281`). Do not hand-author values for them.
 
 ### On every modifier-zone child

@@ -58,14 +58,15 @@ You MUST have confirmed session paths from `assets:session-discovery` before cal
 `prepare_behavior_processing_batch_tool`. Do not guess, infer, or discover paths from within this
 skill.
 
-Behavior outputs are written to `{session.processed_data_path}/behavior_data/` for every session. This
-batch writes only the runtime and microcontroller feathers here; the pipeline resolves this location from
-the session marker at dispatch time. Camera timestamp feathers also reside in `behavior_data/`, but they
-are written by the separate camera-timestamp extraction stage, not by this batch (see
-`forging:camera-timestamp-extraction`).
+Behavior outputs are split across two processed directories: the runtime pipeline writes its feathers to
+`{session.processed_data_path}/runtime_data/`, and the microcontroller pipeline writes its feathers to
+`{session.processed_data_path}/microcontroller_data/`. The pipeline resolves both locations from the session
+marker at dispatch time. Camera timestamp feathers land in `processed_data/video_data/` and are written by the
+separate camera-timestamp extraction stage, not by this batch (see `forging:camera-timestamp-extraction`). See
+`mesoscope:mesoscope-vr-processing-schema` for the full producer-to-directory mapping.
 
 You MUST respect the single-execution-session constraint: only one batch may run at a time per
-`sl-mcp` process. Cancel any active session before starting a new batch.
+`slf mcp` server process. Cancel any active session before starting a new batch.
 
 ---
 
@@ -84,10 +85,10 @@ You MUST respect the single-execution-session constraint: only one batch may run
 |-------------------|---------------|--------------|--------------------------------------------------------------------------------------------|
 | `session_paths`   | `list[str]`   | (required)   | Absolute paths to session root directories (from `assets:session-discovery`) |
 
-Each session's `behavior_data/` subdirectory is created under its
-`{session.processed_data_path}/behavior_data/`, containing the processing tracker
-(`behavior_processing_tracker.yaml`) and all processed feather files. The tool does NOT accept an
-output directory parameter — the location is static.
+Each session receives two processed subdirectories: `runtime_data/`, holding the runtime feathers and
+`runtime_processing_tracker.yaml`, and `microcontroller_data/`, holding the module feathers and
+`microcontroller_processing_tracker.yaml`. The tool does NOT accept an output directory parameter — both
+locations are static.
 
 **`execute_behavior_processing_jobs_tool` parameters:**
 
@@ -111,14 +112,14 @@ Neither tool takes parameters — both read from the in-memory execution state p
 |-----------------------------------------|-------------------------------------------------------------------|
 | `cancel_behavior_processing_tool`       | Clears pending queue; active jobs complete naturally              |
 | `reset_behavior_processing_jobs_tool`   | Resets specific or all jobs in a tracker to `SCHEDULED` for retry |
-| `clean_behavior_processing_output_tool` | Deletes `behavior_data/` subdirectories for full re-processing    |
+| `clean_behavior_processing_output_tool` | Deletes a pipeline's processed subdirectory for re-processing     |
 | `get_batch_status_overview_tool`        | Aggregate status across all sessions under a root directory       |
 
 **`reset_behavior_processing_jobs_tool` parameters:**
 
 | Parameter      | Type               | Default    | Description                                                                 |
 |----------------|--------------------|------------|-----------------------------------------------------------------------------|
-| `tracker_path` | `str`              | (required) | Absolute path to `behavior_processing_tracker.yaml`                         |
+| `tracker_path` | `str`              | (required) | Absolute path to the pipeline's processing tracker YAML                     |
 | `job_ids`      | `list[str] / None` | `None`     | Hexadecimal job IDs to reset; if omitted, every job in the tracker is reset |
 
 **`clean_behavior_processing_output_tool` parameters:**
@@ -127,10 +128,10 @@ Neither tool takes parameters — both read from the in-memory execution state p
 |-----------------|-------------|------------|------------------------------------------------------------------------------------|
 | `session_paths` | `list[str]` | (required) | Absolute paths to session root directories whose behavior output should be cleaned |
 
-Loads each session's SessionData marker to resolve `processed_data_path`, then deletes
-`{processed_data_path}/behavior_data/` and all of its contents (feather outputs + tracker YAML).
-After cleanup, pass the same session paths back to `prepare_behavior_processing_batch_tool` to
-reinitialize from scratch.
+Loads each session's SessionData marker to resolve `processed_data_path`, then deletes the selected
+pipeline's processed subdirectory — `runtime_data/` or `microcontroller_data/` — and all of its contents
+(feather outputs + tracker YAML). After cleanup, pass the same session paths back to
+`prepare_behavior_processing_batch_tool` to reinitialize from scratch.
 
 **`get_batch_status_overview_tool` parameters:**
 
@@ -168,10 +169,11 @@ Key architectural facts:
   already-present `controller_*_module_*.feather` files and does NOT extract. A first prepare on a
   never-processed session may therefore find zero microcontroller jobs until an execute (or a CLI run)
   has produced the module feathers.
-- **Tracker filename:** `behavior_processing_tracker.yaml`, written under
-  `{session.processed_data_path}/behavior_data/`. The path is static — the caller does not choose it.
+- **Tracker filenames:** one per pipeline — `runtime_processing_tracker.yaml` under
+  `processed_data/runtime_data/`, and `microcontroller_processing_tracker.yaml` under
+  `processed_data/microcontroller_data/`. Both paths are static — the caller does not choose them.
 - **ProcessingTracker lifecycle:** `SCHEDULED` → `RUNNING` → `SUCCEEDED` / `FAILED`, persisted as YAML.
-- **Single execution session constraint:** one batch per `sl-mcp` process. Cancel before starting another.
+- **Single execution session constraint:** one batch per `slf mcp` server process. Cancel before starting another.
 - **Remote execution mode:** each worker subprocess runs `run_behavior_processing_pipeline(job_id=...)`,
   which executes exactly one `(job_name, specifier)` pair without re-running all jobs for the session.
 - **Tracker regeneration:** foreign or stale tracker entries are detected at prepare/execute time,
@@ -179,11 +181,12 @@ Key architectural facts:
   will be rebuilt automatically on the next prepare call.
 - **Reserved cores:** 2 cores are reserved system-wide (`RESERVED_CORES = 2`); the worker budget
   applies to the remaining cores.
-- **Output layout:** every session writes its runtime and microcontroller behavior outputs to
-  `{session_root}/processed_data/behavior_data/` so that downstream tooling can locate them
-  deterministically from the session root. The separate camera-timestamp extraction stage also lands its
-  `{name}_timestamps.feather` outputs in `behavior_data/`, but that stage runs independently with its own
-  `camera_timestamps/camera_processing_tracker.yaml`, not under this batch.
+- **Output layout:** every session writes its runtime feathers to `{session_root}/processed_data/runtime_data/`
+  and its microcontroller feathers to `{session_root}/processed_data/microcontroller_data/`, so that downstream
+  tooling can locate them deterministically from the session root. The separate camera-timestamp extraction stage
+  lands its `{name}_timestamps.feather` outputs in `{session_root}/processed_data/video_data/` and runs
+  independently with its own `video_processing_tracker.yaml` in that same directory, not under this batch. See
+  `mesoscope:mesoscope-vr-processing-schema` for the full producer-to-directory mapping.
 
 ---
 
@@ -338,8 +341,9 @@ For multi-session overview via `get_batch_status_overview_tool`:
    tracker state).
 4. Call `execute_behavior_processing_jobs_tool` again with the refreshed job descriptors.
 
-To re-process an entire session from scratch, call `clean_behavior_processing_output_tool` to delete
-the session's `behavior_data/` subdirectory, then re-prepare and re-execute. This is the right move
+To re-process an entire session from scratch, call `clean_behavior_processing_output_tool` to delete the
+session's `runtime_data/` and `microcontroller_data/` subdirectories, then re-prepare and re-execute. This
+is the right move
 when a tracker is corrupt or when the user wants to change output file contents (e.g., after updating
 a module parser in the Mesoscope-VR module registry, gated by `mesoscope:mesoscope-vr-module-parsing`).
 

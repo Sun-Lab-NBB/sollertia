@@ -16,9 +16,11 @@ forging pipeline: the `BehaviorDataFiles` filename roster and the `DatasetColumn
 defined in `sollertia_forgery.mesoscope_vr.metadata`.
 
 These two rosters are the cross-cutting contract between processing and forging. `BehaviorDataFiles` enumerates the
-feather filenames that several producing concerns write into a session's `processed_data/behavior_data` directory;
-`DatasetColumn` enumerates every column the forging pipeline can emit into the single assembled `data.feather`. Both
-are forgery-internal: the module docstring states all entries "must not be referenced from outside the library."
+feather filenames the producing concerns write into a session's `processed_data/microcontroller_data` and
+`processed_data/runtime_data` directories. `DatasetColumn` enumerates every column the forging pipeline can emit into
+the single assembled `data.feather`. Both rosters are forgery-internal: neither is re-exported from
+`sollertia_forgery.mesoscope_vr` or from the package root, so downstream code addresses their members by value rather
+than importing the enumerations.
 
 This skill is the canonical home of the two rosters. It does not own the producing logic, the assembly algorithm,
 or the forged-output reference — those live in the producing and consuming skills cross-referenced below. Hand off
@@ -37,8 +39,6 @@ there for behavior, the way columns are computed, or output verification.
 - Why these two rosters are pipeline-wide schema contracts rather than belonging to any single producing stage
 
 **Does not cover:**
-- `TrialGeometryEntry` and `StimulusMode` (also in `metadata.py`, but consumed by trial-geometry mapping — see
-  `mesoscope:mesoscope-vr-trial-decomposition`)
 - Per-module conversions and the internal column schema of each processed feather (see
   `mesoscope:mesoscope-vr-module-parsing`)
 - The assembly algorithm that computes the `DatasetColumn` values (see `mesoscope:mesoscope-vr-dataset-assembly`)
@@ -48,11 +48,13 @@ there for behavior, the way columns are computed, or output verification.
 
 ## BehaviorDataFiles: the processed feather-filename roster
 
-`BehaviorDataFiles` is a `StrEnum` whose values are the canonical filenames of the behavior feather files written
-into a session's `processed_data/behavior_data` directory. Its docstring describes it as "the contract between the
-Mesoscope-VR processing and forging assets": the processing pipeline writes each file under these exact names, and
-the forging pipeline reads them back by the same names. Because the type is a `StrEnum`, every member is usable
-directly as a path component (for example `output_directory / BehaviorDataFiles.SYSTEM_STATE`).
+`BehaviorDataFiles` is a `StrEnum` whose values are the canonical filenames of the behavior feather files the
+Mesoscope-VR parsers write and the assembly worker reads back. There are two output homes, not one: the
+microcontroller parsers write the module feathers into a session's `processed_data/microcontroller_data` directory,
+and the runtime parser writes its feathers into `processed_data/runtime_data`. There is no
+`processed_data/behavior_data` directory. `behavior_data` is the raw-side DataLogger archive directory under
+`raw_data`, and the producer-to-roster table below carries the per-member mapping. Because the type is a `StrEnum`,
+every member is usable directly as a path component (for example `output_directory / BehaviorDataFiles.SYSTEM_STATE`).
 
 | Member                 | Value                                    | Captures                                                       |
 |------------------------|------------------------------------------|----------------------------------------------------------------|
@@ -136,20 +138,38 @@ this roster; this roster governs only the column set inside that file.
 
 ## Producer-to-roster and roster-to-consumer mapping
 
-`BehaviorDataFiles` is written by three producing concerns and read back by the dataset-assembly concern. The
-mapping below reflects the live producers in the Mesoscope-VR source. Each producer writes its members under the
-exact `BehaviorDataFiles` value, and each consumer reads them back by the same member.
+`BehaviorDataFiles` is written by three producing concerns into two processed-data directories and read back by the
+dataset-assembly concern. Each producer writes its members under the exact `BehaviorDataFiles` value into the
+directory named by the `Directories` member in the last column, and each consumer reads them back from that same
+directory under the same member. The `Directories` enumeration itself, and the `ProcessedData` path properties that
+resolve its members against a session root, belong to `assets:session-data`.
 
-| `BehaviorDataFiles` member                                            | Producing concern             | Producing module      |
-|-----------------------------------------------------------------------|-------------------------------|-----------------------|
-| `ENCODER`, `VALVE`, `GAS_PUFF`, `LICK`, `BRAKE`, `TORQUE`, `SCREEN`    | Module parsing                | `microcontrollers.py` |
-| `MESOSCOPE_FRAME`                                                      | Frame (TTL) extraction        | `microcontrollers.py` |
-| `SYSTEM_STATE`, `RUNTIME_STATE`, `REINFORCING_GUIDANCE`,              | Runtime decomposition         | `runtime.py`          |
-| `AVERSIVE_GUIDANCE`, `VR_CUE`, `VR_TRIGGER_ZONE`, `TRIAL`             |                               |                       |
+| `BehaviorDataFiles` member | Producing concern      | Producing module      | Owning `Directories` member |
+|----------------------------|------------------------|-----------------------|-----------------------------|
+| `ENCODER`                  | Module parsing         | `microcontrollers.py` | `MICROCONTROLLER_DATA`      |
+| `VALVE`                    | Module parsing         | `microcontrollers.py` | `MICROCONTROLLER_DATA`      |
+| `GAS_PUFF`                 | Module parsing         | `microcontrollers.py` | `MICROCONTROLLER_DATA`      |
+| `LICK`                     | Module parsing         | `microcontrollers.py` | `MICROCONTROLLER_DATA`      |
+| `BRAKE`                    | Module parsing         | `microcontrollers.py` | `MICROCONTROLLER_DATA`      |
+| `TORQUE`                   | Module parsing         | `microcontrollers.py` | `MICROCONTROLLER_DATA`      |
+| `SCREEN`                   | Module parsing         | `microcontrollers.py` | `MICROCONTROLLER_DATA`      |
+| `MESOSCOPE_FRAME`          | Frame (TTL) extraction | `microcontrollers.py` | `MICROCONTROLLER_DATA`      |
+| `SYSTEM_STATE`             | Runtime decomposition  | `runtime.py`          | `RUNTIME_DATA`              |
+| `RUNTIME_STATE`            | Runtime decomposition  | `runtime.py`          | `RUNTIME_DATA`              |
+| `REINFORCING_GUIDANCE`     | Runtime decomposition  | `runtime.py`          | `RUNTIME_DATA`              |
+| `AVERSIVE_GUIDANCE`        | Runtime decomposition  | `runtime.py`          | `RUNTIME_DATA`              |
+| `VR_CUE`                   | Runtime decomposition  | `runtime.py`          | `RUNTIME_DATA`              |
+| `VR_TRIGGER_ZONE`          | Runtime decomposition  | `runtime.py`          | `RUNTIME_DATA`              |
+| `TRIAL`                    | Runtime decomposition  | `runtime.py`          | `RUNTIME_DATA`              |
 
 `MESOSCOPE_FRAME` is produced by the TTL module parser (it carries scan-frame pulse edges), so in the live source
-both module parsing and frame extraction are emitted from `microcontrollers.py`; the two are listed separately
+both module parsing and frame extraction are emitted from `microcontrollers.py`. The two are listed separately
 because they are distinct producing concerns and own distinct downstream consumers.
+
+This table is the single home of the Mesoscope-VR producer-to-directory mapping. The sibling skills
+`mesoscope:mesoscope-vr-module-parsing`, `mesoscope:mesoscope-vr-dataset-assembly`, and
+`mesoscope:mesoscope-vr-fluorescence-alignment` reference it rather than restating the layout, so a directory change
+lands in one place.
 
 `DatasetColumn` members are produced by the three assembly stages that consume `BehaviorDataFiles` feathers and the
 fluorescence assets, and the union of their outputs is the forged `data.feather`:
@@ -165,10 +185,6 @@ spans three assembly stages, neither roster belongs to a single producing or con
 one stage would split the codebase by module rather than by concern, leaving every other stage referencing a roster
 it does not own. This skill therefore owns both rosters, and the producing and consuming skills reference here.
 
-`TrialGeometryEntry` and `StimulusMode` also live in `metadata.py`, but they are consumed by the trial-geometry
-projection rather than being a feather-filename or assembled-column roster, so they stay with
-`mesoscope:mesoscope-vr-trial-decomposition` and are out of scope here.
-
 ---
 
 ## Related skills
@@ -176,11 +192,12 @@ projection rather than being a feather-filename or assembled-column roster, so t
 | Skill                                     | Relationship                                                                          |
 |-------------------------------------------|---------------------------------------------------------------------------------------|
 | `mesoscope:mesoscope-vr-module-parsing`   | Producer — writes the per-module `BehaviorDataFiles` feathers and owns their schemas   |
-| `mesoscope:mesoscope-vr-trial-decomposition` | Producer of runtime `BehaviorDataFiles`; owns `TrialGeometryEntry` / `StimulusMode` |
+| `mesoscope:mesoscope-vr-trial-decomposition` | Producer of runtime `BehaviorDataFiles`                                            |
 | `mesoscope:mesoscope-vr-fluorescence-alignment` | Producer of the fluorescence `DatasetColumn` values via `MESOSCOPE_FRAME` align  |
 | `mesoscope:mesoscope-vr-dataset-assembly` | Consumer — assembles `BehaviorDataFiles` into the `DatasetColumn` set of `data.feather`|
 | `forging:dataset-forging-results`         | Reference and verification for the forged `data.feather` output                       |
 | `forging:microcontroller-primitives`      | Owns the five-column microcontroller feather schema the module parsers read upstream  |
+| `assets:session-data`                     | Owns `Directories` and the `ProcessedData` path properties                            |
 
 ---
 
@@ -190,8 +207,10 @@ projection rather than being a feather-filename or assembled-column roster, so t
 - [ ] Filename claims match BehaviorDataFiles values in mesoscope_vr/metadata.py exactly (.feather extension)
 - [ ] Column claims match DatasetColumn values in mesoscope_vr/metadata.py exactly (e.g. torque_N_cm, water_uL)
 - [ ] Guidance feathers and guidance columns (reinforcing and aversive) flagged optional
+- [ ] Module-parsed and TTL feathers homed in processed_data/microcontroller_data, runtime feathers in runtime_data
+- [ ] No processed_data/behavior_data claim anywhere (behavior_data is the raw-side DataLogger archive directory)
 - [ ] No producing logic, assembly algorithm, or output-verification content authored here (handed off via cross-refs)
-- [ ] TrialGeometryEntry / StimulusMode left to mesoscope:mesoscope-vr-trial-decomposition, not documented here
+- [ ] No TrialGeometryEntry or StimulusMode claimed anywhere; neither symbol exists in metadata.py
 - [ ] Cross-references use exact plugin:skill syntax (mesoscope:, forging:) with no ataraxis@ prefix
 - [ ] Word "feather" used only as the file-format term, never as a module or skill name
 ```
