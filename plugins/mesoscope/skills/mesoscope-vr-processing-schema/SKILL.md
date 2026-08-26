@@ -56,23 +56,23 @@ and the runtime parser writes its feathers into `processed_data/runtime_data`. T
 `raw_data`, and the producer-to-roster table below carries the per-member mapping. Because the type is a `StrEnum`,
 every member is usable directly as a path component (for example `output_directory / BehaviorDataFiles.SYSTEM_STATE`).
 
-| Member                 | Value                                    | Captures                                                       |
-|------------------------|------------------------------------------|----------------------------------------------------------------|
-| `ENCODER`              | `encoder_data.feather`                   | Traveled-distance time series from the running-wheel encoder    |
-| `VALVE`                | `valve_data.feather`                     | Water-dispensing events and cumulative dispensed volume         |
-| `GAS_PUFF`             | `gas_puff_data.feather`                  | Aversive-stimulus (gas puff) dispensing events                  |
-| `LICK`                 | `lick_data.feather`                      | Thresholded lick events from the capacitive sensor              |
-| `BRAKE`                | `brake_data.feather`                     | Instantaneous brake torque applied to the running wheel         |
-| `TORQUE`               | `torque_data.feather`                    | Instantaneous torque exerted on the wheel by the animal         |
-| `SCREEN`               | `screen_data.feather`                    | VR screen on/off state transitions                              |
-| `MESOSCOPE_FRAME`      | `mesoscope_frame_data.feather`           | Mesoscope scan-frame TTL pulse edges (for fluorescence align)   |
-| `SYSTEM_STATE`         | `system_state_data.feather`             | System-state code transitions from the runtime log archive     |
-| `RUNTIME_STATE`        | `runtime_state_data.feather`            | Experiment-state code transitions from the runtime log archive |
-| `REINFORCING_GUIDANCE` | `reinforcing_guidance_state_data.feather` | Reinforcing guidance-state transitions (written only if any)  |
-| `AVERSIVE_GUIDANCE`    | `aversive_guidance_state_data.feather`  | Aversive guidance-state transitions (written only if any)      |
-| `VR_CUE`               | `vr_cue_data.feather`                    | VR wall-cue transitions along the corridor                      |
-| `VR_TRIGGER_ZONE`      | `vr_trigger_zone_data.feather`          | VR trigger-zone entry and exit events                          |
-| `TRIAL`                | `trial_data.feather`                    | Per-trial metadata (trial index, type, distance at trial start)|
+| Member                 | Value                                     | Captures                                                        |
+|------------------------|-------------------------------------------|-----------------------------------------------------------------|
+| `ENCODER`              | `encoder_data.feather`                    | Traveled-distance time series from the running-wheel encoder    |
+| `VALVE`                | `valve_data.feather`                      | Water-dispensing events and cumulative dispensed volume         |
+| `GAS_PUFF`             | `gas_puff_data.feather`                   | Aversive-stimulus (gas puff) dispensing events                  |
+| `LICK`                 | `lick_data.feather`                       | Thresholded lick events from the capacitive sensor              |
+| `BRAKE`                | `brake_data.feather`                      | Instantaneous brake torque applied to the running wheel         |
+| `TORQUE`               | `torque_data.feather`                     | Instantaneous torque exerted on the wheel by the animal         |
+| `SCREEN`               | `screen_data.feather`                     | VR screen on/off state transitions                              |
+| `MESOSCOPE_FRAME`      | `mesoscope_frame_data.feather`            | Mesoscope scan-frame TTL pulse edges (for fluorescence align)   |
+| `SYSTEM_STATE`         | `system_state_data.feather`               | System-state code transitions from the runtime log archive      |
+| `RUNTIME_STATE`        | `runtime_state_data.feather`              | Experiment-state code transitions from the runtime log archive  |
+| `REINFORCING_GUIDANCE` | `reinforcing_guidance_state_data.feather` | Reinforcing guidance-state transitions (written only if any)    |
+| `AVERSIVE_GUIDANCE`    | `aversive_guidance_state_data.feather`    | Aversive guidance-state transitions (written only if any)       |
+| `VR_CUE`               | `vr_cue_data.feather`                     | VR wall-cue transitions along the corridor                      |
+| `VR_TRIGGER_ZONE`      | `vr_trigger_zone_data.feather`            | VR trigger-zone entry and exit events                           |
+| `TRIAL`                | `trial_data.feather`                      | Per-trial metadata (trial index, type, distance at trial start) |
 
 `REINFORCING_GUIDANCE` and `AVERSIVE_GUIDANCE` are conditional: per the runtime decomposition logic and the member
 docstrings, each file is written only when the corresponding guidance events were recorded during the session.
@@ -88,31 +88,31 @@ every forged session. The source groups the members into three assembly origins.
 
 ### Behavior alignment columns (forging behavior assembly)
 
-| Member            | Value          | Captures                                                                |
-|-------------------|----------------|-------------------------------------------------------------------------|
-| `TIME_US`         | `time_us`      | Microsecond-precision sample timestamps from the acquisition clock      |
-| `ELAPSED_MINUTES` | `elapsed_minutes` | Elapsed session time in minutes since the first sample               |
-| `BRAKE`           | `brake`        | Wheel brake engagement at each sample                                   |
-| `SCREENS`         | `screens`      | Display panel state at each sample                                      |
-| `TORQUE_N_CM`     | `torque_N_cm`  | Wheel torque in N·cm at each sample (forced to zero during 'run')       |
-| `DISTANCE_CM`     | `distance_cm`  | Cumulative distance traveled by the animal in centimeters              |
-| `SPEED_CM_S`      | `speed_cm_s`   | Animal running speed in cm/s at each sample                             |
-| `LICK`            | `lick`         | Lick sensor state at each sample                                        |
-| `WATER_UL`        | `water_uL`     | Per-sample water reward delivery in microliters                        |
-| `REWARD`          | `reward`       | Reward event flag at each sample                                        |
-| `SYSTEM_STATE`    | `system_state` | Acquisition system state at each sample (idle, rest, run)               |
+| Member            | Value             | Captures                                                           |
+|-------------------|-------------------|--------------------------------------------------------------------|
+| `TIME_US`         | `time_us`         | Microsecond-precision sample timestamps from the acquisition clock |
+| `ELAPSED_MINUTES` | `elapsed_minutes` | Elapsed session time in minutes since the first sample             |
+| `BRAKE`           | `brake`           | Wheel brake engagement at each sample                              |
+| `SCREENS`         | `screens`         | Display panel state at each sample                                 |
+| `TORQUE_N_CM`     | `torque_N_cm`     | Wheel torque in N·cm at each sample (forced to zero during 'run')  |
+| `DISTANCE_CM`     | `distance_cm`     | Cumulative distance traveled by the animal in centimeters          |
+| `SPEED_CM_S`      | `speed_cm_s`      | Animal running speed in cm/s at each sample                        |
+| `LICK`            | `lick`            | Lick sensor state at each sample                                   |
+| `WATER_UL`        | `water_uL`        | Per-sample water reward delivery in microliters                    |
+| `REWARD`          | `reward`          | Reward event flag at each sample                                   |
+| `SYSTEM_STATE`    | `system_state`    | Acquisition system state at each sample (idle, rest, run)          |
 
 ### Runtime/experiment columns (forging runtime assembly)
 
-| Member               | Value                | Captures                                                                |
-|----------------------|----------------------|-------------------------------------------------------------------------|
-| `TRIAL`              | `trial`              | One-based trial identifier; `65535` marks samples outside any trial     |
-| `TRIAL_TYPE`         | `trial_type`         | Trial type label (e.g. 'ABC'); 'undefined' marks non-run samples        |
-| `CUE`                | `cue`                | Active virtual-reality cue identifier at each sample                     |
-| `IN_TRIGGER_ZONE`    | `in_trigger_zone`    | Whether the animal is inside a stimulus trigger zone at each sample      |
-| `RUNTIME_STATE`      | `runtime_state`      | Experiment runtime state label at each sample                           |
-| `REINFORCING_GUIDED` | `reinforcing_guided` | Optional. Reinforcing guidance state; present only when recorded        |
-| `AVERSIVE_GUIDED`    | `aversive_guided`    | Optional. Aversive guidance state; present only when recorded           |
+| Member               | Value                | Captures                                                            |
+|----------------------|----------------------|---------------------------------------------------------------------|
+| `TRIAL`              | `trial`              | One-based trial identifier; `65535` marks samples outside any trial |
+| `TRIAL_TYPE`         | `trial_type`         | Trial type label (e.g. 'ABC'); 'undefined' marks non-run samples    |
+| `CUE`                | `cue`                | Active virtual-reality cue identifier at each sample                |
+| `IN_TRIGGER_ZONE`    | `in_trigger_zone`    | Whether the animal is inside a stimulus trigger zone at each sample |
+| `RUNTIME_STATE`      | `runtime_state`      | Experiment runtime state label at each sample                       |
+| `REINFORCING_GUIDED` | `reinforcing_guided` | Optional. Reinforcing guidance state; present only when recorded    |
+| `AVERSIVE_GUIDED`    | `aversive_guided`    | Optional. Aversive guidance state; present only when recorded       |
 
 The out-of-trial `trial` sentinel (`65535`, max UInt16) and the undefined-`cue` sentinel (`255`, max UInt8) are
 distinct values; the masking algorithm that assigns them is owned by `mesoscope:mesoscope-vr-dataset-assembly`,
@@ -120,16 +120,16 @@ not by this roster.
 
 ### Fluorescence columns (forging fluorescence assembly)
 
-| Member                               | Value                                | Captures                                                |
-|--------------------------------------|--------------------------------------|---------------------------------------------------------|
-| `SINGLE_DAY_CELL_FLUORESCENCE`       | `single_day_cell_fluorescence`       | Single-recording raw cell fluorescence trace per ROI    |
-| `SINGLE_DAY_NEUROPIL_FLUORESCENCE`   | `single_day_neuropil_fluorescence`   | Single-recording raw neuropil fluorescence trace per ROI|
-| `SINGLE_DAY_SUBTRACTED_FLUORESCENCE` | `single_day_subtracted_fluorescence` | Single-recording neuropil-subtracted dF/F0              |
-| `SINGLE_DAY_SPIKES`                  | `single_day_spikes`                  | Single-recording OASIS-deconvolved spike rates per ROI  |
-| `MULTI_DAY_CELL_FLUORESCENCE`        | `multi_day_cell_fluorescence`        | Multi-recording raw cell fluorescence trace per ROI     |
-| `MULTI_DAY_NEUROPIL_FLUORESCENCE`    | `multi_day_neuropil_fluorescence`    | Multi-recording raw neuropil fluorescence trace per ROI |
-| `MULTI_DAY_SUBTRACTED_FLUORESCENCE`  | `multi_day_subtracted_fluorescence`  | Multi-recording neuropil-subtracted dF/F0 across days   |
-| `MULTI_DAY_SPIKES`                   | `multi_day_spikes`                   | Multi-recording OASIS-deconvolved spike rates per ROI   |
+| Member                               | Value                                | Captures                                                 |
+|--------------------------------------|--------------------------------------|----------------------------------------------------------|
+| `SINGLE_DAY_CELL_FLUORESCENCE`       | `single_day_cell_fluorescence`       | Single-recording raw cell fluorescence trace per ROI     |
+| `SINGLE_DAY_NEUROPIL_FLUORESCENCE`   | `single_day_neuropil_fluorescence`   | Single-recording raw neuropil fluorescence trace per ROI |
+| `SINGLE_DAY_SUBTRACTED_FLUORESCENCE` | `single_day_subtracted_fluorescence` | Single-recording neuropil-subtracted dF/F0               |
+| `SINGLE_DAY_SPIKES`                  | `single_day_spikes`                  | Single-recording OASIS-deconvolved spike rates per ROI   |
+| `MULTI_DAY_CELL_FLUORESCENCE`        | `multi_day_cell_fluorescence`        | Multi-recording raw cell fluorescence trace per ROI      |
+| `MULTI_DAY_NEUROPIL_FLUORESCENCE`    | `multi_day_neuropil_fluorescence`    | Multi-recording raw neuropil fluorescence trace per ROI  |
+| `MULTI_DAY_SUBTRACTED_FLUORESCENCE`  | `multi_day_subtracted_fluorescence`  | Multi-recording neuropil-subtracted dF/F0 across days    |
+| `MULTI_DAY_SPIKES`                   | `multi_day_spikes`                   | Multi-recording OASIS-deconvolved spike rates per ROI    |
 
 The `data.feather` filename itself is fixed by the cross-system dataset layout (`DATA = "data.feather"`), not by
 this roster; this roster governs only the column set inside that file.
@@ -174,11 +174,11 @@ lands in one place.
 `DatasetColumn` members are produced by the three assembly stages that consume `BehaviorDataFiles` feathers and the
 fluorescence assets, and the union of their outputs is the forged `data.feather`:
 
-| `DatasetColumn` group  | Assembly stage                | Reads                                                                 |
-|------------------------|-------------------------------|----------------------------------------------------------------------|
-| Behavior alignment     | Forging behavior assembly     | `ENCODER`, `VALVE`, `LICK`, `BRAKE`, `TORQUE`, `SCREEN`, `SYSTEM_STATE` |
-| Runtime/experiment     | Forging runtime assembly      | `ENCODER`, `VR_CUE`, `VR_TRIGGER_ZONE`, `TRIAL`, `RUNTIME_STATE`, guidance |
-| Fluorescence           | Forging fluorescence assembly | `MESOSCOPE_FRAME` plus the fluorescence assets                        |
+| `DatasetColumn` group | Assembly stage                | Reads                                                                      |
+|-----------------------|-------------------------------|----------------------------------------------------------------------------|
+| Behavior alignment    | Forging behavior assembly     | `ENCODER`, `VALVE`, `LICK`, `BRAKE`, `TORQUE`, `SCREEN`, `SYSTEM_STATE`    |
+| Runtime/experiment    | Forging runtime assembly      | `ENCODER`, `VR_CUE`, `VR_TRIGGER_ZONE`, `TRIAL`, `RUNTIME_STATE`, guidance |
+| Fluorescence          | Forging fluorescence assembly | `MESOSCOPE_FRAME` plus the fluorescence assets                             |
 
 Because `BehaviorDataFiles` spans module parsing, frame extraction, and runtime decomposition, and `DatasetColumn`
 spans three assembly stages, neither roster belongs to a single producing or consuming stage. Attaching either to
@@ -189,15 +189,15 @@ it does not own. This skill therefore owns both rosters, and the producing and c
 
 ## Related skills
 
-| Skill                                     | Relationship                                                                          |
-|-------------------------------------------|---------------------------------------------------------------------------------------|
-| `mesoscope:mesoscope-vr-module-parsing`   | Producer — writes the per-module `BehaviorDataFiles` feathers and owns their schemas   |
-| `mesoscope:mesoscope-vr-trial-decomposition` | Producer of runtime `BehaviorDataFiles`                                            |
-| `mesoscope:mesoscope-vr-fluorescence-alignment` | Producer of the fluorescence `DatasetColumn` values via `MESOSCOPE_FRAME` align  |
-| `mesoscope:mesoscope-vr-dataset-assembly` | Consumer — assembles `BehaviorDataFiles` into the `DatasetColumn` set of `data.feather`|
-| `forging:dataset-forging-results`         | Reference and verification for the forged `data.feather` output                       |
-| `forging:microcontroller-primitives`      | Owns the five-column microcontroller feather schema the module parsers read upstream  |
-| `assets:session-data`                     | Owns `Directories` and the `ProcessedData` path properties                            |
+| Skill                                           | Relationship                                                                            |
+|-------------------------------------------------|-----------------------------------------------------------------------------------------|
+| `mesoscope:mesoscope-vr-module-parsing`         | Producer — writes the per-module `BehaviorDataFiles` feathers and owns their schemas    |
+| `mesoscope:mesoscope-vr-trial-decomposition`    | Producer of runtime `BehaviorDataFiles`                                                 |
+| `mesoscope:mesoscope-vr-fluorescence-alignment` | Producer of the fluorescence `DatasetColumn` values via `MESOSCOPE_FRAME` align         |
+| `mesoscope:mesoscope-vr-dataset-assembly`       | Consumer — assembles `BehaviorDataFiles` into the `DatasetColumn` set of `data.feather` |
+| `forging:dataset-forging-results`               | Reference and verification for the forged `data.feather` output                         |
+| `forging:microcontroller-primitives`            | Owns the five-column microcontroller feather schema the module parsers read upstream    |
+| `assets:session-data`                           | Owns `Directories` and the `ProcessedData` path properties                              |
 
 ---
 

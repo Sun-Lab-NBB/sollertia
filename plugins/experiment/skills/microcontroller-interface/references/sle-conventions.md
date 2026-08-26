@@ -49,11 +49,13 @@ def __init__(
     wheel_diameter: float,
     polling_frequency: int,
 ) -> None:
+    data_codes: set[np.uint8] = {np.uint8(51), np.uint8(52)}  # kRotatedCCW, kRotatedCW
+
     super().__init__(
         module_type=np.uint8(2),  # always hardcoded (architectural)
         module_id=np.uint8(1),    # hardcoded: a single encoder instance is deployed
         name="encoder",
-        data_codes={np.uint8(51), np.uint8(52)},
+        data_codes=data_codes,
         error_codes=None,
     )
     # ... calibration math, shared memory creation, command-code precomputation ...
@@ -61,6 +63,10 @@ def __init__(
 
 Caller-facing constructor arguments are calibration values, polling frequencies, or domain-specific configuration (e.g.,
 `valve_calibration_data` is the calibration tuple, not a raw parameter).
+
+Every `data_codes` and `error_codes` literal carries an inline comment naming the firmware `kCustomStatusCodes` member
+behind each value, as `{np.uint8(51)}  # kInputOn` does. The comment is what lets a reader confirm the pairing without
+opening the firmware header, so a new wrapper MUST carry one.
 
 ---
 
@@ -88,27 +94,32 @@ Binding classes pass raw user-input values to the wrapper unchanged.
 
 ## Lifecycle: four methods, not three
 
-The ataraxis base defines three abstract methods (`initialize_remote_assets`, `terminate_remote_assets`,
-`process_received_data`). sle wrappers that use `SharedMemoryArray` add a fourth: **`initialize_local_assets()`**.
+The ataraxis `ModuleInterface` base declares three abstract methods, `initialize_remote_assets`,
+`terminate_remote_assets`, and `process_received_data`. sle wrappers that use a `SharedMemoryArray` add a fourth,
+**`initialize_local_assets()`**.
 
 | Method                     | Process                  | Purpose                                                                                                |
 |----------------------------|--------------------------|--------------------------------------------------------------------------------------------------------|
 | `__init__`                 | parent                   | Create `SharedMemoryArray.create_array(..., exists_ok=True)`, compute calibration, cache command codes |
-| `initialize_local_assets`  | parent                   | Connect to the shared memory + call `enable_buffer_destruction()` so the parent process owns cleanup   |
-| `initialize_remote_assets` | communication subprocess | Connect to the shared memory, initialize non-picklable assets (`PrecisionTimer`)                       |
+| `initialize_local_assets`  | parent                   | `connect()` to the shared memory so the parent process reads live values                               |
+| `initialize_remote_assets` | communication subprocess | `connect()` to the shared memory, create non-picklable assets such as `PrecisionTimer`                 |
 | `process_received_data`    | communication subprocess | Process incoming `ModuleData` / `ModuleState` messages, update shared memory                           |
-| `terminate_remote_assets`  | communication subprocess | Disconnect from shared memory                                                                          |
-| `__del__`                  | parent                   | `disconnect()` then `destroy()` the shared memory                                                      |
+| `terminate_remote_assets`  | communication subprocess | `disconnect()` from the shared memory and drop the non-picklable assets                                |
 
-The `initialize_local_assets()` method is sle-specific. Binding-class code calls it explicitly, immediately after each
-`MicroControllerInterface.start()` has spawned its communication subprocess, so the parent process connects to the
-shared-memory buffers while the subprocesses are already running. The ataraxis `ModuleInterface` base declares only
-`initialize_remote_assets`, `terminate_remote_assets`, and `process_received_data`, so there is no inherited default to
-fall back on.
+**`initialize_local_assets()` is a project-local convention rather than part of the upstream `ModuleInterface` ABC.**
+Five wrappers define it, `EncoderInterface`, `LickInterface`, `MesoscopeFrameTTLInterface`, `WaterValveInterface`, and
+`GasPuffValveInterface` (`cross_system/module_interfaces.py`). The acquisition system's own
+binding class calls it explicitly, once each managed `MicroControllerInterface.start()` has spawned its communication
+subprocess, so the parent process connects while the subprocesses already hold their own connections. No base-class
+default exists, so a wrapper that skips the method leaves the parent unable to read its tracker.
 
-Wrappers without shared memory (e.g., `BrakeInterface`, `TorqueInterface`, `ScreenInterface`) omit
-`initialize_local_assets()` and leave both remote-asset methods as `return` no-ops. Binding classes call
+Wrappers without shared memory, meaning `BrakeInterface`, `TorqueInterface`, and `ScreenInterface`, omit
+`initialize_local_assets()` and leave both remote-asset methods as `return` no-ops. A binding class calls
 `initialize_local_assets()` only on the wrappers that define it.
+
+`WaterValveInterface.terminate_remote_assets()` also drops its `PrecisionTimer` reference. That frees the nanobind-bound
+C++ object before the subprocess interpreter finalizes, which is what keeps nanobind from reporting a spurious "leaked
+instance" warning at shutdown (`cross_system/module_interfaces.py`).
 
 ---
 
@@ -118,14 +129,16 @@ Use a deterministic name derived from the module type and id:
 
 ```python
 self._foo_tracker: SharedMemoryArray = SharedMemoryArray.create_array(
-    name=f"{self._module_type}_{self._module_id}_foo_tracker",
-    prototype=np.zeros(shape=N, dtype=np.float64 | np.uint64 | np.uint32),
+    name=f"{int(self._module_type)}_{int(self._module_id)}_foo_tracker",
+    prototype=np.zeros(shape=N, dtype=np.float64),
     exists_ok=True,
 )
 ```
 
-The `exists_ok=True` flag is required because the array may already exist from a prior run that did not clean up. The
-parent process re-claims and destroys it on shutdown via `enable_buffer_destruction()`.
+Both identity fields are cast through `int()` so the name reads as `2_1_distance_tracker` rather than carrying numpy
+scalar repr. The `exists_ok=True` flag lets the wrapper re-claim a buffer that a prior run left behind, so a runtime
+that aborted without cleanup still starts. The five deployed trackers use `np.float64`, `np.uint64`, and `np.uint32`
+prototypes, listed per module in [`module-catalog.md`](module-catalog.md).
 
 ---
 
@@ -161,9 +174,13 @@ Reuse these in `send_command` / `send_parameters` calls instead of creating fres
 
 ## Public-method patterns
 
-**Typed `set_parameters` wrapper** (mandatory, not optional): expose every parameter-struct field as a named keyword
-argument matching the firmware field name. The base ataraxis skill calls this an "optional" maintainability pattern, and
-sle treats it as the standard surface for any wrapper that sets runtime parameters.
+**Typed `set_parameters` wrapper** (mandatory): expose every parameter-struct field as a named argument carrying the
+firmware field name and its numpy type. The base ataraxis skill asks for a keyword-only wrapper around
+`send_parameters()` once a struct holds two or more fields. sle keeps the named arguments and drops the `*` separator,
+so call sites pass by keyword while the signature stays callable positionally. Five wrappers carry one,
+`EncoderInterface`, `LickInterface`, `TorqueInterface`, `MesoscopeFrameTTLInterface`, and `ScreenInterface`
+(`cross_system/module_interfaces.py`). The two valve wrappers route every parameter write through
+their own domain methods instead.
 
 ```python
 def set_parameters(

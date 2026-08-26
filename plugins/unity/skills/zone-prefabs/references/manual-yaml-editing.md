@@ -27,11 +27,11 @@ Copying a template imports every invariant for free. You MUST NOT modify the fol
 | `StimulusTriggerZone.showBoundary` | `0` (false, and `CreateTask` sets it per trial at generation)                       |
 | `StimulusTriggerZone.isActive`     | `0` (false, and `ResetState` sets it true at `Start` and at every corridor advance) |
 
-Every `Place*Zone` overwrites the root Transform's whole local position at generation (`CreateTask.cs:1130`, `:1195`,
-`:1247`), so the serialized vector only governs how the prefab previews in the Editor and never reaches the generated
-scene. `StimulusTriggerZone` additionally declares `triggerMode` and `trialName` (`StimulusTriggerZone.cs:34`, `:52`)
-that neither template serializes and that `CreateTask` writes per trial at generation (`CreateTask.cs:1153`, `:1155`,
-`:1210`, `:1281`). Do not hand-author values for them.
+Every `Place*Zone` overwrites the root Transform's whole local position at generation (`PlaceInteractionZone`,
+`PlaceCollisionZone`, and `PlaceOccupancyZone`, all in `CreateTask.cs`), so the serialized vector only governs how the
+prefab previews in the Editor and never reaches the generated scene. `StimulusTriggerZone` additionally declares
+`triggerMode` and `trialName` (`StimulusTriggerZone.cs`) that neither template serializes and that those same three
+`Place*Zone` methods write per trial at generation. Do not hand-author values for them.
 
 ### On every modifier-zone child
 
@@ -91,8 +91,8 @@ For a newly authored script, read its `.cs.meta` to extract the freshly minted G
 | Two or more sibling modifier regions                | `StimulusTriggerZone.prefab` (then add siblings, see Step 5) |
 
 `PlaceCollisionZone` reuses `StimulusTriggerZone.prefab` as a bare boundary wall and destroys its `GuidanceRegion` child
-at generation (`CreateTask.cs:1199-1204`). A region added to that template therefore survives the `interaction`
-placement branch. It survives the `collision` one too unless it carries a `GuidanceZone` (or subclass) found first by
+at generation (`CreateTask.cs`). A region added to that template therefore survives the `interaction` placement
+branch. It survives the `collision` one too unless it carries a `GuidanceZone` (or subclass) found first by
 `GetComponentInChildren`, or is nested under the destroyed `GuidanceRegion`.
 
 ### Step 2: Read the source prefab
@@ -107,8 +107,8 @@ Keep the file contents in working memory, because every subsequent edit operates
 
 ### Step 3: Write to the new path
 
-Use `Write` to copy the source contents to the target path. `ValidateCloneDestination` (`McpBridge.cs:723-746`) requires
-a project-relative path under `Assets/InfiniteCorridorTask/Prefabs/` that ends in `.prefab`, carries no `..` segment,
+Use `Write` to copy the source contents to the target path. `ValidateCloneDestination` (`McpBridge.cs`) requires a
+project-relative path under `Assets/InfiniteCorridorTask/Prefabs/` that ends in `.prefab`, carries no `..` segment,
 and does not name a protected base prefab. Name the file for the zone's shape in PascalCase, ending in `TriggerZone`,
 matching the `StimulusTriggerZone` / `OccupancyTriggerZone` convention. Name it for the shape rather than for a
 `TriggerType` literal, because several trigger types share one prefab (`interaction` and `collision` both resolve to
@@ -138,9 +138,8 @@ Edit(
 ```
 
 The root name is cosmetic, because nothing at runtime or at generation matches on it. `BuildSegmentPrefabs` loads only
-the two hardcoded canonical filenames (`CreateTask.cs:950-955`), and a new prefab is reached only through the
-`Place*Zone` branch added per `SKILL.md` "Step 7: Hand off the remaining wiring". Match the filename anyway, for
-hierarchy clarity.
+the two hardcoded canonical filenames (`CreateTask.cs`), and a new prefab is reached only through the `Place*Zone`
+branch added per `SKILL.md` "Step 7: Hand off the remaining wiring". Match the filename anyway, for hierarchy clarity.
 
 #### 4b. Swap modifier script GUIDs
 
@@ -173,7 +172,7 @@ leftovers that Unity rewrites on reimport, and no script compiles into `Assembly
 value must name the real assembly and the fully qualified type, so a zone script under
 `Assets/InfiniteCorridorTask/Scripts/` declaring `namespace SL.Tasks` is
 `Sollertia.InfiniteCorridorTask::SL.Tasks.<Class>`. Read the script's own `namespace` line rather than assuming
-`SL.Tasks` (`ConfigLoader.cs:11` is `SL.Config`).
+`SL.Tasks` (`ConfigLoader.cs` declares `namespace SL.Config`).
 
 Repeat for every modifier `MonoBehaviour` you are replacing. A root or modifier script may be replaced with a
 **subclass** of one of the four types `Task.FindResettableZones` enumerates (`StimulusTriggerZone`, `GuidanceZone`,
@@ -222,8 +221,9 @@ When adding a region:
 2. Append the GameObject, Transform, MonoBehaviour, and BoxCollider blocks at the end of the file, following the exact
    structure shown in the canonical templates (read the interaction template for the `GuidanceRegion` shape).
 3. List the new Transform, BoxCollider, and MonoBehaviour fileIDs in the new GameObject's own `m_Component` block, one
-   `- component: {fileID: ...}` per line and in that order, mirroring `StimulusTriggerZone.prefab` lines 157-160. A
-   region whose `m_Component` list is empty loads as a componentless GameObject.
+   `- component: {fileID: ...}` per line and in that order, mirroring the `m_Component` block of the `GuidanceRegion`
+   GameObject in `StimulusTriggerZone.prefab`. A region whose `m_Component` list is empty loads as a componentless
+   GameObject.
 4. Add the new GameObject's Transform fileID to the parent's `m_Children` list:
 
    ```yaml

@@ -1,7 +1,7 @@
 # Mesoscope-VR configuration fields
 
 State snapshot of every field in `MesoscopeSystemConfiguration` and its nested calibration
-dataclasses, as defined in `sollertia_experiment/mesoscope_vr/system.py`.
+dataclasses, as defined in `mesoscope_vr/system.py`.
 
 This file is the authoritative per-field reference for the Mesoscope-VR YAML configuration. See
 [`../SKILL.md`](../SKILL.md) for the system overview and binding-class composition, and
@@ -36,8 +36,8 @@ file whenever any field is added, removed, renamed, or has its type/units/defaul
 
 ## MesoscopeFileSystem
 
-Captures filesystem layout — two fields. Both default to empty paths, but only `mesoscope_directory` MUST be set
-per-host: leaving it unset raises `ValueError` when the session filesystem layout is resolved. Individual
+Captures the filesystem layout in two fields. Both default to empty paths, but only `mesoscope_directory` MUST be
+set per host, because leaving it unset raises `ValueError` when the session filesystem layout is resolved. Individual
 `storage_directories` entries are optional.
 
 | Field                 | Type              | Default                             | Purpose                                                                                                                                                                                                                                                                                                                                                                                    |
@@ -45,9 +45,8 @@ per-host: leaving it unset raises `ValueError` when the session filesystem layou
 | `mesoscope_directory` | `Path`            | `Path()`                            | Absolute path to the local-filesystem-mounted directory where mesoscope-acquired data is aggregated during acquisition by the PC that manages the mesoscope DAQ                                                                                                                                                                                                                            |
 | `storage_directories` | `dict[str, Path]` | `{"NAS": Path(), "Server": Path()}` | Maps each long-term storage destination name to its local-filesystem-mounted project-root path. Seeded with the `MesoscopeStorageDestination` members `"NAS"` and `"Server"`; any number of destinations may be configured under arbitrary names. An empty path means the destination is not configured and is skipped during transfer/removal; mapping order defines pull-back preference |
 
-The local **data root** (the directory under which projects are stored on this machine) is NOT in
-this section — it is the platform-shared data root, resolved with `get_data_root()` and set with
-`slsa configure data-root`.
+The local **data root**, the directory under which projects are stored on this machine, is platform-shared rather
+than a field of this section. Resolve it with `get_data_root()` and set it with `slsa configure data-root`.
 
 **Mount checks:** `check_system_mounts_tool` is an agent-invoked MCP tool that returns a diagnostic report covering
 every path the configuration declares, keyed as `data_root`, `mesoscope_directory`, one `storage_directory:<name>`
@@ -60,29 +59,44 @@ pre-flight check. The acquisition runtime performs no on-disk existence check of
 rejects an unset `mesoscope_directory` with `ValueError` before any path is resolved, while unset storage roots are
 recorded under `unconfigured_destinations` and only produce a preprocessing warning about the skipped backup.
 
-### MesoscopeData
+See [MesoscopeData path resolution](#mesoscopedata-path-resolution) below for the class that turns this section into
+resolved per-session paths.
 
-`MesoscopeData` (in `sollertia_experiment/mesoscope_vr/system.py`) is the class that turns the `filesystem`
-configuration section into resolved paths. It is constructed from the system configuration and a `SessionData`
-instance, and exposes:
+---
 
-- `vrpc_data` — the per-animal VRPC `persistent_data` layout for the session's type.
-- `scanimagepc_data` — the ScanImagePC layout under the Mesoscope acquisition mount, including that machine's own
-  per-animal `persistent_data` directory.
-- `destinations` — one resolved storage destination per configured storage root, in configuration order, which decides
-  which long-term backups run.
-- `unconfigured_destinations` — the names of the storage roots left unset, which preprocessing warns about.
+## MesoscopeData path resolution
 
-This class is where an unset `mesoscope_directory` raises `ValueError`, before any path is resolved.
+`MesoscopeData(system_configuration, session_data)` (`mesoscope_vr/system.py`) turns the `filesystem` section into the
+resolved paths a session reads and writes. It raises `ValueError` when `mesoscope_directory` is left unset, before any
+path is resolved, because every Mesoscope-VR session type resolves part of its layout under the Mesoscope acquisition
+mount. It then anchors an `AnimalData` on the platform data root and rebinds that anchor through `.for_root()` onto
+the Mesoscope mount and onto each configured storage root.
 
-For the on-disk hierarchy these resolved paths address, see `assets:project-hierarchy`. For the transfer, verification,
-and removal workflows that consume `destinations`, see `experiment:data-management`.
+| Attribute                   | Type                  | Content                                                                      |
+|-----------------------------|-----------------------|------------------------------------------------------------------------------|
+| `vrpc_data`                 | `_VRPCPersistentData` | The per-animal VRPC `persistent_data` layout for the session's type          |
+| `scanimagepc_data`          | `_ScanImagePCData`    | The ScanImagePC layout under the Mesoscope acquisition mount                 |
+| `destinations`              | `StorageDestinations` | One `StorageDestination` per configured storage root, in configuration order |
+| `unconfigured_destinations` | `tuple[str, ...]`     | Names of the storage roots left unset, which preprocessing warns about       |
+
+`_VRPCPersistentData(session_type, persistent_data_path)` (`mesoscope_vr/system.py`) derives
+`zaber_positions.yaml`, `mesoscope_positions.yaml`, `window_screenshot.png`, and a per-session-type
+`*_descriptor.yaml` under the animal's VRPC persistent directory, creating the directory when it is absent. An
+unrecognized session type raises `ValueError`.
+
+`_ScanImagePCData(session, mesoscope_root_path, persistent_data_path)` (`mesoscope_vr/system.py`) derives the
+animal's persistent `MotionEstimator.me` and `fov.roi`, the session-specific directory `<root>/<session>`, and the
+shared acquisition directory `<root>/mesoscope_data` that every session writes into during its runtime.
+
+For the on-disk hierarchy these resolved paths address, see `assets:project-hierarchy`. For the transfer,
+verification, and removal workflows that consume `destinations`, see `experiment:data-management`. For the per-session
+snapshot files under `vrpc_data`, see `/mesoscope-vr-snapshots`.
 
 ---
 
 ## MesoscopeGoogleSheets
 
-Captures Google Sheets identifiers — two `str` fields. Both identifiers are optional and default to empty strings. An
+Captures Google Sheets identifiers in two `str` fields. Both are optional and default to empty strings. An
 unset identifier skips that exchange with a warning, and leaving both unset disables the Google Sheets integration
 entirely. Configuring **either** identifier makes the Google service-account credentials mandatory: preprocessing
 resolves them before either exchange and aborts with `FileNotFoundError` when they are missing or unconfigured. Set
@@ -93,14 +107,13 @@ them with `slsa configure credentials` (`assets:working-directory`).
 | `surgery_sheet_id`   | `str` | `""`    | Identifier of the Google Sheet that stores information about surgical interventions         |
 | `water_log_sheet_id` | `str` | `""`    | Identifier of the Google Sheet that stores information about water restriction and handling |
 
-Sheet IDs are the long alphanumeric segments in Google Sheets URLs
-(e.g., `1AbC...XyZ`).
+Sheet IDs are the long alphanumeric segments in Google Sheets URLs (e.g., `1AbC...XyZ`).
 
 ---
 
 ## MesoscopeCameras
 
-Captures per-camera configuration. The Mesoscope-VR system uses two cameras (face, body) — see
+Captures per-camera configuration. The Mesoscope-VR system uses two cameras, face and body. See the
 [Cameras section in SKILL.md](../SKILL.md#hardware-subsystem-cameras) for their roles.
 
 | Field                            | Type                  | Default                       | Purpose                                                                 |
@@ -136,32 +149,33 @@ Captures port assignments + per-module calibration for the three Teensy 4.1 boar
 ENCODER). See [Microcontrollers section in SKILL.md](../SKILL.md#hardware-subsystem-microcontrollers)
 for board roles.
 
-The ~25 calibration fields parameterize seven of the eight module wrappers running on the three boards (brake
-strength, lick thresholds, torque calibration, encoder PPR, wheel diameter, screen pulse duration, sensor polling
-delays, valve calibration table). `GasPuffValveInterface` takes no configuration.
+The `MesoscopeMicroControllers` dataclass in `mesoscope_vr/system.py` holds 28 fields. Three name the board ports and
+one sets the keepalive interval. The remaining 24 parameterize seven of the eight module wrappers running on the three
+boards: brake strength, wheel geometry, lick thresholds, torque calibration, encoder reporting, screen pulse duration,
+sensor polling delay, and the valve calibration table. `GasPuffValveInterface` takes no configuration.
 
 ### Port and keepalive
 
-| Field                   | Type   | Default            | Purpose                                                                                |
-|-------------------------|--------|--------------------|----------------------------------------------------------------------------------------|
-| `actor_port`            | `str`  | `"/dev/ttyACM0"`   | USB port used by the ACTOR microcontroller                                             |
-| `sensor_port`           | `str`  | `"/dev/ttyACM1"`   | USB port used by the SENSOR microcontroller                                            |
-| `encoder_port`          | `str`  | `"/dev/ttyACM2"`   | USB port used by the ENCODER microcontroller                                           |
-| `keepalive_interval_ms` | `int`  | `500`              | Interval (ms) at which controllers expect and send keepalive messages during runtime   |
+| Field                   | Type  | Default          | Purpose                                                                              |
+|-------------------------|-------|------------------|--------------------------------------------------------------------------------------|
+| `actor_port`            | `str` | `"/dev/ttyACM0"` | USB port used by the ACTOR microcontroller                                           |
+| `sensor_port`           | `str` | `"/dev/ttyACM1"` | USB port used by the SENSOR microcontroller                                          |
+| `encoder_port`          | `str` | `"/dev/ttyACM2"` | USB port used by the ENCODER microcontroller                                         |
+| `keepalive_interval_ms` | `int` | `500`            | Interval (ms) at which controllers expect and send keepalive messages during runtime |
 
-Default ports use the Linux device-path form (`/dev/ttyACM*`); the value is OS-specific (e.g. `COMx` on
-Windows) and is set per host from discovery.
+Default ports use the Linux device-path form (`/dev/ttyACM*`). The value is OS-specific, taking the `COMx` form on
+Windows, and is set per host from discovery.
 
-Ports come from `experiment:acquisition-system-setup` discovery
-(`communication:microcontroller-setup`'s `list_microcontrollers_tool`). The user must confirm which
-physical Teensy plays the ACTOR / SENSOR / ENCODER role and assign ports accordingly.
+Ports come from `experiment:acquisition-system-setup` discovery (`communication:microcontroller-setup`'s
+`list_microcontrollers_tool`). The user must confirm which physical Teensy plays the ACTOR / SENSOR / ENCODER role and
+assign ports accordingly.
 
 ### Brake calibration (consumes `BrakeInterface`)
 
-| Field                          | Type    | Default      | Purpose                                                                       |
-|--------------------------------|---------|--------------|-------------------------------------------------------------------------------|
-| `minimum_brake_strength_g_cm`  | `float` | `43.2047`    | Torque (gram centimeter) applied by the brake at minimum operational voltage  |
-| `maximum_brake_strength_g_cm`  | `float` | `1152.1246`  | Torque (gram centimeter) applied by the brake at maximum operational voltage  |
+| Field                         | Type    | Default     | Purpose                                                                      |
+|-------------------------------|---------|-------------|------------------------------------------------------------------------------|
+| `minimum_brake_strength_g_cm` | `float` | `43.2047`   | Torque (gram centimeter) applied by the brake at minimum operational voltage |
+| `maximum_brake_strength_g_cm` | `float` | `1152.1246` | Torque (gram centimeter) applied by the brake at maximum operational voltage |
 
 `BrakeInterface(minimum_brake_strength, maximum_brake_strength)` converts these from g·cm to N·cm
 internally.
@@ -177,11 +191,10 @@ internally.
 | `wheel_encoder_delta_threshold_pulse` | `int`   | `15`      | Minimum pulse-count delta for reporting a rotation event           |
 | `wheel_encoder_polling_delay_us`      | `int`   | `500`     | Delay (microseconds) between consecutive encoder state readouts    |
 
-`EncoderInterface(encoder_ppr, wheel_diameter, polling_frequency)` consumes these;
-`set_parameters(report_ccw, report_cw, delta_threshold)` is sent at session start. The
-centimeters-per-Unity-unit conversion is NOT a configuration field — it is read from the active
-`TaskTemplate` (`vr_environment.cm_per_unity_unit`) and applied at experiment start via
-`EncoderInterface.set_unity_scale()`.
+`EncoderInterface(encoder_ppr, wheel_diameter, polling_frequency)` consumes these, and
+`set_parameters(report_ccw, report_cw, delta_threshold)` is sent at session start. The centimeters-per-Unity-unit
+conversion lives in the active `TaskTemplate` (`vr_environment.cm_per_unity_unit`) rather than in this section, and
+the runtime applies it at experiment start through `EncoderInterface.set_unity_scale()`.
 
 ### Lick sensor calibration (consumes `LickInterface`)
 
@@ -192,7 +205,7 @@ centimeters-per-Unity-unit conversion is NOT a configuration field — it is rea
 | `lick_delta_threshold_adc`  | `int` | `300`   | Minimum delta between consecutive readouts to report a change                        |
 | `lick_averaging_pool_size`  | `int` | `2`     | Number of readouts averaged together for the final lick sensor reading               |
 
-`LickInterface(lick_threshold, polling_frequency)` consumes `lick_threshold_adc`;
+`LickInterface(lick_threshold, polling_frequency)` consumes `lick_threshold_adc`, and
 `set_parameters(signal_threshold, delta_threshold, average_pool_size)` is sent at session start.
 
 ### Torque sensor calibration (consumes `TorqueInterface`)
@@ -208,26 +221,26 @@ centimeters-per-Unity-unit conversion is NOT a configuration field — it is rea
 | `torque_delta_threshold_adc`  | `int`   | `100`      | Minimum delta between consecutive readouts to report a change     |
 | `torque_averaging_pool_size`  | `int`   | `4`        | Number of readouts averaged together                              |
 
-`TorqueInterface(baseline_voltage, maximum_voltage, sensor_capacity, polling_frequency)` consumes
-the calibration fields; `set_parameters(report_ccw, report_cw, signal_threshold, delta_threshold,
-averaging_pool_size)` is sent at session start.
+`TorqueInterface(baseline_voltage, maximum_voltage, sensor_capacity, polling_frequency)` consumes the calibration
+fields, and `set_parameters(report_ccw, report_cw, signal_threshold, delta_threshold, averaging_pool_size)` is sent
+at session start.
 
 ### Screen trigger (consumes `ScreenInterface`)
 
-| Field                              | Type   | Default | Purpose                                                                |
-|------------------------------------|--------|---------|------------------------------------------------------------------------|
-| `screen_trigger_pulse_duration_ms` | `int`  | `500`   | Duration (milliseconds) of the TTL pulse used to toggle screen power   |
+| Field                              | Type  | Default | Purpose                                                              |
+|------------------------------------|-------|---------|----------------------------------------------------------------------|
+| `screen_trigger_pulse_duration_ms` | `int` | `500`   | Duration (milliseconds) of the TTL pulse used to toggle screen power |
 
 `ScreenInterface.set_parameters(pulse_duration)` consumes this at session start (converted to
 microseconds before sending).
 
 ### Mesoscope frame TTL (consumes `MesoscopeFrameTTLInterface`)
 
-| Field                                  | Type   | Default | Purpose                                                                          |
-|----------------------------------------|--------|---------|----------------------------------------------------------------------------------|
-| `mesoscope_frame_averaging_pool_size`  | `int`  | `0`     | Number of digital readouts averaged when determining mesoscope frame TTL state   |
+| Field                                 | Type  | Default | Purpose                                                                        |
+|---------------------------------------|-------|---------|--------------------------------------------------------------------------------|
+| `mesoscope_frame_averaging_pool_size` | `int` | `0`     | Number of digital readouts averaged when determining mesoscope frame TTL state |
 
-`MesoscopeFrameTTLInterface.set_parameters(averaging_pool_size)` consumes this.
+`MesoscopeFrameTTLInterface.set_parameters(averaging_pool_size)` consumes this at session start.
 
 ### Generic sensor polling
 
@@ -244,16 +257,15 @@ Converted to microseconds and passed as `polling_frequency` to `MesoscopeFrameTT
 |--------------------------|-------------------------------------------------------------------------------------|----------------------------------------------------------------|---------------------------------------------------------------------------|
 | `valve_calibration_data` | `dict[int \| float, int \| float] \| tuple[tuple[int \| float, int \| float], ...]` | `((15000, 1.10), (30000, 3.0), (45000, 6.25), (60000, 10.90))` | Maps valve open durations (microseconds) → dispensed volume (microliters) |
 
-`WaterValveInterface(valve_calibration_data)` consumes the tuple form; the dataclass's `__post_init__`
-normalizes from `dict` on YAML load. `WaterValveInterface` fits a power-law model
-(`a * pulse_duration ** b`) to this calibration data using `scipy.optimize.curve_fit`.
+`WaterValveInterface(valve_calibration_data)` consumes the tuple form, which the dataclass's `__post_init__`
+normalizes from `dict` on YAML load. `WaterValveInterface` fits a power-law model (`a * pulse_duration ** b`) to this
+calibration data using `scipy.optimize.curve_fit`.
 
-**Recalibration** drives the valve hardware (it repeatedly opens the valve to measure dispensed volume), so it
-is performed by the experimenter on the rig — never by the agent. Direct the user to the maintenance runtime
-(`sle mesoscope maintain`, the `maintenance_logic` hardware-maintenance GUI documented in
-`/mesoscope-vr-runtime`) to gather new calibration points, then update `valve_calibration_data` with the
-resulting measurements. Replace the entire tuple; do NOT mix old and new measurements, and do NOT invoke
-`WaterValveInterface.calibrate_valve()` or otherwise drive the valve yourself.
+**Recalibration** drives the valve hardware, repeatedly opening the valve to measure the dispensed volume, so the
+experimenter performs it on the rig. Direct the user to the maintenance runtime (`sle mesoscope maintain`, the
+`maintenance_logic` hardware-maintenance GUI documented in `/mesoscope-vr-runtime`) to gather new calibration points,
+then update `valve_calibration_data` with the resulting measurements. Replace the entire tuple. You MUST NOT mix old
+and new measurements, and you MUST NOT invoke `WaterValveInterface.calibrate_valve()` or drive the valve yourself.
 
 ---
 
@@ -294,17 +306,17 @@ contract that carries these parameters to the `runAcquisition` MATLAB function. 
 - `z_exclusion_um` boundaries are not ordered as `(minimum, maximum)`.
 - a configured (unequal) `z_exclusion_um` zone does not fall within the `z_range_um` boundaries.
 
-**Source of values:** These are deployment defaults tuned for the reference rig and microscope.
-Override them with the imaging geometry and estimator settings appropriate for the specific
-Mesoscope. The configuration is the single source of truth for the acquisition geometry — the
-parameters are delivered to the ScanImagePC in each command payload that consumes them.
+**Source of values:** These are deployment defaults tuned for the reference rig and microscope. Override them with
+the imaging geometry and estimator settings appropriate for the specific Mesoscope. This section is the single source
+of truth for the acquisition geometry, because the parameters travel to the ScanImagePC inside each command payload
+that consumes them.
 
 ---
 
 ## MesoscopeVRAssets
 
-Captures the Virtual Reality task assets — the three Zaber motor ports plus a nested `vr_task`
-configuration. Four fields.
+Captures the Virtual Reality task assets in four fields: the three Zaber motor ports plus a nested `vr_task`
+configuration.
 
 ### Zaber motor ports
 
@@ -314,30 +326,36 @@ configuration. Four fields.
 | `lickport_port` | `str` | `"/dev/ttyUSB1"` | USB port for the LickPort Zaber motor group (3-axis: Z, Y, X, in daisy-chain order)       |
 | `wheel_port`    | `str` | `"/dev/ttyUSB2"` | USB port for the Wheel Zaber motor group (1-axis: X)                                      |
 
-Default ports use the Linux device-path form (`/dev/ttyUSB*`); the value is OS-specific (e.g. `COMx` on
-Windows) and is set per host from discovery.
+Default ports use the Linux device-path form (`/dev/ttyUSB*`). The value is OS-specific, taking the `COMx` form on
+Windows, and is set per host from discovery.
 
 Ports come from `experiment:zaber-interface` discovery (`get_zaber_devices_tool`). The
 daisy-chain order is hardware-cabled and MUST match the order the binding class assumes.
 
 ### Unity VR task (`vr_task`)
 
-`vr_task` is a nested `VRTaskConfiguration` (from `sollertia_experiment/vr_task/configuration.py`).
-It stores only the MQTT broker discovery fields used to reach Unity.
+`vr_task` is a nested `VRTaskConfiguration` (from `vr_task/configuration.py`). It stores only the MQTT broker
+discovery fields. Mesoscope-VR nests it under `MesoscopeSystemConfiguration.assets.vr_task` (the `vr_task` field of
+`MesoscopeVRAssets` in `mesoscope_vr/system.py`), which is the platform-general VR task seam that
+`experiment:vr-driver-interface` documents.
 
 | Field          | Type  | Default       | Purpose                                                            |
 |----------------|-------|---------------|--------------------------------------------------------------------|
 | `vr_task.ip`   | `str` | `"127.0.0.1"` | IP address of the MQTT broker used to reach the Unity game engine  |
 | `vr_task.port` | `int` | `1883`        | Port number of the MQTT broker used to reach the Unity game engine |
 
-The Mesoscope-VR runtime publishes VR-environment commands over MQTT. The broker is typically
-co-hosted on the acquisition PC (localhost) but may be relocated to a separate machine for
-multi-PC rigs. The geometric VR parameters (cue catalog, corridor geometry, cm-per-Unity-unit) are
-NOT stored here — they are resolved at experiment start from the matching `TaskTemplate` YAML. See
-`experiment:vr-driver-interface`.
+The Mesoscope-VR runtime publishes VR-environment commands over MQTT. The broker is typically co-hosted on the
+acquisition PC (localhost) but may be relocated to a separate machine for multi-PC rigs. The geometric VR parameters
+(cue catalog, corridor geometry, cm-per-Unity-unit) live in the matching `TaskTemplate` YAML, which the runtime
+resolves at experiment start. See `experiment:vr-driver-interface`.
 
-Scene activation and Play Mode are driven over the editor MCP Bridge on a fixed loopback endpoint
-(`127.0.0.1:8090`) and are deliberately NOT configured here.
+`MesoscopeDriver` reuses these same two fields as its own broker discovery (the `MesoscopeDriver` construction in
+`MesoscopeVRSystem.__init__` of `mesoscope_vr/system_controller.py`, and `MesoscopeDriver.__init__` in
+`mesoscope_vr/mesoscope_driver.py`), so the Unity task and the ScanImagePC share one broker. See
+[`mesoscope-driver.md`](mesoscope-driver.md) for the topic namespace that keeps the two surfaces apart.
+
+Scene activation and Play Mode are driven over the editor MCP Bridge on the fixed loopback endpoint
+`127.0.0.1:8090`, which `unity:unity-mcp-environment-setup` owns, so this section carries no bridge field.
 
 ---
 
@@ -378,12 +396,12 @@ unset path reports as not configured with an ok status, matching the storage des
 
 ### Face-tracking subprocess
 
-`_launch_face_tracking` (in `sollertia_experiment/mesoscope_vr/data_preprocessing.py`) applies that gate and
+`_launch_face_tracking` (in `mesoscope_vr/data_preprocessing.py`) applies that gate and
 launches the subprocess.
 
-The pose model runs in a separate process. `sollertia-video-tracking` (slvt) requires Python 3.12
-and numpy 1.x because DeepLabCut 3.0.0 constrains both, while the rest of the Sollertia stack runs
-Python 3.14 and numpy 2, so the acquisition process reaches slvt across a `conda run` boundary:
+The pose model runs in a separate process. `sollertia-video-tracking` (slvt) pins `deeplabcut[gui]==3.0.1`, which
+constrains it to Python 3.12 and the numpy 1.x series, while sollertia-experiment runs Python 3.14 and numpy 2.5.2.
+The acquisition process therefore reaches slvt across a `conda run` boundary:
 
 ```text
 conda run -n <conda_environment> slvt infer --config-path <dlc_project_path>
@@ -412,14 +430,14 @@ failure, with its last 2000 characters echoed into the error.
 
 ## Field-naming convention
 
-Field naming follows `experiment:acquisition-system-design`'s [Configuration field naming convention
-](../../../../experiment/skills/acquisition-system-design/references/layer-patterns.md#field-naming-convention). The
-`<unit>` suffixes in use across the Mesoscope-VR schema are `adc`, `us`, `ms`, `cm`, `g_cm`, and `pulse`.
+Field naming follows the "Field naming convention" rule of `experiment:acquisition-system-design`, in its
+`references/layer-patterns.md`. The `<unit>` suffixes in use across the Mesoscope-VR schema are `adc`, `us`, `ms`,
+`cm`, `g_cm`, and `pulse`.
 
 ---
 
 ## Schema versioning
 
-Schema changes follow `experiment:acquisition-system-design`'s [Contract 2: Schema versioning
-](../../../../experiment/skills/acquisition-system-design/references/layer-patterns.md#contract-2-schema-versioning).
-The package whose version a Mesoscope-VR schema change MUST bump is `sollertia-experiment`.
+Schema changes follow the "Contract 2: Schema versioning" rule of `experiment:acquisition-system-design`, in its
+`references/layer-patterns.md`. The package whose version a Mesoscope-VR schema change MUST bump is
+`sollertia-experiment`.

@@ -14,15 +14,15 @@ user-invocable: false
 Concretizes the agnostic dataset-forging output stage for the Mesoscope-VR acquisition system: aligns the behavior
 and runtime streams to the fluorescence frame reference vector and assembles them into the per-session data feather.
 
-This skill is the single owner of the assembly **algorithm** — the interpolation rules, the per-column special
-cases, and the sentinel masking — for both `assemble_behavior_dataset` (in `mesoscope_vr/behavior_dataset.py`) and
+This skill is the single owner of the assembly **algorithm** (the interpolation rules, the per-column special cases,
+and the sentinel masking) for both `assemble_behavior_dataset` (in `mesoscope_vr/behavior_dataset.py`) and
 `assemble_runtime_dataset` (in `mesoscope_vr/runtime_dataset.py`). The agnostic batch orchestration that drives this
-stage is owned by the forging plugin (see `forging:data-processing-design`); the final forged-feather column roster
+stage is owned by the forging plugin (see `forging:data-processing-design`). The final forged-feather column roster
 at the output/reference level is owned by `forging:dataset-forging-results`, which points here for the algorithm.
 
-The column-roster enum definitions themselves (`DatasetColumn`, `BehaviorDataFiles`) are defined in `metadata.py`
-and documented by `mesoscope:mesoscope-vr-processing-schema`; this skill instantiates the `DatasetColumn` roster as
-the output schema of the assembly stage but does not own the enum definition.
+The column-roster enum definitions themselves (`DatasetColumn`, `BehaviorDataFiles`) are defined in `metadata.py` and
+documented by `mesoscope:mesoscope-vr-processing-schema`. This skill instantiates the `DatasetColumn` roster as the
+output schema of the assembly stage but does not own the enum definition.
 
 ---
 
@@ -58,7 +58,7 @@ the output schema of the assembly stage but does not own the enum definition.
 
 ## Assembly stage contract
 
-The forging pipeline concatenates three independently assembled DataFrames — fluorescence, behavior, and runtime —
+The forging pipeline concatenates three independently assembled DataFrames (fluorescence, behavior, and runtime)
 horizontally into one per-session `data.feather`. This skill owns the behavior and runtime halves. The contract:
 
 1. The fluorescence assembly runs **first** and its `time_us` column becomes the `reference_time` vector for the
@@ -82,13 +82,13 @@ interpolation for `True` and linear interpolation for `False`.
 ## The fluorescence-frame reference vector
 
 Both assembly functions take a `reference_time` argument typed as a `uint64` NumPy array of microsecond timestamps.
-It is the fluorescence dataset's `time_us` column — one entry per acquired mesoscope frame — so every assembled
+It is the fluorescence dataset's `time_us` column, one entry per acquired mesoscope frame, so every assembled
 behavior and runtime column is sampled at the fluorescence frame rate. The behavior assembly derives
 `elapsed_minutes` from this same `time_us` vector (minutes since the first sample, rounded to two decimals as
-`Float32`), but it is dropped before concatenation when `drop_time_columns=True`; the fluorescence half supplies the
+`Float32`), but it is dropped before concatenation when `drop_time_columns=True`. The fluorescence half supplies the
 canonical `time_us` and `elapsed_minutes` columns in the final feather.
 
-Producing the reference vector is out of scope here — see `mesoscope:mesoscope-vr-fluorescence-alignment`.
+Producing the reference vector is out of scope here. See `mesoscope:mesoscope-vr-fluorescence-alignment`.
 
 ---
 
@@ -104,24 +104,24 @@ source is then interpolated onto `reference_time`. The full feather-to-directory
 
 ### Always-present sources
 
-| Source feather                       | Aligned column          | `is_discrete` | Notes                                                              |
-|--------------------------------------|-------------------------|---------------|--------------------------------------------------------------------|
-| `system_state_data.feather`          | `system_state`          | `True`        | Code series; inverted to names and cast to a Polars Enum (below)   |
-| `lick_data.feather`                  | `lick`                  | `True`        | Thresholded lick state                                             |
-| `valve_data.feather` (water volume)  | `water_uL`              | `True`        | Cast to `Float32`; discrete because the power-law dispensing curve makes linear interpolation inaccurate |
-| `valve_data.feather` (tone state)    | (`reward` derivation)   | `True`        | Interpolated into a temporary tone column used only to classify rewards |
+| Source feather                      | Aligned column        | `is_discrete` | Notes                                                                                                    |
+|-------------------------------------|-----------------------|---------------|----------------------------------------------------------------------------------------------------------|
+| `system_state_data.feather`         | `system_state`        | `True`        | Code series, inverted to names and cast to a Polars Enum (below)                                         |
+| `lick_data.feather`                 | `lick`                | `True`        | Thresholded lick state                                                                                   |
+| `valve_data.feather` (water volume) | `water_uL`            | `True`        | Cast to `Float32`, discrete because the power-law dispensing curve makes linear interpolation inaccurate |
+| `valve_data.feather` (tone state)   | (`reward` derivation) | `True`        | Interpolated into a temporary tone column used only to classify rewards                                  |
 
 ### Conditional sources
 
 Each of these is included only when its feather exists in the microcontroller-data directory:
 
-| Source feather              | Aligned column | `is_discrete` | Present for                                  |
-|-----------------------------|----------------|---------------|----------------------------------------------|
-| `encoder_data.feather`      | `distance_cm`  | `False`       | All session types except lick training       |
-| `encoder_data.feather`      | `speed_cm_s`   | `False`       | Derived from encoder distance (sliding window) |
-| `screen_data.feather`       | `screens`      | `True`        | Mesoscope experiments only                   |
-| `brake_data.feather`        | `brake`        | (thresholded) | Mesoscope experiments only                   |
-| `torque_data.feather`       | `torque_N_cm`  | `False`       | All session types except run training        |
+| Source feather         | Aligned column | `is_discrete` | Present for                                    |
+|------------------------|----------------|---------------|------------------------------------------------|
+| `encoder_data.feather` | `distance_cm`  | `False`       | All session types except lick training         |
+| `encoder_data.feather` | `speed_cm_s`   | `False`       | Derived from encoder distance (sliding window) |
+| `screen_data.feather`  | `screens`      | `True`        | Mesoscope experiments only                     |
+| `brake_data.feather`   | `brake`        | (thresholded) | Mesoscope experiments only                     |
+| `torque_data.feather`  | `torque_N_cm`  | `False`       | All session types except run training          |
 
 ### Running-speed sliding window
 
@@ -139,9 +139,9 @@ segmented into reward events by detecting transitions in the active flag and tak
 `water_uL` is summed within each reward event, and each sample is classified into a Polars `Enum(["no", "tone",
 "yes"])`:
 
-- `no` — no tone active at the sample
-- `yes` — tone active and the event delivered water (summed `water_uL` greater than zero)
-- `tone` — tone active but the event delivered no water
+- `no`, when no tone is active at the sample
+- `yes`, when a tone is active and the event delivered water (summed `water_uL` greater than zero)
+- `tone`, when a tone is active but the event delivered no water
 
 The temporary tone, active-flag, event-id, and per-event-water columns are dropped after classification.
 
@@ -169,9 +169,9 @@ missing `system_state_codes`, assembly raises a `ValueError`.
 
 ## Behavior-dataset column order
 
-After cleanup, the behavior DataFrame is reordered to this canonical sequence; only columns that actually exist for
-the session are selected (so lick-training and run-training sessions omit the columns whose source feathers are
-absent):
+After cleanup, the behavior DataFrame is reordered to this canonical sequence. Only columns that actually exist for
+the session are selected, so lick-training and run-training sessions omit the columns whose source feathers are
+absent:
 
 ```text
 time_us
@@ -199,19 +199,19 @@ each source. Unlike the behavior assembly, several runtime columns are indexed b
 by time:
 
 1. The encoder's traveled distance is interpolated onto `reference_time` (`is_discrete=False`) to produce a
-   `reference_distance` vector — the cumulative distance at each fluorescence frame.
+   `reference_distance` vector, the cumulative distance at each fluorescence frame.
 2. `trial`, `trial_type`, and `cue` are then interpolated against `reference_distance` (their source coordinates are
    the per-trial / per-cue traveled-distance values, not timestamps), all with `is_discrete=True`:
 
-| Aligned column | Source feather              | Source coordinates              | Source values        |
-|----------------|-----------------------------|---------------------------------|----------------------|
-| `trial`        | `trial_data.feather`        | per-trial `traveled_distance_cm` | sequential 1-based trial numbers (`uint32`), cast to `UInt16` |
-| `trial_type`   | `trial_data.feather`        | per-trial `traveled_distance_cm` | `trial_type_index`, mapped to an Enum (below) |
-| `cue`          | `vr_cue_data.feather`       | per-cue `traveled_distance_cm`   | `vr_cue`             |
+| Aligned column | Source feather        | Source coordinates               | Source values                                                 |
+|----------------|-----------------------|----------------------------------|---------------------------------------------------------------|
+| `trial`        | `trial_data.feather`  | per-trial `traveled_distance_cm` | sequential 1-based trial numbers (`uint32`), cast to `UInt16` |
+| `trial_type`   | `trial_data.feather`  | per-trial `traveled_distance_cm` | `trial_type_index`, mapped to an Enum (below)                 |
+| `cue`          | `vr_cue_data.feather` | per-cue `traveled_distance_cm`   | `vr_cue`                                                      |
 
 3. `runtime_state` is interpolated against `reference_time` (`is_discrete=True`) from `runtime_state_data.feather`.
 
-The trial sources are produced upstream by runtime cue-to-trial decomposition — see
+The trial sources are produced upstream by runtime cue-to-trial decomposition. See
 `mesoscope:mesoscope-vr-trial-decomposition`.
 
 ### Trigger-zone membership
@@ -236,10 +236,10 @@ The experiment configuration supplies the categorical mappings:
 
 The two guidance columns are added only when their feather files were produced for the session:
 
-| Aligned column        | Source feather                              | `is_discrete` |
-|-----------------------|---------------------------------------------|---------------|
-| `reinforcing_guided`  | `reinforcing_guidance_state_data.feather`   | `True`        |
-| `aversive_guided`     | `aversive_guidance_state_data.feather`      | `True`        |
+| Aligned column       | Source feather                            | `is_discrete` |
+|----------------------|-------------------------------------------|---------------|
+| `reinforcing_guided` | `reinforcing_guidance_state_data.feather` | `True`        |
+| `aversive_guided`    | `aversive_guidance_state_data.feather`    | `True`        |
 
 Each guidance source value is cast to `uint8` before interpolation.
 
@@ -251,18 +251,18 @@ Each guidance source value is cast to `uint8` before interpolation.
 `system_state` is `idle` or `rest`, the runtime columns are not meaningful and are replaced with sentinels that sit
 outside every legitimate value range:
 
-| Column       | Masked value | Sentinel rationale                                                                 |
-|--------------|--------------|-----------------------------------------------------------------------------------|
-| `cue`        | `255`        | `_CUE_UNDEFINED` — maximum of `UInt8`, outside the valid cue-code range            |
-| `trial`      | `65535`      | `_TRIAL_UNDEFINED` — maximum of `UInt16`, outside the trial-ID range for any session |
-| `trial_type` | `"undefined"` | the dedicated Enum member added to the trial-type categories                       |
+| Column       | Masked value  | Sentinel rationale                                                                  |
+|--------------|---------------|-------------------------------------------------------------------------------------|
+| `cue`        | `255`         | `_CUE_UNDEFINED`, maximum of `UInt8`, outside the valid cue-code range              |
+| `trial`      | `65535`       | `_TRIAL_UNDEFINED`, maximum of `UInt16`, outside the trial-ID range for any session |
+| `trial_type` | `"undefined"` | the dedicated Enum member added to the trial-type categories                        |
 
-Only `idle` and `rest` are masked; `run` samples keep their interpolated values. The masking is applied
+Only `idle` and `rest` are masked. `run` samples keep their interpolated values. The masking is applied
 column-by-column with `pl.when(is_non_run).then(<sentinel>).otherwise(<column>)`, preserving each column's dtype.
 
 The optional `reinforcing_guided` and `aversive_guided` columns are present in the assembled feather only when their
-upstream guidance feathers existed; all other assembly columns are present in every forged Mesoscope-VR session
-(subject to the behavior-dataset session-type omissions described above).
+upstream guidance feathers existed. All other assembly columns are present in every forged Mesoscope-VR session,
+subject to the behavior-dataset session-type omissions described above.
 
 ---
 
@@ -282,22 +282,26 @@ report that applies it belong to `assets:datasets`.
 
 ## Related skills
 
-| Skill                                           | Relationship                                                                                |
-|-------------------------------------------------|---------------------------------------------------------------------------------------------|
-| `forging:data-processing-design`                | Owns the agnostic batch orchestration and stage seam this skill concretizes                 |
-| `forging:dataset-forging-results`               | Owns the forged-feather output schema at the reference level; points here for the algorithm |
-| `forging:dataset-definition`                    | Composes a dataset from filtered sessions and owns its forging job state                    |
-| `assets:datasets`                               | Owns the `DatasetData` marker, the dataset layout, and the seven slsa dataset tools         |
-| `mesoscope:mesoscope-vr-fluorescence-alignment` | Produces the `reference_time` vector this stage aligns onto                                 |
-| `mesoscope:mesoscope-vr-trial-decomposition`    | Produces the `trial` / `cue` / `vr_trigger_zone` feathers consumed by the runtime assembly  |
-| `mesoscope:mesoscope-vr-module-parsing`         | Produces the per-module behavior feathers consumed by the behavior assembly                 |
-| `mesoscope:mesoscope-vr-processing-schema`      | Owns the `DatasetColumn` and `BehaviorDataFiles` enum definitions this stage instantiates   |
+| Skill                                           | Relationship                                                                                    |
+|-------------------------------------------------|-------------------------------------------------------------------------------------------------|
+| `forging:data-processing-design`                | Owns the agnostic batch orchestration and stage seam this skill concretizes                     |
+| `forging:dataset-forging-results`               | Owns the forged-feather output schema at the reference level, and points here for the algorithm |
+| `forging:dataset-definition`                    | Composes a dataset from filtered sessions and owns its forging job state                        |
+| `assets:datasets`                               | Owns the `DatasetData` marker, the dataset layout, and the seven slsa dataset tools             |
+| `mesoscope:mesoscope-vr-fluorescence-alignment` | Produces the `reference_time` vector this stage aligns onto                                     |
+| `mesoscope:mesoscope-vr-trial-decomposition`    | Produces the `trial` / `cue` / `vr_trigger_zone` feathers consumed by the runtime assembly      |
+| `mesoscope:mesoscope-vr-module-parsing`         | Produces the per-module behavior feathers consumed by the behavior assembly                     |
+| `mesoscope:mesoscope-vr-processing-schema`      | Owns the `DatasetColumn` and `BehaviorDataFiles` enum definitions this stage instantiates       |
 
 ---
 
 ## Verification checklist
 
 ```text
+Tool-settled (run `rg -n '.{121,}' <file>` and `wc -l <file>`):
+- [ ] All lines at or under 120 characters (tables and code blocks may exceed for clarity)
+- [ ] SKILL.md under 500 lines
+
 - [ ] Every interpolation claim (is_discrete True/False, source vs reference, distance vs time) matches
       behavior_dataset.py / runtime_dataset.py
 - [ ] Running-speed window stated as 100 ms (_RUNNING_SPEED_WINDOW_US = 100_000 us) over original encoder samples

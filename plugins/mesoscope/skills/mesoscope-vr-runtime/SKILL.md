@@ -2,485 +2,496 @@
 name: mesoscope-vr-runtime
 description: >-
   Documents the Mesoscope-VR runtime behavior layer: the MesoscopeVRStates state machine, the
-  MesoscopeVRSystem orchestrator, the per-mode runtime logic functions, the BehaviorVisualizer and
-  RuntimeControlUI, and the `sle mesoscope` CLI commands. Use when adding a new training mode or
-  session type, extending the state machine, modifying visualizers, or wiring new CLI commands.
+  MesoscopeVRSystem orchestrator, the per-mode runtime logic functions, the two control GUIs and the
+  visualizer, the session data lifecycle, and the `sle mesoscope` CLI. Use when adding a training mode
+  or session type, extending the state machine, changing a GUI, wiring a new CLI command, or
+  preprocessing, purging, migrating, or deleting a Mesoscope-VR session.
 user-invocable: false
 ---
 
 # Mesoscope-VR runtime
 
-Documents the Mesoscope-VR runtime behavior layer — the state machine, the orchestrator class, the
-per-mode runtime logic functions, the visualizer and control GUI, and the CLI surface. This skill is
-the counterpart to `/mesoscope-vr` (hardware composition); together they cover the full
-Mesoscope-VR system.
+Documents the Mesoscope-VR runtime behavior layer, covering the state machine, the orchestrator class, the per-mode
+runtime logic functions, the two control GUIs and the visualizer, the session data lifecycle, and the CLI surface. This
+skill is the counterpart to `/mesoscope-vr`, which owns the hardware composition the runtime drives.
 
-For the platform-general acquisition-system runtime pattern, see `experiment:acquisition-system-runtime`.
-For the platform-general static design pattern, see `experiment:acquisition-system-design`. For the
-Unity VR task driver the orchestrator uses to couple to the game engine, see
-`experiment:vr-driver-interface`.
+Mesoscope-VR is the only registered acquisition system, so this skill doubles as the worked example an agent copies
+when building a new one. The platform-general rule behind each choice below lives in
+`experiment:acquisition-system-runtime`, the static pattern in `experiment:acquisition-system-design`, and the seam
+catalog in `experiment:library-extension`. This skill covers how the runtime consumes descriptors, session data, and
+task templates, and not how to author them.
 
 ---
 
 ## Scope
 
 **Covers:**
-- `MesoscopeVRStates` enumeration and state machine semantics
-- `MesoscopeVRSystem` orchestrator class — construction, state transitions, and the runtime cycle
-- Per-mode runtime logic functions (`window_checking_logic`, `lick_training_logic`,
-  `run_training_logic`, `experiment_logic`, `maintenance_logic`)
-- `BehaviorVisualizer` / `VisualizerMode` and the `RuntimeControlUI` control GUI
-- Session-descriptor consumption pattern (read by runtime, written by assets-plugin tooling)
-- `sle mesoscope` CLI command surface (`configure`, `maintain`, `run`, session-data subcommands)
-- Workflow for adding a new training mode (cross-repo: sollertia-shared-assets + sollertia-experiment)
+- `MesoscopeVRStates` and the two state axes the orchestrator tracks
+- `MesoscopeVRSystem` construction, start and stop ordering, the runtime cycle, and pause and resume
+- Per-mode runtime logic functions, including `maintenance_logic`
+- `BehaviorVisualizer`, `VisualizerMode`, `RuntimeControlUI`, and `MaintenanceControlUI`
+- The session data lifecycle: `preprocess_session_data`, `purge_session`, `migrate_animal_between_projects`
+- Session-descriptor consumption, where the runtime reads and completes what assets-plugin tooling authors
+- The `sle mesoscope` CLI command surface
+- The workflow for adding a training mode across sollertia-shared-assets and sollertia-experiment
 
 **Does not cover** (delegated):
-- Mesoscope-VR hardware composition (binding classes, configuration dataclasses, system YAML) — see `/mesoscope-vr`
-- The platform-general runtime pattern — see `experiment:acquisition-system-runtime`
-- The Unity VR task driver, its MQTT topic vocabulary, and trial decomposition — see `experiment:vr-driver-interface`
-- Per-firmware-module wrappers and slmc Module classes — see `experiment:microcontroller-interface`
-- Descriptor and hardware-state field schemas — owned by `/mesoscope-vr-session-schema`
-- The generic descriptor tools — owned by `assets:session-descriptors`
-- The `SessionTypes` member and its `DESCRIPTOR_REGISTRY` entry — owned by `assets:library-extension`
-- Task template and trial-structure authoring — owned by `assets:task-templates`
-- Per-experiment configuration — owned by `assets:experiment-configuration`
-- Session-data lifecycle (preprocessing, transfer, deletion) — owned by `experiment:data-management`
+- Mesoscope-VR hardware composition, configuration dataclasses, and the system YAML. See `/mesoscope-vr`.
+- The platform-general runtime pattern, and the seams a new acquisition system composes. See
+  `experiment:acquisition-system-runtime` and `experiment:library-extension`.
+- The six shared preprocessing primitives that this lifecycle calls. See `experiment:data-management`.
+- The `SurgeryLog` and `WaterLog` processors and the sheet schema. See `experiment:google-sheets-processing`.
+- The VR task driver, its MQTT vocabulary, and trial decomposition. See `experiment:vr-driver-interface`.
+- Per-firmware-module wrappers and slmc `Module` classes. See `experiment:microcontroller-interface`.
+- Descriptor and hardware-state field schemas. See `/mesoscope-vr-session-schema`.
+- Generic descriptor tooling, and the `SessionTypes` member with its `DESCRIPTOR_REGISTRY` entry. See
+  `assets:session-descriptors` and `assets:library-extension`.
+- Task template and experiment configuration authoring. See `assets:task-templates` and
+  `assets:experiment-configuration`.
 
 ---
 
-## Runtime layer architecture
+## Platform seam mapping
 
-```
-┌──────────────────────────────────────────────────────────────────────────────┐
-│  sle mesoscope CLI (sollertia_experiment/interfaces/mesoscope_vr.py)          │
-│  ──────────────────────────────────────────────────────────────              │
-│  sle mesoscope run window-checking ──┐                                        │
-│  sle mesoscope run lick-training   ──┤                                        │
-│  sle mesoscope run run-training    ──┼──► parses CLI options, then calls      │
-│  sle mesoscope run experiment      ──┤    the matching per-mode logic fn      │
-│  sle mesoscope maintain            ──┘                                        │
-└────────────────────────────────────────────────────┬─────────────────────────┘
-                                                     │
-┌────────────────────────────────────────────────────▼─────────────────────────┐
-│  Per-mode runtime logic functions                                            │
-│  (sollertia_experiment/mesoscope_vr/data_acquisition.py)                     │
-│  ─────────────────────────────────────────────────                           │
-│  window_checking_logic(...)   lick_training_logic(...)                       │
-│  run_training_logic(...)      experiment_logic(...)   maintenance_logic()    │
-│                                                                              │
-│  lick_training_logic, run_training_logic, and experiment_logic construct a   │
-│  MesoscopeVRSystem, drive its state transitions, and run its runtime_cycle() │
-│  loop. window_checking_logic and maintenance_logic build their own hardware  │
-│  assets directly.                                                            │
-└────────────────────────────────────────────────────┬─────────────────────────┘
-                                                     │ composes
-┌────────────────────────────────────────────────────▼─────────────────────────┐
-│  MesoscopeVRSystem orchestrator (mesoscope_vr/system_controller.py)          │
-│  ──────────────────────────────────────────────────────────────             │
-│  - Composes MicroControllerInterfaces, VideoSystems, ZaberMotors             │
-│  - Drives the MesoscopeVRStates system state machine                         │
-│  - Owns a VRTaskDriver (experiment sessions only) for Unity coupling         │
-│  - Owns BehaviorVisualizer + RuntimeControlUI                                │
-│  - runtime_cycle() runs _data_cycle, visualizer update, and _ui_cycle every  │
-│    iteration, plus _unity_cycle / _mesoscope_cycle for experiment sessions   │
-└──────────────────────────────────────────────────────────────────────────────┘
-```
+Each row names a Mesoscope-VR choice and the platform-general seam it instantiates, so a new acquisition system is
+built by substituting its own answer in the left column.
 
----
-
-## Authoritative bases
-
-| Concern                                               | Authority                               |
-|-------------------------------------------------------|-----------------------------------------|
-| Platform-general runtime pattern                      | `experiment:acquisition-system-runtime` |
-| Mesoscope-VR hardware composition                     | `/mesoscope-vr`                         |
-| Unity VR task driver + MQTT contract                  | `experiment:vr-driver-interface`        |
-| Per-firmware-module wrapper API                       | `experiment:microcontroller-interface`  |
-| `SessionTypes` member and `DESCRIPTOR_REGISTRY` entry | `assets:library-extension`              |
-| Descriptor and hardware-state field schemas           | `/mesoscope-vr-session-schema`          |
-| Generic descriptor read and write tooling             | `assets:session-descriptors`            |
-| Task template authoring (trial structure)             | `assets:task-templates`                 |
-| Experiment configuration authoring                    | `assets:experiment-configuration`       |
-| Session-data lifecycle                                | `experiment:data-management`            |
-
-This skill documents how the runtime *consumes* descriptors, session data, and task templates. It
-does NOT document how to author them.
+| Mesoscope-VR choice                                     | Platform seam it instantiates                                                                                                          |
+|---------------------------------------------------------|----------------------------------------------------------------------------------------------------------------------------------------|
+| `MesoscopeVRStates` plus `change_runtime_state()`       | The two state axes, system state and runtime stage                                                                                     |
+| `MesoscopeVRSystem`                                     | A per-system controller, since the platform exposes no runtime base class (`sollertia-experiment/README.md`, "Extending the Platform") |
+| The five per-mode logic functions                       | One logic function per acquisition mode                                                                                                |
+| Every teardown step wrapped in `run_shutdown_step`      | Teardown isolation, `run_shutdown_step` in `cross_system/shutdown_tools.py`                                                            |
+| `RuntimeControlUI` and `MaintenanceControlUI`           | Two daemon-process GUIs, each owning one `SharedMemoryArray`                                                                           |
+| `BehaviorVisualizer`                                    | A main-thread visualizer driven by direct cycle calls                                                                                  |
+| `MesoscopeVRLogMessageCodes`                            | The system's own log message code space                                                                                                |
+| `mark_runtime_initialized()` and `raw_data/nk.bin`      | The initialization marker, owned by `assets:session-data`                                                                              |
+| The `sle mesoscope` command group                       | One CLI group per registered acquisition system                                                                                        |
+| The fifteen tools of `interfaces/mesoscope_vr_tools.py` | One `<system>_tools.py` module, discovered by filename suffix in `_register_tool_modules()` (`interfaces/mcp_server.py`)               |
+| The Mesoscope-VR steps of `preprocess_session_data`     | Per-system steps around the shared preprocessing primitives                                                                            |
 
 ---
 
 ## State machine
 
-`MesoscopeVRStates` (in `sollertia_experiment/mesoscope_vr/system.py`) is the `IntEnum` that encodes
-the runtime's current hardware-control mode. Each state determines the brake state, screen state,
-lickport availability, and which sensors are active.
+`MesoscopeVRStates` (`mesoscope_vr/system.py`) is the `IntEnum` encoding the runtime's hardware-control mode. Each
+state fixes the brake state, the screen state, and which sensors are monitoring.
 
-Current states:
+| State           | Value | Meaning                                                |
+|-----------------|-------|--------------------------------------------------------|
+| `IDLE`          | 0     | Not conducting a session, and the state a pause enters |
+| `REST`          | 1     | Rest period of an experiment session                   |
+| `RUN`           | 2     | Run period of an experiment session                    |
+| `LICK_TRAINING` | 3     | Lick training session                                  |
+| `RUN_TRAINING`  | 4     | Run training session                                   |
 
-| State           | Value | Meaning                                                                                                                  |
-|-----------------|-------|--------------------------------------------------------------------------------------------------------------------------|
-| `IDLE`          | 0     | Not conducting a session (and the paused state — brake engaged, screens off, only the mesoscope-frame TTL sensor active) |
-| `REST`          | 1     | Rest period of an experiment session                                                                                     |
-| `RUN`           | 2     | Run period of an experiment session                                                                                      |
-| `LICK_TRAINING` | 3     | Lick training session (lickport-only behavior)                                                                           |
-| `RUN_TRAINING`  | 4     | Run training session (wheel-only behavior)                                                                               |
-
-The enum exposes `to_dict()` (lowercased member names, underscores→spaces). Its three call sites all
-sit in `_generate_hardware_state_snapshot()`, which stores the mapping as `MesoscopeHardwareState`'s
-`system_state_codes` field in the session's `hardware_state.yaml`. Downstream behavior processing in
-the forging plugin reads that mapping to decode logged system-state codes.
-
-State values 0–4 are taken. New states SHOULD use the next unused value (5) unless a non-contiguous
-code carries semantic meaning that justifies the gap.
-
-The system distinguishes two state axes:
-
-- **System state** — a `MesoscopeVRStates` value, set by the hardware-state methods below and logged
-  with `MesoscopeVRLogMessageCodes.SYSTEM_STATE` (code 1).
-- **Runtime state (stage)** — an integer "stage" code within a session, set by
-  `change_runtime_state(new_state)` and logged with `MesoscopeVRLogMessageCodes.RUNTIME_STATE`
-  (code 2). The pause/resume machinery restores the pre-pause runtime state after an `IDLE` pause.
+`to_dict()` lowercases each member name and replaces underscores with spaces (`mesoscope_vr/system.py`). Its three
+call sites all sit in `_generate_hardware_state_snapshot()`, which stores the mapping as the
+`system_state_codes` field of `MesoscopeHardwareState` in the session's `hardware_state.yaml`
+(`mesoscope_vr/system_controller.py`). Downstream behavior processing reads it to decode the logged
+system-state codes. Values 0 through 4 are taken, and a new state SHOULD take the next unused value, 5.
+The system tracks two state axes. **System state** is a `MesoscopeVRStates` value set by the hardware-state methods and
+logged through `_change_system_state()` with the `SYSTEM_STATE` code (`mesoscope_vr/system_controller.py`).
+**Runtime state**, the within-session stage, is an integer set by `change_runtime_state(new_state)` and logged with the
+`RUNTIME_STATE` code. A code outside 0 to 255 raises `ValueError`, because the value is serialized as `uint8`, and a
+non-`IDLE` code is cached so a resume restores it. The training modes stamp the stage code
+`_GUIDED_RUNTIME_STATE_CODE = 255`, deliberately outside the system-state range.
 
 ---
 
 ## `MesoscopeVRSystem` orchestrator
 
-`MesoscopeVRSystem` (in `sollertia_experiment/mesoscope_vr/system_controller.py`) is the central
-orchestrator for a single session. External consumers go through the per-mode runtime logic functions
-rather than constructing the system class directly.
+`MesoscopeVRSystem` (`mesoscope_vr/system_controller.py`) orchestrates a single session. External consumers go through
+the per-mode logic functions rather than constructing the class directly.
+
+Module constants: `_MINIMUM_CPU_COUNT = 10`, derived as three cores for the microcontrollers, one for the data logger,
+four for the video systems, one for the central process, and one for the GUI. `_GUIDED_RUNTIME_STATE_CODE` and
+`_MAXIMUM_RUNTIME_STATE_CODE` are both 255. `_MESOSCOPE_START_TIMEOUT_MS = 15000` and `_EXPECTED_FRAME_PULSES = 10`
+together decide whether frame acquisition began. Class statics set the mesoscope frame-checking window
+`_mesoscope_frame_delay = 300` ms, the `_speed_calculation_window = 50` ms, and the logging `_source_id = 1`.
 
 ### Construction
 
-The orchestrator's `__init__` takes `session_data`, `session_descriptor`, and (for experiments)
-`experiment_configuration=None`. It resolves the `MesoscopeSystemConfiguration` internally via
-`get_system_configuration()` and constructs its own `DataLogger`; neither is passed in. It builds, in
-order:
+`__init__(session_data, session_descriptor, experiment_configuration=None)` resolves the system configuration through
+`get_system_configuration()` and constructs its own `DataLogger`, so neither is passed in. It proceeds in this order:
 
-1. `self._trial_state: TrialState` — per-session trial tracking.
-2. `self._logger: DataLogger` — the data logger that records messages from every managed source.
-3. `MicroControllerInterfaces(data_logger, microcontroller_configuration)`.
-4. `VideoSystems(data_logger, camera_configuration, output_directory)`.
-5. `ZaberMotors(zaber_positions, zaber_configuration=...assets)`.
-6. `VRTaskDriver(configuration=...assets.vr_task, task_template, expected_scene_name)` — **only**
-   for `SessionTypes.MESOSCOPE_EXPERIMENT` sessions; `None` otherwise. The task template is loaded
-   via `load_vr_task_template()`. See `experiment:vr-driver-interface`.
-7. `self._mesoscope: MesoscopeDriver`, built with `configuration=...assets.vr_task` and
-   `acquisition=...acquisition` — the MQTT control surface for the ScanImage software running on the
-   ScanImagePC. See `/mesoscope-vr`.
-8. `self._ui: RuntimeControlUI` — the runtime control GUI (reads the valve/gas-puff trackers).
-9. `self._visualizer: BehaviorVisualizer`.
-
-After construction the orchestrator owns `self._microcontrollers`, `self._cameras`,
-`self._zaber_motors`, `self._vr_task` (`VRTaskDriver | None`), `self._mesoscope`, `self._ui`,
-`self._visualizer`, and `self._trial_state`.
-
-The construction/teardown ordering constraints (hardware-subsystem order, keepalive enforcement) come
-from `experiment:acquisition-system-runtime`.
+1. Guards the host CPU count against `_MINIMUM_CPU_COUNT`, raising `RuntimeError` when it falls short.
+2. Caches the descriptor on the public `descriptor` attribute and dumps it to `raw_data.session_descriptor_path`, so an
+   unexpected termination still leaves a preprocessable session.
+3. Builds `MesoscopeData` and the `_is_mesoscope_experiment` predicate the cycle consults each pass.
+4. For experiment sessions only, writes a `MesoscopePositions` precursor into the session `raw_data`, seeded from the
+   animal's persistent snapshot when one exists.
+5. Initializes the state and tracker attributes, including `TrialState` and the resolved-stimulus counter.
+6. `DataLogger(output_directory=raw_data_path, instance_name=BEHAVIOR_LOGGER_NAME, thread_count=10)`, then
+   `MicroControllerInterfaces(...)` with `_wheel_encoder`, `_lick`, and `_valve` bound as hot-path aliases, then
+   `VideoSystems(..., output_directory=raw_data.camera_data_path)`.
+7. Warns that ZaberLauncher must already be running, blocks on Enter, loads `ZaberPositions` when the snapshot exists,
+   then builds `ZaberMotors`.
+8. For experiment sessions only, loads the task template through `load_vr_task_template()` and builds `VRTaskDriver`,
+   while every other session type holds `None`.
+9. `MesoscopeDriver` from `assets.vr_task` and `acquisition`, built for every session and connected only for
+   experiment sessions, then `RuntimeControlUI` and `BehaviorVisualizer()`.
 
 ### State transitions
 
-The orchestrator exposes one hardware-state method per system state. Each drives the binding classes
-into the target configuration (brake, screens, lickport, sensor enable/disable), updates the
-visualizer mode, and logs the change:
+The orchestrator exposes one hardware-state method per system state, each ending in `_change_system_state()`:
 
 ```python
-def idle(self)       -> None: ...   # MesoscopeVRStates.IDLE
-def rest(self)       -> None: ...   # MesoscopeVRStates.REST
-def run(self)        -> None: ...   # MesoscopeVRStates.RUN
-def lick_train(self) -> None: ...   # MesoscopeVRStates.LICK_TRAINING
-def run_train(self)  -> None: ...   # MesoscopeVRStates.RUN_TRAINING
+def idle(self)       -> None: ...   # IDLE, and calls change_runtime_state(IDLE) first
+def rest(self)       -> None: ...   # REST
+def run(self)        -> None: ...   # RUN
+def lick_train(self) -> None: ...   # LICK_TRAINING, stage code 255 first
+def run_train(self)  -> None: ...   # RUN_TRAINING, stage code 255 first
 ```
 
-Internally these call `_change_system_state(new_state)`, which applies the hardware configuration
-and logs `MesoscopeVRLogMessageCodes.SYSTEM_STATE`. `change_runtime_state(new_state)` separately
-advances the within-session runtime stage. State transitions are idempotent.
+Each method is convergent and unconditional. It issues every actuator and monitoring command for its target state and
+re-logs the state on re-entry, rather than checking whether the system already sits there. The short-circuit lives one
+layer down, in the per-actuator wrappers, where a setter such as `BrakeInterface.set_state` returns early when the
+request matches its own cached state (`cross_system/module_interfaces.py`).
+
+### Start and stop ordering
+
+`start()` runs thirteen steps. It starts the logger and logs the onset timestamp at `acquisition_time=0`, starts the
+microcontrollers, enters `idle()`, and writes the hardware-state and system-configuration snapshots. For VR
+sessions it applies the encoder Unity scale, connects, brackets `vr_task.setup()` with the screens on and off, seeds
+the trial structures, and resets the distance and trial counters. It then starts both cameras and runs
+`setup_zaber_motors()`, and for experiment sessions connects the mesoscope driver and runs `setup_mesoscope()`. It
+resolves the `VisualizerMode` and the reinforcing, aversive, and mesoscope flags, starts the control GUI, and pushes
+the initial guidance state to Unity. It opens the visualizer, which MUST follow the cameras and the GUI to avoid Qt
+backend collisions, then runs `_checkpoint()` and returns early with `_started = True` when the operator aborted there.
+Finally it starts frame saving on both cameras and, for experiment sessions, enables frame monitoring, settles one
+second, and calls `_start_mesoscope()`.
+
+`stop()` delegates to `_emergency_shutdown()` and returns when `start()` never completed. Otherwise it clears `_started`
+and runs each teardown step through `run_shutdown_step(description, step)`, which is defined in
+`cross_system/shutdown_tools.py`, re-exported from `cross_system`, and imported from there by the orchestrator. That
+helper catches `(Exception, KeyboardInterrupt)` and echoes an ERROR, so a failing step never skips the ones after it.
+The order is `idle()`, the control GUI, the visualizer, the VR task, the cameras, the mesoscope stop with the
+frame-monitoring disable and `rename_mesoscope_directory`, the Zaber snapshot, the session descriptor, the mesoscope
+position snapshot, the ScanImagePC disconnect, `reset_zaber_motors`, the microcontrollers, and the logger. The three
+artifact-writing steps deliberately follow the hardware steps, so a failed hardware teardown still leaves the snapshots
+and the descriptor on disk. Unless the `nk.bin` marker survives, `stop()` ends by asking the operator to choose among
+`preprocess`, `skip preprocessing`, and `purge session`. `_emergency_shutdown()` never prompts and runs the visualizer,
+the GUI, the VR task, the cameras, the mesoscope, a plain Zaber `disconnect()` with no interactive parking, the
+microcontrollers, and the logger.
 
 ### Runtime cycle
 
-`runtime_cycle()` is the per-iteration heartbeat the logic functions call in a loop. Every iteration
-runs, in order:
+`runtime_cycle()` is the per-iteration heartbeat the logic functions call in a loop. Every iteration runs
+`_data_cycle()`, `self._visualizer.update()`, and `_ui_cycle()`, returns early once `terminated` is set, and, for
+experiment sessions only, then runs `_unity_cycle()` and `_mesoscope_cycle()`. It returns after one pass while the
+runtime is running, and loops in place while the runtime is paused, which suspends the outer logic loop without
+unwinding it.
 
-- `_data_cycle()`, which drains microcontroller data, updates trackers, and pushes motion/lick to the
-  VR driver and the visualizer.
-- `self._visualizer.update()`, which redraws the behavior visualizer.
-- `_ui_cycle()`, which services the `RuntimeControlUI` (pause/resume, threshold modifiers, manual
-  reward).
+- `_data_cycle()` reads the traveled distance and recomputes the running speed over the window that **actually** elapsed
+  rather than the nominal 50 ms, because a blocking call inside the cycle stretches the real window. For VR sessions it
+  pushes position to Unity, advances the distance-driven trial counter, arms per-type recovery guidance, forwards lick
+  increments, and splits newly dispensed water between the paused and delivered totals.
+- `_ui_cycle()` reads the pause flag once and routes it to `_pause_runtime` or `_resume_runtime`, then services the
+  exit, reward, and gas-puff signals, consumes `generate_reference_signal` every pass while acting on it only once the
+  mesoscope has terminated, and syncs the guidance flags to the VR driver.
+- `_mesoscope_cycle()` returns while `_mesoscope_timer.elapsed` is under 300 ms or the mesoscope already terminated, and
+  otherwise refreshes the frame count when pulses advance, or logs acquisition off, pauses the runtime, stops the
+  mesoscope, and re-enables the reference button.
 
-`SessionTypes.MESOSCOPE_EXPERIMENT` sessions run two additional cycles at the end of each iteration.
-Window-checking and maintenance runtimes build their hardware assets directly and stay outside the
-cycle entirely. Window-checking runs a linear sequence of blocking operator prompts, and maintenance
-runs its own control loop driven by the maintenance GUI. Lick-training and run-training runtimes run
-the cycle and skip both of these additional cycles:
+Window-checking and maintenance runtimes stay outside the cycle, the first running a linear sequence of blocking
+operator prompts and the second running its own loop driven by the maintenance GUI.
 
-- `_unity_cycle()`, which consumes at most one `VRTaskEvent` from the `VRTaskDriver` and dispatches it. For
-  `STIMULUS_TRIGGERED` it resolves the trial outcome (success / guided / failure) from the event's `delivered` and
-  `cause` and reports it to the visualizer, labeling a trial guided only when guidance actually fired.
-- `_mesoscope_cycle()`, which services mesoscope frame-acquisition bookkeeping.
+### Pause, resume, and terminate
 
-`start()` and `stop()` bring the session up and tear it down. For
-`SessionTypes.MESOSCOPE_EXPERIMENT` sessions, `start()` calls `self._mesoscope.connect()` and then
-`setup_mesoscope(session_data=..., mesoscope_data=..., mesoscope_driver=...)` to bring the ScanImage
-software up to acquisition readiness. When `stop()` is invoked on a system whose `start()` was
-interrupted before completing initialization (`not self._started`), it delegates to
-`_emergency_shutdown()`, which tears down whatever assets `start()` managed to bring up. That teardown
-executes each action through `run_shutdown_step(description, step)` (a public function in
-`acquisition_components.py`) so an error or interrupt in one step cannot prevent the remaining
-teardown steps from running. `_pause_runtime()` / `_resume_runtime()` implement the IDLE-pause
-behavior, and `_terminate_runtime()` handles end-of-session shutdown.
+`_pause_runtime()` mirrors the pause into the GUI, returns without restarting the pause clock when the runtime is
+already paused, stamps `_pause_start_time`, calls `idle()`, and sets `_paused`. `_resume_runtime()` re-arms Unity
+through `resume_after_unity_restart()` when Unity terminated, recovers and restarts the mesoscope when the mesoscope
+terminated while re-engaging the pause on a `RuntimeError` instead of propagating it, accumulates `paused_time` in
+seconds, restores the cached runtime stage, and re-enters the pre-pause system state. `_terminate_runtime()` gates
+`_terminated` behind a terminal `request_confirmation(default=False)`, so a misclick on the GUI terminate button cannot
+end a session on its own. `_checkpoint()` is the pre-start loop that runs while the GUI reports a paused runtime,
+servicing reward delivery, water-valve open and close, gas-valve open, close, and puff, reference regeneration, guidance
+sync, and exit. On exit it closes the valve, folds the pre-start water into `_paused_water_volume`, calls
+`set_setup_complete()`, and disables the reference button.
 
 ### Trial-state tracking
 
-`TrialState` (in `sollertia_experiment/mesoscope_vr/acquisition_components.py`) consolidates the
-per-trial tracking attributes used during experiment runtimes. It tracks both reinforcing (water
-reward) and aversive (gas puff) trial types, including completed trial count, cumulative distance,
-per-type guided-trial counts, per-type recovery thresholds (engage guidance after N consecutive
-failures), and per-type in-flight "rewarded" flags.
-
-The orchestrator's `setup_reinforcing_guidance()` / `setup_aversive_guidance()` configure guidance,
-and `_refresh_trial_state_from_vr_decomposition()` rebuilds the trial parameter arrays from the
-ordered trial names the `VRTaskDriver` produces by decomposing the active Unity cue sequence.
-
-Adding new trial-tracking dimensions requires extending `TrialState` and updating the
-orchestrator's stimulus handling in `experiment_logic` / `runtime_cycle`.
+`TrialState` (`mesoscope_vr/acquisition_components.py`) tracks reinforcing (water reward) and aversive (gas puff) trials
+separately, holding the completed trial count, the per-trial cumulative distances, per-type guided-trial and
+consecutive-failure counters, per-type recovery thresholds, the in-flight outcome flags, and the `trial_structures`
+mapping. `trial_completed(traveled_distance)` reports `False` once every decomposed trial is consumed, and
+`advance_trial()` returns the updated per-type failure count. `setup_reinforcing_guidance()` and
+`setup_aversive_guidance()` configure guidance, and `_refresh_trial_state_from_vr_decomposition()` rebuilds the
+per-trial parameter arrays from the ordered trial names the `VRTaskDriver` produces by decomposing the active Unity cue
+sequence. `_build_trial_parameter_arrays(trial_names)` raises `ValueError` when a decomposed name matches no configured
+trial structure. Adding a trial-tracking dimension means extending `TrialState` and updating the stimulus handling in
+`_unity_cycle()`.
 
 ### Log message codes
 
-`MesoscopeVRLogMessageCodes` (`IntEnum`, in `acquisition_components.py`) defines the event codes the
-orchestrator emits to the DataLogger:
+`MesoscopeVRLogMessageCodes` (`mesoscope_vr/acquisition_components.py`) defines the event codes the
+orchestrator emits to the `DataLogger`:
 
-| Code | Name                         | Meaning                                                       |
-|------|------------------------------|---------------------------------------------------------------|
-| 1    | `SYSTEM_STATE`               | System has changed hardware-control (system) state            |
-| 2    | `RUNTIME_STATE`              | Acquired session has changed runtime state (stage)            |
-| 3    | `REINFORCING_GUIDANCE_STATE` | Reinforcing-trial guidance state changed                      |
-| 4    | `AVERSIVE_GUIDANCE_STATE`    | Aversive-trial guidance state changed                         |
-| 5    | `DISTANCE_SNAPSHOT`          | Total traveled distance at Unity-signaled runtime termination |
+| Code | Name                          | Meaning                                                          |
+|------|-------------------------------|------------------------------------------------------------------|
+| 1    | `SYSTEM_STATE`                | The system changed its hardware-control (system) state           |
+| 2    | `RUNTIME_STATE`               | The acquired session changed its runtime state (stage)           |
+| 3    | `REINFORCING_GUIDANCE_STATE`  | The reinforcing-trial guidance state changed                     |
+| 4    | `AVERSIVE_GUIDANCE_STATE`     | The aversive-trial guidance state changed                        |
+| 5    | `DISTANCE_SNAPSHOT`           | Total traveled distance at Unity-signaled runtime termination    |
+| 6    | `MESOSCOPE_ACQUISITION_STATE` | Whether the ScanImagePC is expected to be writing session frames |
 
-New events get the next unused code (currently 6). These codes are consumed by downstream behavior
-processing in the forging plugin's behavior pipeline.
+A new event gets the next unused code, 7. Downstream behavior processing in the forging plugin consumes these codes.
 
 ---
 
 ## Unity coupling
 
-For experiment sessions the orchestrator couples to the Unity game engine through a `VRTaskDriver`
-(`self._vr_task`). The orchestrator pushes motion and lick events to the driver and consumes typed
-`VRTaskEvent`s from it each `_unity_cycle()`; the driver owns the MQTT broker connection, the topic
-vocabulary (`_VRTaskMQTTTopics`), scene/cue verification, cue-sequence trial decomposition, and the editor
-MCP Bridge it uses to open the scene and control Play Mode. The driver's `setup()` opens the scene and arms
-Unity through the bridge (no manual play-button prompt), so `start()` only brackets it with the VR-screen
-enable/disable.
+For experiment sessions the orchestrator couples to Unity through a `VRTaskDriver` held on `_vr_task`. It pushes motion
+and lick events to the driver and consumes at most one typed `VRTaskEvent` per `_unity_cycle()`. The driver owns the
+MQTT broker connection, the topic vocabulary, scene and cue verification, cue-sequence trial decomposition, and the
+editor bridge that opens the scene and controls Play Mode, so `start()` only brackets `setup()` with the VR-screen
+enable and disable.
 
-On a `UNITY_TERMINATED` event the orchestrator enters an emergency pause; on resume, `_resume_runtime()`
-calls `resume_after_unity_restart()`, which re-arms Unity through the bridge and re-fetches the cue sequence
-— the operator does not press the play button.
+| Event kind                | Dispatch                                                                                                                                                                                                                                                                  |
+|---------------------------|---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| `STIMULUS_TRIGGERED`      | Resolves the trial position from `_resolved_stimulus_count`, discards an event past the decomposed trial count with a warning, delivers the puff or the reward when `delivered` is set, decrements the per-type guided counter, and reports the outcome to the visualizer |
+| `TRIGGER_DELAY_REQUESTED` | `brake.send_pulse(duration_ms=event.delay_ms)` when the delay is positive                                                                                                                                                                                                 |
+| `UNITY_TERMINATED`        | Enters an emergency pause, echoes an error, and logs a `DISTANCE_SNAPSHOT` packet carrying the float64 traveled distance                                                                                                                                                  |
 
-The driver, its event model, the MQTT topic contract, the editor bridge, and the trial-decomposition layer
-are documented in `experiment:vr-driver-interface`. The Unity side of the contract is documented in
-`unity:gimbl-framework`, `unity:mqtt-contract`, `unity:play-mode`, `unity:task-scenes`, and
-`unity:scene-setup`.
-
----
-
-## Per-mode runtime logic functions
-
-The sequence every per-mode logic function follows, the table of the current functions, and the session-descriptor
-consumption pattern are documented in [`references/runtime-surface.md`](references/runtime-surface.md).
+The trial position comes from the resolved-stimulus counter rather than the distance-driven counter, because the data
+cycle advances the distance counter before the Unity cycle dequeues the event the finished trial produced. The
+`STIMULUS_TRIGGERED` branch of `_unity_cycle()` counts an aversive trial a success when the puff was **not** delivered,
+and a reinforcing trial a success when the reward was delivered. On `UNITY_TERMINATED` the resume path calls
+`resume_after_unity_restart()`, which re-arms Unity through the bridge and re-fetches the cue sequence, so the operator
+does not press the play button. The driver, its event model, the MQTT contract, the editor bridge, and trial
+decomposition are documented in `experiment:vr-driver-interface`, and the Unity side in `unity:gimbl-framework`,
+`unity:mqtt-contract`, `unity:play-mode`, `unity:task-scenes`, and `unity:scene-setup`.
 
 ---
 
-## BehaviorVisualizer and RuntimeControlUI
+## Detailed surfaces
 
-`BehaviorVisualizer` (in `sollertia_experiment/mesoscope_vr/visualizer.py`) renders real-time
-behavior data using matplotlib with a Qt backend, driven by a `_BlitManager` for fast redraws. It is
-constructed by the orchestrator and `open()`ed in the mode selected for the session.
-
-`RuntimeControlUI` (in `sollertia_experiment/mesoscope_vr/runtime_ui.py`) is the interactive control
-GUI surfaced during a session — pause/resume, run-training threshold modifiers, and manual reward
-delivery. The maintenance GUI lives separately in `maintenance_ui.py`.
-
-The module-level `RUN_TRAINING_THRESHOLD_LIMITS` (a frozen `RunTrainingThresholdLimits` in `mesoscope_vr/system.py`)
-fixes the run-training speed bounds at 0.1-5.0 cm/s and the duration bounds at 0.05-5.0 s. The run-training logic
-clamps the effective thresholds to these bounds and the control GUI constrains its spin boxes to them, so a requested
-value outside the range is silently clamped rather than rejected.
-
-### VisualizerMode
-
-The visualizer's display mode is set by `VisualizerMode` (`IntEnum`, in `visualizer.py`):
-
-| Mode            | Value | Panels displayed                                  |
-|-----------------|-------|---------------------------------------------------|
-| `LICK_TRAINING` | 0     | Lick sensor signal, valve open events             |
-| `RUN_TRAINING`  | 1     | Lick, valve, and running-speed plots              |
-| `EXPERIMENT`    | 2     | All of the above plus the trial-performance panel |
-
-Adding a new visualizer mode is a code change to `visualizer.py`, typically required when adding a
-new runtime mode whose display needs differ from the existing three.
-
-### Real-time data sources
-
-The visualizer and orchestrator read from the binding classes' `SharedMemoryArray`-backed property
-accessors:
-
-- `self._microcontrollers.lick.lick_count` — cumulative lick count
-- `self._microcontrollers.valve.delivered_volume` — cumulative reward volume
-- `self._microcontrollers.wheel_encoder.absolute_position` — current Unity position
-- `self._microcontrollers.wheel_encoder.traveled_distance` — cumulative traveled distance
-
-These properties are safe to read from the main process because they back onto SharedMemoryArrays
-written by the communication subprocesses. See `experiment:microcontroller-interface`'s wrapper
-lifecycle documentation for the SharedMemoryArray pattern.
+[`references/runtime-surface.md`](references/runtime-surface.md) carries the enumerations this file summarizes. Those
+are the per-mode logic function sequence with the current function table and the descriptor consumption pattern, the
+`sle mesoscope` command table with every option surface, and the shared-memory index maps, prototype defaults, and
+per-control tables of both GUIs and the visualizer.
 
 ---
 
-## CLI command surface
+## Session data lifecycle
 
-The `sle mesoscope` command table and the option surfaces of the `configure` and `run` command groups are documented
-in [`references/runtime-surface.md`](references/runtime-surface.md).
+`preprocess_session_data(session_data)` (`mesoscope_vr/data_preprocessing.py`) is the Mesoscope-VR orchestration around
+the shared primitives that `experiment:data-management` owns. A session whose `nk.bin` marker survives never finished
+initialization, so it is purged instead of preprocessed, and each destination listed in
+`MesoscopeData.unconfigured_destinations` produces one WARNING.
+
+| Order | Step                                                              | Owner                       |
+|-------|-------------------------------------------------------------------|-----------------------------|
+| 1     | `rename_mesoscope_directory(mesoscope_data)`                      | Mesoscope-VR                |
+| 2     | `assemble_session_logs(session_data, processes=...)`              | `cross_system`              |
+| 3     | `rename_session_videos(session_data)`                             | `cross_system`              |
+| 4     | `_launch_face_tracking(...)`, experiment sessions only, async     | Mesoscope-VR                |
+| 5     | `_pull_mesoscope_data(...)`                                       | Mesoscope-VR                |
+| 6     | `_preprocess_mesoscope_directory(...)`                            | Mesoscope-VR                |
+| 7     | `_preprocess_google_sheet_data(...)`                              | Mesoscope-VR Sheets wrapper |
+| 8     | `_purge_window_checking_behavior_data(...)`, window checking only | Mesoscope-VR                |
+| 9     | `_join_face_tracking(...)`                                        | Mesoscope-VR                |
+| 10    | `push_session_data(session_data, destinations, threads=15)`       | `cross_system`              |
+
+Steps 5 through 8 run inside a `try` whose `except BaseException` calls `_terminate_face_tracking(...)` and re-raises,
+so an abort never abandons the child holding the GPU. Constants: `_PREPROCESSING_WORKER_COUNT` is
+`resolve_worker_count(reserved_cores=1)`, `_STORAGE_TRANSFER_THREAD_COUNT = 15`,
+`_FACE_TRACKING_TERMINATION_TIMEOUT = 30.0` seconds, and `_INFERENCE_LOG_TAIL_CHARACTERS = 2000`.
+
+### Mesoscope-VR-only steps
+
+- `rename_mesoscope_directory` renames the shared `mesoscope_data` directory to the session-specific path, only when the
+  session path is absent and the shared path holds files, then recreates an empty shared directory.
+- `_launch_face_tracking` returns `None` when either `conda_environment` or `dlc_project_path` is unset,
+  or when the face-camera video is missing. Otherwise it runs `conda run -n <env> slvt infer` with `--config-path`,
+  `--videos`, `--shuffle`, `--device cuda`, `--gpus 0`, `--batch-size`, `--chunks`, `--compile-model`, `--no-progress`,
+  and `--crop` when configured. It writes predictions beside the video in raw `camera_data` and redirects output to a
+  temporary log file rather than a pipe, because a full pipe buffer would deadlock the long-running child.
+- `_join_face_tracking` waits for the child, then raises `RuntimeError` when the exit code is non-zero or no `.h5`
+  prediction file sits beside the video, which aborts the transfer and retains the local copy for a retry. The transient
+  log is removed on success and retained on failure, and the failure message carries its tail.
+- `_pull_mesoscope_data` raises `RuntimeError` unless `MotionEstimator.me`, `fov.roi`, and `zstack.tiff` are all
+  present, strips `*.bin` markers, creates `raw_data/raw_mesoscope_frames` only after that verification, and then
+  transfers with `remove_source=True`.
+- `_preprocess_mesoscope_directory` re-verifies the same three files, seeds the animal's persistent ScanImagePC
+  `fov.roi` and `MotionEstimator.me` when absent, copies all three into the session `mesoscope_data` directory, and
+  emits `frame_invariant_metadata.json`, `frame_variant_metadata.npz`, and `cindra_parameters.json` alongside the
+  LERC-recompressed frame stacks.
+- `_preprocess_google_sheet_data` returns early with a WARNING when neither sheet id is set, otherwise
+  resolves `get_credentials(CredentialsTypes.GOOGLE)`, validates the session type against `MESOSCOPE_VR_SESSIONS`, and
+  loads the descriptor through `DESCRIPTOR_REGISTRY`. Window-checking sessions call `update_surgery_quality` with the
+  descriptor value clamped into 0 to 3, every other session type writes the water log entry from the animal weight and
+  the summed training and experimenter-given volumes, and both handles close in a `finally`.
+
+### Purge and migration
+
+`purge_session(session_data)` builds its candidate set from the local session parent, every configured storage
+destination's session path, and the ScanImagePC session-specific path, then delegates to
+`delete_session_directories(..., require_confirmation=not nk_path.exists())`. A declined confirmation returns without
+further change, and a completed deletion also clears residual files from the shared ScanImagePC `mesoscope_data`
+directory.
+
+`migrate_animal_between_projects(animal, source_project, target_project)` raises `FileNotFoundError` when the target
+project is absent, then picks one of two strategies. With no configured storage destination it relocates each locally
+stored session on premises, and with at least one the first configured destination becomes the source of truth that each
+session is pulled from, re-preprocessed, and purged against. Both strategies then relocate the ScanImagePC persistent
+directory at `mesoscope_directory/<project>/<animal>` and the VRPC persistent directory, and delete the redundant
+`<root>/<source_project>/<animal>` directory under the mesoscope mount, the data root, and every configured storage
+root.
+
+`sle mesoscope delete` runs the data-root containment check and then delegates to `purge_session`, which calls
+`delete_session_directories(..., require_confirmation=not nk_path.exists())`. That prompts for an interactive
+confirmation on any session whose `nk.bin` marker is already cleared, and deletes without a prompt only for a session
+that never finished initializing (the `delete` command in `interfaces/mesoscope_vr.py` and `purge_session` in
+`mesoscope_vr/data_preprocessing.py`). The MCP `delete_session_tool` refuses to act without an explicit
+`confirm_deletion`, returning an `Error:` string when it is `None` and an abandonment notice when it is `"no"`
+(`interfaces/mesoscope_vr_tools.py`). You MUST route an agent-initiated deletion through the MCP tool and warn the user
+before passing `"yes"`.
+
+---
+
+## Runtime GUIs and the visualizer
+
+`RuntimeControlUI` (`mesoscope_vr/runtime_ui.py`) is the session GUI, running in a daemon process and backed by one
+20-slot `SharedMemoryArray` it owns plus the two valve trackers it reads and does not own. Its prototype sets
+`PAUSE_STATE = 1`, so every runtime starts paused and enters the pre-start checkpoint. A signal-style slot is cleared
+by the property that reads it, under the array lock, while a value-style slot is not.
+
+`BehaviorVisualizer` (`mesoscope_vr/visualizer.py`) renders lick, valve, puff, running-speed, and trial-performance
+data with matplotlib on a `QtAgg` backend, driven by a `_BlitManager` for partial redraws. It runs in the main thread
+of the runtime control process and updates through direct calls from `runtime_cycle()`, with no IPC.
+
+`RUN_TRAINING_THRESHOLD_LIMITS`, a frozen `RunTrainingThresholdLimits` in `mesoscope_vr/system.py`, fixes the
+run-training speed bounds at 0.1 to 5.0 cm/s and the duration bounds at 0.05 to 5.0 s. The run-training logic clamps
+the effective thresholds to these bounds and the GUI constrains its spin boxes to them, so an out-of-range request is
+silently clamped rather than rejected.
+
+The orchestrator and the visualizer read four `SharedMemoryArray`-backed properties off the binding classes,
+`lick.lick_count`, `valve.delivered_volume`, `wheel_encoder.absolute_position`, and `wheel_encoder.traveled_distance`.
+Each read is safe from the main process because a communication subprocess owns the write side. See
+`experiment:microcontroller-interface` for the wrapper lifecycle behind that pattern.
+
+### Maintenance runtime
+
+`maintenance_logic()` (`mesoscope_vr/data_acquisition.py`) runs no session. It asks whether to position the
+Zaber motors, then works inside a `tempfile.TemporaryDirectory(prefix="sl_maintenance_")` whose contents are discarded,
+builds a `DataLogger(instance_name="temporary")`, and stands up only `WaterValveInterface`, `GasPuffValveInterface`,
+and `BrakeInterface` on a standalone `MicroControllerInterface(controller_id=101, buffer_size=8192, name="actor")`.
+When the operator opts in, it homes the motors and moves them to `maintenance_position()` behind a warning to remove
+the objective, swivel out the screens, and confirm the animal is not mounted. It then starts `MaintenanceControlUI` and
+loops on the GUI signals until `exit_signal`, erroring out when the GUI process dies without setting it, and its
+`finally` block parks the motors and stops the controller, the logger, and the GUI, each step isolated.
+
+`MaintenanceControlUI` (`mesoscope_vr/maintenance_ui.py`) owns a 14-slot `SharedMemoryArray` and exposes seventeen API
+members. Valve calibration, valve referencing, brake testing, and motor positioning are experimenter-operated through
+this GUI. You MUST NOT drive them on the operator's behalf, and you MUST NOT issue any mesoscope hardware command.
 
 ---
 
 ## Workflow: adding a new runtime mode
 
-Adding a new mode is a coordinated cross-repository change. Follow the steps in order; steps that
-touch repositories outside `sollertia-experiment` are delegated via explicit handoffs.
+Adding a mode is a coordinated cross-repository change. Follow the steps in order. Steps that touch repositories
+outside sollertia-experiment are delegated through explicit handoffs.
 
-### Step 1: Author the session descriptor (assets plugin)
+**Step 0, read the seam catalog.** Hand off to `experiment:library-extension` for the configuration-registry,
+`cross_system`, MCP, and CLI seams a new mode or a new system touches, and for the absent runtime base class.
 
-Hand off to `assets:library-extension`, which owns the full touch list for adding a new `SessionTypes` member. The one
-Mesoscope-VR-specific point is that the new member MUST be claimed by `AcquisitionSystems.MESOSCOPE_VR` in
-`SYSTEM_SESSION_TYPES` to be runnable on this system.
+**Step 1, author the session descriptor.** Hand off to `assets:library-extension`, which owns the full touch list for
+adding a `SessionTypes` member. The one Mesoscope-VR-specific point is that the new member MUST be claimed by
+`AcquisitionSystems.MESOSCOPE_VR` in `SYSTEM_SESSION_TYPES` to be runnable here. The descriptor's field surface is
+documented in `/mesoscope-vr-session-schema`.
 
-That skill's registry-model and import-time-guardrail sections carry the rest of the touch list, and its "What the
-checks do not catch" section carries the touch points a bare import never rejects.
+**Step 2, extend the state machine.** When the mode needs a hardware state distinct from the existing five, add a
+`MesoscopeVRStates` member in `mesoscope_vr/system.py` with the next unused value, then add a convergent hardware-state
+method to `MesoscopeVRSystem` that drives every actuator and monitoring flag and ends in `_change_system_state()`.
 
-The descriptor's field surface is documented in `/mesoscope-vr-session-schema`.
+**Step 3, add a visualizer mode.** When the mode's display needs differ from the existing three, add a `VisualizerMode`
+member in `mesoscope_vr/visualizer.py` and update the plot-construction and update logic in `BehaviorVisualizer`.
 
-### Step 2: Extend the state machine (this repo)
+**Step 4, author the runtime logic function.** In `mesoscope_vr/data_acquisition.py`, add a top-level
+`<new_mode>_logic(...)` that mints the `SessionData` and the descriptor, constructs `MesoscopeVRSystem`, calls
+`mark_runtime_initialized()` once the hardware is up, drives the state transitions and the `runtime_cycle()` loop, and
+tears down in a `finally` block. Mirror `lick_training_logic` for a mode without trials and `experiment_logic` for a
+trial-structured mode.
 
-If the new mode requires a hardware state distinct from existing states:
+**Step 5, add the CLI command.** In `interfaces/mesoscope_vr.py`, add a `@run.command(...)` for a session or a
+`@mesoscope.command(...)` for a standalone utility. A `@run.command` declares its own defaultless options and forwards
+them together with the `_SharedSessionParameters` values the `run` group shares.
 
-1. Add a new member to `MesoscopeVRStates` in `mesoscope_vr/system.py` with the next unused value.
-2. Add a hardware-state method (`idle`/`rest`/`run`/`lick_train`/`run_train`-style) to
-   `MesoscopeVRSystem` in `system_controller.py` that drives the hardware into the new state and
-   calls `_change_system_state()`.
-
-If the mode reuses an existing state, skip this step.
-
-### Step 3: Add a visualizer mode (this repo)
-
-If the new mode's display needs differ from the existing modes, add a `VisualizerMode` member in
-`visualizer.py` and update `BehaviorVisualizer`'s plot-construction and update logic.
-
-### Step 4: Author the runtime logic function (this repo)
-
-In `mesoscope_vr/data_acquisition.py`, add a top-level `<new_mode>_logic(...)` function that builds
-the `SessionData` and descriptor, constructs `MesoscopeVRSystem` (which owns its `DataLogger`), drives
-the state transitions and `runtime_cycle()` loop, and tears down on completion or `KeyboardInterrupt`.
-Mirror an existing
-function (`lick_training_logic` for a non-trial mode, `experiment_logic` for a trial-structured mode).
-
-### Step 5: Add the CLI command (this repo)
-
-In `interfaces/mesoscope_vr.py`, add a new `@run.command(...)` subcommand for a session, or a
-`@mesoscope.command(...)` subcommand for a standalone utility. A `@run.command` declares its per-flag Click
-options and forwards them, together with the `ctx.obj` values the `run` group shares, to the new logic
-function. A `@mesoscope.command` forwards only its own options. The logic function owns the `SessionData`
-and descriptor construction from Step 4. Mirror an existing command.
-
-### Step 6: Export and version-bump (this repo)
-
-Re-export the new logic function/descriptor from the package `__init__.py` if external consumers need
-them, bump `sollertia-experiment` in `pyproject.toml`, and update the `sollertia-shared-assets`
-dependency pin to the version that includes the new descriptor.
-
-### Step 7: Update this skill
-
-Add the new mode to the [State machine](#state-machine), [Per-mode runtime logic
-functions](#per-mode-runtime-logic-functions), and [CLI command surface](#cli-command-surface)
-tables, and the [VisualizerMode](#visualizermode) table if a new mode was added.
+**Step 6, export, bump, and document.** Re-export the logic function from `mesoscope_vr/__init__.py` when external
+consumers need it, bump `sollertia-experiment` in `pyproject.toml`, then raise the `sollertia-shared-assets` pin to
+the version carrying the new descriptor. Update the state and log message code tables here and the function, CLI, and
+GUI tables in [`references/runtime-surface.md`](references/runtime-surface.md).
 
 ---
 
 ## Maintenance contract
 
-This skill is updated when:
+Update this skill when a `MesoscopeVRStates` member, a hardware-state method, a runtime logic function, a
+`VisualizerMode` member, a `MesoscopeVRLogMessageCodes` member, a `sle mesoscope` command or option, or a GUI
+shared-memory slot changes, and when the orchestrator's construction order, runtime cycle, teardown order, or
+preprocessing step order changes. Leave it untouched for anything the Scope section delegates, because each of those
+concerns is versioned by its owning skill.
 
-- A new state is added to `MesoscopeVRStates`.
-- A new runtime logic function or hardware-state method is added.
-- A new `sle mesoscope` command is added.
-- A new `VisualizerMode` is added.
-- A new log message code is added to `MesoscopeVRLogMessageCodes`.
-- The orchestrator's construction order, runtime cycle, or lifecycle changes.
-
-This skill is NOT updated when:
-
-- A descriptor's or the hardware state's field surface changes (owned by `/mesoscope-vr-session-schema`).
-- The `SessionTypes` enum or its `DESCRIPTOR_REGISTRY` entry changes (owned by `assets:library-extension`).
-- The generic descriptor read and write tooling changes (owned by `assets:session-descriptors`).
-- Hardware composition changes (owned by `/mesoscope-vr`).
-- Per-firmware-module wrapper APIs change (owned by `experiment:microcontroller-interface`).
-- The Unity VR driver, MQTT topics, or trial decomposition change (owned by `experiment:vr-driver-interface`).
-
-When in doubt, re-read the relevant source file (`mesoscope_vr/system_controller.py`,
-`mesoscope_vr/system.py`, `mesoscope_vr/acquisition_components.py`, `mesoscope_vr/visualizer.py`,
-`mesoscope_vr/runtime_ui.py`, `mesoscope_vr/data_acquisition.py`, `interfaces/mesoscope_vr.py`) and
-reconcile this skill against ground truth.
+When in doubt, re-read the source (`mesoscope_vr/system_controller.py`, `mesoscope_vr/system.py`,
+`mesoscope_vr/acquisition_components.py`, `mesoscope_vr/data_acquisition.py`, `mesoscope_vr/data_preprocessing.py`,
+`mesoscope_vr/visualizer.py`, `mesoscope_vr/runtime_ui.py`, `mesoscope_vr/maintenance_ui.py`,
+`interfaces/mesoscope_vr.py`) and reconcile this skill against it.
 
 ---
 
 ## Related skills
 
-| Skill                                   | Relationship                                                                             |
-|-----------------------------------------|------------------------------------------------------------------------------------------|
-| `experiment:acquisition-system-runtime` | Platform-general runtime pattern this system instantiates.                               |
-| `/mesoscope-vr`                         | Hardware composition for the binding classes the runtime composes.                       |
-| `experiment:acquisition-system-design`  | Platform-general static composition pattern.                                             |
-| `experiment:vr-driver-interface`        | The `VRTaskDriver` the orchestrator uses for Unity coupling; MQTT + trial decomposition. |
-| `experiment:microcontroller-interface`  | Per-module wrapper API the orchestrator and visualizer consume.                          |
-| `assets:session-descriptors`            | Generic descriptor read and write tooling for the descriptors the runtime writes.        |
-| `assets:library-extension`              | Adds the `SessionTypes` member and its `DESCRIPTOR_REGISTRY` entry a new mode needs.     |
-| `assets:task-templates`                 | Authors task templates the experiment runtime loads.                                     |
-| `assets:experiment-configuration`       | Authors experiment configurations the runtime loads.                                     |
-| `experiment:data-management`            | Downstream session-data lifecycle (preprocess, transfer, delete).                        |
-| `/mesoscope-vr-snapshots`               | Zaber and mesoscope position snapshots recorded near the session's end.                  |
-| `/mesoscope-vr-session-schema`          | Field-level schema for the descriptors + hardware state this runtime populates           |
-| `/mesoscope-vr-experiment-schema`       | Field-level schema for the experiment config + trial types this runtime executes         |
-| `unity:gimbl-framework`                 | Unity-side framework for the VR game engine.                                             |
-| `unity:mqtt-contract`                   | Unity-side MQTT topic registration.                                                      |
-| `unity:task-prefabs`                    | Unity-side task prefab generation from task templates.                                   |
+| Skill                                   | Relationship                                                                          |
+|-----------------------------------------|---------------------------------------------------------------------------------------|
+| `experiment:acquisition-system-runtime` | Platform-general runtime pattern this system instantiates                             |
+| `experiment:library-extension`          | Catalogs the sollertia-experiment seams a new system's runtime composes               |
+| `/mesoscope-vr`                         | Hardware composition for the binding classes the runtime drives                       |
+| `experiment:acquisition-system-design`  | Platform-general static composition pattern                                           |
+| `experiment:vr-driver-interface`        | The `VRTaskDriver` the orchestrator uses for Unity coupling and trial decomposition   |
+| `experiment:microcontroller-interface`  | Per-module wrapper API the orchestrator and the visualizer consume                    |
+| `experiment:data-management`            | The shared preprocessing primitives this lifecycle calls into                         |
+| `experiment:google-sheets-processing`   | The `SurgeryLog` and `WaterLog` processors the Sheets step invokes                    |
+| `assets:session-data`                   | `SessionData.create`, the `nk.bin` marker, and the session hierarchy                  |
+| `assets:session-descriptors`            | Generic descriptor read and write tooling for the descriptors the runtime writes      |
+| `assets:library-extension`              | Adds the `SessionTypes` member and its `DESCRIPTOR_REGISTRY` entry a new mode needs   |
+| `assets:task-templates`                 | Authors the task templates the experiment runtime loads                               |
+| `assets:experiment-configuration`       | Authors the experiment configurations the runtime loads                               |
+| `/mesoscope-vr-snapshots`               | Zaber and mesoscope position snapshots recorded near the session's end                |
+| `/mesoscope-vr-session-schema`          | Field-level schema for the descriptors and hardware state this runtime populates      |
+| `/mesoscope-vr-experiment-schema`       | Field-level schema for the experiment configuration and trial types this runtime runs |
+| `forging:behavior-processing`           | Consumes the logged message codes and the assembled behavior data downstream          |
+| `unity:gimbl-framework`                 | Unity-side framework for the VR game engine                                           |
+| `unity:mqtt-contract`                   | Unity-side MQTT topic registration                                                    |
+| `unity:task-prefabs`                    | Unity-side task prefab generation from task templates                                 |
 
 ---
 
 ## Verification checklist
 
 ```text
-When adding a new runtime mode:
+Tool-settled (run `rg -n '.{121,}' <file>` and `wc -l <file>`):
+- [ ] All lines at or under 120 characters (tables and code blocks may exceed for clarity)
+- [ ] SKILL.md under 500 lines
 
-Cross-repo handoffs:
-- [ ] assets:library-extension's verification checklist completed for the new SessionTypes member
+Cross-repo handoffs for a new runtime mode:
+- [ ] experiment:library-extension consulted for the seam touch list
+- [ ] assets:library-extension checklist completed for the new SessionTypes member, and its version bumped
 - [ ] Descriptor field surface documented via /mesoscope-vr-session-schema
-- [ ] sollertia-shared-assets version bumped
 
 This repo (sollertia-experiment):
-- [ ] MesoscopeVRStates extended in system.py (if a new state is needed)
-- [ ] Hardware-state method added to MesoscopeVRSystem and routed through _change_system_state (if a new state)
-- [ ] VisualizerMode extended in visualizer.py (if new display needs)
-- [ ] BehaviorVisualizer updated to handle the new mode
-- [ ] Runtime logic function added to data_acquisition.py
-- [ ] CLI command registered in interfaces/mesoscope_vr.py
-- [ ] New function and descriptor re-exported from __init__.py (if external consumers need them)
-- [ ] sollertia-experiment version bumped
-- [ ] sollertia-shared-assets dependency pin updated to match the new minimum version
+- [ ] MesoscopeVRStates extended and a convergent hardware-state method routed through _change_system_state
+- [ ] VisualizerMode extended and BehaviorVisualizer updated, if the display needs differ
+- [ ] Logic function added to data_acquisition.py, calling mark_runtime_initialized()
+- [ ] Every teardown step routed through run_shutdown_step
+- [ ] CLI command registered in interfaces/mesoscope_vr.py and the logic function re-exported if needed
+- [ ] sollertia-experiment version bumped and the sollertia-shared-assets pin raised
 
-Documentation:
-- [ ] State table updated in this skill
-- [ ] Runtime logic functions table updated in this skill
-- [ ] CLI command surface table updated in this skill
-- [ ] VisualizerMode table updated in this skill (if applicable)
-- [ ] Log message codes table updated in this skill (if applicable)
-
-Testing:
-- [ ] Hardware verified via experiment:acquisition-system-setup before running session
-- [ ] At least one dry-run executed with the new CLI command
-- [ ] Session-data layout matches expectations (assets:session-data verification)
+Documentation and operation:
+- [ ] State, log message code, and platform seam mapping tables updated in this skill
+- [ ] Logic function, CLI, and GUI tables updated in references/runtime-surface.md
+- [ ] Hardware verified via experiment:acquisition-system-setup before running a session
+- [ ] Calibration, referencing, and motor positioning left to the experimenter at the maintenance GUI
 ```

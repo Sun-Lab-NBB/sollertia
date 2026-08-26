@@ -29,15 +29,15 @@ The Sollertia platform currently uses type codes 1-7.
 
 **Next unused code:** 8.
 
-The Mesoscope-VR ACTOR board currently exercises the multi-`module_id` pattern with `ValveModule` instances at id 1
-(water reward) and id 2 (gas puff). No other module currently has multiple instances on a single controller board.
+Type 5 is the only type with two instance ids in the current slmc deployment. Its `ACTOR` target instantiates
+`reward_valve` at `(5, 1)` and `gas_puff_valve` at `(5, 2)` (`slmc/src/main.cpp`), so it is the one worked
+example of the multi-`module_id` pattern.
 
-A firmware `Module` is generic and reusable, but its `ModuleInterface` wrapper may be specialized for specific
-equipment, in its name, its calibration, and how its data is processed downstream. `MesoscopeFrameTTLInterface` (a
-generic `TTLModule` named and processed for the mesoscope's frame-acquisition signal) and the `WaterValveInterface` /
-`GasPuffValveInterface` split over a single `ValveModule` are both examples. The specialization is intentional. An
-equipment-specific interface still lives in the shared `cross_system` layer and stays reusable by any system that drives
-the same hardware.
+A firmware `Module` is generic and reusable, and its `ModuleInterface` wrapper may specialize it for one equipment role
+through its name, its calibration, and the data it processes. `MesoscopeFrameTTLInterface` is an input-only role
+specialization of the generic firmware `TTLModule`, and the `WaterValveInterface` / `GasPuffValveInterface` split over a
+single `ValveModule` is the second example. A role-specialized interface still lives in the shared `cross_system` layer
+and stays reusable by any system that drives the same hardware.
 
 ---
 
@@ -47,6 +47,11 @@ Each block below documents one firmware `Module` and the interface(s) that wrap 
 firmware type may have more than one interface (`ValveModule` has two). The firmware section names the C++ class,
 template parameters, custom event codes, and commands. The Python section(s) name the interface class, constructor
 calibration knobs, shared-memory state surfaced to other processes, and the public methods exposed to consumers.
+
+**Reading the "Identity" bullet.** It reproduces the five values that a wrapper hardcodes in its `super().__init__`
+call. `module_type` and `module_id` must match the firmware constructor arguments in `slmc/src/main.cpp`, `data_codes`
+and `error_codes` must draw from the firmware `kCustomStatusCodes` values listed in the same block, and `name` labels
+the interface in the log archive. Citations are relative to `src/sollertia_experiment/cross_system/`.
 
 **Reading the "Boot defaults" row.** It gives the `CustomRuntimeParameters` field order, C++ types, and the values
 `SetupModule()` assigns, which are the firmware's own `kDefault*` constants. During a session a module runs on the
@@ -69,14 +74,15 @@ state-change suppression to limit PC traffic.
 | Commands            | 1 `kSendPulse`, 2 `kToggleOn`, 3 `kToggleOff`, 4 `kCheckState`                       |
 | Wrong-mode handling | Output commands on an input instance and CheckState on an output emit 53 and abort   |
 
-**Wrapper**: `MesoscopeFrameTTLInterface(polling_frequency: int)`. Currently exposes only the input-side surface
-(`set_monitoring_state`, `pulse_count`) because the Mesoscope-VR consumer uses TTL only for receiving mesoscope-frame
-trigger pulses. Output-side command codes stay unexposed, and a consumer that needs them adds them as new instance
-attributes following the existing pattern. The wrapper hard-codes `name="mesoscope_frame"`, so rename it before reusing
-the wrapper for a non-Mesoscope-VR consumer.
+**Wrapper**: `MesoscopeFrameTTLInterface(polling_frequency: int)`. An input-only role specialization of the generic
+firmware `TTLModule`. It caches `_check_state = 4` alone, so the three output command codes stay unbound, and a consumer
+that needs them adds them as new instance attributes following the existing pattern. The equipment this wrapper is named
+for belongs to the current worked example, see `mesoscope:mesoscope-vr`.
 
+- Identity: `module_type=1`, `module_id=1`, `name="mesoscope_frame"`, `data_codes={51}`, `error_codes={53: ...}`
+  (`MesoscopeFrameTTLInterface.__init__` in `module_interfaces.py`)
 - Shared memory: `<type>_<id>_pulse_tracker`, `np.uint64[1]` (cumulative pulse count)
-- Error codes: `{53}` (invalid pin mode raises RuntimeError on the PC side)
+- Error code 53 `kInvalidPinMode` raises `RuntimeError` and aborts the runtime
 - Public methods: `set_parameters(averaging_pool_size)`, `set_monitoring_state(*, state)`, `pulse_count` (property),
   `reset_pulse_count()`
 
@@ -100,8 +106,10 @@ as a full-precision `np.float64` and maintains a 2-element shared-memory tracker
 the signed encoder displacement in pulses (index 1, from which the absolute Unity position is derived). The
 centimeters-per-Unity-unit conversion is NOT a constructor argument. It is supplied at experiment start via
 `set_unity_scale(cm_per_unity_unit)` (the value is read from the active `TaskTemplate`), which derives
-`unity_unit_per_pulse`.
+`_unity_unit_per_pulse`.
 
+- Identity: `module_type=2`, `module_id=1`, `name="encoder"`, `data_codes={51, 52}`, `error_codes=None`
+  (`EncoderInterface.__init__` in `module_interfaces.py`)
 - Shared memory: `<type>_<id>_distance_tracker`, `np.float64[2]`. Index 0 holds the cumulative cm. Index 1 holds the
   signed encoder displacement in pulses relative to runtime onset, converted to Unity units at read time by the
   `absolute_position` property.
@@ -115,8 +123,9 @@ centimeters-per-Unity-unit conversion is NOT a constructor argument. It is suppl
 control an electromagnetic particle brake. Inverts the PWM duty cycle when the relay is normally engaged so that
 strength 255 always means "fully engaged" from the PC's perspective. `kSetBrakingPower` reports `kEngaged` or
 `kDisengaged` at the two duty-cycle extremes and `kVariable` only for an intermediate strength, because the extremes are
-driven as digital levels rather than as a PWM waveform. The module tracks which peripheral owns the pin and reclaims
-GPIO control before every digital write, since `analogWrite()` re-points the pin at the PWM peripheral.
+driven as digital levels rather than as a PWM waveform. The module tracks which peripheral owns the pin and routes
+every digital write through a helper that writes the level first and then reclaims GPIO control from the PWM
+peripheral, since `analogWrite()` re-points the pin and the two peripherals use separate registers.
 
 | Item               | Value                                                                                  |
 |--------------------|----------------------------------------------------------------------------------------|
@@ -134,7 +143,11 @@ centimeter** and are converted to **Newton centimeter** in `__init__` (hardcoded
 exposes binary on/off and pulse semantics. PWM-strength control stays unexposed at the wrapper level, though the
 underlying command code 3 exists in firmware.
 
+- Identity: `module_type=3`, `module_id=1`, `name="brake"`, `data_codes=None`, `error_codes=None`
+  (`BrakeInterface.__init__` in `module_interfaces.py`)
 - Shared memory: none
+- Cached commands: `_engage = 1`, `_disengage = 2`, `_pulse = 4` (`BrakeInterface.__init__` in
+  `module_interfaces.py`)
 - Public methods: `set_state(*, state)`, `send_pulse(duration_ms)`, `maximum_brake_strength` (property),
   `minimum_brake_strength` (property)
 
@@ -142,7 +155,8 @@ underlying command code 3 exists in firmware.
 
 **Firmware**: `src/lick_module.h`, `LickModule<kPin>`. Analog-pin sensor using `INPUT_PULLDOWN`. Emits `kChanged` only
 when the ADC delta exceeds `delta_threshold`, and emits a single zero-pull trailer when signal drops back below
-`signal_threshold`. Assumes 12-bit ADC resolution (`analogReadResolution(12)` set in `main.cpp`).
+`signal_threshold`. Assumes 12-bit ADC resolution (`kAnalogReadResolution`, passed to
+`analogReadResolution()` in `main.cpp`).
 
 | Item               | Value                                                                                                   |
 |--------------------|---------------------------------------------------------------------------------------------------------|
@@ -155,6 +169,8 @@ when the ADC delta exceeds `delta_threshold`, and emits a single zero-pull trail
 incremented only on rising transitions above `lick_threshold` (one increment per zero-cross-and-return cycle), which
 prevents the counter from inflating during sustained tongue contact.
 
+- Identity: `module_type=4`, `module_id=1`, `name="lick"`, `data_codes={51}`, `error_codes=None`
+  (`LickInterface.__init__` in `module_interfaces.py`)
 - Shared memory: `<type>_<id>_lick_tracker`, `np.uint64[1]` (cumulative lick count)
 - Public methods: `set_parameters(signal_threshold, delta_threshold, average_pool_size)`,
   `set_monitoring_state(*, state)`, `lick_count` (property), `lick_threshold` (property)
@@ -169,13 +185,13 @@ energized the buzzer always reaches the silencing stage, so the tone is never le
 valve pulse extends past it by the difference, and a shorter one still sounds for the full pulse duration. The
 `Calibrate` command is **blocking** (delayMicroseconds-based burst) intended only for offline calibration.
 
-| Item               | Value                                                                                                                                                                  |
-|--------------------|------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
-| Template params    | `kValvePin`, `kNormallyClosed`, `kStartClosed=true`, `kTonePin=255`, `kNormallyOff=true`, `kStartOff=true`                                                             |
-| Boot defaults      | `pulse_duration: uint32_t = 39410 us`, `calibration_count: uint16_t = 200`, `tone_duration: uint32_t = 300000 us`                                                      |
-| Custom event codes | 51 `kOpen`, 52 `kClosed`, 53 `kCalibrated`, 54 `kToneOn`, 55 `kToneOff`, 56 `kInvalidToneConfiguration`                                                                |
-| Commands           | 1 `kSendPulse`, 2 `kToggleOn`, 3 `kToggleOff`, 4 `kCalibrate` (BLOCKING, offline only), 5 `kTonePulse`                                                                 |
-| Safety bound       | Pulse durations longer than ~400 ms trigger the keepalive watchdog on the host PC, so the wrappers cap requested durations to `_MAXIMUM_VALVE_PULSE_DURATION_MS = 400` |
+| Item               | Value                                                                                                                                                       |
+|--------------------|-------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| Template params    | `kValvePin`, `kNormallyClosed`, `kStartClosed=true`, `kTonePin=255`, `kNormallyOff=true`, `kStartOff=true`                                                  |
+| Boot defaults      | `pulse_duration: uint32_t = 39410 us`, `calibration_count: uint16_t = 200`, `tone_duration: uint32_t = 300000 us`                                           |
+| Custom event codes | 51 `kOpen`, 52 `kClosed`, 53 `kCalibrated`, 54 `kToneOn`, 55 `kToneOff`, 56 `kInvalidToneConfiguration`                                                     |
+| Commands           | 1 `kSendPulse`, 2 `kToggleOn`, 3 `kToggleOff`, 4 `kCalibrate` (BLOCKING, offline only), 5 `kTonePulse`                                                      |
+| Safety bound       | Both wrappers cap a requested pulse at `_MAXIMUM_VALVE_PULSE_DURATION_MS = 400`, held below the 500 ms firmware keepalive interval (`module_interfaces.py`) |
 
 **Wrapper A**: `WaterValveInterface(valve_calibration_data)`, the water-reward solenoid with an audible tone. Fits a
 power-law model (`a * pulse_duration ** b`) to the supplied calibration tuple in `__init__` using
@@ -183,6 +199,8 @@ power-law model (`a * pulse_duration ** b`) to the supplied calibration tuple in
 (initialized in `initialize_remote_assets` because it is non-picklable) to integrate delivered volume across open/close
 transitions reported by the firmware.
 
+- Identity: `module_type=5`, `module_id=1`, `name="valve"`, `data_codes={51, 52, 53}`, `error_codes={56: ...}`
+  (`WaterValveInterface.__init__` in `module_interfaces.py`)
 - Shared memory: `<type>_<id>_valve_tracker`, `np.float64[3]`. Index 0 holds the cumulative volume in uL. Index 1 holds
   the calibration state, 0 calibrating and 1 calibrated. Index 2 holds the instantaneous valve state, 0 closed and 1
   open.
@@ -194,8 +212,12 @@ transitions reported by the firmware.
 because gas-volume precision is not critical, leaving duration-only control. Hardcodes `name="gas_puff"` and
 `module_id=2`.
 
+- Identity: `module_type=5`, `module_id=2`, `name="gas_puff"`, `data_codes={51, 52}`, `error_codes=None`
+  (`GasPuffValveInterface.__init__` in `module_interfaces.py`)
 - Shared memory: `<type>_<id>_puff_tracker`, `np.uint32[2]` (index 0 cumulative puff count, index 1 instantaneous valve
   state)
+- Cached commands: `_pulse = 1`, `_open = 2`, `_close = 3` (`GasPuffValveInterface.__init__` in
+  `module_interfaces.py`)
 - Public methods: `set_state(*, state)`, `deliver_puff(duration_ms)`, `puff_count` (property)
 
 > **Multi-instance pattern**: Two valve wrappers exist because the same firmware module serves two application roles
@@ -221,7 +243,9 @@ zero-pull trailer pattern as `LickModule`.
 maintains no shared memory and processes no incoming data online, because the wrapper exists primarily to expose
 calibration math to consumers.
 
-- Shared memory: none (data is preserved in the log archive via DataLogger only)
+- Identity: `module_type=6`, `module_id=1`, `name="torque"`, `data_codes=None`, `error_codes=None`
+  (`TorqueInterface.__init__` in `module_interfaces.py`)
+- Shared memory: none, so torque data reaches disk through the base interface's automatic logging alone
 - Public methods: `set_parameters(report_ccw, report_cw, signal_threshold, delta_threshold, averaging_pool_size)`,
   `set_monitoring_state(*, state)`, `torque_per_adc_unit` (property)
 
@@ -242,5 +266,7 @@ press. slmc currently provides only `kToggle`, so the consumer tracks software-s
 state differs from the cached state. The wrapper trusts the consumer to know the initial hardware state (defaults to OFF
 on initialization).
 
+- Identity: `module_type=7`, `module_id=1`, `name="screen"`, `data_codes=None`, `error_codes=None`
+  (`ScreenInterface.__init__` in `module_interfaces.py`)
 - Shared memory: none
 - Public methods: `set_parameters(pulse_duration)`, `set_state(*, state)`, `state` (property)

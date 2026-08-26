@@ -15,7 +15,7 @@ aborts construction with a `ValueError` naming the missing headers.
 
 | Convention               | Rule                                                                                                         |
 |--------------------------|--------------------------------------------------------------------------------------------------------------|
-| Header matching          | Lowercased and stripped; the live header text must match the required header after that normalization.       |
+| Header matching          | Lowercased and stripped, so the live header text must match the required header after that normalization.    |
 | Animal ID format         | Zero-padded to a five-digit string for comparison (`12` → `00012`).                                          |
 | Empty-value placeholders | `""`, `n/a`, `--`, `---` (case-insensitive) are read as `None`.                                              |
 | Column-letter mapping    | 0-based column index → Excel-style letter (`A`, `B`, … `Z`, `AA`, …).                                        |
@@ -34,7 +34,7 @@ time cells. The water log resolves its own `date` column by string comparison, u
 
 | Structural assumption | Value                                                                                                                                                  |
 |-----------------------|--------------------------------------------------------------------------------------------------------------------------------------------------------|
-| Tab identity          | One tab per **project**; tab name = `project_name`.                                                                                                    |
+| Tab identity          | One tab per **project**, with the tab name set to `project_name`.                                                                                      |
 | Header row            | Row **1**.                                                                                                                                             |
 | Data rows             | Row 2 onward.                                                                                                                                          |
 | Record identity       | The **`id` column** (zero-padded five-digit animal IDs). The target animal's row index is its position in that column + 2 (header row + 0→1 indexing). |
@@ -52,22 +52,29 @@ The `_REQUIRED_SURGERY_HEADERS` set, grouped by the dataclass section each feeds
 Implants and injections are discovered by header name, not fixed columns. Headers follow the
 `implant<N>` / `injection<N>` convention, with companion columns sharing the same prefix:
 
-| Header pattern             | Maps to                                          |
-|----------------------------|--------------------------------------------------|
-| `implant<N>`               | `ImplantData.implant` (the implant name)         |
-| `implant<N> location`      | `ImplantData.implant_target`                     |
-| `implant<N> coordinates`   | Parsed into AP/ML/DV (optional)                  |
-| `implant<N> code`          | `ImplantData.implant_code` (defaults to `0`)     |
-| `injection<N>`             | `InjectionData.injection`                        |
-| `injection<N> location`    | `InjectionData.injection_target`                 |
-| `injection<N> volume (nl)` | `InjectionData.injection_volume_nl`              |
-| `injection<N> coordinates` | Parsed into AP/ML/DV (optional)                  |
-| `injection<N> code`        | `InjectionData.injection_code` (defaults to `0`) |
+| Header pattern             | Maps to                                            |
+|----------------------------|----------------------------------------------------|
+| `implant<N>`               | `ImplantData.implant` (the implant name)           |
+| `implant<N> location`      | `ImplantData.implant_target`                       |
+| `implant<N> coordinates`   | Parsed into AP/ML/DV (optional)                    |
+| `implant<N> code`          | `ImplantData.implant_code` (defaults to `"0"`)     |
+| `injection<N>`             | `InjectionData.injection`                          |
+| `injection<N> location`    | `InjectionData.injection_target`                   |
+| `injection<N> volume (nl)` | `InjectionData.injection_volume_nl`                |
+| `injection<N> coordinates` | Parsed into AP/ML/DV (optional)                    |
+| `injection<N> code`        | `InjectionData.injection_code` (defaults to `"0"`) |
 
 The "main" column (no spaces, e.g. `implant1`) drives detection. A `None` value in that cell means
-the animal does not have that implant/injection even though the header exists. Drug/implant/injection
-`code` columns are optional and default to `0` (interpreted as "no code") for backward compatibility
-with early sheet versions.
+the animal does not have that implant or injection even though the header exists. Drug, implant, and
+injection `code` columns are optional and default to the string `"0"`, which reads as "no code", for
+backward compatibility with early sheet versions.
+
+Once a main column holds a name, the reader indexes `<base> location` and `injection<N> volume (nl)`
+directly, so a missing companion header raises `KeyError`. An empty `injection<N> volume (nl)` cell
+additionally raises `TypeError` from the `float()` conversion, while an empty `<base> location` cell
+is stored as `None` without error. The `coordinates` and `code` companions are read through `.get()`
+and stay optional in the implant and injection loops of `SurgeryLog.extract_animal_data`
+(`cross_system/google_sheet_tools.py`).
 
 ### Coordinate string format
 
@@ -77,15 +84,17 @@ Stereotactic coordinates are a single string like `-1.8 AP, 2 ML, .25 DV`, parse
 ### Output: `SurgeryData`
 
 `extract_animal_data()` returns `SurgeryData(subject, procedure, drugs[], implants[], injections[])`.
-Notable per-field parsing: `dob` is combined with a noon time; `date`+`start`/`end` become
-`surgery_start_us`/`surgery_end_us`; `weight (g)` → `float`; `cage #` → `int`. A malformed or empty
-weight, cage, date, or time cell raises `ValueError`.
+Notable per-field parsing: `dob` is combined with a noon time, `date` plus `start`/`end` become
+`surgery_start_us`/`surgery_end_us`, `weight (g)` becomes a `float`, and `cage #` becomes an `int`.
+A blank `surgery quality` cell resolves to `0`. A malformed or empty weight, cage, date, or time cell
+raises `ValueError` from the `SubjectData` and `ProcedureData` construction inside
+`SurgeryLog.extract_animal_data` (`cross_system/google_sheet_tools.py`).
 
-Each drug tracked by `_SURGERY_LOG_DRUGS` becomes a named `DrugData` record in `drugs[]`: `Lactated
-Ringer's Solution`/`lrs`, `Ketoprofen`/`ketoprofen`, `Buprenorphine`/`buprenorphine`, and
+Each drug tracked by `_SURGERY_LOG_DRUGS` becomes a named `DrugData` record in `drugs[]`, covering
+`Lactated Ringer's Solution`/`lrs`, `Ketoprofen`/`ketoprofen`, `Buprenorphine`/`buprenorphine`, and
 `Dexamethasone`/`dexamethasone`. For each record, `drug` is the descriptive name, `drug_volume_ml` comes
-from the `<stem> (ml)` column, and `drug_code` from the `<stem> code` column. A drug whose volume cell is
-empty was not administered and is excluded from `drugs[]`.
+from the `<stem> (ml)` column, and `drug_code` comes from the `<stem> code` column. A drug whose volume
+cell is empty was not administered and is excluded from `drugs[]`.
 
 ---
 
@@ -116,11 +125,11 @@ The `_REQUIRED_WATER_RESTRICTION_HEADERS` set: `date`, `weight (g)`, `given by:`
 | `behavior`         | `session_type`.                                                     |
 | `time`             | Session start time in `HH:MM` local time (cached at construction).  |
 
-The log must be **pre-filled with session dates** — `WaterLog` writes into an existing date row and
-raises `ValueError` if the session's date is absent (it does not create rows). The lookup compares
-each `date` cell against `local_datetime.strftime("%-m/%-d/%y")` for exact equality, so a cell
-holding `05/24/26` or `05-24-26` fails to match the session's `5/24/26` and aborts construction.
-The surgery log tries four `strptime` patterns, and the water log matches one exact string.
+The log must be **pre-filled with session dates**, because `WaterLog` writes into an existing date row and creates none.
+An absent session date raises `ValueError` naming the date and telling the operator to update the log and rerun the
+failed command. The lookup compares each `date` cell against `local_datetime.strftime("%-m/%-d/%y")` for exact equality,
+so a cell holding `05/24/26` or `05-24-26` fails to match the session's `5/24/26` and aborts construction. The surgery
+log tries four `strptime` patterns, and the water log matches one exact string.
 
 ---
 
@@ -129,13 +138,13 @@ The surgery log tries four `strptime` patterns, and the water log matches one ex
 When adapting to a different schema or service, the parts above are exactly the parts that change.
 A custom processor declares its own:
 
-1. **Required-header (or required-field) set** — the equivalent of `_REQUIRED_*_HEADERS`, validated
+1. **Required-header (or required-field) set**, the equivalent of `_REQUIRED_*_HEADERS`, validated
    at construction.
-2. **Structural assumptions** — which row holds headers, whether record identity is a column value or
-   a tab name, where data rows begin.
-3. **Field mapping** — how source columns map to the typed record it emits (read) or which columns it
-   writes (write).
+2. **Structural assumptions**, meaning which row holds headers, whether record identity is a column
+   value or a tab name, and where data rows begin.
+3. **Field mapping**, meaning how source columns map to the typed record it emits (read) or which
+   columns it writes (write).
 
-Everything in [Cross-cutting conventions](#cross-cutting-conventions) — auth, retries, connection
-teardown, write formatting — is reusable as-is and should be preserved so the processor behaves like
-the rest of the platform.
+Everything in [Cross-cutting conventions](#cross-cutting-conventions) is reusable as-is, covering auth,
+retries, connection teardown, and write formatting. Preserve it so the processor behaves like the rest
+of the platform.

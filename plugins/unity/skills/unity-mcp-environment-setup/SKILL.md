@@ -51,11 +51,12 @@ The `McpBridge` editor plugin ships with `sollertia-virtual-reality`. It starts 
 prefixes automatically when the Editor loads the project, registering all three because `HttpListener` performs exact
 host-header matching. A client requesting `localhost` is rejected by a `127.0.0.1` prefix even though they resolve to
 the same socket, and the explicit numeric prefixes additionally work around Mono's IPv6-only resolution of `localhost`
-(`McpBridge.cs:122-125`). Two production clients depend on the listener: the shipped Python wrapper
-(`sollertia-shared-assets/.../interfaces/unity_tools.py:22`) hard-codes `http://localhost:8090/` as `_UNITY_BRIDGE_URL`,
-while the acquisition runtime's `UnityBridgeClient` (`sollertia-experiment/.../vr_task/bridge.py:18`) defaults to
-`127.0.0.1`. Both of those prefixes are load-bearing in production, and `[::1]` is load-bearing on Mono, where the
-`localhost` prefix alone can bind only the IPv6 stack. The 15 relayed tools are:
+(the `Listener.Prefixes.Add` calls in `McpBridge`'s static constructor, `McpBridge.cs`). Two production clients
+depend on the listener: the shipped Python wrapper hard-codes `http://localhost:8090/` as `_UNITY_BRIDGE_URL` in
+`sollertia-shared-assets/.../interfaces/unity_tools.py`, while the acquisition runtime's `UnityBridgeClient` defaults
+to `127.0.0.1` through `_BRIDGE_HOST` in `sollertia-experiment/.../vr_task/bridge.py`. Both of those prefixes are
+load-bearing in production, and `[::1]` is load-bearing on Mono, where the `localhost` prefix alone can bind only the
+IPv6 stack. The 15 relayed tools are:
 
 | Tool                         | Owning skill       |
 |------------------------------|--------------------|
@@ -94,17 +95,18 @@ The Camera Mapping surface, made up of `read_task_parameters_tool`, `write_task_
 (`Assets/Gimbl/Scripts/Displays/Monitor.cs`), which needs an OS-specific helper:
 
 - **macOS** uses [displayplacer](https://github.com/jakehilborn/displayplacer), installed with `brew install
-  displayplacer`. `ResolveDisplayPlacerPath` (`Monitor.cs:141-152`) tries `/opt/homebrew/bin/displayplacer` (Apple
+  displayplacer`. `ResolveDisplayPlacerPath` (`Monitor.cs`) tries `/opt/homebrew/bin/displayplacer` (Apple
   Silicon), then `/usr/local/bin/displayplacer` (Intel), then the bare `displayplacer` name resolved through `PATH`.
-- **Linux** uses `xrandr` from the X11 server utilities, resolved through `PATH` (`Monitor.cs:121`). Verify with
-  `command -v xrandr`.
+- **Linux** uses `xrandr` from the X11 server utilities, resolved through `PATH` by the Linux branch of
+  `Monitor.EnumerateMonitors` (`Monitor.cs`). Verify with `command -v xrandr`.
 - **Windows** enumerates monitors through the operating system and needs no helper.
 
-A missing helper is a Console **warning** rather than an exception, reading `Monitor enumeration: failed to start
-'<command>'.` (`Monitor.cs:182-188`) and carrying an `Install it with 'brew install displayplacer'.` hint on macOS. The
-relay keeps returning `"success": true`, so the symptom is an empty `state.camera_mapping`, and a `camera_mapping` write
-is refused with "Cannot write camera_mapping: no monitors were detected on this host." (`McpBridge.cs:1620-1621`).
-Install the helper first, then call `refresh_monitors_tool`, because refreshing alone never fixes it.
+A missing helper is a Console **warning** rather than an exception. `EnumerateViaSubprocess` (`Monitor.cs`) logs
+`Monitor enumeration: failed to start '<command>'.` and carries an `Install it with 'brew install displayplacer'.` hint
+on macOS. The relay keeps returning `"success": true`, so the symptom is an empty `state.camera_mapping`, and a
+`camera_mapping` write is refused by `ValidateCameraMappingWrites` (`McpBridge.cs`) with "Cannot write camera_mapping:
+no monitors were detected on this host." Install the helper first, then call `refresh_monitors_tool`, because refreshing
+alone never fixes it.
 
 ---
 
@@ -145,10 +147,11 @@ If it is absent:
   line followed by the OS-specific exception text. Free the port and reload the project.
 
 If the listener log **is** present but calls still fail, the listener started and then degraded. Search the Console for
-`McpBridge: Failed to re-arm listener:` (`McpBridge.cs:168`) or `McpBridge: EndGetContext failed:` (`McpBridge.cs:159`).
-After a re-arm failure the listener accepts no further requests, which is indistinguishable from "listener never
-started" on the relay side, so restart the Editor. A `McpBridge: Failed to deliver response:` warning
-(`McpBridge.cs:230`) is benign by comparison: the client gave up on a long call before the bridge answered.
+`McpBridge: Failed to re-arm listener:` or `McpBridge: EndGetContext failed:`, both logged by `OnContextReceived`
+(`McpBridge.cs`). After a re-arm failure the listener accepts no further requests, and that is indistinguishable from
+"listener never started" on the relay side, so restart the Editor. A `McpBridge: Failed to deliver response:` warning
+from `HandleRequest` (`McpBridge.cs`) is benign by comparison: the client gave up on a long call before the bridge
+answered.
 
 `McpBridge` is declared `[InitializeOnLoad]` and its static constructor starts the listener on every assembly reload, so
 a missing log line points at an in-progress compile, a compile failure, or a port conflict.
@@ -216,11 +219,12 @@ assembly sets `"rootNamespace": "SL.Tasks"`, restricts itself to `"includePlatfo
 exactly three assemblies: `Sollertia.Gimbl`, `Sollertia.Gimbl.Editor`, and `Sollertia.InfiniteCorridorTask`. Every
 script in the project now compiles into a named assembly, and nothing lands in Unity's predefined `Assembly-CSharp`.
 
-- The bridge declares `namespace SL.Tasks` and imports (`McpBridge.cs:7-19`): `Gimbl`, `SL.Config`, `UnityEditor`,
-  `UnityEditor.SceneManagement`, `UnityEngine`, and `UnityEngine.SceneManagement` (plus the BCL `System.*` namespaces,
-  which are always available). `Gimbl` spans two of them, because `Monitor` and `FullScreenViewManager` come from
-  `Sollertia.Gimbl` while `MainWindow` (`McpBridge.cs:2049`) comes from `Sollertia.Gimbl.Editor`. `SL.Config` resolves
-  through the `Sollertia.InfiniteCorridorTask` reference.
+- The bridge declares `namespace SL.Tasks` and imports, through the `using` directives at the top of `McpBridge.cs`:
+  `Gimbl`, `SL.Config`, `UnityEditor`, `UnityEditor.SceneManagement`, `UnityEngine`, and `UnityEngine.SceneManagement`
+  (plus the BCL `System.*` namespaces, which are always available). `Gimbl` spans two of them, because `Monitor` and
+  `FullScreenViewManager` come from `Sollertia.Gimbl` while `MainWindow`, which `AcquireFullScreenManager`
+  (`McpBridge.cs`) resolves, comes from `Sollertia.Gimbl.Editor`. `SL.Config` resolves through the
+  `Sollertia.InfiniteCorridorTask` reference.
 - The live foot-gun is the inverse of adding an `.asmdef`: removing or narrowing one of those three references, or
   dropping `"Editor"` from `includePlatforms`, breaks the bridge's imports, the editor assembly fails to compile, and
   the listener never starts. From the MCP side this is indistinguishable from "Editor not running".
@@ -262,11 +266,10 @@ issuing mutating tool calls.
 
 ### First Task Parameters call after a scene change is slow
 
-`McpBridge` caches one `FullScreenViewManager` per scene in `_cachedFullScreenManager` (`McpBridge.cs:101-112`), and its
-static constructor clears that cache on every `EditorSceneManager.activeSceneChangedInEditMode`
-(`McpBridge.cs:117-118`). Constructing a manager runs `Monitor.EnumerateMonitors`, which spawns an OS subprocess on
-Linux and macOS, bounded at 5000 ms per wait (`Monitor.cs:29`), and opens one short-lived popup window per detected
-monitor.
+`McpBridge` caches one `FullScreenViewManager` per scene in `_cachedFullScreenManager` (`McpBridge.cs`), and its
+static constructor clears that cache on every `EditorSceneManager.activeSceneChangedInEditMode`. Constructing a manager
+runs `Monitor.EnumerateMonitors`, which spawns an OS subprocess on Linux and macOS, bounded at 5000 ms per wait by
+`SubprocessTimeoutMilliseconds` (`Monitor.cs`), and opens one short-lived popup window per detected monitor.
 
 - The first `read_task_parameters_tool`, `write_task_parameters_tool`, or `refresh_monitors_tool` call after
   `open_scene_tool` or `create_task_tool` therefore re-pays that cost. On a busy Editor it can push the request toward
@@ -290,36 +293,35 @@ Claude.
 
 ### Unity side
 
-1. **Add the `Dispatch` case.** `Dispatch` (`McpBridge.cs:239-260`) is one `switch` expression whose fifteen arms
-   (`:243-257`) map a wire tool name to a handler, with a `_` arm returning `Error($"Unknown tool: {tool}")`. Add one
-   arm, in the order the README's bridge table lists it. The wire name is snake_case and carries **no** `_tool` suffix,
-   because that suffix belongs to the Python wrapper alone.
+1. **Add the `Dispatch` case.** `Dispatch` (`McpBridge.cs`) is one `switch` expression whose fifteen arms map a wire
+   tool name to a handler, with a `_` arm returning `Error($"Unknown tool: {tool}")`. Add one arm, in the order the
+   README's bridge table lists it. The wire name is snake_case and carries **no** `_tool` suffix, because that suffix
+   belongs to the Python wrapper alone.
 2. **Write the handler.** A handler is `private static string`, takes `Dictionary<string, object> arguments` when the
-   tool has inputs and nothing when it does not, and returns `Ok(payload)` or `Error(message)`. `Ok`
-   (`McpBridge.cs:2198-2202`) stamps `success = true` onto the payload dictionary, and `Error`
-   (`McpBridge.cs:2207-2210`) emits `{"success": false, "error": message}`. Every response therefore carries a `success`
-   boolean. Never hand-build a response dictionary and never return a bare JSON string.
-3. **Serialize through `MiniJson` only.** `MiniJson.Deserialize` parses the request body (`McpBridge.cs:196`) and
-   `MiniJson.Serialize` writes every response (`McpBridge.cs:2201`, `:2209`). It covers dictionaries, sequences,
-   strings, numbers, booleans, and null, and serializes anything else as its quoted `ToString`. Do not reach for
-   `JsonUtility`: it cannot serialize the `Dictionary<string, object>` payload every handler builds.
-4. **Call Unity APIs freely.** `OnContextReceived` (`McpBridge.cs:145-170`) runs on a thread-pool thread and only
-   enqueues the context onto a `ConcurrentQueue`, and `Poll` (`McpBridge.cs:173-179`) drains that queue on the editor
-   thread from `EditorApplication.update`. Handlers therefore already run where Unity APIs are legal. Do not add
+   tool has inputs and nothing when it does not, and returns `Ok(payload)` or `Error(message)`. `Ok` (`McpBridge.cs`)
+   stamps `success = true` onto the payload dictionary, and `Error` (`McpBridge.cs`) emits `{"success": false, "error":
+   message}`. Every response therefore carries a `success` boolean. Never hand-build a response dictionary and never
+   return a bare JSON string.
+3. **Serialize through `MiniJson` only.** `MiniJson.Deserialize` parses the request body in `HandleRequest`, and
+   `MiniJson.Serialize` writes every response from `Ok` and `Error`, all in `McpBridge.cs`. It covers dictionaries,
+   sequences, strings, numbers, booleans, and null, and serializes anything else as its quoted `ToString`. Do not
+   reach for `JsonUtility`: it cannot serialize the `Dictionary<string, object>` payload every handler builds.
+4. **Call Unity APIs freely.** `OnContextReceived` (`McpBridge.cs`) runs on a thread-pool thread and only enqueues the
+   context onto a `ConcurrentQueue`, and `Poll` (`McpBridge.cs`) drains that queue on the editor thread from
+   `EditorApplication.update`. Handlers therefore already run where Unity APIs are legal. Do not add
    threading of your own.
-5. **Fold a scene-touching tool into the shared walk.** `AcquireSceneComponents` (`McpBridge.cs:1340-1355`) performs the
-   single scene walk the Task Parameters endpoints share, and `BuildSnapshot` (`McpBridge.cs:1392`) turns it into the
-   response payload. A tool that reads or writes scene state adds its component to the `SceneComponents` struct and its
-   field to `BuildSnapshot` instead of running a second `FindAnyObjectByType` pass, which is why `RefreshMonitors`
-   (`McpBridge.cs:1328-1333`) is three lines long.
+5. **Fold a scene-touching tool into the shared walk.** `AcquireSceneComponents` (`McpBridge.cs`) performs the single
+   scene walk the Task Parameters endpoints share, and `BuildSnapshot` (`McpBridge.cs`) turns it into the response
+   payload. A tool that reads or writes scene state adds its component to the `SceneComponents` struct and its field to
+   `BuildSnapshot` instead of running a second `FindAnyObjectByType` pass, which is why `RefreshMonitors`
+   (`McpBridge.cs`) is three lines long.
 6. **Respect the deletion bounds** whenever the tool removes anything:
-   - A new deletable asset root joins `DeleteAllowedPrefixes` (`McpBridge.cs:55-61`).
-   - A new hand-authored asset joins `DeleteProtectedPaths` (`McpBridge.cs:70-80`), which `delete_asset` consults
-     through `IsDeleteAllowed` (`McpBridge.cs:2060-2089`) and which `delete_task` consults itself (`McpBridge.cs:413`)
-     before removing a scene.
+   - A new deletable asset root joins `DeleteAllowedPrefixes` (`McpBridge.cs`).
+   - A new hand-authored asset joins `DeleteProtectedPaths` (`McpBridge.cs`), which `delete_asset` consults through
+     `IsDeleteAllowed` and which `delete_task` consults itself in its `DestroyTask` handler before removing a scene.
    - Scenes are deliberately absent from `DeleteAllowedPrefixes`. They are removed only through `delete_task`, so the
      per-scene companion cascade can never be bypassed, and a new per-scene companion joins
-     `TryDeleteScenePerSceneCompanions` (`McpBridge.cs:1082-1108`) in the same change.
+     `TryDeleteScenePerSceneCompanions` (`McpBridge.cs`) in the same change.
    - Build every asset path as a **forward-slash literal**. `Path.Combine` emits backslashes on Windows, and every
      prefix and protected-path comparison above is ordinal against forward-slash strings.
 

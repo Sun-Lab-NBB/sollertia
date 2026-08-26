@@ -1,7 +1,7 @@
 {
   "name": "experiment",
-  "version": "1.2.0",
-  "description": "Agentic access to the sollertia-experiment library: the system-agnostic core for acquisition system design, hardware interfaces, runtime patterns, and session lifecycle management on the experiment host. System-specific skills live in dedicated companion plugins (e.g. the 'mesoscope' plugin for the Mesoscope-VR reference system). Backed by the single sollertia-experiment MCP server (sle mcp), which exposes the tools behind the `sle get` and `sle mesoscope` command groups.",
+  "version": "2.0.0",
+  "description": "Agentic access to the sollertia-experiment and sollertia-micro-controllers libraries: the system-agnostic core for acquisition system design, hardware interfaces, runtime patterns, external data-service processors, and session lifecycle management on the experiment host. Owns the extension path of both libraries, the configuration registry and shared cross_system primitives a new acquisition system composes, the MCP tool-module and CLI group registration seams, and the firmware module, controller target, and board family seams. System-specific skills live in dedicated companion plugins (e.g. the 'mesoscope' plugin for the Mesoscope-VR reference system). Backed by the single sollertia-experiment MCP server (sle mcp), which exposes the tools behind the `sle get` and `sle mesoscope` command groups.",
   "repository": "https://github.com/Sun-Lab-NBB/sollertia",
   "license": "Apache-2.0",
   "skills": "./skills/",

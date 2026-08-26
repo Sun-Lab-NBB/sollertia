@@ -253,6 +253,24 @@ to update points at a SKILL.md edited directly. A row naming where concrete per-
 owning system's schema skill, so record the new material there. Enumerate the new member alongside the existing one
 explicitly rather than rewriting "currently only X" into a longer chain, and leave the skills the recipe omits alone.
 
+### Citing source in a skill edit
+
+A citation in this skill, and in every skill edit a recipe names, gives the asset name rather than its line number.
+Line numbers drift as unrelated code above them moves, and a drifted citation points at the wrong asset while still
+reading as authoritative.
+
+Naming the asset means naming the module plus one of the identifiers it declares: a class, a method, a function, a
+dataclass field, an enum, an enum member, a constant, a C++ template parameter, or a config key. The module path alone
+suffices when the whole module is the subject.
+
+| Rejected                | Correct                                                 |
+|-------------------------|---------------------------------------------------------|
+| `registries.py:412-418` | `_assert_registry_coverage()` in `registries.py`        |
+| `enums.py:74`           | the `GOOGLE` member of `CredentialsTypes` in `enums.py` |
+
+Cross-document references follow the same rule. Cite the library README or a CLAUDE.md by its section heading, the way
+the scenario table names "Adding New Acquisition Systems", never by a line or a line range.
+
 ### Step 4: Coordinate with downstream libraries
 
 Each recipe lists the downstream libraries that need parallel changes. Hand those off to the matching skill in the
@@ -369,6 +387,7 @@ Skill side:
 - [ ] A new acquisition system is listed in experiment:acquisition-system-setup's supported-systems table,
       which is how experiment:pipeline routes to it at operate time
 - [ ] Cross-references between the touched skills still resolve
+- [ ] Every citation added to a touched skill names the asset or the section heading rather than a line
 
 Downstream side:
 - [ ] The downstream hand-offs the recipe names are listed in the pull request description
