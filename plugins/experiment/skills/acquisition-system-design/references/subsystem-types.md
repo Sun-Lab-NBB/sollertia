@@ -13,16 +13,25 @@ Every binding class, regardless of type:
 
 - takes the most-shared dependency first in its constructor (`data_logger`, when the subsystem logs to
   it), then its per-subsystem configuration dataclass, then any optional inputs,
-- instantiates per-device wrappers as **public** attributes and wraps them in **private** low-level
-  controllers,
+- instantiates as a **public** attribute any per-device wrapper the orchestrator commands at runtime,
+  and keeps every other wrapper and every low-level controller **private**. Only the microcontroller
+  type currently has commandable per-device wrappers, so the camera and SDK types keep everything
+  private,
 - exposes an idempotent bring-up and tear-down pair for the microcontroller and camera types, with
   `__del__` calling the tear-down as a safety net, while a third-party-SDK subsystem connects in
   `__init__` and relies on the orchestrator calling its `disconnect()` explicitly,
-- carries a bring-up flag when it exposes an idempotent bring-up and tear-down pair, raising the flag
-  before the first bring-up step and clearing it only after the last tear-down step, so a partial
-  bring-up still tears down and a failed tear-down stays retryable. A subsystem that connects in
-  `__init__` needs no flag, because it has no separate bring-up to guard,
-- isolates every tear-down step through `run_shutdown_step` (`cross_system/shutdown_tools.py`),
+- carries a bring-up flag when it exposes an idempotent bring-up and tear-down pair, and clears it
+  only after the last tear-down step, so a failed tear-down stays retryable. A subsystem that connects
+  in `__init__` needs no flag, because it has no separate bring-up to guard. Where one flag guards a
+  bring-up that walks several devices, as the microcontroller type does, the flag is raised **before**
+  the first step, so a failure partway through still routes through the tear-down. A per-device flag
+  guarding a single device whose own tear-down self-guards gains nothing from that ordering, so the
+  camera type raises each flag only after that camera's bring-up returns,
+- isolates every tear-down step through `run_shutdown_step` (`cross_system/shutdown_tools.py`). The
+  microcontroller and camera types isolate in the binding class. The SDK type isolates one level down,
+  inside its connection class: `ZaberConnection._release_runtime_assets` wraps every device shutdown
+  and closes the port from a `finally`, so `ZaberMotors.disconnect()` calls it bare
+  (`cross_system/zaber_bindings.py`),
 - stays oblivious to other subsystems, because cross-subsystem coordination is the orchestrator's job.
 
 What differs is the bring-up sequence and the method names, below.
@@ -127,7 +136,8 @@ Instead, **per-session setup or preprocessing code constructs them on demand** a
 
 The lifecycle surface is request and response rather than start and stop:
 
-- the constructor takes the **record identity** (project, animal, session), a `credentials_path`, and
+- the constructor takes whichever parts of the **record identity** the source is keyed by
+  (`SurgeryLog` takes project and animal, `WaterLog` takes animal and session date), a `credentials_path`, and
   a `sheet_id` or equivalent endpoint. It authenticates, validates the source's schema, and caches the
   connection.
 - `extract_*` methods parse records into a typed platform dataclass, which is the **read** direction.

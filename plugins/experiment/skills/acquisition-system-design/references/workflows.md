@@ -34,10 +34,11 @@ only microcontrollers gains a camera), follow these steps:
 6. **Update the per-system instance skill.** Add a section documenting the new subsystem's configuration
    surface and binding-class composition. *Worked example:* see `mesoscope:mesoscope-vr`.
 
-7. **Regenerate the system configuration YAML.** Use the system's own configuration tooling, meaning
-   its configuration-write MCP tool or its `sle <system> configure` CLI command, to write a new
-   configuration file from the updated defaults. Every older deployment needs its YAML file
-   regenerated against the new schema. For the current worked example's command names and options, see
+7. **Regenerate the system configuration YAML.** Run the system's `sle <system> configure system`
+   CLI command, which writes a default-constructed instance of the registered configuration class.
+   The configuration-write MCP tool takes a complete payload instead of generating defaults, so use
+   it to edit an existing configuration rather than to regenerate one. Every older deployment needs
+   its YAML file regenerated against the new schema. For the current worked example's command names and options, see
    `mesoscope:mesoscope-vr-runtime`.
 
 ---
@@ -108,7 +109,12 @@ only microcontrollers gains a camera), follow these steps:
   subclass, its `register_system_configuration` call, and the typed `get_system_configuration` accessor.
 - `<system>/binding_classes.py` for the per-subsystem binding classes.
 - `<system>/system_controller.py` for the lifecycle orchestrator.
-- `<system>/data_acquisition.py` for the per-mode logic functions, one per session type the system runs.
+- `<system>/data_acquisition.py` for the per-mode logic functions: one per session type the system
+  runs, plus one per non-session runtime mode such as hardware maintenance.
+- `<system>/acquisition_components.py` for the shared runtime-state types (trial state, log message
+  codes) and the hardware setup, teardown, and snapshot helpers the orchestrator and the per-mode
+  logic functions both call, kept out of `system_controller.py` so the orchestrator holds only the
+  state machine.
 - `<system>/data_preprocessing.py` for the session-lifecycle orchestrators, meaning the preprocess, purge,
   and migrate entry points that compose the six shared `cross_system` primitives and add the system's own
   conversion, compression, and cleanup steps around them.
@@ -180,8 +186,9 @@ Sollertia sheet schema, so the first decision is whether to reuse one or author 
    constructor**, mirroring the `_REQUIRED_*_HEADERS` check, so a malformed source fails loudly before
    any extract or update call.
 
-4. **Implement the lifecycle contract.** The constructor takes the record identity, a
-   `credentials_path`, and a sheet identifier or endpoint. It authenticates, builds the header-to-location
+4. **Implement the lifecycle contract.** The constructor takes whichever parts of the record identity
+   the source is keyed by (`SurgeryLog` takes project and animal, `WaterLog` takes animal and session
+   date), a `credentials_path`, and a sheet identifier or endpoint. It authenticates, builds the header-to-location
    map, validates, and caches the connection. Expose `extract_*` and `update_*` methods, and retry
    every API call. Expose a `close()` that releases the connection, and treat `__del__` as a backstop
    only, because the caller owning the processor closes it in a `try/finally`

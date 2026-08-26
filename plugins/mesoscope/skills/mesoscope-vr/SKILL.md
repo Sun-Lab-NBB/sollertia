@@ -314,8 +314,8 @@ hardware cabling MUST match the order above, which the `ZaberMotors` constructor
 `ZaberMotors` (in `mesoscope_vr/binding_classes.py`) composes three `ZaberConnection` instances and holds the
 seven per-axis `ZaberAxis` handles as private attributes, exposing them only through the pose methods below.
 
-Construction signature: `ZaberMotors(zaber_positions: ZaberPositions | None, zaber_configuration:
-MesoscopeVRAssets)`.
+Construction signature: `ZaberMotors(zaber_configuration: MesoscopeVRAssets, zaber_positions: ZaberPositions |
+None)`.
 
 This binding class takes no `DataLogger`, because Zaber motor state is per-session position data captured by the
 `/mesoscope-vr-snapshots` skill rather than a real-time logged event stream.

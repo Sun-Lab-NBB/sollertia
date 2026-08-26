@@ -38,12 +38,14 @@ class <System>SystemConfiguration(SystemConfiguration):
 ```
 
 **Rules:**
-- The class is a plain `@dataclass` (NOT `slots=True`) because `YamlConfig`'s reflection-based
-  serialization is incompatible with slots.
+- The class is a plain `@dataclass` (NOT `slots=True`). `YamlConfig` serializes through `fields()`
+  and `getattr`, so slots would work, but the base class defines no `__slots__` of its own and the
+  top-level configuration is a single long-lived instance, so slots buy nothing here.
 - Every nested section uses `field(default_factory=<Section>)` so each section's defaults apply when
   the field is absent from the YAML.
 - Field docstrings (triple-quoted strings on the line after each field) describe the section's
-  purpose. `YamlConfig` extracts these as YAML comments on write.
+  purpose. They document the dataclass source only, as `YamlConfig` writes no comments into the
+  generated YAML.
 - The `name` field is a free-form human-readable system label. It SHOULD be the short system token
   rather than the dataclass name, because the token is what the operator reads in the YAML.
 
@@ -180,14 +182,13 @@ class <System><Subsystem>:
 ```
 
 **Rules:**
-- Use `@dataclass(slots=True)`. The per-subsystem dataclasses don't inherit from `YamlConfig`, so slots
-  are safe and reduce memory.
+- Use `@dataclass(slots=True)`. Slots reduce memory and catch attribute typos.
 - Class name follows the `<System><Subsystem>` convention, so a system's camera section, board section,
   and external-asset section all carry the same system prefix.
 - Each field has an explicit default, because the YAML loader falls back to defaults when a field is
   absent.
-- Each field has a triple-quoted docstring immediately after it. `YamlConfig` extracts these and
-  writes them as YAML comments.
+- Each field has a triple-quoted docstring immediately after it. It documents the field in source,
+  and the generated YAML carries values only.
 
 ### Field naming convention
 
@@ -325,11 +326,14 @@ constructor and ownership rules below and differ in their method surface, docume
   explicitly and treat `__del__` as a safety net only.
 - **`_started` idempotency.** `start()` and `stop()` are no-ops when already in the target state,
   because the lifecycle orchestrator may double-call them during error recovery.
-- **Flag ordering.** `start()` raises the flag before its first step and `stop()` clears it after its
-  last step, so a partial bring-up still tears down and a failed tear-down stays retryable.
+- **Flag ordering.** `stop()` clears the flag after its last step, so a failed tear-down stays
+  retryable. A flag guarding a bring-up that walks several devices is raised before the first step, so
+  a partial bring-up still tears down. A per-device flag guarding a single device whose own tear-down
+  self-guards is raised after that device's bring-up returns.
 - **Teardown isolation.** Each step of a multi-device tear-down runs inside `run_shutdown_step`, which
   catches the failure and echoes an ERROR so later steps still run
-  (`cross_system/shutdown_tools.py`).
+  (`cross_system/shutdown_tools.py`). An SDK-connection subsystem isolates inside its connection class
+  instead, so its binding class calls `disconnect()` bare (`cross_system/zaber_bindings.py`).
 
 ### Bring-up sequence (subsystem-type-specific)
 
@@ -350,10 +354,10 @@ and bring-up MUST raise rather than silently leaving the subsystem half-started.
 
 | Method                       | When                                                                    |
 |------------------------------|-------------------------------------------------------------------------|
-| `start()`                    | Mandatory. Idempotent. Brings the subsystem online.                     |
-| `stop()`                     | Mandatory. Idempotent. Tears the subsystem down.                        |
-| `start_<sub_device>()`       | Optional. When per-device bring-up granularity is useful.               |
-| `save_<sub_device>_frames()` | Optional. When saving is distinct from acquiring, as it is for cameras. |
+| `start()`                    | Microcontroller type. Idempotent. Brings every managed controller online. |
+| `stop()`                     | Microcontroller and camera types. Idempotent. Tears the subsystem down. An SDK-connection subsystem uses `disconnect()` instead. |
+| `start_<role>_camera()`      | Camera type. When per-device bring-up granularity is useful.            |
+| `save_<role>_camera_frames()`| Camera type. When saving is distinct from acquiring, as it is for cameras. |
 | `restore_position()`         | Optional. When the subsystem carries cross-session state, as motors do. |
 
 Subsystems that wrap a third-party SDK connection (e.g., the Zaber motor subsystem) open the SDK

@@ -50,7 +50,8 @@ class ZaberConnection:
 
 **Notes:**
 - The constructor stores the port name only. Call `connect()` to open the port (`cross_system/zaber_bindings.py`)
-- Multiple ZaberConnection instances cannot share the same port
+- `ZaberConnection` opens the port with `direct=False`, so Zaber Launcher can share it between applications.
+  Without Zaber Launcher running, a second instance opening the same port fails
 
 ### Methods
 
@@ -285,9 +286,10 @@ variables:
 | `axis_mount_position`       | USER_DATA_13 | Mount position in native units                |
 
 `_ZaberSettings` also maps `maximum_limit`, `minimum_limit`, and `position` to the non-USER_DATA constants
-`LIMIT_MAX`, `LIMIT_MIN`, and `POS`. The shorter `park_position` and `maintenance_position` names belong to the
-`ZaberDeviceSettings` snapshot rather than to `_ZaberSettings`, so do not use them to address a device setting.
-| `mount_position`       | USER_DATA_13 | Mount position in native units                |
+`LIMIT_MAX`, `LIMIT_MIN`, and `POS`. The shorter `park_position`, `maintenance_position`, and `mount_position` names
+belong to the
+`ZaberDeviceSettings` snapshot and to the `setting` argument of `set_zaber_device_setting`, not to
+`_ZaberSettings`, whose fields carry the `axis_` prefix.
 
 **Understanding shutdown_flag vs unsafe_flag:**
 
@@ -674,8 +676,8 @@ class SystemZaberMotors:
     """Manages Zaber motor groups for the acquisition system.
 
     Args:
-        zaber_positions: Previous session positions or None for defaults.
         zaber_configuration: Motor configuration from system config.
+        zaber_positions: Previous session positions or None for defaults.
 
     Attributes:
         _connection: ZaberConnection for the motor group.
@@ -684,12 +686,12 @@ class SystemZaberMotors:
 
     def __init__(
         self,
+        zaber_configuration: SystemExternalAssets,
         zaber_positions: SystemZaberPositions | None,
-        zaber_configuration: ExternalAssetsConfig,
     ) -> None:
         # Initialize connection
         self._connection: ZaberConnection = ZaberConnection(
-            port=zaber_configuration.motor_port
+            port=zaber_configuration.primary_motor_port
         )
 
         # Connect and get device/axis

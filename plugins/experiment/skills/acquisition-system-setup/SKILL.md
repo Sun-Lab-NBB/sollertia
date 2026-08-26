@@ -52,15 +52,16 @@ recorded configuration.
 
 ## MCP server requirements
 
-This skill uses MCP tools from libraries other than `sollertia-shared-assets`. The `slsa mcp` server is required only
-because hand-off targets in the assets plugin depend on it.
+This skill uses MCP tools from libraries other than `sollertia-shared-assets`. The `slsa mcp` and `slf mcp` servers
+are required only because hand-off targets in the assets and forging plugins depend on them.
 
-| Server                  | CLI Command | Used directly by this skill | Purpose                                          |
-|-------------------------|-------------|-----------------------------|--------------------------------------------------|
-| ataraxis-video-system   | `axvs mcp`  | yes                         | Camera discovery, runtime requirements, CTI      |
-| ataraxis-comm-interface | `axci mcp`  | yes                         | Microcontroller discovery, MQTT broker check     |
-| sollertia-experiment    | `sle mcp`   | yes                         | Zaber motor discovery, storage mount checks      |
-| sollertia-shared-assets | `slsa mcp`  | no (hand-off targets only)  | Read-only verification of recorded configuration |
+| Server                           | CLI Command | Used directly by this skill | Purpose                                                      |
+|----------------------------------|-------------|-----------------------------|--------------------------------------------------------------|
+| ataraxis-video-system            | `axvs mcp`  | yes                         | Camera discovery, runtime requirements, CTI                  |
+| ataraxis-communication-interface | `axci mcp`  | yes                         | Microcontroller discovery, MQTT broker check                 |
+| sollertia-experiment             | `sle mcp`   | yes                         | Zaber motor discovery, storage mount checks                  |
+| sollertia-shared-assets          | `slsa mcp`  | read-only only              | Read-only "natural share" reads during hardware verification |
+| sollertia-forgery                | `slf mcp`   | no (hand-off targets only)  | Server configuration and dataset definition hand-offs        |
 
 If a required MCP server is unavailable, hand off to the appropriate plugin's MCP environment setup skill:
 `video:video-mcp-environment-setup` (ataraxis marketplace), `communication:communication-mcp-environment-setup`, or
@@ -78,8 +79,10 @@ The CLI commands and those tools do NOT mirror each other. `cameras`, `controlle
 `check_mount_accessibility_tool` have no `sle get` command. You MUST NOT infer a tool name from a command name.
 
 All seven agnostic tools return a plain string and report failure with a leading `Error: ` prefix. The single
-exception to the error convention is `check_unity_bridge_tool`, which carries no `try/except`, so an exception
-propagates across the MCP boundary instead of returning an `Error:` string (`interfaces/get_tools.py`).
+exception to the `Error:` return convention is `check_unity_bridge_tool`, which never returns an `Error:` string. It
+and `check_mount_accessibility_tool` are the two agnostic tools that carry no `try/except`, so an exception raised
+inside either, for example an `OSError` from probing a hung mount, propagates across the MCP boundary
+(`interfaces/get_tools.py`).
 
 ---
 
@@ -146,7 +149,7 @@ not create the mounts:
 
 ```text
 <the active system's mount-sweep tool>    # sweeps the data root and every path the active configuration declares
-check_mount_accessibility_tool(path=...) # drills into a single path that failed the sweep
+check_mount_accessibility_tool(path=...) # drills into a failed storage or data root, not a read-only input file
 ```
 
 The mount-sweep tool reads the active system configuration, so it belongs to the active system's own tool group. For the
@@ -218,7 +221,7 @@ usage detail to the owner skill named after each table. Every server's MCP tools
 | Tool                              | Server | Purpose                               |
 |-----------------------------------|--------|---------------------------------------|
 | `check_runtime_requirements_tool` | axvs   | FFMPEG, GPU, and CTI file status      |
-| `get_cti_status_tool`             | axvs   | CTI (.cti) file path, or "not set"    |
+| `get_cti_status_tool`             | axvs   | CTI (.cti) path, "CTI: Not configured", or "CTI: Unavailable" |
 | `set_cti_file_tool`               | axvs   | Sets the .cti path (Harvesters)       |
 | `check_mqtt_broker_tool`          | axci   | MQTT broker reachability (host, port) |
 | `check_unity_bridge_tool`         | sle    | Unity Editor MCP Bridge reachability  |
@@ -276,8 +279,8 @@ After discovery completes, report the discovered hardware to the user as a struc
 
 **If the user is performing initial bringup**, hand off in this order (owning plugin named per step):
 
-1. `assets:working-directory` sets the working directory and the task templates directory. Also configure the
-   `google` category credentials, but only if the system reads animal metadata from Google Sheets.
+1. `assets:working-directory` sets the working directory, the data root, and the task templates directory. Also
+   configure the `google` category credentials, but only if the system reads animal metadata from Google Sheets.
 2. The active acquisition system's skill (`mesoscope:mesoscope-vr` for the current worked example) authors the host
    machine's system configuration YAML against the discovered hardware values.
 3. `assets:project-hierarchy` creates the project (or projects) the host will record under.
@@ -291,8 +294,10 @@ the recorded values, then report the diff between discovered and recorded.
 **If the user is troubleshooting**, use the troubleshooting table below.
 
 You MUST NOT call `set_working_directory_tool`, `set_credentials_tool`, `set_task_templates_directory_tool`, the active
-system's system-configuration write tool, or `write_server_configuration_tool` directly under any circumstances. That
-write tool is owned exclusively by the active system's skill, `mesoscope:mesoscope-vr` for the current worked example.
+system's system-configuration write tool, or `write_server_configuration_tool` directly under any circumstances. The
+system-configuration write tool is owned exclusively by the active system's skill, `mesoscope:mesoscope-vr` for the
+current worked example, and `write_server_configuration_tool` is owned exclusively by `forging:server-configuration`
+on the `slf mcp` server.
 
 ---
 
@@ -352,7 +357,8 @@ Tool-settled (run `rg -n '.{121,}' <file>` and `wc -l <file>`):
 Prerequisites:
 - [ ] Required MCP servers (ataraxis video, ataraxis comm, sollertia-experiment) confirmed reachable
 - [ ] Active acquisition system resolved to its owning skill through the supported-systems table
-- [ ] The active system's mount sweep reported the platform data root and every declared mount reachable
+- [ ] The active system's mount sweep reported the platform data root and every declared mount reachable (run after
+      the system configuration exists; on a fresh bringup this follows Phase 3 step 2)
 
 Runtime prerequisites:
 - [ ] check_runtime_requirements_tool() reported FFMPEG and GPU OK

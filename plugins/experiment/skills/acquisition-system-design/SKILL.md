@@ -29,7 +29,8 @@ Detailed authoring patterns live in three reference files, loaded on demand:
 - [references/layer-patterns.md](references/layer-patterns.md) covers the per-layer class patterns,
   field conventions, lifecycle rules, and the cross-layer contracts.
 - [references/subsystem-types.md](references/subsystem-types.md) covers the per-type lifecycle surface
-  of each major subsystem type on the platform: microcontroller, camera, and motor or SDK.
+  of each subsystem category on the platform: microcontroller, camera, motor or SDK, asynchronous
+  asset-subsystem driver, and external data-service processor.
 - [references/workflows.md](references/workflows.md) covers the step-by-step procedures for adding a
   subsystem, building a new system, and extending an existing subsystem.
 
@@ -189,17 +190,20 @@ Each hardware subsystem has one binding class that composes the subsystem's per-
 orchestrates their lifecycle. The **shared contract** is the same across subsystem types. The
 constructor takes the most-shared dependency first (`data_logger`, when the subsystem logs to it),
 then the per-subsystem configuration dataclass, then any optional inputs. It caches the configuration,
-instantiates per-device wrappers as public attributes, and wraps them in private low-level
-controllers. Bring-up and tear-down are idempotent for the microcontroller and camera types, and
+instantiates as a public attribute any per-device wrapper the orchestrator commands at runtime,
+and keeps every other wrapper and every low-level controller private. Bring-up and tear-down are
+idempotent for the microcontroller and camera types, and
 `__del__` calls the tear-down as a safety net. A third-party-SDK subsystem connects in `__init__` and
 relies on the orchestrator calling its `disconnect()` explicitly.
 
-The bring-up flag is set **before** the first bring-up step, so a failure partway through still routes
-through the tear-down, and each low-level controller's own tear-down self-guards. The tear-down clears
-that flag only **after** every step has run, so a failure severe enough to escape the isolated steps
-leaves the instance stoppable on a retry. Each step of a multi-device tear-down is wrapped in
-`run_shutdown_step`, which catches the failure and echoes an ERROR so later steps still run
-(`cross_system/shutdown_tools.py`).
+A flag guarding a bring-up that walks several devices is set **before** the first bring-up step, so a
+failure partway through still routes through the tear-down, and each low-level controller's own
+tear-down self-guards. A per-device flag guarding a single self-guarding device is set after that
+device's bring-up returns. The tear-down clears the flag only **after** every step has run, so a
+failure severe enough to escape the isolated steps leaves the instance stoppable on a retry. Each step
+of a multi-device tear-down is wrapped in `run_shutdown_step`, which catches the failure and echoes an
+ERROR so later steps still run (`cross_system/shutdown_tools.py`). An SDK-connection subsystem wraps
+those steps inside its connection class instead, so its binding class calls `disconnect()` bare.
 
 The **bring-up sequence and method surface are specific to each subsystem type:**
 
@@ -223,15 +227,17 @@ bring-up sequences, see [references/subsystem-types.md](references/subsystem-typ
 One class per acquisition system (typically `<System>System` or `<System>VRSystem`, in a `system_controller` module)
 composes the Layer-2 binding classes and owns the master start/stop. It instantiates the DataLogger first (so each
 `MicroControllerInterface.__init__` can register a manifest entry), constructs the binding classes in a fixed order,
-starts the DataLogger before any binding class, and tears everything down in reverse so the DataLogger outlives every
-consumer. It also owns all cross-subsystem synchronization, and individual binding classes stay oblivious to one
+starts the DataLogger before any binding class, and tears everything down so each producer stops before its recorder
+and the DataLogger outlives every consumer. It also owns all cross-subsystem synchronization, and individual binding
+classes stay oblivious to one
 another. The VR task driver is a standard subsystem of every acquisition system, because every Sollertia system presents
 a Unity task in the linear infinite corridor, as the `AcquisitionSystems` docstring in
 `sollertia-shared-assets/src/sollertia_shared_assets/enums.py` states. The orchestrator constructs the driver only for
 the session types in `SESSION_TYPES_USING_VR_TASK` (`sollertia-shared-assets/src/sollertia_shared_assets/registries.py`)
 and holds `None` for every other session type. See `/acquisition-system-runtime` and `/vr-driver-interface`. For
-microcontroller keepalive, the orchestrator passes each `MicroControllerInterface` a `keepalive_interval` at
-construction, and AXCI sends the keepalive messages and raises on timeout.
+microcontroller keepalive, the microcontroller binding class passes each `MicroControllerInterface` a
+`keepalive_interval` at construction, read from the configuration section's keepalive-interval field, and AXCI sends
+the keepalive messages and raises on timeout.
 
 For the construction/shutdown order diagrams, keepalive handling, and cross-subsystem signaling rules,
 see [references/layer-patterns.md](references/layer-patterns.md#layer-3-lifecycle-orchestrator).
@@ -420,16 +426,18 @@ Binding classes:
       then the configuration dataclass, then optional args
 - [ ] A bring-up flag initialized first when the class exposes a bring-up and tear-down pair, one per
       independently startable device where the type has several
-- [ ] Per-device wrappers instantiated as public attributes
-- [ ] Underlying low-level controllers instantiated as private attributes
+- [ ] Wrappers the orchestrator commands directly instantiated as public attributes; every other
+      wrapper and every low-level controller instantiated as private attributes
 - [ ] __del__ calls stop() for the microcontroller and camera types, while an SDK-connection subsystem
       is disconnected by the orchestrator instead
 - [ ] Bring-up and tear-down are idempotent and follow the subsystem type's documented sequence
       (see references/subsystem-types.md). The microcontroller initialize_local_assets then
       set_parameters flow is type-specific rather than universal
-- [ ] start() sets the bring-up flag before the first bring-up step, so a partial failure routes through stop()
+- [ ] A flag guarding a multi-device bring-up is set before the first step; a per-device flag guarding
+      a single self-guarding device is set after that device's bring-up returns
 - [ ] stop() clears the flag only after every teardown step, so a failure leaves the instance stoppable on retry
-- [ ] Each teardown step of a multi-device subsystem is isolated through run_shutdown_step
+- [ ] Each teardown step of a multi-device subsystem is isolated through run_shutdown_step, in the
+      binding class or, for an SDK-connection subsystem, inside its connection class
 - [ ] Lifecycle methods cite the controller's start/stop order requirements
 
 Cross-layer contract:
@@ -439,8 +447,9 @@ Cross-layer contract:
 
 Lifecycle orchestrator:
 - [ ] Constructs DataLogger → binding classes → VR task driver in the documented order
-- [ ] Calls .start() on each in the same order
-- [ ] Calls .stop() in reverse order
+- [ ] Bring-up order follows runtime dependencies and defers resource-heavy assets until interactive
+      setup needs them, rather than mirroring construction order (see references/layer-patterns.md)
+- [ ] Teardown stops each producer before the asset that records from it
 - [ ] DataLogger stops only after every binding class has stopped
 - [ ] Cross-subsystem signaling lives in the orchestrator, not the binding classes
 - [ ] Keepalive is passed to each MicroControllerInterface at construction and AXCI enforces it,

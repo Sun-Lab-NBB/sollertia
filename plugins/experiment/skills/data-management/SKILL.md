@@ -35,7 +35,7 @@ only registered acquisition system, and `mesoscope:mesoscope-vr-runtime` owns it
 - Session creation and data acquisition (`/acquisition-system-runtime`)
 - System and hardware configuration, including the storage destinations a system declares (`mesoscope:mesoscope-vr`)
 - The current worked example's preprocessing, migration, and purge specifics (`mesoscope:mesoscope-vr-runtime`)
-- Behavior processing and dataset forging after the transfer (`forging:behavior-processing`)
+- Behavior processing after the transfer (`forging:behavior-processing`) and dataset forging (`forging:dataset-forging`)
 
 ---
 
@@ -73,7 +73,8 @@ and set through `slsa configure data-root`. The tools reject any path outside th
 resolve onto long-term storage destinations.
 
 A system's tool and its CLI command may normalize that path differently. The current worked example tests containment
-with the unresolved path in `preprocess_session_tool` (`interfaces/mesoscope_vr_tools.py`) and resolves both operands
+with the unresolved path in both `preprocess_session_tool` and `delete_session_tool`
+(`interfaces/mesoscope_vr_tools.py`) and resolves both operands
 in the CLI, so a `..` segment or a symlink is treated differently by the two routes. You SHOULD pass a resolved
 absolute path.
 
@@ -100,7 +101,7 @@ configuration. An empty collection is meaningful, because it tells the utilities
 
 ## Shared preprocessing primitives
 
-A system's preprocessing orchestrator composes these six functions and adds its own conversion, compression, and
+A system's three lifecycle orchestrators compose these six functions and add their own conversion, compression, and
 cleanup steps around them.
 
 ### assemble_session_logs

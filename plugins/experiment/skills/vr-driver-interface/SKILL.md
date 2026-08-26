@@ -265,7 +265,7 @@ VRTaskDriver(
 
 | Method / property                      | Purpose                                                                                                                         |
 |----------------------------------------|---------------------------------------------------------------------------------------------------------------------------------|
-| `connect()` / `disconnect()`           | Open / close the MQTT and bridge connections. `disconnect()` first exits Play Mode to stop the active Unity scene (best-effort) |
+| `connect()` / `disconnect()`           | Open / close the MQTT connection. `disconnect()` additionally exits Play Mode to stop the active Unity scene and closes the bridge HTTP client (each step best-effort) |
 | `setup()`                              | Bridge-driven start-of-session handshake. See the Setup handshake note below.                                                   |
 | `push_position(absolute_position)`     | Forward the animal's position to Unity as a movement delta (only emits on change)                                               |
 | `push_lick_event()`                    | Publish the generic `Interaction` trigger for the rig's interaction sensor                                                      |
@@ -285,7 +285,8 @@ properties are the whole read surface (`vr_task/driver.py`).
 > `SessionStart`), cross-check the active scene name over MQTT, verify the VR display, and fetch the cue sequence
 > (`VRTaskDriver.setup` in `vr_task/driver.py`). Scene activation reads the actor's bound motion controller and
 > rebinds it to `Linear` only when a different controller is bound, then raises `UnityBridgeError` if the actor
-> still reports another controller. The only operator interaction is the display check: Unity animates continuously
+> still reports another controller. The only operator interaction on the failure-free path is the display check:
+> Unity animates continuously
 > until the operator presses Enter, after which the driver reads the play state, stops Play Mode when the scene is
 > playing, and re-arms so the session starts from a fresh Virtual Reality origin. The caller MUST enable the VR
 > screens before the call and disable them after.
@@ -352,7 +353,7 @@ The package is reusable as-is, so a new acquisition system writes only the items
 | All actuator dispatch                          | Reward, puff, brake, and emergency pause are consumer code reacting to `VRTaskEvent`  |
 | Per-trial hardware parameters                  | Joined back by `trial_names` on the consumer side                                     |
 | Display power sequencing                       | The caller enables the VR screens before `setup()` and disables them after            |
-| An interactive terminal operator               | `setup()` blocks on `wait_for_enter` prompts for bridge retry, display, and cues      |
+| An interactive terminal operator               | `setup()` blocks on `wait_for_enter` prompts for bridge retry, Play-Mode arming retry, scene-name retry, display verification, and cue-sequence retry      |
 | The shutdown-isolation helper                  | `disconnect()` runs each teardown step through `run_shutdown_step`                    |
 
 ---
@@ -362,7 +363,10 @@ The package is reusable as-is, so a new acquisition system writes only the items
 The runtime orchestrator owns the driver lifecycle. The current worked example is `mesoscope:mesoscope-vr-runtime`.
 
 1. `__init__` constructs the `VRTaskDriver` from the nested `VRTaskConfiguration` plus the loaded `TaskTemplate`,
-   only for a session type in `SESSION_TYPES_USING_VR_TASK`, and holds `None` otherwise.
+   only for the session type that runs the corridor task, and holds `None` otherwise. The Mesoscope-VR orchestrator
+   gates on a hard-coded `session_type == SessionTypes.MESOSCOPE_EXPERIMENT` rather than reading
+   `SESSION_TYPES_USING_VR_TASK`, so a new VR session type must be wired into the orchestrator gate as well as the
+   registry.
 2. `start()` calls `connect()`, enables the VR screens, calls `setup()`, then disables the screens.
 3. Each runtime iteration: the data cycle calls `push_position()` and `push_lick_event()`, and the Unity cycle
    calls `cycle()` and dispatches the returned `VRTaskEvent` (an actuator on `STIMULUS_TRIGGERED`, a brake

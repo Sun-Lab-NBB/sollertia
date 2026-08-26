@@ -150,13 +150,14 @@ Every path cited in this phase is relative to `sollertia-shared-assets/src/solle
 ### Phase 5: Pre-session health check
 
 - **Plugin / Skill:** `/system-health-check` (this plugin)
-- **Actions:** Verify network mounts, hardware connectivity, project readiness, and animal metadata in Google Sheets,
-  which is checked only for systems that use them. For a session type in `SESSION_TYPES_USING_VR_TASK`, also confirm the
-  Unity Editor MCP Bridge is reachable through `check_unity_bridge_tool` (`interfaces/get_tools.py`) or
-  `sle get unity`, whose `get_unity_bridge()` command lives in `interfaces/get.py`, so the run CLI can open the scene
-  and arm the VR task. Session types outside that set run no task and skip this check. Keep the phase a light-touch
-  sanity check before launching a runtime session. A system whose configuration declares out-of-process tools verifies
-  their host-specific settings through that system's skill.
+- **Actions:** Verify platform configuration prerequisites, network mounts, hardware connectivity, configuration
+  validity, and project readiness. Google credentials report as a configured-or-not platform component only, and the
+  sheets themselves are read at preprocessing time rather than here. For a session type in
+  `SESSION_TYPES_USING_VR_TASK`, also confirm the Unity Editor MCP Bridge is reachable through
+  `check_unity_bridge_tool` (`interfaces/get_tools.py`) or `sle get unity`, whose `get_unity_bridge()` command lives in
+  `interfaces/get.py`, so the run CLI can open the scene and arm the VR task. Session types outside that set run no
+  task and skip this check. Keep the phase a light-touch sanity check before launching a runtime session. A system
+  whose configuration declares out-of-process tools verifies their host-specific settings through that system's skill.
 - **Handoff condition:** All checklist items pass.
 
 ### Phase 6: Runtime acquisition (no AI)
@@ -199,10 +200,11 @@ Every path cited in this phase is relative to `sollertia-shared-assets/src/solle
   Phase 7. It frequently runs on entirely separate machine infrastructure, a dedicated processing server or cluster
   operated independently of the acquisition host. Sessions are usually recorded many in a row, so advance to forging
   only once there are no more sessions to record. Otherwise loop back to Phase 6 for the next session.
-- **Actions:** Once a session is preprocessed and transferred to long-term storage, register the storage layout with
-  `forging:project-manifest`, then hand off to batch behavior processing (`forging:behavior-processing`), output
-  verification (`forging:behavior-results`), per-session dataset assembly (`forging:dataset-forging`), and dataset
-  composition (`forging:dataset-definition`).
+- **Actions:** Once a session is preprocessed and transferred to long-term storage, generate the project manifest that
+  records each session's processing state with `forging:project-manifest`, then hand off to data-integrity verification
+  (`forging:checksum-verification`), batch behavior processing (`forging:behavior-processing`), output verification
+  (`forging:behavior-results`), per-session dataset assembly (`forging:dataset-forging`), and dataset composition
+  (`forging:dataset-definition`).
 - **Handoff condition:** The preprocessed session is present on the storage destination from which the forging plugin
   reads.
 
@@ -250,11 +252,14 @@ own system skill, resolved through `/acquisition-system-setup`'s **Supported acq
 | Read a session marker / inspect session metadata  | `assets:session-data`                                                              |
 | Build a `session_paths` list for batch work       | `assets:session-discovery`                                                         |
 | Read or repair a session descriptor               | `assets:session-descriptors`                                                       |
+| Read or repair a session hardware-state snapshot  | `assets:session-hardware-state`                                                    |
 | Read or patch a frozen runtime snapshot           | `mesoscope:mesoscope-vr-snapshots`                                                 |
 | Look up animal surgery / implants / drugs         | `assets:data-assets`                                                               |
 | Inspect, read, or repair a forged dataset         | `assets:datasets`                                                                  |
-| Register a project's storage layout for forging   | `forging:project-manifest`                                                         |
+| Snapshot a project's session processing state     | `forging:project-manifest`                                                         |
+| Verify or regenerate data-integrity checksums     | `forging:checksum-verification`                                                    |
 | Process behavior data for recorded sessions       | `forging:behavior-processing`                                                      |
+| Verify behavior-processing outputs                | `forging:behavior-results`                                                         |
 | Assemble a per-session `data.feather`             | `forging:dataset-forging`                                                          |
 | Compose or grow a dataset                         | `forging:dataset-definition`                                                       |
 | Discover GenICam cameras                          | `video:camera-setup`                                                               |
@@ -284,7 +289,7 @@ own system skill, resolved through `/acquisition-system-setup`'s **Supported acq
 | Skill                            | Relationship                                                                          |
 |----------------------------------|---------------------------------------------------------------------------------------|
 | `/system-design-pipeline`        | The build-time counterpart, hands a finished acquisition system to this pipeline      |
-| `/library-extension`             | Owns the library seams a new acquisition system composes across the four repositories |
+| `/library-extension`             | Owns the sollertia-experiment and sollertia-micro-controllers seam catalog for a system|
 | `/acquisition-system-setup`      | Resolves the active system to its owning skill and runs the hardware bringup phase    |
 | `mesoscope:mesoscope-vr`         | The current worked example's system skill, receiving Phase 2 and Phase 3              |
 | `mesoscope:mesoscope-vr-runtime` | The current worked example's run CLI, runtime modes, and session lifecycle            |

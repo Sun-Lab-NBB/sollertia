@@ -137,8 +137,8 @@ which sle
 ```
 
 `sle` is the single parent binary that owns the `mcp`, `get`, and per-system subcommands. If the binary is not found,
-proceed to step 3. The binary should resolve to the active Python environment's `bin/` directory. Subcommand-level
-health is checked in step 5 through `--help` invocations.
+proceed to step 3. The binary should resolve to the active Python environment's `bin/` directory. Server-side import
+health is checked in step 5 by hand-launching the server.
 
 ### Step 3: Identify the environment type and resolve
 
@@ -175,8 +175,18 @@ version does not match, instruct the user to create or activate an environment w
 
 ```bash
 sle --help
-sle mcp --help
+sle mcp -t streamable-http
 ```
+
+`sle --help` proves the CLI package imports. It does NOT prove the MCP server starts, because `sle mcp` defers
+`from .mcp_server import run_server` into the command body, which `--help` never reaches.
+`sle mcp -t streamable-http` is the real smoke test: the `streamable-http` branch echoes
+`Starting the sollertia-experiment MCP server with the streamable-http transport.` (`interfaces/entry_points.py`)
+and then blocks. A startup line followed
+by a blocking process means the server is healthy and the fault lies in the assistant's launch environment. A
+traceback instead of the startup line means a broken dependency. Tell the user to interrupt it with Ctrl+C. Use
+`streamable-http` rather than the `stdio` default, because a silent `stdio` server is indistinguishable from a hung
+one.
 
 If either command fails with an import error, a dependency is missing or broken. Run:
 
@@ -186,7 +196,10 @@ pip check 2>&1 | head -20
 
 Report any missing or incompatible dependencies to the user. Every runtime dependency is pinned to an exact version, so
 a sibling library upgraded on its own surfaces here. Common causes include version skew with `sollertia-shared-assets`,
-`ataraxis-base-utilities`, or `ataraxis-data-structures`.
+`ataraxis-base-utilities`, or `ataraxis-data-structures`. Never name a pinned sibling alongside `sollertia-experiment`
+in an `--upgrade` invocation. The exact pin means upgrading `sollertia-experiment` alone installs the sibling version
+it requires, while naming the sibling asks pip to break that pin and can backtrack `sollertia-experiment` to an older
+release.
 
 ### Step 6: Restart the MCP server
 
@@ -201,9 +214,11 @@ server on the next session.
 |-------------------------------------------|-------------------------------------------|----------------------------------------------------------------------|
 | `sle: command not found`                  | Environment not activated                 | Activate conda/venv, restart the assistant                           |
 | `sle: command not found`                  | sollertia-experiment not installed        | `pip install sollertia-experiment` in the active environment         |
-| Import error on `sle mcp`                 | Version skew with sollertia-shared-assets | `pip install --upgrade sollertia-experiment sollertia-shared-assets` |
+| Import error on `sle mcp`                 | Version skew with sollertia-shared-assets | `pip install --upgrade --force-reinstall sollertia-experiment`       |
 | Python version mismatch                   | Wrong environment activated               | Activate environment with Python >=3.14,<3.15                        |
-| Tools fail with "no system configuration" | `slsa` working directory not initialized  | Run `assets:working-directory` from the assets plugin                |
+| Tool error: "working directory ... has not been set" | `slsa` working directory not initialized | Run `assets:working-directory` from the assets plugin     |
+| Tool error: "Expected exactly one '*_system_configuration.yaml'" | Host not bound to an acquisition system, or bound to several | Run `sle mesoscope configure system` |
+| Tool error: "the host-machine belongs to the ... data acquisition system" | Host bound to a different acquisition system | Run `sle mesoscope configure system` to rebind |
 | Tool fails with Zaber connection error    | Not an environment issue                  | Check `/zaber-interface` for hardware troubleshooting                |
 
 Two module-level preambles run before the `click` import and shape what an operator sees. `warnings.warn` and
@@ -249,7 +264,7 @@ Tool-settled (run `rg -n '.{121,}' <file>` and `wc -l <file>`):
 sollertia-experiment MCP environment setup:
 - [ ] Checked sollertia-experiment server connection status
 - [ ] Verified 'sle' command is on PATH
-- [ ] Verified 'sle mcp' starts without import errors
+- [ ] Hand-launched 'sle mcp -t streamable-http' and saw the startup line
 - [ ] Confirmed Python version matches >=3.14,<3.15
 - [ ] Identified environment type (conda, venv, system)
 - [ ] Provided environment-specific resolution steps

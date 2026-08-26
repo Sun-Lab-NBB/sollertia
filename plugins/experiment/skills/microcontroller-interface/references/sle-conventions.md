@@ -166,9 +166,12 @@ _ZERO_UINT64  = np.uint64(0)
 _ZERO_FLOAT64 = np.float64(0.0)
 _ZERO_UINT32  = np.uint32(0)
 _FALSE: np.bool_ = np.bool_(0)
+_MAXIMUM_BRAKING_STRENGTH: np.uint8 = np.uint8(255)
 ```
 
 Reuse these in `send_command` / `send_parameters` calls instead of creating fresh `np.uint32(0)` instances each time.
+A fixed non-zero numpy argument reused in a `send_parameters` tuple follows the same rule, as
+`_MAXIMUM_BRAKING_STRENGTH` shows.
 
 ---
 

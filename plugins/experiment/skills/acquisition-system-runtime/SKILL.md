@@ -245,8 +245,11 @@ loop when the operator marks setup complete or aborts. Consumables the operator 
 are folded into a separate accumulator, which keeps the session's own consumption total clean.
 
 The pause clock is not restarted while the runtime is already paused, so a repeated pause request cannot inflate
-the accumulated idle time. The per-mode logic function reads the accumulated pause time each cycle, discounts it
-from the session's own timing budget, and zeroes it, so an idle interval never consumes session duration.
+the accumulated idle time. The per-mode logic function reads the accumulated pause time each cycle and extends the
+current stage's deadline by it, so an idle interval does not consume that stage's duration. A logic function that runs
+stages back to back zeroes the accumulator at each stage boundary, so a later stage does not inherit an earlier
+stage's idle time. A mode whose stages are self-timed intervals may instead subtract the accumulated pause from the
+interval, letting the idle time count against it.
 
 ---
 
@@ -339,7 +342,8 @@ session.
    state-driving method that logs the transition.
 3. **Add a visualizer mode** when the display needs differ from existing modes.
 4. **Author the per-mode logic function** following the standard shape above.
-5. **Add the CLI subcommand** that builds the descriptor and calls the logic function.
+5. **Add the CLI subcommand** that collects the mode's flag overrides and forwards them, with the subgroup's shared
+   session arguments, to the logic function.
 6. **Export and version-bump** the new function and descriptor, then pin the new shared-assets minimum.
 7. **Update the per-system runtime skill.** For the current worked example, see `mesoscope:mesoscope-vr-runtime`.
 

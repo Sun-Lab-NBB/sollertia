@@ -58,9 +58,11 @@ mirror each other. `cameras`, `controllers`, and `ports` have no MCP tool, and `
 `set_zaber_device_setting_tool`, `validate_zaber_configuration_tool`, and `check_mount_accessibility_tool` have no
 `sle get` command. You MUST NOT infer a tool name from a command name.
 
-Every agnostic tool returns a plain string and reports failure with a leading `Error: ` prefix. The single exception
-is `check_unity_bridge_tool`, which carries no `try/except`, so an exception propagates across the MCP boundary
-instead of returning an `Error:` string (`interfaces/get_tools.py`).
+Every agnostic tool returns a plain string, and most report failure with a leading `Error: ` prefix. Two do not.
+`check_unity_bridge_tool` carries no `try/except`, so an exception propagates across the MCP boundary instead of
+returning an `Error:` string. `check_mount_accessibility_tool` carries no `try/except` either, and reports an
+unreachable path as an `OK: False` status line rather than an `Error:` string, reserving the leading prefix for a
+rejected argument (`interfaces/get_tools.py`).
 
 Every other tool this skill calls belongs to the active system's own tool module, `interfaces/<system>_tools.py`, whose
 tools register as an import side effect of the `*_tools.py` glob run by `_register_tool_modules()` in
@@ -105,9 +107,11 @@ list_supported_acquisition_systems_tool() # slsa: the AcquisitionSystems vocabul
    The phases below refer to the resolved skill as "the active system's skill."
 
 A system's configuration loader verifies that the host belongs to that system and raises `TypeError` when it does not,
-and its tools let that exception propagate rather than returning an error payload. A propagating `TypeError` from a
-system-group tool therefore identifies the host as belonging to a different acquisition system. The current worked
-example implements this check in `get_system_configuration()` (`mesoscope_vr/system.py`).
+and its tools catch that exception and return it as an `{"error": ...}` payload rather than letting it cross the MCP
+boundary. An `error` payload naming a different acquisition system therefore identifies the host as belonging to that
+other system. The current worked example implements this check in `get_system_configuration()`
+(`mesoscope_vr/system.py`), and its tools wrap the loader in `try`/`except Exception`
+(`interfaces/mesoscope_vr_tools.py`).
 
 ### Phase 1: Platform configuration prerequisites
 
@@ -178,11 +182,11 @@ see `mesoscope:mesoscope-vr`.
 
 The system configuration validator and the camera configuration verifier both read the active configuration, so both
 belong to the active system's tool group and the active system's skill names them. Run the pair that Phase 0 resolved,
-and expect a propagating `TypeError` if the host turns out to belong to a different acquisition system. A validator
-reports whether the configuration is internally valid and whether every path it declares resolves on the live
-filesystem. A camera verifier dumps each declared camera's live GenICam node configuration and diffs it against the
-stored YAML. On a mismatch, hand off to `/acquisition-system-setup` to restore or re-baseline, and to
-`video:camera-setup` for the GenICam dump and restore mechanics.
+and expect an `{"error": ...}` payload carrying the loader's `TypeError` message if the host turns out to belong to a
+different acquisition system. A validator reports whether the configuration is internally valid and whether every path
+it declares resolves on the live filesystem. A camera verifier dumps each declared camera's live GenICam node
+configuration and diffs it against the stored YAML. On a mismatch, hand off to `/acquisition-system-setup` to restore
+or re-baseline, and to `video:camera-setup` for the GenICam dump and restore mechanics.
 
 Each third-party-SDK subsystem additionally exposes its own device-level validator.
 `validate_zaber_configuration_tool(port, device_index)` sits in the agnostic tool group and is shared across

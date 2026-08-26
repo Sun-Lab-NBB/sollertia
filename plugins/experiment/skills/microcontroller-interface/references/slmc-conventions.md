@@ -8,9 +8,9 @@ workflows that govern this layer.
 
 ## Header conventions
 
-- **Include guards**: `SLMC_<MODULE_NAME>_MODULE_H` (e.g., `SLMC_ENCODER_MODULE_H`). The base skill permits
-  `#pragma once`, and slmc uses traditional guards with the `SLMC_` prefix so a module header cannot collide with a
-  same-named header in the upstream ataraxis-micro-controller library.
+- **Include guards**: `SLMC_<MODULE_NAME>_MODULE_H` (e.g., `SLMC_ENCODER_MODULE_H`). This is the
+  `LIBRARY_PREFIX_FILE_NAME_H` form `automation:cpp-style` mandates, instantiated with slmc's `SLMC_` prefix so a
+  module header cannot collide with a same-named header in the upstream ataraxis-micro-controller library.
 - **File-header Doxygen**: Every header starts with `/** @file @brief ... */` and uses `@warning`, `@note`, `@tparam`,
   `@param` tags. `automation:cpp-style` is the authoritative reference for the format, and this skill notes only that
   file headers are mandatory.
@@ -117,9 +117,10 @@ static constexpr bool kDisengage = kNormallyEngaged ? HIGH : LOW;
 ```
 
 Then use `kEngage` / `kDisengage` directly in `digitalWriteFast()` calls. This pattern appears in `BrakeModule`,
-`ValveModule`, and `ScreenModule`. `BrakeModule` is the one module that routes every digital write through a private
-`WriteDigital()` helper instead of calling `digitalWriteFast()` inline. It also drives the pin with `analogWrite()`, so
-it has to reclaim the pin from the PWM peripheral before the write lands.
+`ValveModule`, and `ScreenModule`. `BrakeModule` is the one module that routes every command-path digital write
+through a private `WriteDigital()` helper instead of calling `digitalWriteFast()` inline. `SetupModule()` is the
+exception: it writes inline because the `pinMode()` call directly above it already reclaimed the pin. The module also
+drives the pin with `analogWrite()`, so it has to reclaim the pin from the PWM peripheral before the write lands.
 
 ---
 

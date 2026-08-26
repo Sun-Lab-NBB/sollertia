@@ -97,7 +97,8 @@ system-agnostic: `assemble_session_logs`, `rename_session_videos`, `snapshot_sur
 resolved paths, so none of them needs a per-system branch. `/data-management` owns their individual contracts, and
 [references/sle-seams.md](references/sle-seams.md) lists them beside the seam each one occupies.
 
-Two constants decide whether those primitives find anything to work on. The behavior `DataLogger` of every acquisition
+One constant and one shared type decide whether those primitives find anything to work on. The behavior `DataLogger`
+of every acquisition
 system is named `"behavior"`, because `BEHAVIOR_LOGGER_NAME` derives the `behavior_data_log` directory that
 `assemble_session_logs` looks for (`cross_system/data_preprocessing.py`). Long-term storage targets reach the
 shared utilities as a `StorageDestinations` collection of `StorageDestination` records, and each system resolves the
@@ -131,8 +132,9 @@ itself is new work: it declares its own `CONTEXT_SETTINGS`, because the constant
 imported, following the pattern of `CONTEXT_SETTINGS` and the `get` group in `interfaces/get.py`.
 
 Three further pieces of the package are reused unchanged. `run_server` handles both transports
-(`interfaces/mcp_server.py`), the `serialize`, `describe_dataclass`, `write_yaml_validated`, `read_yaml`, and
-`probe_writable` helpers accept any `YamlConfig` subclass (`interfaces/mcp_instance.py`), and the hardware-agnostic
+(`interfaces/mcp_server.py`), the `write_yaml_validated` and `read_yaml` helpers take any `YamlConfig`
+subclass as their `validator_cls`, while `serialize` accepts any value, `describe_dataclass` any dataclass type, and
+`probe_writable` a directory path (`interfaces/mcp_instance.py`), and the hardware-agnostic
 discovery surface serves every system (the `get` group in `interfaces/get.py` and the seven tools in
 `interfaces/get_tools.py`). The private helpers of a system's own tool module are re-implemented rather than imported,
 because they are typed against one system's configuration.
@@ -237,7 +239,10 @@ module scope, and add the typed `get_system_configuration()` accessor plus the z
 
 ### Step 3: Hardware interface layer
 
-Reuse the eight `ModuleInterface` subclasses, the Zaber hierarchy, and the video system wrappers. Hand off to
+Reuse the eight `ModuleInterface` subclasses (`cross_system/module_interfaces.py`) and the Zaber hierarchy
+(`cross_system/zaber_bindings.py`). The camera layer has no shared wrapper: a system composes the upstream
+`ataraxis-video-system` `VideoSystem` into its own binding class, following `VideoSystems` in
+`mesoscope_vr/binding_classes.py`, with conventions from `video:camera-interface`. Hand off to
 `/microcontroller-interface` for the paired-module conventions, and to
 [references/slmc-seams.md](references/slmc-seams.md) for the firmware seam, only when the rig needs hardware that none
 of them covers.
@@ -301,7 +306,8 @@ owns. Every omission below therefore surfaces at runtime, or silently, and each 
 | Two configuration files present on one host                                            | `get_system_configuration_path` raises `FileNotFoundError`, because more than one file matches the glob (`cross_system/system_configuration.py`)                              |
 | Behavior logger named anything other than `"behavior"`                                 | `assemble_session_logs` finds no `behavior_data_log/` and silently no-ops (`cross_system/data_preprocessing.py`)                                                              |
 | No `CameraManifest` written during acquisition                                         | `rename_session_videos` returns early and the videos keep their source-ID filenames (`cross_system/data_preprocessing.py`)                                                    |
-| A runtime that never writes `hardware_state.yaml` or the system-configuration snapshot | Nothing in sollertia-experiment checks it. The gap surfaces only when a caller compares the session directory against `SessionData.required_raw_assets()` (`session_data.py`) |
+| A runtime that never writes the system-configuration snapshot                          | Nothing in sollertia-experiment checks it. The gap surfaces only when a caller compares the session directory against `SessionData.required_raw_assets()` (`session_data.py`) |
+| A runtime that never writes `hardware_state.yaml`                                      | Nothing checks it anywhere. `required_raw_assets()` does not list it, so the omission stays silent until a downstream consumer resolves `RawData.hardware_state_path` (`session_data.py`)                                     |
 | Tool module named without the `_tools.py` suffix, or nested                            | The `*_tools.py` glob never imports it and the tools silently do not exist (`_register_tool_modules()` in `interfaces/mcp_server.py`)                                         |
 | CLI group not added to `_register_subcommands`                                         | `sle <system>` is not a command, and nothing warns (`interfaces/entry_points.py`)                                                                                             |
 | A new shared-memory interface without `initialize_local_assets`                        | The binding class raises `AttributeError` at start (`MicroControllerInterfaces.start()` in `mesoscope_vr/binding_classes.py` shows the call site)                             |

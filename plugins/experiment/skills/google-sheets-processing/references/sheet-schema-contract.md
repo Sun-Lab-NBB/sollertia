@@ -86,9 +86,12 @@ Stereotactic coordinates are a single string like `-1.8 AP, 2 ML, .25 DV`, parse
 `extract_animal_data()` returns `SurgeryData(subject, procedure, drugs[], implants[], injections[])`.
 Notable per-field parsing: `dob` is combined with a noon time, `date` plus `start`/`end` become
 `surgery_start_us`/`surgery_end_us`, `weight (g)` becomes a `float`, and `cage #` becomes an `int`.
-A blank `surgery quality` cell resolves to `0`. A malformed or empty weight, cage, date, or time cell
-raises `ValueError` from the `SubjectData` and `ProcedureData` construction inside
-`SurgeryLog.extract_animal_data` (`cross_system/google_sheet_tools.py`).
+A blank `surgery quality` cell resolves to `0`. An empty `weight (g)`, `cage #`, or `id` cell is read as `None` and
+raises `TypeError` from the `float()` or `int()` conversion, while a malformed `id`, `weight (g)`, `cage #`, or
+`surgery quality` cell raises `ValueError` from the same conversion. An empty or malformed `date`, `start`, or `end`
+cell raises `ValueError` from `_convert_date_time_to_timestamp`. All of these surface from the argument expressions
+evaluated inside `SurgeryLog.extract_animal_data`, not from the `SubjectData` and `ProcedureData` dataclasses, which
+perform no validation (`cross_system/google_sheet_tools.py`).
 
 Each drug tracked by `_SURGERY_LOG_DRUGS` becomes a named `DrugData` record in `drugs[]`, covering
 `Lactated Ringer's Solution`/`lrs`, `Ketoprofen`/`ketoprofen`, `Buprenorphine`/`buprenorphine`, and

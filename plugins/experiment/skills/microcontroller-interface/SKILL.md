@@ -86,8 +86,9 @@ snapshot of the currently-deployed pair set and MUST be updated whenever a modul
 
 These rules are durable and govern how new codes are assigned. Consult the catalog file for the currently-used values.
 
-- Module type codes are `uint8_t`. Value 0 is reserved by the runtime as the "no active command" sentinel and SHOULD NOT
-  be used as a type code either.
+- Module type codes are `uint8_t` in the range 1-255. The base `ModuleInterface` constructor raises `TypeError` for any
+  value outside that range, so 0 is unusable as a type code. Separately, command code 0 is reserved by the firmware
+  runtime as the "no active command" sentinel, so command enums start at 1.
 - The `(module_type, module_id)` pair MUST be unique on a single controller board. Two firmware instances of the same
   `Module` subclass on the same board take different `module_id` values.
 - When allocating a new type code, pick the next unused value from the catalog rather than recycling a freed one.
@@ -122,8 +123,9 @@ accessors. They apply to every `ModuleInterface` subclass in
 
 ## Shared logging contract
 
-The base `ModuleInterface` auto-logs every message that it sends to or receives from the microcontroller, so no wrapper
-in `cross_system/module_interfaces.py` writes its own log entries. `data_codes` select which received events
+The `MicroControllerInterface` communication process auto-logs every message sent to or received from the
+microcontroller through its `SerialCommunication` instance, so no wrapper in `cross_system/module_interfaces.py`
+writes its own log entries. `data_codes` select which received events
 additionally reach `process_received_data()`, and `error_codes` map the event codes that raise `RuntimeError` and abort
 the runtime. Both sets draw their values from the same firmware `kCustomStatusCodes` enum, and every code must lie in
 the custom event-code range. See `communication:microcontroller-interface` for the base mechanics.
@@ -376,8 +378,8 @@ reuse-first bias rather than by copying or discarding the existing layout.
    MUST name the new macro alongside the existing ones (the `#else` `static_assert` block in `slmc/src/main.cpp`), so
    a build that selects no target fails with a list of the targets it could have selected.
 
-6. **Update slmc README and CLAUDE.md**: Add the new target to the per-target configuration table and to the
-   build-system environment table. The README and CLAUDE.md SHOULD list every supported target.
+6. **Update slmc README and CLAUDE.md**: Add the new target to the README's "Per-Target Configuration" bullet list and
+   to CLAUDE.md's build-system environment table. The README and CLAUDE.md SHOULD list every supported target.
 
 7. **Hand off to the consuming system's skill**: The host-PC binding class must add a `MicroControllerInterface`
    instance for the new board, carrying the new controller ID and the matching `ModuleInterface` instances. This skill
