@@ -185,8 +185,8 @@ half 2, because half 2 names the files each of them touches.
   processor lives in `cross_system/`, and a system-specific one lives in the system package. Wire it into
   preprocessing, gated on the configured identifiers.
 - **Read-asset coupling:** If a read processor emits a record type that is not an existing `sollertia-shared-assets`
-  read asset, register the new asset through `assets:library-extension` ("Adding a New Read Asset") and its read and
-  amend surface through `assets:data-assets`, as Phase 1 contract work, before wiring the processor.
+  read asset, register the new asset through `assets:library-extension` ("Adding a New Read Asset"). Register its read
+  and amend surface through `assets:data-assets`, as Phase 1 contract work, before wiring the processor.
 - **Credentials:** A request/response service authenticates with a credentials file managed by
   `sollertia-shared-assets`. `CredentialsTypes` currently declares one category, `google`, for Google Sheets
   (`enums.py`). A service needing a new category registers a `CredentialsTypes` member and a matching

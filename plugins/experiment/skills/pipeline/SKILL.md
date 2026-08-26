@@ -201,7 +201,7 @@ Every path cited in this phase is relative to `sollertia-shared-assets/src/solle
   operated independently of the acquisition host. Sessions are usually recorded many in a row, so advance to forging
   only once there are no more sessions to record. Otherwise loop back to Phase 6 for the next session.
 - **Actions:** Once a session is preprocessed and transferred to long-term storage, generate the project manifest that
-  records each session's processing state with `forging:project-manifest`, then hand off to data-integrity verification
+  records each session's processing state with `forging:project-manifest`. Then hand off to data-integrity verification
   (`forging:checksum-verification`), batch behavior processing (`forging:behavior-processing`), output verification
   (`forging:behavior-results`), per-session dataset assembly (`forging:dataset-forging`), and dataset composition
   (`forging:dataset-definition`).
@@ -286,13 +286,13 @@ own system skill, resolved through `/acquisition-system-setup`'s **Supported acq
 
 ## Related skills
 
-| Skill                            | Relationship                                                                          |
-|----------------------------------|---------------------------------------------------------------------------------------|
-| `/system-design-pipeline`        | The build-time counterpart, hands a finished acquisition system to this pipeline      |
-| `/library-extension`             | Owns the sollertia-experiment and sollertia-micro-controllers seam catalog for a system|
-| `/acquisition-system-setup`      | Resolves the active system to its owning skill and runs the hardware bringup phase    |
-| `mesoscope:mesoscope-vr`         | The current worked example's system skill, receiving Phase 2 and Phase 3              |
-| `mesoscope:mesoscope-vr-runtime` | The current worked example's run CLI, runtime modes, and session lifecycle            |
+| Skill                            | Relationship                                                                            |
+|----------------------------------|-----------------------------------------------------------------------------------------|
+| `/system-design-pipeline`        | The build-time counterpart, hands a finished acquisition system to this pipeline        |
+| `/library-extension`             | Owns the sollertia-experiment and sollertia-micro-controllers seam catalog for a system |
+| `/acquisition-system-setup`      | Resolves the active system to its owning skill and runs the hardware bringup phase      |
+| `mesoscope:mesoscope-vr`         | The current worked example's system skill, receiving Phase 2 and Phase 3                |
+| `mesoscope:mesoscope-vr-runtime` | The current worked example's run CLI, runtime modes, and session lifecycle              |
 
 ---
 

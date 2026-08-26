@@ -4,10 +4,9 @@ The exact structural assumptions and required headers that `SurgeryLog` and `Wat
 construction, plus the field-to-header mapping each read produces. Loaded on demand from
 `google-sheets-processing`'s SKILL.md. Source: `cross_system/google_sheet_tools.py`.
 
-A processor builds a `header → column-letter` map from the live sheet and asserts every required
-header is present before any extract/update call. Header matching is **case-insensitive and
-whitespace-stripped** (headers are lowercased on read). A column whose required header is missing
-aborts construction with a `ValueError` naming the missing headers.
+A processor builds a `header → column-letter` map from the live sheet and asserts every required header is present
+before any extract/update call. Header matching is **case-insensitive and whitespace-stripped** (headers are lowercased
+on read). A column whose required header is missing aborts construction with a `ValueError` naming the missing headers.
 
 ---
 

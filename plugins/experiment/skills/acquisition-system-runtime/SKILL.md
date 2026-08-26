@@ -39,7 +39,7 @@ not any single system's specific states or modes. For the concrete worked instan
 - The CLI surface pattern for launching sessions
 - Workflows for adding a runtime mode and for building a runtime for a new system
 
-**Does not cover** (delegated):
+**Does not cover:**
 - Static composition, meaning configuration YAML, configuration dataclasses, and binding-class construction and
   shutdown order. See `/acquisition-system-design`
 - Concrete Mesoscope-VR runtime behavior, meaning its states, modes, CLI, and visualizer. See

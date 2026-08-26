@@ -134,13 +134,13 @@ The full required-header sets, the dynamic implant/injection column convention, 
 
 ## The processing-asset contract
 
-Every processor, the two above and any custom one, satisfies the same contract. This is what makes
-the category recognizable and what a custom processor must reproduce:
+Every processor, the two above and any custom one, satisfies the same contract. This is what makes the category
+recognizable and what a custom processor must reproduce:
 
-1. **Construction validates, then caches.** The constructor authenticates, fetches the header row,
-   builds a `header → column-letter` map, and asserts every required header is present and the target
-   record exists. A malformed sheet fails **at construction**, before any extract or update call,
-   so every parse problem surfaces as a construction error.
+1. **Construction validates, then caches.** The constructor authenticates, fetches the header row, builds a
+   `header → column-letter` map, and asserts every required header is present and the target record exists. A malformed
+   sheet fails **at construction**, before any extract or update call, so every parse problem surfaces as a construction
+   error.
 2. **Authentication is service-account based.** `Credentials.from_service_account_file` is scoped to
    `https://www.googleapis.com/auth/spreadsheets` and builds a `sheets`/`v4` service with
    `cache_discovery=False`, because the discovery cache is unsupported by the installed oauth2client version
@@ -200,8 +200,8 @@ acquisition system can consume them** while they stay bound to the single Soller
     snapshotted to disk as a **registered read asset** in slsa. `SurgeryData` is the `surgery_data` read asset. This
     standardizes the downstream (slf) interface, because forging reads only the on-disk dataclass. A processor that
     emits a *new* record type rather than `SurgeryData` needs the dataclass, its `ReadAssets` member, and its
-    `READ_ASSET_REGISTRY` entry added through the "Adding a new read asset" scenario in `assets:library-extension`,
-    and its read and amend surface added through `assets:data-assets`.
+    `READ_ASSET_REGISTRY` entry added through the "Adding a new read asset" scenario in `assets:library-extension`.
+    Its read and amend surface is added through `assets:data-assets`.
   - A **write processor** (like `WaterLog`) consumes runtime-discovered values and writes them into a
     pre-existing row or record.
 

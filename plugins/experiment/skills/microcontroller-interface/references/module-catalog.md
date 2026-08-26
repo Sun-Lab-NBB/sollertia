@@ -125,7 +125,8 @@ strength 255 always means "fully engaged" from the PC's perspective. `kSetBrakin
 `kDisengaged` at the two duty-cycle extremes and `kVariable` only for an intermediate strength, because the extremes are
 driven as digital levels rather than as a PWM waveform. The module tracks which peripheral owns the pin and routes
 every command-path digital write through a helper that writes the level first and then reclaims GPIO control from
-the PWM peripheral, since `analogWrite()` re-points the pin and the two peripherals use separate registers.
+the PWM peripheral. That reclaim is needed because `analogWrite()` re-points the pin and the two peripherals use
+separate registers.
 
 | Item               | Value                                                                                  |
 |--------------------|----------------------------------------------------------------------------------------|
@@ -181,11 +182,11 @@ prevents the counter from inflating during sustained tongue contact.
 `ValveModule<kValvePin, kNormallyClosed, kStartClosed, kTonePin=255, kNormallyOff=true, kStartOff=true>`. Drives a
 solenoid valve with an optional co-driven tone buzzer. When `kTonePin == 255` the `kToneEnabled` constant elides the
 tone branches in `SetupModule()` and `Pulse()` and forces `tone_duration` to 0. `Tone()` (command 5) is not elided: it
-aborts at its first stage on the runtime `tone_duration == 0` check and reports 56 `kInvalidToneConfiguration`, which
-is why that code exists. A pulse that
-energized the buzzer always reaches the silencing stage, so the tone is never left sounding. A tone longer than the
-valve pulse extends past it by the difference, and a shorter one still sounds for the full pulse duration. The
-`Calibrate` command is **blocking** (delayMicroseconds-based burst) intended only for offline calibration.
+aborts at its first stage on the runtime `tone_duration == 0` check and reports 56 `kInvalidToneConfiguration`, which is
+why that code exists. A pulse that energized the buzzer always reaches the silencing stage, so the tone is never left
+sounding. A tone longer than the valve pulse extends past it by the difference, and a shorter one still sounds for the
+full pulse duration. The `Calibrate` command is **blocking** (delayMicroseconds-based burst) intended only for offline
+calibration.
 
 | Item               | Value                                                                                                                                                       |
 |--------------------|-------------------------------------------------------------------------------------------------------------------------------------------------------------|

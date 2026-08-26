@@ -28,7 +28,7 @@ creation are owned by sibling plugins, named per item in the hand-off list below
 - Verifying any declared network storage mounts at the OS level
 - Reporting discrepancies between discovered hardware and the active system configuration
 
-**Does not cover** (hand off to the owning plugin, named per item, since these span three plugins):
+**Does not cover:**
 - Setting the working directory, data root, credentials, or task templates directory → `assets:working-directory`
 - Reading, writing, or validating system configuration YAML → the active acquisition system's skill
   (`mesoscope:mesoscope-vr` for the current worked example)
@@ -218,13 +218,13 @@ usage detail to the owner skill named after each table. Every server's MCP tools
 
 ### Phase 1: Runtime prerequisites
 
-| Tool                              | Server | Purpose                               |
-|-----------------------------------|--------|---------------------------------------|
-| `check_runtime_requirements_tool` | axvs   | FFMPEG, GPU, and CTI file status      |
+| Tool                              | Server | Purpose                                                       |
+|-----------------------------------|--------|---------------------------------------------------------------|
+| `check_runtime_requirements_tool` | axvs   | FFMPEG, GPU, and CTI file status                              |
 | `get_cti_status_tool`             | axvs   | CTI (.cti) path, "CTI: Not configured", or "CTI: Unavailable" |
-| `set_cti_file_tool`               | axvs   | Sets the .cti path (Harvesters)       |
-| `check_mqtt_broker_tool`          | axci   | MQTT broker reachability (host, port) |
-| `check_unity_bridge_tool`         | sle    | Unity Editor MCP Bridge reachability  |
+| `set_cti_file_tool`               | axvs   | Sets the .cti path (Harvesters)                               |
+| `check_mqtt_broker_tool`          | axci   | MQTT broker reachability (host, port)                         |
+| `check_unity_bridge_tool`         | sle    | Unity Editor MCP Bridge reachability                          |
 
 `check_runtime_requirements_tool`, `get_cti_status_tool`, and `set_cti_file_tool` are owned by `video:camera-setup`.
 `check_mqtt_broker_tool` is owned by `communication:microcontroller-setup`. `check_unity_bridge_tool` is owned by
@@ -358,7 +358,7 @@ Prerequisites:
 - [ ] Required MCP servers (ataraxis video, ataraxis comm, sollertia-experiment) confirmed reachable
 - [ ] Active acquisition system resolved to its owning skill through the supported-systems table
 - [ ] The active system's mount sweep reported the platform data root and every declared mount reachable (run after
-      the system configuration exists; on a fresh bringup this follows Phase 3 step 2)
+      the system configuration exists, which on a fresh bringup follows Phase 3 step 2)
 
 Runtime prerequisites:
 - [ ] check_runtime_requirements_tool() reported FFMPEG and GPU OK

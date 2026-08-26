@@ -156,14 +156,14 @@ Seams 17 through 26. MCP registration is discovered, and CLI registration is han
 
 ### Automatic
 
-| Seam                               | Mechanism                                                                                                                                                                             |
-|------------------------------------|---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
-| MCP tool-module registration       | `_register_tool_modules()` globs `*_tools.py` in `interfaces/` in `sorted()` order and imports each match, so the `@mcp.tool()` decorators self-register (`interfaces/mcp_server.py`) |
-| Shared server instance             | `mcp = MCPServer(name="sollertia-experiment")` is constructed once at import, and a tool module imports it from `.mcp_instance` (`interfaces/mcp_instance.py`)                        |
+| Seam                               | Mechanism                                                                                                                                                                                                                                          |
+|------------------------------------|----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| MCP tool-module registration       | `_register_tool_modules()` globs `*_tools.py` in `interfaces/` in `sorted()` order and imports each match, so the `@mcp.tool()` decorators self-register (`interfaces/mcp_server.py`)                                                              |
+| Shared server instance             | `mcp = MCPServer(name="sollertia-experiment")` is constructed once at import, and a tool module imports it from `.mcp_instance` (`interfaces/mcp_instance.py`)                                                                                     |
 | YAML plumbing                      | `write_yaml_validated` and `read_yaml` take any `YamlConfig` subclass as their `validator_cls`, while `serialize` accepts any value, `describe_dataclass` any dataclass type, and `probe_writable` a directory path (`interfaces/mcp_instance.py`) |
-| Transports                         | `run_server` handles `stdio` and `streamable-http`, and new tools inherit both (`interfaces/mcp_server.py`)                                                                           |
-| Warning filter and QT env preamble | The `warnings.warn` override and the `QT_LOGGING_RULES` `setdefault` run once at the top of `interfaces/entry_points.py`, and every group and every spawned subprocess inherits them  |
-| Hardware-agnostic discovery        | The six `sle get` commands and the seven agnostic tools serve every system unchanged (the `get` group in `interfaces/get.py` and the tool functions in `interfaces/get_tools.py`)     |
+| Transports                         | `run_server` handles `stdio` and `streamable-http`, and new tools inherit both (`interfaces/mcp_server.py`)                                                                                                                                        |
+| Warning filter and QT env preamble | The `warnings.warn` override and the `QT_LOGGING_RULES` `setdefault` run once at the top of `interfaces/entry_points.py`, and every group and every spawned subprocess inherits them                                                               |
+| Hardware-agnostic discovery        | The six `sle get` commands and the seven agnostic tools serve every system unchanged (the `get` group in `interfaces/get.py` and the tool functions in `interfaces/get_tools.py`)                                                                  |
 
 Two conventions the new tool module follows. A dict-returning tool signals failure with a single `"error"` key, and a
 string-returning tool signals failure with a leading `"Error: "` prefix. A destructive or hardware-mutating tool

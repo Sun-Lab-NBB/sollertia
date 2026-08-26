@@ -667,8 +667,6 @@ connection.disconnect()
 
 ## Binding class patterns
 
-When implementing Zaber motor support in a binding class, follow these patterns:
-
 ### Basic structure
 
 ```python
@@ -746,7 +744,7 @@ class SystemZaberMotors:
 
 Motor configuration must be defined in the consuming acquisition system's configuration module before
 implementation. Each acquisition system defines its own configuration class exposing the per-motor-group serial
-ports; consult that system's own skill for the concrete class.
+ports. Consult that system's own skill for the concrete class.
 
 ### Required configuration fields
 

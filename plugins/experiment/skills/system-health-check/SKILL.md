@@ -10,9 +10,9 @@ user-invocable: true
 
 # System health check
 
-Comprehensive pre-flight verification for acquisition systems. Orchestrates the `sle mcp` server, the assets plugin's
-`slsa mcp` server, and hardware-discovery hand-offs to validate that a host is ready to run a session. This is the
-lighter-weight pre-session sweep, and full bringup discovery is owned by `/acquisition-system-setup`.
+Orchestrates the `sle mcp` server, the assets plugin's `slsa mcp` server, and hardware-discovery hand-offs to validate
+that a host is ready to run a session. This is the lighter-weight pre-session sweep, and full bringup discovery is
+owned by `/acquisition-system-setup`.
 
 ---
 
@@ -49,14 +49,8 @@ If a required server is unavailable, hand off to the owning plugin's MCP environ
 
 ### The `sle` surfaces this skill draws on
 
-`sle get` carries six commands: `zaber`, `cameras`, `controllers`, `ports`, `unity`, and `checksum`, all registered on
-the `get` Click group in `interfaces/get.py`. `sle get controllers` scans at `_MICROCONTROLLER_BAUDRATE = 115200`
-(`interfaces/get.py`).
-
-`sle get` and the seven hardware-agnostic MCP tools, the `@mcp.tool()` functions of `interfaces/get_tools.py`, do NOT
-mirror each other. `cameras`, `controllers`, and `ports` have no MCP tool, and `get_zaber_device_settings_tool`,
-`set_zaber_device_setting_tool`, `validate_zaber_configuration_tool`, and `check_mount_accessibility_tool` have no
-`sle get` command. You MUST NOT infer a tool name from a command name.
+`/acquisition-system-setup` owns the `sle get` command set and the way it diverges from the seven hardware-agnostic
+MCP tools of `interfaces/get_tools.py`, so read that skill before mapping a command name onto a tool name.
 
 Every agnostic tool returns a plain string, and most report failure with a leading `Error: ` prefix. Two do not.
 `check_unity_bridge_tool` carries no `try/except`, so an exception propagates across the MCP boundary instead of

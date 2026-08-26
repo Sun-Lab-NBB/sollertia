@@ -11,8 +11,8 @@ user-invocable: false
 
 # Sollertia experiment library extension
 
-Catalogues the seams a new acquisition system composes across sollertia-experiment and
-sollertia-micro-controllers, and names the handoffs for the halves that other skills own.
+Catalogues the seams a new acquisition system composes across sollertia-experiment and sollertia-micro-controllers, and
+names the handoffs for the halves that other skills own.
 
 You MUST read this entire skill before extending either library, then read
 [references/sle-seams.md](references/sle-seams.md) or [references/slmc-seams.md](references/slmc-seams.md) for the
@@ -132,11 +132,11 @@ itself is new work: it declares its own `CONTEXT_SETTINGS`, because the constant
 imported, following the pattern of `CONTEXT_SETTINGS` and the `get` group in `interfaces/get.py`.
 
 Three further pieces of the package are reused unchanged. `run_server` handles both transports
-(`interfaces/mcp_server.py`), the `write_yaml_validated` and `read_yaml` helpers take any `YamlConfig`
+(`interfaces/mcp_server.py`). The `write_yaml_validated` and `read_yaml` helpers take any `YamlConfig`
 subclass as their `validator_cls`, while `serialize` accepts any value, `describe_dataclass` any dataclass type, and
-`probe_writable` a directory path (`interfaces/mcp_instance.py`), and the hardware-agnostic
-discovery surface serves every system (the `get` group in `interfaces/get.py` and the seven tools in
-`interfaces/get_tools.py`). The private helpers of a system's own tool module are re-implemented rather than imported,
+`probe_writable` a directory path (`interfaces/mcp_instance.py`). The hardware-agnostic
+discovery surface serves every system, meaning the `get` group in `interfaces/get.py` and the seven tools in
+`interfaces/get_tools.py`. The private helpers of a system's own tool module are re-implemented rather than imported,
 because they are typed against one system's configuration.
 
 ---
@@ -300,19 +300,19 @@ assertions at the bottom of `registries.py`, `_assert_registry_coverage()`, `_as
 `_assert_experiment_configuration_contract()`, which cover the shared-assets half and which `assets:library-extension`
 owns. Every omission below therefore surfaces at runtime, or silently, and each one is verified by hand.
 
-| Omission                                                                               | How it surfaces                                                                                                                                                               |
-|----------------------------------------------------------------------------------------|-------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
-| `register_system_configuration()` never called                                         | `create_system_configuration_file` raises `ValueError` listing the registered systems, or `"none"` (`cross_system/system_configuration.py`)                                   |
-| Two configuration files present on one host                                            | `get_system_configuration_path` raises `FileNotFoundError`, because more than one file matches the glob (`cross_system/system_configuration.py`)                              |
-| Behavior logger named anything other than `"behavior"`                                 | `assemble_session_logs` finds no `behavior_data_log/` and silently no-ops (`cross_system/data_preprocessing.py`)                                                              |
-| No `CameraManifest` written during acquisition                                         | `rename_session_videos` returns early and the videos keep their source-ID filenames (`cross_system/data_preprocessing.py`)                                                    |
-| A runtime that never writes the system-configuration snapshot                          | Nothing in sollertia-experiment checks it. The gap surfaces only when a caller compares the session directory against `SessionData.required_raw_assets()` (`session_data.py`) |
-| A runtime that never writes `hardware_state.yaml`                                      | Nothing checks it anywhere. `required_raw_assets()` does not list it, so the omission stays silent until a downstream consumer resolves `RawData.hardware_state_path` (`session_data.py`)                                     |
-| Tool module named without the `_tools.py` suffix, or nested                            | The `*_tools.py` glob never imports it and the tools silently do not exist (`_register_tool_modules()` in `interfaces/mcp_server.py`)                                         |
-| CLI group not added to `_register_subcommands`                                         | `sle <system>` is not a command, and nothing warns (`interfaces/entry_points.py`)                                                                                             |
-| A new shared-memory interface without `initialize_local_assets`                        | The binding class raises `AttributeError` at start (`MicroControllerInterfaces.start()` in `mesoscope_vr/binding_classes.py` shows the call site)                             |
-| Firmware and wrapper parameter structs disagree                                        | Every field after the first mismatch is silently corrupted, because `PACKED_STRUCT` carries no padding                                                                        |
-| A new system missing from the supported-systems table                                  | `/pipeline` never routes to it at operate time, and nothing warns                                                                                                             |
+| Omission                                                        | How it surfaces                                                                                                                                                                           |
+|-----------------------------------------------------------------|-------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| `register_system_configuration()` never called                  | `create_system_configuration_file` raises `ValueError` listing the registered systems, or `"none"` (`cross_system/system_configuration.py`)                                               |
+| Two configuration files present on one host                     | `get_system_configuration_path` raises `FileNotFoundError`, because more than one file matches the glob (`cross_system/system_configuration.py`)                                          |
+| Behavior logger named anything other than `"behavior"`          | `assemble_session_logs` finds no `behavior_data_log/` and silently no-ops (`cross_system/data_preprocessing.py`)                                                                          |
+| No `CameraManifest` written during acquisition                  | `rename_session_videos` returns early and the videos keep their source-ID filenames (`cross_system/data_preprocessing.py`)                                                                |
+| A runtime that never writes the system-configuration snapshot   | Nothing in sollertia-experiment checks it. The gap surfaces only when a caller compares the session directory against `SessionData.required_raw_assets()` (`session_data.py`)             |
+| A runtime that never writes `hardware_state.yaml`               | Nothing checks it anywhere. `required_raw_assets()` does not list it, so the omission stays silent until a downstream consumer resolves `RawData.hardware_state_path` (`session_data.py`) |
+| Tool module named without the `_tools.py` suffix, or nested     | The `*_tools.py` glob never imports it and the tools silently do not exist (`_register_tool_modules()` in `interfaces/mcp_server.py`)                                                     |
+| CLI group not added to `_register_subcommands`                  | `sle <system>` is not a command, and nothing warns (`interfaces/entry_points.py`)                                                                                                         |
+| A new shared-memory interface without `initialize_local_assets` | The binding class raises `AttributeError` at start (`MicroControllerInterfaces.start()` in `mesoscope_vr/binding_classes.py` shows the call site)                                         |
+| Firmware and wrapper parameter structs disagree                 | Every field after the first mismatch is silently corrupted, because `PACKED_STRUCT` carries no padding                                                                                    |
+| A new system missing from the supported-systems table           | `/pipeline` never routes to it at operate time, and nothing warns                                                                                                                         |
 
 ---
 
@@ -365,20 +365,6 @@ Every other entry resolves inside the sollertia marketplace.
 
 ---
 
-## Proactive behavior
-
-You SHOULD proactively invoke this skill when the user mentions any of the following:
-
-- Adding a new acquisition system to the Sollertia platform
-- Adding a firmware module, a controller board or target, or a board family to sollertia-micro-controllers
-- Adding a CLI command group or an MCP tool module to `sle`
-- "How do I add support for ..." in the context of sollertia-experiment or sollertia-micro-controllers
-- A pull request that touches `cross_system/system_configuration.py`, `interfaces/entry_points.py`,
-  `interfaces/mcp_server.py`, or `slmc/src/main.cpp`
-
-Do NOT invoke this skill for ordinary operation of an already-built acquisition system, which `/pipeline` owns, or for
-the sollertia-shared-assets registry, which `assets:library-extension` owns.
-
 ## Citing source without line numbers
 
 Every citation in this skill, and in every edit made to it, names the asset rather than the line the asset occupies.
@@ -396,6 +382,22 @@ suffices when the whole module is the subject.
 
 Cross-document references follow the same rule. Cite a README or a CLAUDE.md by its section heading, the way the
 runtime section above cites the "Extending the Platform" section of `sollertia-experiment/README.md`, never by a line.
+
+---
+
+## Proactive behavior
+
+You SHOULD proactively invoke this skill when the user mentions any of the following:
+
+- Adding a new acquisition system to the Sollertia platform
+- Adding a firmware module, a controller board or target, or a board family to sollertia-micro-controllers
+- Adding a CLI command group or an MCP tool module to `sle`
+- "How do I add support for ..." in the context of sollertia-experiment or sollertia-micro-controllers
+- A pull request that touches `cross_system/system_configuration.py`, `interfaces/entry_points.py`,
+  `interfaces/mcp_server.py`, or `slmc/src/main.cpp`
+
+Do NOT invoke this skill for ordinary operation of an already-built acquisition system, which `/pipeline` owns, or for
+the sollertia-shared-assets registry, which `assets:library-extension` owns.
 
 ---
 
