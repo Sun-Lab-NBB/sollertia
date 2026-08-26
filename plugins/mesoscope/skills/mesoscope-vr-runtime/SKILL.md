@@ -462,7 +462,7 @@ When in doubt, re-read the source (`mesoscope_vr/system_controller.py`, `mesosco
 | `/mesoscope-vr-snapshots`               | Zaber and mesoscope position snapshots recorded near the session's end                |
 | `/mesoscope-vr-session-schema`          | Field-level schema for the descriptors and hardware state this runtime populates      |
 | `/mesoscope-vr-experiment-schema`       | Field-level schema for the experiment configuration and trial types this runtime runs |
-| `forging:behavior-processing`           | Consumes the logged message codes and the assembled behavior data downstream          |
+| `forging:batch-processing`              | Runs the runtime pipeline that decodes the message codes this runtime logs             |
 | `unity:gimbl-framework`                 | Unity-side framework for the VR game engine                                           |
 | `unity:mqtt-contract`                   | Unity-side MQTT topic registration                                                    |
 | `unity:task-prefabs`                    | Unity-side task prefab generation from task templates                                 |

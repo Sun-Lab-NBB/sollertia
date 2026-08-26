@@ -154,7 +154,7 @@ exact field names:
   context without touching raw data.
 
 For exact paths, fields, and call sites, defer to the owning skills, which are `experiment:data-management` for
-per-animal record logging, `forging:project-manifest` for the project-level manifest, `forging:dataset-forging` for the
+per-animal record logging, `forging:project-state` for the project-level manifest, `forging:dataset-forging` for the
 assembly-time copy, and the system's schema skill (`mesoscope:mesoscope-vr-session-schema` for Mesoscope-VR).
 Descriptors themselves are primarily a **provenance and bookkeeping record**, capturing what happened, who ran it, and
 how much water the animal got, rather than an input to numerical processing.
@@ -458,7 +458,7 @@ match the durability the user actually wants:
 | `mesoscope:mesoscope-vr-snapshots`      | Owns the frozen Zaber and mesoscope-objective position snapshots                  |
 | `experiment:acquisition-system-runtime` | Writes the descriptor at session end, whose repair and amendment this skill owns  |
 | `experiment:data-management`            | Owns the acquisition-side per-animal record logging of descriptor fields          |
-| `forging:project-manifest`              | Owns the project-level manifest that reads descriptor status fields               |
+| `forging:project-state`              | Owns the project-level manifest that reads descriptor status fields               |
 | `forging:dataset-forging`               | Owns the assembly step that copies the descriptor into a forged dataset           |
 | `forging:dataset-definition`            | Owns dataset composition semantics (which sessions a dataset claims)              |
 

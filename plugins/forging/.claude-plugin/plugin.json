@@ -1,7 +1,7 @@
 {
   "name": "forging",
-  "version": "1.2.0",
-  "description": "Agentic access to the sollertia-forgery library. Composes and dispatches remote SLURM jobs across the Sollertia data management, processing, and analysis pipelines. Delegates session discovery, filtering, configuration concerns, and dataset container reads and writes to the assets plugin and consumes upstream inputs from the ataraxis marketplace's video and communication plugins. Backed by the sollertia-forgery MCP server (slf).",
+  "version": "2.0.0",
+  "description": "Provides the data processing and dataset forging skills for sollertia-forgery, which turns recorded sessions into per-session data tables and multi-session datasets. Covers batch processing across all six pipelines, job planning, dataset composition, remote SLURM execution, and the library's extension path. Backed by the sollertia-forgery MCP server (slf).",
   "repository": "https://github.com/Sun-Lab-NBB/sollertia",
   "license": "Apache-2.0",
   "skills": "./skills/",

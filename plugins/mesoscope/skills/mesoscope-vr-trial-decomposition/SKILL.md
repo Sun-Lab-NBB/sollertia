@@ -4,8 +4,7 @@ description: >-
   Documents Mesoscope-VR's concrete runtime-log decomposition: the runtime message codes, the numba-accelerated greedy
   longest-first cue-sequence-to-trial-motif matching, trial-type and cumulative-distance sequence extraction, and the
   task-template trial geometry (trigger zones, cue offsets on sequence restart). Use when interpreting the vr_cue,
-  vr_trigger_zone, or trial feathers, or debugging cue-sequence decomposition failures. This is the forging-side runtime
-  LOG decomposition, distinct from the acquisition-side runtime behavior layer in mesoscope:mesoscope-vr-runtime.
+  vr_trigger_zone, or trial feathers, or when debugging cue-sequence decomposition failures.
 user-invocable: false
 ---
 
@@ -17,10 +16,11 @@ against the experiment's trial motifs.
 
 This skill documents the **forging-side runtime LOG decomposition** implemented in
 `src/sollertia_forgery/mesoscope_vr/runtime.py`. It is **not** the acquisition-side runtime behavior layer (the state
-machine, orchestrator, GUI, and CLI) — that is owned by `mesoscope:mesoscope-vr-runtime`. That layer is a distinct,
+machine, orchestrator, GUI, and CLI), which is owned by `mesoscope:mesoscope-vr-runtime`. That layer is a distinct,
 non-delegating counterpart: its only notion of "trial decomposition" is the acquisition-time Unity cue-sequence
 decomposition, which it delegates to `experiment:vr-driver-interface`, and it never invokes `parse_runtime`. The two
-concerns share no producer/consumer relationship. See [Related skills](#related-skills) for the disambiguation.
+trial-decomposition concerns share no producer/consumer relationship. See [Related skills](#related-skills) for the
+disambiguation.
 
 ---
 
@@ -28,7 +28,10 @@ concerns share no producer/consumer relationship. See [Related skills](#related-
 
 **Covers:**
 - The runtime message codes that partition the runtime log archive payloads (system state, runtime state,
-  reinforcing guidance, aversive guidance, distance snapshot)
+  reinforcing guidance, aversive guidance, distance snapshot), and the acquisition-side code this parser never
+  dispatches
+- The `_RUNTIME_PARSER_REGISTRY` donation binding `RUNTIME_SOURCE_ID` and `parse_runtime` to
+  `AcquisitionSystems.MESOSCOPE_VR`
 - Decomposing one or more virtual-reality wall-cue sequences into trial motifs via numba-accelerated greedy
   longest-first matching, and stitching multiple sequences together across distance breakpoints
 - Extracting the trial-type-index sequence and the cumulative trial-end distance sequence
@@ -39,9 +42,9 @@ concerns share no producer/consumer relationship. See [Related skills](#related-
 
 **Does not cover:**
 - The runtime NPZ log archive format, source ID, and message payload byte layout (see
-  `forging:behavior-input-format`)
+  `forging:processing-input-format`)
 - The acquisition-side runtime behavior LAYER: state machine, orchestrator, GUI, CLI (see
-  `mesoscope:mesoscope-vr-runtime` — NOT this skill)
+  `mesoscope:mesoscope-vr-runtime`, NOT this skill)
 - The Mesoscope-VR experiment configuration and its `MesoscopeWaterRewardTrial` and `MesoscopeGasPuffTrial` runtime
   trial classes (see `mesoscope:mesoscope-vr-experiment-schema`)
 - The `TaskTemplate` schema itself: the cue catalog, the VR environment, and the trial structures (see
@@ -53,22 +56,26 @@ concerns share no producer/consumer relationship. See [Related skills](#related-
 - Distance-indexed interpolation of trials into the assembled session feather (see
   `mesoscope:mesoscope-vr-dataset-assembly`)
 - The agnostic prepare-then-execute batch orchestration (see `forging:data-processing-design` and
-  `forging:behavior-processing`)
+  `forging:batch-processing`)
 
 ---
 
 ## Runtime-log decomposition contract
 
-This is the Mesoscope-VR concrete instance of the runtime-log decomposition stage. The agnostic processing doctrine
-— the prepare-then-execute batch model, worker-budget concurrency, and the feather-as-interchange contract — is
-owned by `forging:data-processing-design`; this skill documents only what Mesoscope-VR does inside that stage.
+This is the Mesoscope-VR concrete instance of the runtime-log decomposition stage. The agnostic processing doctrine,
+covering the prepare-then-execute batch model, worker-budget concurrency, and the feather-as-interchange contract, is
+owned by `forging:data-processing-design`. This skill documents only what Mesoscope-VR does inside that stage.
+
+The donation fills a single registry seam. `_RUNTIME_PARSER_REGISTRY` in `sollertia_forgery/registries.py` holds the
+pair `(RUNTIME_SOURCE_ID, parse_runtime)` under the `AcquisitionSystems.MESOSCOPE_VR` key. `RUNTIME_SOURCE_ID` is the
+string `"1"`, and the agnostic runtime pipeline reads it to locate the session's single `1_log.npz` archive before it
+dispatches the parser over that archive's decoded messages. Every processable session contains exactly one runtime
+archive, always under that fixed source ID.
 
 The single entry point is `parse_runtime(decoded_messages, output_directory, session)`. It receives the already
 decoded runtime archive as a Polars DataFrame carrying a `time_us` UInt64 column and a `payload` Binary column in
 archive order, partitions every payload by its code, and writes the extracted streams as uncompressed Arrow IPC
-`.feather` files into `output_directory`. The parser is registered against `AcquisitionSystems.MESOSCOPE_VR` paired
-with `RUNTIME_SOURCE_ID` (the string `"1"`), which locates the session's single `1_log.npz` runtime archive. Every
-processable session contains exactly one runtime archive, always under that fixed source ID.
+`.feather` files into `output_directory`.
 
 Before it partitions anything, `parse_runtime` resolves two configuration documents off the loaded `SessionData`:
 
@@ -77,15 +84,18 @@ Before it partitions anything, `parse_runtime` resolves two configuration docume
 - `TaskTemplate`, from `raw_data/vr_configuration.yaml`. It supplies the spatial trial geometry: the cue catalog, the
   corridor cue offset, and each trial's cue sequence and trigger zone.
 
-Both resolutions are gated on `session.session_type == SessionTypes.MESOSCOPE_EXPERIMENT`, and each raises
-`FileNotFoundError` naming the session and the missing path when an experiment session lacks its file. Only session
-types listed in `SESSION_TYPES_USING_VR_TASK` carry a `vr_configuration.yaml` at all, and that frozenset holds
-exactly `MESOSCOPE_EXPERIMENT`, so the two gates coincide. For every other session type both resolvers return `None`.
+The configuration resolution is gated on `session.session_type == SessionTypes.MESOSCOPE_EXPERIMENT` and the template
+resolution on that configuration resolving to a value, which is why the two coincide. Each raises `FileNotFoundError`
+naming the session and the missing path when an experiment session lacks its file. Only session types listed in
+`SESSION_TYPES_USING_VR_TASK` carry a `vr_configuration.yaml` at all, and that frozenset holds exactly
+`MESOSCOPE_EXPERIMENT`. For every other session type both resolvers return `None`.
 
 The system-state and runtime-state feathers are written for **every** session type. The reinforcing-guidance,
-aversive-guidance, and the three trial-decomposition feathers are written **only for** sessions that clear that
-session-type gate. The guidance feathers are additionally written only when their corresponding events were actually
-recorded.
+aversive-guidance, and the three trial-decomposition feathers sit behind one combined guard,
+`if experiment_configuration is not None and task_template is not None:`. The task template resolves to a non-`None`
+value exactly when the experiment configuration does, so the second clause never decides the branch on its own. It
+earns its place by narrowing the template for the geometry join the branch performs. The guidance feathers are
+additionally written only when their corresponding events were actually recorded.
 
 ---
 
@@ -93,10 +103,10 @@ recorded.
 
 `parse_runtime` classifies each message by inspecting `payload[0]` (the leading code byte), except for VR wall-cue
 sequences, which are identified by payload length. A payload longer than `_CUE_SEQUENCE_MIN_LENGTH` (500 bytes) is
-treated as a cue sequence and is collected only for experiment sessions. The length alone classifies the message, so
-a long payload is consumed by that branch whether or not the session collects it; testing the session type
-length would let a wall-cue sequence fall through to the code chain, where its first two cue codes read as a state
-transition.
+treated as a cue sequence and is collected only for experiment sessions. The length test runs first in the dispatch
+chain, and the length alone classifies the message, so a long payload is consumed by that branch whether or not the
+session collects it. Testing the session type **alongside** the length would let a wall-cue sequence fall into the
+state-code chain below, where its first two cue codes read as a state transition.
 
 | Concern               | Constant                           | Code | Extracts                                                        |
 |-----------------------|------------------------------------|------|-----------------------------------------------------------------|
@@ -105,15 +115,26 @@ transition.
 | Reinforcing guidance  | `_REINFORCING_GUIDANCE_STATE_CODE` | `3`  | `reinforcing_guidance_state` (uint8) and message timestamp      |
 | Aversive guidance     | `_AVERSIVE_GUIDANCE_STATE_CODE`    | `4`  | `aversive_guidance_state` (uint8) and message timestamp         |
 | Distance snapshot     | `_DISTANCE_SNAPSHOT_CODE`          | `5`  | A float64 traveled distance from `payload[1:9]` (little-endian) |
-| VR wall-cue sequence  | (none — length-based)              | n/a  | The full uint8 cue array, when `len(payload) > 500`             |
+| VR wall-cue sequence  | (none, length-based)               | n/a  | The full uint8 cue array, when `len(payload) > 500`             |
 
 Message timestamps come from the decoded `time_us` column, which already carries absolute microsecond values because
 the decoding stage resolved the archive onsets, so this parser computes no onset offset of its own.
+
+The dispatch chain consumes message codes `1` through `5` and nothing else. The acquisition-side orchestrator emits a
+sixth code, `6` (`MESOSCOPE_ACQUISITION_STATE` in the roster owned by `mesoscope:mesoscope-vr-runtime`), carrying
+whether the ScanImagePC is expected to be writing session frames. No branch of the chain tests for it, so a payload
+carrying that code falls off the end of the chain and is discarded without a warning, and no output feather reports
+it. Teaching this parser a new code means adding a branch here and a matching feather to the `BehaviorDataFiles`
+roster.
+
 Distance-snapshot messages are logged whenever the active VR wall-cue sequence changes, and their float64 values
-become the breakpoints used to stitch multiple cue sequences together (see below).
+become the breakpoints used to stitch multiple cue sequences together (see below). `mesoscope:mesoscope-vr-runtime`
+describes code `5` differently, as the total traveled distance at Unity-signaled runtime termination. The
+`_DISTANCE_SNAPSHOT_CODE` docstring in `runtime.py` governs the decomposition documented here, and the stitching step
+below depends on that reading, since it consumes one breakpoint per boundary between consecutive cue sequences.
 
 The system-state and runtime-state streams are written to the feathers named by the `SYSTEM_STATE` and
-`RUNTIME_STATE` members of the `BehaviorDataFiles` roster; the guidance streams use `REINFORCING_GUIDANCE` and
+`RUNTIME_STATE` members of the `BehaviorDataFiles` roster, and the guidance streams use `REINFORCING_GUIDANCE` and
 `AVERSIVE_GUIDANCE`. The roster definitions themselves are owned by `mesoscope:mesoscope-vr-processing-schema`.
 
 ---
@@ -175,9 +196,9 @@ carries the recorded corridor swap snapshots.
 
 For every sequence except the last, when a trial would push the cumulative distance past that sequence's
 `distance_breakpoint`, the trial is truncated. It is recorded at the breakpoint distance, but only when the truncated
-remainder is positive; accumulation then resets to the breakpoint minus the cue offset and the walk moves on to the
-next sequence. The function returns two arrays: `trial_type_sequence` (int32 trial-type indices in runtime order) and
-`trial_distance_sequence` (float64 cumulative distances at the end of each trial).
+remainder is positive, and accumulation then resets to the breakpoint minus the cue offset before the walk moves on
+to the next sequence. The function returns two arrays: `trial_type_sequence` (int32 trial-type indices in runtime
+order) and `trial_distance_sequence` (float64 cumulative distances at the end of each trial).
 
 ---
 
@@ -241,46 +262,61 @@ the `BehaviorDataFiles` roster. The roster member, on-disk filename, and column 
 | `VR_TRIGGER_ZONE` | `vr_trigger_zone_data.feather` | `trigger_zone_start_cm`, `trigger_zone_end_cm`                    |
 | `TRIAL`           | `trial_data.feather`           | `trial_type_index`, `traveled_distance_cm` (trial start distance) |
 
-The `vr_cue` column is the cue/distance pair produced by `_process_trial_sequence`; the trigger-zone columns are its
-trigger start/end arrays; and `trial_data` pairs the `trial_type_index` array (the decomposed trial-type indices)
+The `vr_cue` column is the cue/distance pair produced by `_process_trial_sequence`, the trigger-zone columns are its
+trigger start/end arrays, and `trial_data` pairs the `trial_type_index` array (the decomposed trial-type indices)
 with the per-trial start distances. The roster enumeration that owns these filenames is documented by
-`mesoscope:mesoscope-vr-processing-schema`; the distance-indexed interpolation that consumes these feathers into the
+`mesoscope:mesoscope-vr-processing-schema`. The distance-indexed interpolation that consumes these feathers into the
 assembled session feather is documented by `mesoscope:mesoscope-vr-dataset-assembly`.
 
 ---
 
 ## Related skills
 
-| Skill                                           | Relationship                                                       |
-|-------------------------------------------------|--------------------------------------------------------------------|
-| `mesoscope:mesoscope-vr-runtime`                | NOT this skill: the acquisition-side runtime behavior layer        |
-| `forging:data-processing-design`                | Owns the agnostic processing doctrine this stage instantiates      |
-| `forging:behavior-input-format`                 | Owns the runtime NPZ archive format, source ID, and payload layout |
-| `assets:task-templates`                         | Owns the `TaskTemplate` schema this stage reads the geometry from  |
-| `mesoscope:mesoscope-vr-experiment-schema`      | Owns the experiment configuration and its runtime trial classes    |
-| `mesoscope:mesoscope-vr-processing-schema`      | Owns the `BehaviorDataFiles` roster naming the output feathers     |
-| `forging:behavior-processing`                   | Owns the prepare-then-execute batch orchestration for this stage   |
-| `mesoscope:mesoscope-vr-fluorescence-alignment` | Owns the fluorescence timestamps used as the assembly reference    |
-| `mesoscope:mesoscope-vr-dataset-assembly`       | Consumes these feathers via distance-indexed interpolation         |
+| Skill                                           | Relationship                                                      |
+|-------------------------------------------------|-------------------------------------------------------------------|
+| `mesoscope:mesoscope-vr-runtime`                | NOT this skill: the acquisition-side runtime behavior layer       |
+| `forging:data-processing-design`                | Owns the agnostic processing doctrine this stage instantiates     |
+| `forging:processing-input-format`               | Owns the agnostic runtime archive discovery and decode contract   |
+| `assets:task-templates`                         | Owns the `TaskTemplate` schema this stage reads the geometry from |
+| `mesoscope:mesoscope-vr-experiment-schema`      | Owns the experiment configuration and its runtime trial classes   |
+| `mesoscope:mesoscope-vr-processing-schema`      | Owns the `BehaviorDataFiles` roster naming the output feathers    |
+| `forging:batch-processing`                      | Owns the prepare-then-execute batch orchestration for this stage  |
+| `mesoscope:mesoscope-vr-fluorescence-alignment` | Owns the fluorescence timestamps used as the assembly reference   |
+| `mesoscope:mesoscope-vr-dataset-assembly`       | Consumes these feathers via distance-indexed interpolation        |
 
 ---
 
 ## Verification checklist
 
 ```text
+Tool-settled (run `rg -n '.{121,}' <file>` and `wc -l <file>`):
+- [ ] All lines at or under 120 characters (tables and code blocks may exceed for clarity)
+- [ ] SKILL.md under 500 lines
+- [ ] Every code fence carries a language identifier
+- [ ] rg -n 'ataraxis@|cindra@' <file> finds nothing
+
+Runtime message dispatch:
 - [ ] Message codes match runtime.py: system=1, runtime=2, reinforcing guidance=3, aversive guidance=4,
-      distance snapshot=5; cue sequences are length-identified (> 500 bytes)
-- [ ] Decomposition described as greedy longest-first numba matching; failure returns trial_count == -1
-      and raises RuntimeError naming the position and next 20 cues; empty / mismatched-breakpoint inputs
+      distance snapshot=5, and cue sequences are length-identified (> 500 bytes)
+- [ ] The length test stated as running first, with the reason testing the session type alongside the
+      length would misroute a wall-cue sequence into the state-code chain
+- [ ] Code 6 stated as emitted by the acquisition runtime and left undispatched by parse_runtime
+- [ ] Distance snapshot reconciled against mesoscope:mesoscope-vr-runtime, with the runtime.py docstring
+      named as governing this decomposition
+- [ ] The registry seam named as _RUNTIME_PARSER_REGISTRY, holding (RUNTIME_SOURCE_ID, parse_runtime)
+
+Decomposition and outputs:
+- [ ] Decomposition described as greedy longest-first numba matching, failure returns trial_count == -1
+      and raises RuntimeError naming the position and next 20 cues, empty or mismatched-breakpoint inputs
       raise ValueError
 - [ ] Cue offset applies only to the first cue after a sequence start or restart (cue_length - cue_offset)
 - [ ] Output feathers named via BehaviorDataFiles (vr_cue_data, vr_trigger_zone_data, trial_data) with the
-      documented columns; written only for MESOSCOPE_EXPERIMENT sessions
+      documented columns
+- [ ] The experiment-only outputs gated by the combined experiment_configuration and task_template guard
 - [ ] Trial motifs, motif distances, and the cue offset sourced from the task template (task_template.cues,
       task_template.trial_structures, task_template.vr_environment.cue_offset_cm), keyed by cue name
-- [ ] No trial_length_cm, TrialGeometryEntry, or StimulusMode claimed anywhere; none of the three exist
-- [ ] No reStructuredText specifiers (:class:/:func:/:meth:) anywhere; cross-references use plugin:skill
-      syntax with the ataraxis@ prefix for ataraxis-marketplace plugins
+- [ ] No trial_length_cm, TrialGeometryEntry, or StimulusMode claimed anywhere, none of the three exist
+- [ ] No reStructuredText specifiers (:class:/:func:/:meth:) anywhere
 - [ ] "feather" used only as the Arrow IPC file-format term, never as a module or skill name
 - [ ] Disambiguated from mesoscope:mesoscope-vr-runtime (acquisition runtime layer, not log decomposition)
 ```

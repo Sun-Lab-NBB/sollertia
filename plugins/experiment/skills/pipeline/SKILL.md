@@ -201,10 +201,10 @@ Every path cited in this phase is relative to `sollertia-shared-assets/src/solle
   operated independently of the acquisition host. Sessions are usually recorded many in a row, so advance to forging
   only once there are no more sessions to record. Otherwise loop back to Phase 6 for the next session.
 - **Actions:** Once a session is preprocessed and transferred to long-term storage, generate the project manifest that
-  records each session's processing state with `forging:project-manifest`. Then hand off to data-integrity verification
-  (`forging:checksum-verification`), batch behavior processing (`forging:behavior-processing`), output verification
-  (`forging:behavior-results`), per-session dataset assembly (`forging:dataset-forging`), and dataset composition
-  (`forging:dataset-definition`).
+  records each session's processing state with `forging:project-state`. Then hand off to `forging:batch-processing`,
+  which runs every per-session pipeline including the data-integrity checksum, to `forging:processing-results` for
+  output verification, to `forging:dataset-forging` for per-session assembly, and to `forging:dataset-definition` for
+  dataset composition.
 - **Handoff condition:** The preprocessed session is present on the storage destination from which the forging plugin
   reads.
 
@@ -256,10 +256,9 @@ own system skill, resolved through `/acquisition-system-setup`'s **Supported acq
 | Read or patch a frozen runtime snapshot           | `mesoscope:mesoscope-vr-snapshots`                                                 |
 | Look up animal surgery / implants / drugs         | `assets:data-assets`                                                               |
 | Inspect, read, or repair a forged dataset         | `assets:datasets`                                                                  |
-| Snapshot a project's session processing state     | `forging:project-manifest`                                                         |
-| Verify or regenerate data-integrity checksums     | `forging:checksum-verification`                                                    |
-| Process behavior data for recorded sessions       | `forging:behavior-processing`                                                      |
-| Verify behavior-processing outputs                | `forging:behavior-results`                                                         |
+| Snapshot a project's session processing state     | `forging:project-state`                                                            |
+| Run any processing pipeline over recorded sessions | `forging:batch-processing`                                                        |
+| Verify a completed pipeline's outputs             | `forging:processing-results`                                                       |
 | Assemble a per-session `data.feather`             | `forging:dataset-forging`                                                          |
 | Compose or grow a dataset                         | `forging:dataset-definition`                                                       |
 | Discover GenICam cameras                          | `video:camera-setup`                                                               |
