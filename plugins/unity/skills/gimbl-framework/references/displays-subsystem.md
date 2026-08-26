@@ -108,10 +108,10 @@ runner, or a macOS box without `displayplacer`) cannot wipe a scene's persisted 
 is also cascade-deleted when its owning scene is removed via `delete_task_tool` (see `/task-prefabs`).
 
 **Monitor enumeration timeout.** `Monitor` is Editor-only (the whole file sits inside `#if UNITY_EDITOR`).
-`Monitor.EnumerateMonitors` calls `xrandr` (Linux) or `displayplacer list` (macOS) as a subprocess. The macOS executable
-is resolved by `Monitor.ResolveDisplayPlacerPath` in order `/opt/homebrew/bin/displayplacer` (Apple Silicon Homebrew),
-`/usr/local/bin/displayplacer` (Intel Homebrew), then the bare `displayplacer` name on PATH. A host with none of them
-logs `Monitor enumeration: failed to start 'displayplacer'. Install it with 'brew install displayplacer'.` and returns
+`Monitor.EnumerateMonitors` calls `xrandr` (Linux) or `displayplacer list` (macOS) as a subprocess, and
+`/unity-mcp-environment-setup` owns which helper each platform needs and the order
+`Monitor.ResolveDisplayPlacerPath` searches for the macOS executable. A host carrying none of them logs
+`Monitor enumeration: failed to start 'displayplacer'. Install it with 'brew install displayplacer'.` and returns
 an empty monitor list rather than throwing. The 5000ms `SubprocessTimeoutMilliseconds` budget is applied twice, once to
 `process.WaitForExit` and again to the stdout read, and a process that overruns it is killed, logged as a warning, and
 parsed from whatever it produced. On Windows the enumeration is a synchronous P/Invoke (`EnumDisplayMonitors`) and has

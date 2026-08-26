@@ -234,7 +234,7 @@ Payloads have **two disjoint shapes**:
 The forging runtime reader dispatches on payload length first (cue sequence detection), then on
 `payload[0]` for the state-message codes.
 
-The runtime message code enum is owned by the Mesoscope-VR acquisition runtime; the forging runtime
+The runtime message code enum is owned by `mesoscope:mesoscope-vr-runtime`, and the forging runtime
 reader mirrors every code as a module-level constant (`_SYSTEM_STATE_CODE`, `_RUNTIME_STATE_CODE`,
 `_REINFORCING_GUIDANCE_STATE_CODE`, `_AVERSIVE_GUIDANCE_STATE_CODE`, `_DISTANCE_SNAPSHOT_CODE`) in
 `sollertia_forgery.mesoscope_vr.runtime`. These two definitions MUST stay in lock-step — any new
@@ -442,11 +442,15 @@ schema reference live in `assets:experiment-configuration`.
 The behavior pipeline consumes raw acquisition outputs and performs the microcontroller log
 extraction itself, in-process. The raw inputs it requires are:
 
-| Raw input source                   | Owns the protocol / binding              | Raw artifact consumed                                          | Drives behavior job          |
-|------------------------------------|------------------------------------------|---------------------------------------------------------------|------------------------------|
-| Mesoscope-VR acquisition runtime   | (acquisition-side; no skill)             | `{raw_data}/behavior_data/1_log.npz`                          | `runtime_processing`         |
-| `ataraxis-video-system`            | `ataraxis@video:log-processing`          | `{raw_data}/camera_data/{source_id}_log.npz` + camera manifest | (camera extraction stage)   |
-| `ataraxis-communication-interface` | `ataraxis@communication:log-processing`  | `{raw_data}/behavior_data/{controller_id}_log.npz` + `extraction_configuration.yaml` | `microcontroller_processing` |
+| Raw input source                   | Owns the protocol / binding             | Raw artifact consumed                                                                | Drives behavior job          |
+|------------------------------------|-----------------------------------------|--------------------------------------------------------------------------------------|------------------------------|
+| Mesoscope-VR acquisition runtime   | `mesoscope:mesoscope-vr-runtime`        | `{raw_data}/behavior_data/1_log.npz`                                                 | `runtime_processing`         |
+| `ataraxis-video-system`            | `ataraxis@video:log-processing`         | `{raw_data}/camera_data/{source_id}_log.npz` + camera manifest                       | (camera extraction stage)    |
+| `ataraxis-communication-interface` | `ataraxis@communication:log-processing` | `{raw_data}/behavior_data/{controller_id}_log.npz` + `extraction_configuration.yaml` | `microcontroller_processing` |
+
+The acquisition side of the first row spans two owners. `mesoscope:mesoscope-vr-runtime` owns the runtime message
+code enum written into the archive, and `experiment:data-management` owns `assemble_session_logs`, the preprocessing
+primitive that archives the raw log directory into the `1_log.npz` this pipeline reads.
 
 The microcontroller module feathers under `{processed_data}/microcontroller_data/` are not an
 external handoff: the behavior pipeline's in-process axci extraction stage produces them from the raw
@@ -487,20 +491,22 @@ Behavior Input Prerequisites:
 
 ## Related skills
 
-| Skill                                     | Relationship                                                        |
-|-------------------------------------------|--------------------------------------------------------------------|
-| `forging:forging-mcp-environment-setup`   | Prerequisite: MCP server connectivity                              |
-| `forging:data-processing-design`          | Reference: the platform-general processing doctrine these inputs feed |
-| `forging:microcontroller-primitives`      | Owner: agnostic feather discovery, naming, and event-partition primitives |
-| `forging:camera-timestamp-extraction`     | Owner: manifest-driven camera timestamp re-extraction and renaming |
-| `mesoscope:mesoscope-vr-module-parsing`   | Owner: per-module event codes, conversions, and output schemas     |
-| `assets:session-discovery`                | Upstream: session discovery and filtering                         |
-| `assets:session-data`                     | Reference: session marker and layout                              |
-| `assets:project-hierarchy`                | Reference: project / animal / session hierarchy                   |
-| `assets:session-hardware-state`           | Reference: MesoscopeHardwareState YAML                            |
-| `assets:session-descriptors`              | Reference: per-session descriptor YAML                            |
-| `assets:experiment-configuration`         | Reference: MesoscopeExperimentConfiguration YAML                  |
-| `forging:behavior-processing`             | Downstream: consumes the inputs documented here                   |
-| `forging:behavior-results`                | Downstream: documents outputs derived from these inputs           |
-| `ataraxis@video:log-processing`           | Owner of the raw camera log archive format and acquisition protocol |
-| `ataraxis@communication:log-processing`   | Owner of the axci log-processing binding the behavior pipeline calls in-process |
+| Skill                                   | Relationship                                                                    |
+|-----------------------------------------|---------------------------------------------------------------------------------|
+| `forging:forging-mcp-environment-setup` | Prerequisite: MCP server connectivity                                           |
+| `forging:data-processing-design`        | Reference: the platform-general processing doctrine these inputs feed           |
+| `forging:microcontroller-primitives`    | Owner: agnostic feather discovery, naming, and event-partition primitives       |
+| `forging:camera-timestamp-extraction`   | Owner: manifest-driven camera timestamp re-extraction and renaming              |
+| `mesoscope:mesoscope-vr-module-parsing` | Owner: per-module event codes, conversions, and output schemas                  |
+| `mesoscope:mesoscope-vr-runtime`        | Upstream: owns the runtime message code enum written into the raw archive       |
+| `experiment:data-management`            | Upstream: owns `assemble_session_logs`, which archives the raw log directory    |
+| `assets:session-discovery`              | Upstream: session discovery and filtering                                       |
+| `assets:session-data`                   | Reference: session marker and layout                                            |
+| `assets:project-hierarchy`              | Reference: project / animal / session hierarchy                                 |
+| `assets:session-hardware-state`         | Reference: MesoscopeHardwareState YAML                                          |
+| `assets:session-descriptors`            | Reference: per-session descriptor YAML                                          |
+| `assets:experiment-configuration`       | Reference: MesoscopeExperimentConfiguration YAML                                |
+| `forging:behavior-processing`           | Downstream: consumes the inputs documented here                                 |
+| `forging:behavior-results`              | Downstream: documents outputs derived from these inputs                         |
+| `ataraxis@video:log-processing`         | Owner of the raw camera log archive format and acquisition protocol             |
+| `ataraxis@communication:log-processing` | Owner of the axci log-processing binding the behavior pipeline calls in-process |

@@ -79,7 +79,8 @@ system. Follow the pattern of `get_system_configuration()` in `mesoscope_vr/syst
 
 ## Preprocessing and storage
 
-Seams 6 through 9. `/data-management` owns the operator-facing lifecycle, and the contracts below are the seam view.
+Seams 6 through 9. `/data-management` owns the operator-facing lifecycle and the behavioral contract of every
+primitive below.
 
 `StorageDestination(name, session_path)` and `StorageDestinations(destinations=())` are the system-agnostic interface
 the shared utilities operate on (`cross_system/data_preprocessing.py`). A system resolves its destinations from its
@@ -89,14 +90,17 @@ own configuration and hands over the resolved paths, and the utilities never rea
 (`cross_system/data_preprocessing.py`). A system that names its behavior `DataLogger` anything else produces a
 directory that `assemble_session_logs` never finds. Every primitive in the table below lives in that same module.
 
-| Primitive                    | Contract                                                                                                                                                                                                                                                                                                                                                   |
-|------------------------------|------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
-| `assemble_session_logs`      | No-ops when the log directory is absent or empty, raises `RuntimeError` when the directory holds both `.npy` entries and `.npz` archives, archives in place, then renames the log directory onto `behavior_data`, removing a stale one with a WARNING so an interrupted run resumes                                                                        |
-| `rename_session_videos`      | Resolves the camera manifest from `behavior_data/` or the un-archived log directory, returns early when it is absent, and renames each video to `<session_name>_<source.name>.mp4`. It needs no static source-ID map                                                                                                                                       |
-| `snapshot_surgery_data`      | Writes the surgery record to the session's raw-data path and returns the open `SurgeryLog`. The caller owns it and closes it in a `try/finally` to release the SSL socket                                                                                                                                                                                  |
-| `push_session_data`          | Empty destinations produce a WARNING and an early return that keeps the local copy. Otherwise it computes an xxHash3-128 directory checksum, fans out `transfer_directory(remove_source=False)` across a process pool, propagates exceptions through `future.result()`, and then deletes the **entire local session directory**, `processed_data` included |
-| `delete_session_directories` | Destructive and irreversible. When confirmation is requested it warns, calls `request_confirmation(default=False)`, and returns `False` on abort                                                                                                                                                                                                           |
-| `migrate_session_directory`  | Pulls the session with `verify_integrity=False`, copies the pulled `raw_data/session_data.yaml` back to the source project's host path, recreating the `raw_data` directory that preprocessing removed, sets `project_name`, saves, and returns a freshly reloaded `SessionData`                                                                           |
+| Primitive                    | Seam role                                                                       |
+|------------------------------|---------------------------------------------------------------------------------|
+| `assemble_session_logs`      | Compose unchanged. Runs first in every system's preprocessing entry point       |
+| `rename_session_videos`      | Compose unchanged when the system records video, skip when it records none      |
+| `snapshot_surgery_data`      | Compose when the system declares a surgery sheet, and close the returned handle |
+| `push_session_data`          | Compose unchanged. Destructive, so read the contract before wiring it           |
+| `delete_session_directories` | Compose behind the system's own confirmation gate. Destructive and irreversible |
+| `migrate_session_directory`  | Compose unchanged in the system's animal-migration entry point                  |
+
+Each primitive's behavioral contract, meaning its early returns, its raise cases, and what it deletes, is owned by
+`/data-management` and MUST be read there before a new system wires any of them.
 
 ---
 

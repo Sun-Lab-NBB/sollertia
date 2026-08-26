@@ -79,10 +79,12 @@ The CLI commands and those tools do NOT mirror each other. `cameras`, `controlle
 `check_mount_accessibility_tool` have no `sle get` command. You MUST NOT infer a tool name from a command name.
 
 All seven agnostic tools return a plain string and report failure with a leading `Error: ` prefix. The single
-exception to the `Error:` return convention is `check_unity_bridge_tool`, which never returns an `Error:` string. It
-and `check_mount_accessibility_tool` are the two agnostic tools that carry no `try/except`, so an exception raised
-inside either, for example an `OSError` from probing a hung mount, propagates across the MCP boundary
-(`interfaces/get_tools.py`).
+exception to the `Error:` return convention is `check_unity_bridge_tool`, which never returns an `Error:` string.
+`check_mount_accessibility_tool` reports an unreachable path as an `OK: False` status line instead, reserving the
+leading prefix for a rejected argument. Those two are also the only agnostic tools that carry no `except` handler. The
+mount tool's write probe is the exception, because `probe_writable` catches `OSError` itself and reports it as the
+trailing `Error:` field, so only a non-`OSError` raised inside either tool propagates across the MCP boundary
+(`interfaces/get_tools.py`, `interfaces/mcp_instance.py`).
 
 ---
 

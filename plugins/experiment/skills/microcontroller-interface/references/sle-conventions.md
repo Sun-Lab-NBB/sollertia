@@ -182,8 +182,8 @@ firmware field name and its numpy type. The base ataraxis skill asks for a keywo
 `send_parameters()` once a struct holds two or more fields. sle keeps the named arguments and drops the `*` separator,
 so call sites pass by keyword while the signature stays callable positionally. Five wrappers carry one,
 `EncoderInterface`, `LickInterface`, `TorqueInterface`, `MesoscopeFrameTTLInterface`, and `ScreenInterface`
-(`cross_system/module_interfaces.py`). The two valve wrappers route every parameter write through
-their own domain methods instead.
+(`cross_system/module_interfaces.py`). The three remaining wrappers, `BrakeInterface`, `WaterValveInterface`, and
+`GasPuffValveInterface`, route every parameter write through their own domain methods instead.
 
 ```python
 def set_parameters(

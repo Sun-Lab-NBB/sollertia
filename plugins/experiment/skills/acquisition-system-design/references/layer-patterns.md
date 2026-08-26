@@ -434,8 +434,9 @@ subsystem's startup. Two examples:
 - A subsystem emits TTL into a microcontroller input, such as a camera or an instrument frame-clock. The orchestrator
   brings the receiving microcontroller's monitoring online before the emitter starts, so the receiver timestamps the
   pulses from the first one.
-- The Unity initial state depends on a motor position. The orchestrator reads that position from the motor binding class
-  and passes it to the Unity MQTT setup.
+- The VR task's unit scale lives in the task template rather than in a hardware configuration. The orchestrator reads
+  it from the loaded template and pushes it into the encoder wrapper before the Unity setup runs, so the encoder
+  reports motion in the units Unity expects.
 
 Cross-subsystem signaling lives in the orchestrator rather than in an individual binding class. Each binding class stays
 oblivious to the other subsystems, and the orchestrator is the only place that knows the full hardware composition.

@@ -139,8 +139,9 @@ recognizable and what a custom processor must reproduce:
 
 1. **Construction validates, then caches.** The constructor authenticates, fetches the header row, builds a
    `header → column-letter` map, and asserts every required header is present and the target record exists. A malformed
-   sheet fails **at construction**, before any extract or update call, so every parse problem surfaces as a construction
-   error.
+   sheet *shape* fails **at construction**, before any extract or update call. Cell-*value* parse problems are not
+   caught there, because `extract_animal_data` raises `ValueError` from the `int()`, `float()`, and
+   `_convert_date_time_to_timestamp` conversions when a row's cells are empty or malformed.
 2. **Authentication is service-account based.** `Credentials.from_service_account_file` is scoped to
    `https://www.googleapis.com/auth/spreadsheets` and builds a `sheets`/`v4` service with
    `cache_discovery=False`, because the discovery cache is unsupported by the installed oauth2client version

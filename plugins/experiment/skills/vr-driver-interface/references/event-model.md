@@ -72,6 +72,6 @@ The `TriggerType` taxonomy lives in `sollertia-shared-assets` and is owned by `a
 arrays, see `mesoscope:mesoscope-vr-experiment-schema`.
 
 All trial modes share one MQTT and wire contract, because every mode publishes the same `Stimulus` event and adds no
-topics (see the [MQTT topic contract](../SKILL.md#mqtt-topic-contract)). The Unity-side dispatch, prefab reuse, and mode-aware
-template geometry are owned by `unity:zone-prefabs`, `unity:task-generator`, and `assets:task-templates`.
+topics (see the [MQTT topic contract](../SKILL.md#mqtt-topic-contract)). The Unity-side dispatch, prefab reuse, and
+mode-aware template geometry are owned by `unity:zone-prefabs`, `unity:task-generator`, and `assets:task-templates`.
 

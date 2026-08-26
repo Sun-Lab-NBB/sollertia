@@ -119,19 +119,9 @@ Eight constants exist on both sides of the serial boundary, and each row moves a
 firmware that compiles and a host that runs while the data between them is garbage, because `PACKED_STRUCT` carries
 no padding and no field is self-describing on the wire.
 
-| # | Constant                                        | Firmware side                                           | sollertia-experiment side                                                                                                                             |
-|---|-------------------------------------------------|---------------------------------------------------------|-------------------------------------------------------------------------------------------------------------------------------------------------------|
-| 1 | Keepalive interval, 500 ms                      | `kKeepaliveInterval` in `slmc/src/main.cpp`             | The `keepalive_interval` each system passes to `MicroControllerInterface` (`MicroControllerInterfaces.__init__` in `mesoscope_vr/binding_classes.py`) |
-| 2 | Serial baud rate, 115200                        | `kSerialBaudRate` in `slmc/src/main.cpp`                | `_MICROCONTROLLER_BAUDRATE` in `interfaces/get.py`                                                                                                    |
-| 3 | Controller IDs                                  | `kControllerID` in `slmc/src/main.cpp`                  | The `controller_id` arguments in `MicroControllerInterfaces.__init__` (`mesoscope_vr/binding_classes.py`)                                             |
-| 4 | `(module_type, module_id)` pairs                | The target blocks of `slmc/src/main.cpp`                | The `module_type` and `module_id` each wrapper passes to `super().__init__` (`cross_system/module_interfaces.py`)                                     |
-| 5 | `kCustomStatusCodes` values                     | The seven module headers                                | The `data_codes` and `error_codes` sets of each wrapper (`cross_system/module_interfaces.py`)                                                         |
-| 6 | `kModuleCommands` values                        | The seven module headers                                | The per-interface command constants such as `_pulse`, `_open`, and `_close` (`cross_system/module_interfaces.py`)                                     |
-| 7 | `CustomRuntimeParameters` field order and types | The seven module headers                                | The parameter payload each wrapper's `set_parameters` sends                                                                                           |
-| 8 | Calibration count, 200                          | `kDefaultCalibrationCount` in `slmc/src/valve_module.h` | `self._calibration_count = np.uint16(200)` in `WaterValveInterface` (`cross_system/module_interfaces.py`)                                             |
-
-Rows 5, 6, and 7 are per-module. `/microcontroller-interface` carries the full catalog of every module's status
-codes, command codes, and parameter fields, so verify a row against that catalog rather than restating it here.
+`/microcontroller-interface` owns the roster, naming each constant's firmware declaration and its host mirror, and
+carries the per-module catalog of status codes, command codes, and parameter fields. Read it before adding a ninth
+paired constant or changing an existing one, because the seam is that both sides land in the same change set.
 
 ---
 

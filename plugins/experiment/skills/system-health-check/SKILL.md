@@ -52,11 +52,9 @@ If a required server is unavailable, hand off to the owning plugin's MCP environ
 `/acquisition-system-setup` owns the `sle get` command set and the way it diverges from the seven hardware-agnostic
 MCP tools of `interfaces/get_tools.py`, so read that skill before mapping a command name onto a tool name.
 
-Every agnostic tool returns a plain string, and most report failure with a leading `Error: ` prefix. Two do not.
-`check_unity_bridge_tool` carries no `try/except`, so an exception propagates across the MCP boundary instead of
-returning an `Error:` string. `check_mount_accessibility_tool` carries no `try/except` either, and reports an
-unreachable path as an `OK: False` status line rather than an `Error:` string, reserving the leading prefix for a
-rejected argument (`interfaces/get_tools.py`).
+Every agnostic tool returns a plain string, and most report failure with a leading `Error: ` prefix. Two deviate from
+that convention, and `/acquisition-system-setup` owns the divergence, so read it before treating a non-`Error:` return
+as a fault.
 
 Every other tool this skill calls belongs to the active system's own tool module, `interfaces/<system>_tools.py`, whose
 tools register as an import side effect of the `*_tools.py` glob run by `_register_tool_modules()` in

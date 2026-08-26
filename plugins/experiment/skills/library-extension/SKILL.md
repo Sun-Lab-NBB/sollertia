@@ -33,8 +33,9 @@ repository you are touching. You MUST run the verification checklist before repo
 - The audit view: which seams a half-built system still misses, and what each omission looks like at runtime
 
 **Does not cover:**
-- The sollertia-shared-assets registry half, which is the `AcquisitionSystems` member, the four dispatch registries,
-  the per-system record dataclasses, and the import-time contract checks. Owned by `assets:library-extension`
+- The sollertia-shared-assets registry half, which is the `AcquisitionSystems` member, the three
+  `AcquisitionSystems`-keyed dispatch registries and the `SYSTEM_SESSION_TYPES` association, the per-system record
+  dataclasses, and the import-time contract checks. Owned by `assets:library-extension`
 - The Mesoscope-VR worked example's concrete values. Owned by `mesoscope:mesoscope-vr`,
   `mesoscope:mesoscope-vr-runtime`, and `mesoscope:mesoscope-vr-snapshots`
 - The static composition pattern for the configuration and binding layers, owned by `/acquisition-system-design`

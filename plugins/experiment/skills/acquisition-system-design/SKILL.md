@@ -177,8 +177,11 @@ For the field-naming table, the type conventions, and the defaults rules, see
 Each hardware subsystem has one binding class that composes the subsystem's per-device wrappers and orchestrates their
 lifecycle. The **shared contract** is the same across subsystem types. The constructor takes the most-shared dependency
 first (`data_logger`, when the subsystem logs to it), then the per-subsystem configuration dataclass, then any optional
-inputs. It caches the configuration, instantiates as a public attribute any per-device wrapper the orchestrator commands
-at runtime, and keeps every other wrapper and every low-level controller private. Bring-up and tear-down are idempotent
+inputs. It caches the configuration when it must re-read fields after construction, as the microcontroller type does to
+push runtime parameters in `start()`. A subsystem that consumes every field at construction, as the camera and SDK types
+do, keeps no reference to the dataclass. It instantiates as a public attribute any per-device wrapper the orchestrator
+commands at runtime, and keeps every other wrapper and every low-level controller private. Bring-up and tear-down are
+idempotent
 for the microcontroller and camera types, and `__del__` calls the tear-down as a safety net. A third-party-SDK subsystem
 connects in `__init__` and relies on the orchestrator calling its `disconnect()` explicitly.
 

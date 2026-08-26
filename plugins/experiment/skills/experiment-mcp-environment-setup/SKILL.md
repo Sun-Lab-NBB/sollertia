@@ -216,9 +216,12 @@ server on the next session.
 | Import error on `sle mcp`                                                 | Version skew with sollertia-shared-assets                    | `pip install --upgrade --force-reinstall sollertia-experiment` |
 | Python version mismatch                                                   | Wrong environment activated                                  | Activate environment with Python >=3.14,<3.15                  |
 | Tool error: "working directory ... has not been set"                      | `slsa` working directory not initialized                     | Run `assets:working-directory` from the assets plugin          |
-| Tool error: "Expected exactly one '*_system_configuration.yaml'"          | Host not bound to an acquisition system, or bound to several | Run `sle mesoscope configure system`                           |
-| Tool error: "the host-machine belongs to the ... data acquisition system" | Host bound to a different acquisition system                 | Run `sle mesoscope configure system` to rebind                 |
+| Tool error: "Expected exactly one '*_system_configuration.yaml'"          | Host not bound to an acquisition system, or bound to several | Run `sle <system> configure system`                            |
+| Tool error: "the host-machine belongs to the ... data acquisition system" | Host bound to a different acquisition system                 | Run `sle <system> configure system` to rebind                  |
 | Tool fails with Zaber connection error                                    | Not an environment issue                                     | Check `/zaber-interface` for hardware troubleshooting          |
+
+In the two configuration rows, `<system>` is the host's `AcquisitionSystems` value. Resolve it to its owning skill
+through the Supported acquisition systems registry in `/acquisition-system-setup`, which this skill does not duplicate.
 
 Two module-level preambles run before the `click` import and shape what an operator sees. `warnings.warn` and
 `warnings.warn_explicit` are monkeypatched to no-ops, so dependency deprecation warnings raised during the import phase

@@ -313,10 +313,11 @@ without clearing and holds the operator's latest setting.
 
 ## Log message codes
 
-The orchestrator emits a system-specific `IntEnum` of log message codes to the DataLogger, holding at minimum one
-code for each state axis, system state and runtime state, plus codes for guidance and parameter changes and for
-event-driven snapshots. New events take the next unused code. These codes are the contract the downstream behavior
-pipeline consumes (forging plugin), so a code's meaning is durable and a freed value is never recycled.
+The orchestrator emits a system-specific `IntEnum` of log message codes to the DataLogger. It holds at minimum one code
+for each state axis, system state and runtime state, plus codes for guidance-mode changes, for event-driven snapshots,
+and for any external-acquisition state the system brackets. New events take the next unused code. These codes are the
+contract the downstream behavior pipeline consumes (forging plugin), so a code's meaning is durable and a freed value
+is never recycled.
 
 ---
 
