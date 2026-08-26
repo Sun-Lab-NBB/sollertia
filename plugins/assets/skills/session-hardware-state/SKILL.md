@@ -31,7 +31,8 @@ applicability, see `mesoscope:mesoscope-vr-session-schema`.
 The hardware-state dataclass lives in `sollertia-shared-assets` rather than in the acquisition runtime because it is
 consumed by **both** the acquisition runtime and the downstream processing pipeline. That is why the read, write, and
 describe tools live on the slsa MCP server even though the primary on-disk copy is written by the acquisition runtime at
-session start.
+session start. `experiment:acquisition-system-runtime` owns the platform-general runtime contract that obliges a system
+to write this snapshot, and `mesoscope:mesoscope-vr-runtime` is the current worked instance of that write.
 
 ---
 
@@ -250,6 +251,8 @@ conventionally immutable once written, so confirm with the user before every wri
 | `mesoscope:mesoscope-vr-session-schema` | Owns Mesoscope-VR's concrete hardware-state field schema, its null semantics, and its per-session-type population                                     |
 | `mesoscope:mesoscope-vr-snapshots`      | Sibling that owns the Zaber and mesoscope-objective position snapshots                                                                                |
 | `/library-extension`                    | Adds a new `AcquisitionSystems` member and its `HARDWARE_STATE_REGISTRY` dataclass. A new `SessionTypes` member touches `DESCRIPTOR_REGISTRY` instead |
+| `experiment:acquisition-system-runtime` | Owns the platform-general runtime contract that writes this snapshot at session start                                                                 |
+| `mesoscope:mesoscope-vr-runtime`        | The current worked instance's runtime, which writes the Mesoscope-VR hardware state                                                                   |
 
 ---
 

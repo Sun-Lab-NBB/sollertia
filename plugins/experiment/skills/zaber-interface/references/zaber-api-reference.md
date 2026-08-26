@@ -17,6 +17,12 @@ from sollertia_experiment.cross_system.zaber_bindings import (
 )
 ```
 
+The `__all__` list of `cross_system/__init__.py` re-exports `ZaberAxis`, `ZaberConnection`, `CRCCalculator`,
+`discover_zaber_devices`, `get_zaber_devices_info`, `get_zaber_device_settings`, `set_zaber_device_setting`, and
+`validate_zaber_device_configuration` from the `sollertia_experiment.cross_system` package. `ZaberDevice`,
+`ZaberDeviceSettings`, and `ZaberValidationResult` are importable only from the `zaber_bindings` submodule, and a
+`ZaberDevice` is normally reached through `ZaberConnection.get_device()` (`cross_system/zaber_bindings.py`).
+
 ---
 
 ## ZaberConnection class
@@ -32,32 +38,48 @@ class ZaberConnection:
 
 **Parameters:**
 
-| Parameter | Type  | Required | Description                               |
-|-----------|-------|----------|-------------------------------------------|
-| `port`    | `str` | Yes      | Serial port path (e.g., `/dev/ttyUSB0`)   |
+| Parameter | Type  | Required | Description                             |
+|-----------|-------|----------|-----------------------------------------|
+| `port`    | `str` | Yes      | Serial port path (e.g., `/dev/ttyUSB0`) |
 
 **Raises:** `TypeError` if port is not a string.
 
-> Serial-port paths are OS-specific (`/dev/ttyUSB0` on Linux, `COMx` on Windows, `/dev/tty.usbserial-*` on
-> macOS); the examples in this reference use the Linux form. Use whichever path the host reports.
+> Serial-port paths are OS-specific, appearing as `/dev/ttyUSB0` on Linux, `COMx` on Windows, and
+> `/dev/tty.usbserial-*` on macOS. The examples in this reference use the Linux form, and the host reports the
+> path to use.
 
 **Notes:**
-- Constructor does NOT establish connection - call `connect()` first
-- Multiple ZaberConnection instances cannot share the same port
+- The constructor stores the port name only. Call `connect()` to open the port (`cross_system/zaber_bindings.py`)
+- `ZaberConnection` opens the port with `direct=False`, so Zaber Launcher can share it between applications.
+  Without Zaber Launcher running, a second instance opening the same port fails
 
 ### Methods
 
-| Method         | Returns                  | Description                                          |
-|----------------|--------------------------|------------------------------------------------------|
-| `connect()`    | `None`                   | Opens port and discovers all connected devices       |
-| `disconnect()` | `None`                   | Shuts down devices and closes port connection        |
-| `get_device()` | `ZaberDevice`            | Returns device interface by daisy-chain index        |
+All three methods are defined on `ZaberConnection` in `cross_system/zaber_bindings.py`.
+
+| Method         | Returns       | Description                                     |
+|----------------|---------------|-------------------------------------------------|
+| `connect()`    | `None`        | Opens the port and wraps every detected device  |
+| `disconnect()` | `None`        | Shuts the devices down and closes the port      |
+| `get_device()` | `ZaberDevice` | Returns a device interface by daisy-chain index |
+
+`connect()` returns immediately when the port is already open, and `disconnect()` returns immediately when it is not.
+`connect()` rebuilds the internal device tuple after each successful device construction, so a failure partway through
+the daisy chain still leaves the already-constructed devices reachable for release. On failure it calls
+`_release_runtime_assets(shutdown_devices=False)` and re-raises. That path deliberately skips parking, because parking
+commits the current position and blocks every motion command until the motor is unparked, and the operator may need to
+move the stage by hand to free a head-fixed animal (`cross_system/zaber_bindings.py`).
+
+`_release_runtime_assets` isolates each device shutdown through `run_shutdown_step` and closes the port from a
+`finally` block, so one unresponsive controller still leaves the other devices and the port released
+(`cross_system/zaber_bindings.py`). `ZaberConnection.__del__` runs the same release when the instance is still
+connected at garbage-collection time.
 
 ### Properties
 
-| Property       | Type   | Description                                              |
-|----------------|--------|----------------------------------------------------------|
-| `is_connected` | `bool` | True if connection is active and devices are responding  |
+| Property       | Type   | Description                                                                |
+|----------------|--------|----------------------------------------------------------------------------|
+| `is_connected` | `bool` | Probes the port with `detect_devices()` and downgrades the flag on failure |
 
 ### get_device method
 
@@ -67,9 +89,9 @@ def get_device(self, index: int) -> ZaberDevice
 
 **Parameters:**
 
-| Parameter | Type  | Description                                                          |
-|-----------|-------|----------------------------------------------------------------------|
-| `index`   | `int` | Zero-based index in daisy-chain (0 = closest to USB port)            |
+| Parameter | Type  | Description                                               |
+|-----------|-------|-----------------------------------------------------------|
+| `index`   | `int` | Zero-based index in daisy-chain (0 = closest to USB port) |
 
 **Returns:** `ZaberDevice` instance for the specified controller.
 
@@ -78,30 +100,10 @@ def get_device(self, index: int) -> ZaberDevice
 ### Lifecycle
 
 ```text
-┌──────────────────────────────────────────────────────────────────────────┐
-│                      ZaberConnection Lifecycle                            │
-├──────────────────────────────────────────────────────────────────────────┤
-│                                                                          │
-│  __init__(port="/dev/ttyUSB0")                                           │
-│      │                                                                   │
-│      ▼                                                                   │
-│  [Connection not established, no devices available]                      │
-│      │                                                                   │
-│  connect()                                                               │
-│      │                                                                   │
-│      ▼                                                                   │
-│  [Port open, devices discovered and wrapped in ZaberDevice instances]    │
-│      │                                                                   │
-│      ├──── get_device(0) ───► Returns ZaberDevice for first motor        │
-│      ├──── get_device(1) ───► Returns ZaberDevice for second motor       │
-│      │                                                                   │
-│      ▼                                                                   │
-│  disconnect()                                                            │
-│      │                                                                   │
-│      ▼                                                                   │
-│  [All devices shut down, port closed, resources released]                │
-│                                                                          │
-└──────────────────────────────────────────────────────────────────────────┘
+__init__(port)  ──►  Port name stored, no port open and no devices available
+connect()       ──►  Port open, every detected device wrapped in a ZaberDevice
+get_device(i)   ──►  The ZaberDevice at daisy-chain index i
+disconnect()    ──►  Every device shut down, port closed, resources released
 ```
 
 ---
@@ -119,38 +121,44 @@ class ZaberDevice:
 
 **Parameters:**
 
-| Parameter | Type     | Description                                           |
-|-----------|----------|-------------------------------------------------------|
-| `device`  | `Device` | zaber-motion Device instance from connection          |
+| Parameter | Type     | Description                                  |
+|-----------|----------|----------------------------------------------|
+| `device`  | `Device` | zaber-motion Device instance from connection |
 
 **Notes:**
-- Users do not instantiate directly - use `ZaberConnection.get_device()`
-- Only supports single-axis controllers
+- Users do not instantiate this class directly. Use `ZaberConnection.get_device()`
+- Only single-axis controllers are supported
 
 **Raises:**
-- `ValueError` if device manages multiple axes
-- `ValueError` if checksum validation fails (USER_DATA_0 mismatch)
-- Prompts for confirmation if unsafe device was not properly shut down
+- `ValueError` if the device manages a number of axes other than 1
+- `ValueError` if `USER_DATA_0` disagrees with the CRC32-XFER checksum of the device label
+- `ValueError` if the operator declines the confirmation prompt raised for an unsafe, improperly shut down device
 
 ### Configuration validation
 
-On initialization, ZaberDevice validates:
+`ZaberDevice.__init__` in `cross_system/zaber_bindings.py` runs these steps in order:
 
-1. **Axis count**: Must be exactly 1 (single-axis controller)
-2. **Checksum**: USER_DATA_0 must equal CRC32-XFER of device label
-3. **Shutdown state**: For unsafe devices, verifies proper previous shutdown
+1. **Axis count**: must be exactly 1, checked before the `ZaberAxis` is built
+2. **Axis construction**: wraps axis 1, which validates the three predefined positions against the motion limits
+3. **Checksum**: `USER_DATA_0` must equal the CRC32-XFER checksum of the device label
+4. **Shutdown state**: when `shutdown_flag == 0` and `unsafe_flag == 1`, the constructor echoes a WARNING and blocks
+   on `request_required_confirmation("Proceed with initializing this motor?")`
+5. **Flag reset**: writes `USER_DATA_1 = 0`, so a runtime that aborts before shutdown stays detectable
 
 ### Methods
 
-| Method       | Returns | Description                                        |
-|--------------|---------|----------------------------------------------------|
-| `shutdown()` | `None`  | Gracefully shuts down motor and sets shutdown flag |
+| Method       | Returns | Description                                      |
+|--------------|---------|--------------------------------------------------|
+| `shutdown()` | `None`  | Shuts the axis down and writes the shutdown flag |
+
+`shutdown()` writes `USER_DATA_1 = 1` only when the motor is parked within `_PARK_POSITION_TOLERANCE` of the park
+position stored in the same memory, and writes `0` with a WARNING for a motor resting anywhere else.
 
 ### Properties
 
-| Property | Type        | Description                          |
-|----------|-------------|--------------------------------------|
-| `axis`   | `ZaberAxis` | Interface for the motor (axis)       |
+| Property | Type        | Description                    |
+|----------|-------------|--------------------------------|
+| `axis`   | `ZaberAxis` | Interface for the motor (axis) |
 
 ---
 
@@ -167,38 +175,45 @@ class ZaberAxis:
 
 **Parameters:**
 
-| Parameter | Type   | Description                                    |
-|-----------|--------|------------------------------------------------|
-| `motor`   | `Axis` | zaber-motion Axis instance from device         |
+| Parameter | Type   | Description                            |
+|-----------|--------|----------------------------------------|
+| `motor`   | `Axis` | zaber-motion Axis instance from device |
 
 **Notes:**
-- Users do not instantiate directly - access via `ZaberDevice.axis`
-- Validates predefined positions are within motion limits
+- Users do not instantiate this class directly. Access it through `ZaberDevice.axis`
+- The constructor reads park, maintenance, and mount from `USER_DATA_11`, `USER_DATA_12`, and `USER_DATA_13`, and
+  reads the two motion limits from the axis (`ZaberAxis.__init__` in `cross_system/zaber_bindings.py`)
 
-**Raises:** `ValueError` if any predefined position exceeds motion limits.
+**Raises:** `ValueError` if any of the three predefined positions falls outside the motion limits.
 
 ### Methods
 
-| Method         | Returns | Description                                              |
-|----------------|---------|----------------------------------------------------------|
-| `home()`       | `None`  | Moves motor to home sensor position (non-blocking)       |
-| `move()`       | `None`  | Moves motor to absolute position (non-blocking)          |
-| `stop()`       | `None`  | Decelerates and stops motor (emergency-safe)             |
-| `park()`       | `None`  | Parks motor and saves position to non-volatile memory    |
-| `unpark()`     | `None`  | Unparks motor to allow motion commands                   |
-| `shutdown()`   | `None`  | Stops movement and parks motor                           |
-| `get_position` | `float` | Returns current absolute position in native units        |
+All seven methods are defined on `ZaberAxis` in `cross_system/zaber_bindings.py`.
+
+| Method           | Returns | Description                                                     |
+|------------------|---------|-----------------------------------------------------------------|
+| `home()`         | `None`  | Moves the motor to the home sensor position, non-blocking       |
+| `move()`         | `None`  | Moves the motor to an absolute position, non-blocking           |
+| `stop()`         | `None`  | Decelerates and stops the motor, emergency-safe                 |
+| `park()`         | `None`  | Parks the motor and commits its position to non-volatile memory |
+| `unpark()`       | `None`  | Unparks a parked motor so it accepts motion commands            |
+| `shutdown()`     | `None`  | Stops a moving motor, then parks it                             |
+| `get_position()` | `float` | Returns the current absolute position in native units           |
+
+`park()` returns without acting while the motor is busy, and `unpark()` acts only on a parked motor. `shutdown()` is
+idempotent through a private flag, returns early for an already parked motor, and stops a moving motor with a blocking
+`stop` before parking it.
 
 ### Properties
 
-| Property               | Type   | Description                                           |
-|------------------------|--------|-------------------------------------------------------|
-| `is_homed`             | `bool` | True if motor has established home reference          |
-| `is_parked`            | `bool` | True if motor is parked (cannot accept commands)      |
-| `is_busy`              | `bool` | True if motor is currently executing a command        |
-| `park_position`        | `int`  | Predefined park position (native units)               |
-| `mount_position`       | `int`  | Predefined mount position (native units)              |
-| `maintenance_position` | `int`  | Predefined maintenance position (native units)        |
+| Property               | Type   | Description                                      |
+|------------------------|--------|--------------------------------------------------|
+| `is_homed`             | `bool` | True if motor has established home reference     |
+| `is_parked`            | `bool` | True if motor is parked (cannot accept commands) |
+| `is_busy`              | `bool` | True if motor is currently executing a command   |
+| `park_position`        | `int`  | Predefined park position (native units)          |
+| `mount_position`       | `int`  | Predefined mount position (native units)         |
+| `maintenance_position` | `int`  | Predefined maintenance position (native units)   |
 
 ### home method
 
@@ -210,9 +225,9 @@ Moves the motor towards its home sensor until the sensor triggers. Establishes t
 commands.
 
 **Behavior:**
-- Non-blocking - returns immediately, motor moves asynchronously
-- Does nothing if motor is parked or busy
-- Call `is_busy` or `wait_until_idle()` to check completion
+- Non-blocking. The call returns immediately and the motor moves asynchronously, so several motors can home in parallel
+- Does nothing if the motor is parked or busy, and never auto-unparks a parked motor
+- Poll `is_busy` to check completion
 
 ### move method
 
@@ -224,14 +239,14 @@ Moves the motor to the specified absolute position.
 
 **Parameters:**
 
-| Parameter  | Type  | Description                              |
-|------------|-------|------------------------------------------|
-| `position` | `int` | Target position in native motor units    |
+| Parameter  | Type  | Description                           |
+|------------|-------|---------------------------------------|
+| `position` | `int` | Target position in native motor units |
 
 **Behavior:**
-- Non-blocking - returns immediately, motor moves asynchronously
-- Does nothing if motor is parked, busy, or not homed
-- Does nothing if position exceeds motion limits
+- Non-blocking. The call returns immediately and the motor moves asynchronously
+- Does nothing if the motor is busy, un-homed, or parked
+- Silently does nothing if the position falls outside `[minimum_limit, maximum_limit]`
 
 ### stop method
 
@@ -242,30 +257,39 @@ def stop(self) -> None
 Stops motor movement with deceleration.
 
 **Behavior:**
-- Bypasses communication timing guards for emergency use
+- The only call that bypasses the communication pacing guard, for emergency use. It kicks the guard afterwards
 - First call: decelerates and stops
-- Second rapid call: immediate stop (no deceleration)
+- Second rapid call: immediate stop, with no deceleration
 - Non-blocking
 
 ### Communication timing
 
-ZaberAxis enforces a 5ms minimum delay between consecutive hardware interactions to prevent overwhelming the serial
-interface. This timing is handled automatically by internal `_padded_method_call()`.
+`_COMMUNICATION_DELAY_MS` is `5`, the minimum delay in milliseconds separating consecutive interactions with the motor
+hardware (`cross_system/zaber_bindings.py`). Every call other than `stop()` routes through the private generic
+`_padded_method_call[T]`, which spins on a `Timeout` guard before the call and kicks the guard after it.
 
 ---
 
 ## Non-volatile memory settings
 
-Zaber controllers store configuration in non-volatile USER_DATA variables:
+The private frozen dataclass `_ZaberSettings` maps every field name below to its Zaber `SettingConstants` member
+(`cross_system/zaber_bindings.py`). Zaber controllers store the configuration in non-volatile USER_DATA
+variables:
 
-| Setting                | Variable     | Purpose                                       |
-|------------------------|--------------|-----------------------------------------------|
-| `checksum`             | USER_DATA_0  | CRC32-XFER checksum of device label           |
-| `shutdown_flag`        | USER_DATA_1  | 1 = proper shutdown, 0 = abnormal termination |
-| `unsafe_flag`          | USER_DATA_10 | 1 = requires safe position for homing         |
-| `park_position`        | USER_DATA_11 | Park position in native units                 |
-| `maintenance_position` | USER_DATA_12 | Maintenance position in native units          |
-| `mount_position`       | USER_DATA_13 | Mount position in native units                |
+| Field                       | Variable     | Purpose                                       |
+|-----------------------------|--------------|-----------------------------------------------|
+| `checksum`                  | USER_DATA_0  | CRC32-XFER checksum of device label           |
+| `shutdown_flag`             | USER_DATA_1  | 1 = proper shutdown, 0 = abnormal termination |
+| `unsafe_flag`               | USER_DATA_10 | 1 = requires safe position for homing         |
+| `axis_park_position`        | USER_DATA_11 | Park position in native units                 |
+| `axis_maintenance_position` | USER_DATA_12 | Maintenance position in native units          |
+| `axis_mount_position`       | USER_DATA_13 | Mount position in native units                |
+
+`_ZaberSettings` also maps `maximum_limit`, `minimum_limit`, and `position` to the non-USER_DATA constants
+`LIMIT_MAX`, `LIMIT_MIN`, and `POS`. The shorter `park_position`, `maintenance_position`, and `mount_position` names
+belong to the
+`ZaberDeviceSettings` snapshot and to the `setting` argument of `set_zaber_device_setting`, not to
+`_ZaberSettings`, whose fields carry the `axis_` prefix.
 
 **Understanding shutdown_flag vs unsafe_flag:**
 
@@ -275,15 +299,18 @@ Zaber controllers store configuration in non-volatile USER_DATA variables:
 
 - **unsafe_flag**: Set once during initial hardware setup. Reflects whether the motor's physical mounting allows it to
   be positioned in a way that makes homing dangerous (e.g., could cause collision). This flag should NOT be modified
-  to work around improper shutdown - use `shutdown_flag` instead.
+  to work around improper shutdown. Use `shutdown_flag` instead.
+
+`_PARK_POSITION_TOLERANCE` is `100.0` native units, the largest deviation from the stored park position that a
+shutting-down device still records as properly parked (`cross_system/zaber_bindings.py`).
 
 ### Motion limit settings
 
-| Setting         | Zaber Constant | Purpose                                     |
-|-----------------|----------------|---------------------------------------------|
-| `maximum_limit` | LIMIT_MAX      | Maximum allowed position relative to home   |
-| `minimum_limit` | LIMIT_MIN      | Minimum allowed position relative to home   |
-| `position`      | POS            | Current absolute position relative to home  |
+| Setting         | Zaber constant | Purpose                                    |
+|-----------------|----------------|--------------------------------------------|
+| `maximum_limit` | LIMIT_MAX      | Maximum allowed position relative to home  |
+| `minimum_limit` | LIMIT_MIN      | Minimum allowed position relative to home  |
+| `position`      | POS            | Current absolute position relative to home |
 
 ---
 
@@ -298,11 +325,16 @@ class CRCCalculator:
     def __init__(self) -> None
 ```
 
+`CRCCalculator.__init__` builds a `crc.Configuration` with `width=32`, `polynomial=0x000000AF`, `init_value=0`,
+`final_xor_value=0`, `reverse_input=False`, and `reverse_output=False` (`cross_system/zaber_bindings.py`).
+`string_checksum` encodes the string as ASCII before checksumming it. The module-level `_crc_calculator` instance
+backs the checksum verification `ZaberDevice` performs.
+
 ### Methods
 
-| Method             | Returns | Description                                   |
-|--------------------|---------|-----------------------------------------------|
-| `string_checksum`  | `int`   | Calculates CRC32-XFER checksum for string     |
+| Method            | Returns | Description                               |
+|-------------------|---------|-------------------------------------------|
+| `string_checksum` | `int`   | Calculates CRC32-XFER checksum for string |
 
 ### string_checksum method
 
@@ -324,10 +356,12 @@ def string_checksum(self, string: str) -> int
 from sollertia_experiment.cross_system import CRCCalculator
 
 calculator = CRCCalculator()
-checksum = calculator.string_checksum("HeadBar")
-print(f"Checksum for 'HeadBar': {checksum}")
+checksum = calculator.string_checksum("StageA")
+print(f"Checksum for 'StageA': {checksum}")
 # Use this value to configure USER_DATA_0 on the motor controller
 ```
+
+`StageA` is a placeholder device label. For the labels the current worked example uses, see `mesoscope:mesoscope-vr`.
 
 ---
 
@@ -341,7 +375,10 @@ Scans all serial ports and prints discovered device information.
 def discover_zaber_devices() -> None
 ```
 
-**Notes:** Prints formatted table to stdout. Use `get_zaber_devices_info()` for programmatic access.
+**Notes:** Prints the formatted table through `console.echo(raw=True)`. A port that raises during the probe is logged
+at DEBUG and listed as having "No Devices" (`cross_system/zaber_bindings.py`). Use `get_zaber_devices_info()`
+for programmatic access. The `sle get zaber` CLI command wraps this function and takes no options
+(the `get_zaber_devices` command in `interfaces/get.py`).
 
 ### get_zaber_devices_info
 
@@ -353,7 +390,8 @@ def get_zaber_devices_info() -> str
 
 **Returns:** Formatted table string containing port, device, and axis information.
 
-**Notes:** Used by MCP tool `get_zaber_devices_tool()`.
+**Notes:** Runs the same scan as `discover_zaber_devices` and backs the MCP tool `get_zaber_devices_tool()`
+(`cross_system/zaber_bindings.py`).
 
 ---
 
@@ -369,26 +407,26 @@ def get_zaber_device_settings(port: str, device_index: int) -> ZaberDeviceSettin
 
 **Parameters:**
 
-| Parameter      | Type  | Description                                           |
-|----------------|-------|-------------------------------------------------------|
-| `port`         | `str` | Serial port path (e.g., `/dev/ttyUSB0`)               |
-| `device_index` | `int` | Zero-based index in daisy-chain (0 = closest to USB)  |
+| Parameter      | Type  | Description                                          |
+|----------------|-------|------------------------------------------------------|
+| `port`         | `str` | Serial port path (e.g., `/dev/ttyUSB0`)              |
+| `device_index` | `int` | Zero-based index in daisy-chain (0 = closest to USB) |
 
 **Returns:** `ZaberDeviceSettings` dataclass containing:
 
-| Attribute              | Type    | Source         |
-|------------------------|---------|----------------|
-| `device_label`         | `str`   | device.label   |
-| `axis_label`           | `str`   | axis.label     |
-| `checksum`             | `int`   | USER_DATA_0    |
-| `shutdown_flag`        | `int`   | USER_DATA_1    |
-| `unsafe_flag`          | `int`   | USER_DATA_10   |
-| `park_position`        | `int`   | USER_DATA_11   |
-| `maintenance_position` | `int`   | USER_DATA_12   |
-| `mount_position`       | `int`   | USER_DATA_13   |
-| `limit_min`            | `float` | LIMIT_MIN      |
-| `limit_max`            | `float` | LIMIT_MAX      |
-| `current_position`     | `float` | POS            |
+| Attribute              | Type    | Source       |
+|------------------------|---------|--------------|
+| `device_label`         | `str`   | device.label |
+| `axis_label`           | `str`   | axis.label   |
+| `checksum`             | `int`   | USER_DATA_0  |
+| `shutdown_flag`        | `int`   | USER_DATA_1  |
+| `unsafe_flag`          | `int`   | USER_DATA_10 |
+| `park_position`        | `int`   | USER_DATA_11 |
+| `maintenance_position` | `int`   | USER_DATA_12 |
+| `mount_position`       | `int`   | USER_DATA_13 |
+| `limit_min`            | `float` | LIMIT_MIN    |
+| `limit_max`            | `float` | LIMIT_MAX    |
+| `current_position`     | `float` | POS          |
 
 **Raises:**
 
@@ -429,7 +467,8 @@ def set_zaber_device_setting(
 | `device_label`         | `str` | Auto-updates checksum                 |
 | `axis_label`           | `str` | Optional, no validation               |
 
-**Returns:** Success message containing old and new values.
+**Returns:** A success message of the form `"<setting>: <old> -> <new>"`. A `device_label` write appends the new
+checksum to that message (the label branches of `set_zaber_device_setting` in `cross_system/zaber_bindings.py`).
 
 **Raises:**
 
@@ -438,14 +477,11 @@ def set_zaber_device_setting(
 - `TypeError`: If the value type does not match the setting (a non-string label, or a noninteger position or flag).
 - `ValueError`: If the setting name is invalid or the value is out of range.
 
-**Notes:** Label changes automatically update USER_DATA_0 (checksum) to maintain device validation. The `checksum`
-setting cannot be modified directly as it is managed by the binding library.
-
-**Important - shutdown_flag vs unsafe_flag:**
-- `shutdown_flag`: Set to 1 for proper shutdown recovery. Use this when a motor wasn't properly shut down and the user
-  has verified the motor is in a safe position for homing.
-- `unsafe_flag`: Reflects physical hardware constraints. Only modify during initial setup if the hardware assembly
-  changes. Do NOT modify this flag to work around improper shutdown issues.
+**Notes:** A `device_label` write also rewrites `USER_DATA_0` with the checksum of the new label. When the checksum
+write fails, the function best-effort restores the previous label and raises `ValueError` naming both outcomes, so the
+label and the checksum are brought back into agreement by re-running the same write. An `axis_label` write never
+touches the checksum. Passing `checksum` raises `ValueError`, because the binding library owns that value
+(`cross_system/zaber_bindings.py`).
 
 **Note on axis_label:**
 - The `axis_label` is optional and typically unused for Zaber motors. A missing axis_label is not a configuration issue.
@@ -463,20 +499,28 @@ def validate_zaber_device_configuration(port: str, device_index: int) -> ZaberVa
 
 **Parameters:**
 
-| Parameter      | Type  | Description                            |
-|----------------|-------|----------------------------------------|
-| `port`         | `str` | Serial port path                       |
-| `device_index` | `int` | Zero-based index in daisy-chain        |
+| Parameter      | Type  | Description                     |
+|----------------|-------|---------------------------------|
+| `port`         | `str` | Serial port path                |
+| `device_index` | `int` | Zero-based index in daisy-chain |
 
 **Returns:** `ZaberValidationResult` dataclass containing:
 
-| Attribute         | Type              | Description                                              |
-|-------------------|-------------------|----------------------------------------------------------|
-| `is_valid`        | `bool`            | Overall validation result                                |
-| `checksum_valid`  | `bool`            | Whether stored checksum matches calculated               |
-| `positions_valid` | `bool`            | Whether all positions are within motion limits           |
-| `errors`          | `tuple[str, ...]` | Critical issues preventing use with binding library      |
-| `warnings`        | `tuple[str, ...]` | Non-critical issues that may affect device operation     |
+| Attribute         | Type              | Description                                          |
+|-------------------|-------------------|------------------------------------------------------|
+| `is_valid`        | `bool`            | Overall validation result                            |
+| `checksum_valid`  | `bool`            | Whether stored checksum matches calculated           |
+| `positions_valid` | `bool`            | Whether all positions are within motion limits       |
+| `errors`          | `tuple[str, ...]` | Critical issues preventing use with binding library  |
+| `warnings`        | `tuple[str, ...]` | Non-critical issues that may affect device operation |
+
+**Checks, in order** (`validate_zaber_device_configuration` in `cross_system/zaber_bindings.py`):
+
+1. An unset device label is rejected outright and marks the checksum invalid, because the checksum of an empty label
+   equals the factory `USER_DATA_0` value of 0 and would otherwise pass
+2. The stored checksum is compared against the CRC32-XFER checksum of the label
+3. Park, maintenance, and mount are each bounds-checked against `limit_min` and `limit_max`
+4. A device with `shutdown_flag == 0` and `unsafe_flag == 1` adds a warning rather than an error
 
 **Raises:**
 
@@ -491,15 +535,15 @@ def validate_zaber_device_configuration(port: str, device_index: int) -> ZaberVa
 
 | Dependency       | Required | Purpose                                                     |
 |------------------|----------|-------------------------------------------------------------|
-| zaber-motion     | Yes      | Python bindings for Zaber ASCII protocol                    |
+| zaber-motion     | Yes      | Python bindings for the Zaber ASCII protocol                |
 | USB serial port  | Yes      | Physical connection to Zaber controllers                    |
 | Port permissions | Yes      | OS-level serial-port access (e.g. `dialout` group on Linux) |
 
 ### Python requirements
 
-Python package versions are declared and pinned in the `dependencies` array of
-`sollertia-experiment/pyproject.toml`, which is the authoritative source and is enforced at install time. Consult
-that file for the current `zaber-motion`, `crc`, `tabulate2`, `ataraxis-time`, and `ataraxis-base-utilities` pins.
+Python package versions are declared and pinned in the `dependencies` array of `pyproject.toml`, which is the
+authoritative source and is enforced at install time. The Zaber stack imports `zaber-motion`, `crc`, `tabulate`,
+`ataraxis-time`, and `ataraxis-base-utilities`. Consult that file for the current pins.
 
 ---
 
@@ -623,8 +667,6 @@ connection.disconnect()
 
 ## Binding class patterns
 
-When implementing Zaber motor support in a binding class, follow these patterns:
-
 ### Basic structure
 
 ```python
@@ -632,8 +674,8 @@ class SystemZaberMotors:
     """Manages Zaber motor groups for the acquisition system.
 
     Args:
-        zaber_positions: Previous session positions or None for defaults.
         zaber_configuration: Motor configuration from system config.
+        zaber_positions: Previous session positions or None for defaults.
 
     Attributes:
         _connection: ZaberConnection for the motor group.
@@ -642,12 +684,12 @@ class SystemZaberMotors:
 
     def __init__(
         self,
+        zaber_configuration: SystemExternalAssets,
         zaber_positions: SystemZaberPositions | None,
-        zaber_configuration: ExternalAssetsConfig,
     ) -> None:
         # Initialize connection
         self._connection: ZaberConnection = ZaberConnection(
-            port=zaber_configuration.motor_port
+            port=zaber_configuration.primary_motor_port
         )
 
         # Connect and get device/axis
@@ -689,12 +731,12 @@ class SystemZaberMotors:
 
 ### Key patterns
 
-| Pattern                | Purpose                                          |
-|------------------------|--------------------------------------------------|
-| Park/unpark guards     | Prevent accidental movement during idle periods  |
-| Position restoration   | Maintain consistent animal positioning           |
-| Wait until idle        | Coordinate multi-motor movements                 |
-| Destructor disconnect  | Ensure proper shutdown on garbage collection     |
+| Pattern               | Purpose                                         |
+|-----------------------|-------------------------------------------------|
+| Park/unpark guards    | Prevent accidental movement during idle periods |
+| Position restoration  | Maintain consistent animal positioning          |
+| Wait until idle       | Coordinate multi-motor movements                |
+| Destructor disconnect | Ensure proper shutdown on garbage collection    |
 
 ---
 
@@ -702,13 +744,13 @@ class SystemZaberMotors:
 
 Motor configuration must be defined in the consuming acquisition system's configuration module before
 implementation. Each acquisition system defines its own configuration class exposing the per-motor-group serial
-ports; consult that system's own skill for the concrete class.
+ports. Consult that system's own skill for the concrete class.
 
 ### Required configuration fields
 
-| Field          | Type  | Description                                  |
-|----------------|-------|----------------------------------------------|
-| `*_port`       | `str` | Serial port path (e.g., `/dev/ttyUSB0`)      |
+| Field    | Type  | Description                             |
+|----------|-------|-----------------------------------------|
+| `*_port` | `str` | Serial port path (e.g., `/dev/ttyUSB0`) |
 
 ### Configuration dataclass pattern
 

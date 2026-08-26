@@ -48,7 +48,7 @@ registries in `sollertia_forgery.registries`. The batch orchestration that invok
   `forging:microcontroller-primitives`)
 - The hardware-state YAML schema and authoring (see `assets:session-hardware-state` and
   `mesoscope:mesoscope-vr-session-schema`)
-- Upstream axci production of the raw module feathers (see `ataraxis@communication:log-processing`)
+- Upstream axci production of the raw module feathers (see `forging:behavior-input-format`)
 - The `BehaviorDataFiles` filename roster and the producer-to-directory mapping for processed outputs (see
   `mesoscope:mesoscope-vr-processing-schema`)
 - Assembly of these per-module outputs into the session `data.feather` (see
@@ -247,14 +247,14 @@ module:
 
 ## Related skills
 
-| Skill                                  | Relationship                                                                       |
-|----------------------------------------|------------------------------------------------------------------------------------|
-| `forging:microcontroller-primitives`   | Owns the agnostic discover / partition / extract / merge primitives this skill uses |
-| `forging:data-processing-design`       | The platform-general processing doctrine this per-system parser instantiates        |
-| `forging:behavior-results`             | Output-discovery / verification reference; defers conversion detail here             |
-| `mesoscope:mesoscope-vr-session-schema`| Owns the `MesoscopeHardwareState` calibration-field schema and authoring             |
-| `mesoscope:mesoscope-vr-processing-schema` | Owns the `BehaviorDataFiles` roster and the producer-to-directory mapping       |
-| `ataraxis@communication:log-processing`| Produces the raw axci module feathers consumed as parser input                      |
+| Skill                                      | Relationship                                                                        |
+|--------------------------------------------|-------------------------------------------------------------------------------------|
+| `forging:microcontroller-primitives`       | Owns the agnostic discover / partition / extract / merge primitives this skill uses |
+| `forging:data-processing-design`           | The platform-general processing doctrine this per-system parser instantiates        |
+| `forging:behavior-results`                 | Output-discovery / verification reference; defers conversion detail here            |
+| `mesoscope:mesoscope-vr-session-schema`    | Owns the `MesoscopeHardwareState` calibration-field schema and authoring            |
+| `mesoscope:mesoscope-vr-processing-schema` | Owns the `BehaviorDataFiles` roster and the producer-to-directory mapping           |
+| `forging:behavior-input-format`            | Owns the raw module-feather inputs this parser consumes                             |
 
 ---
 
@@ -270,5 +270,5 @@ module:
 - [ ] Public entry points take (event_partition, output_directory, session) and resolve the hardware state themselves
 - [ ] Did not re-document the agnostic primitive API (deferred to forging:microcontroller-primitives)
 - [ ] Did not re-document hardware-state schema or BehaviorDataFiles roster (deferred to the schema skills)
-- [ ] Cross-references use plugin:skill syntax with ataraxis@ prefix for marketplace plugins
+- [ ] Cross-references use exact plugin:skill syntax with no ataraxis@ prefix
 ```

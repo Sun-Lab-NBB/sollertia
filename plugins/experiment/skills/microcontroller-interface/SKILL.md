@@ -12,8 +12,9 @@ user-invocable: false
 Documents the Sollertia platform's paired microcontroller interface stack at the pre-binding-class level:
 
 - **slmc** (`sollertia-micro-controllers`, C++ firmware) holds the `Module` subclasses that run on Arduino-compatible
-  microcontroller boards. The current deployment uses Teensy 4.1 boards, and the firmware library is board-agnostic, so
-  this skill's conventions apply to any board slmc targets.
+  microcontroller boards. Teensy 4.1 is the only board family the current `platformio.ini` targets
+  (the `[teensy41_base]` template and its three `[env:teensy41_*]` environments in `slmc/platformio.ini`), and the
+  conventions in this skill carry to any board family slmc adds.
 - **sle** (`sollertia-experiment`, Python) holds the `ModuleInterface` subclasses in
   `src/sollertia_experiment/cross_system/module_interfaces.py` that wrap the firmware modules. The pairing is
   directional, **not one-to-one**: each wrapper binds to exactly one firmware module type, but a single type can be
@@ -39,7 +40,7 @@ lives in `/acquisition-system-design`.
 - Principles for allocating modules across controller boards
 - Workflows for adding paired modules and adding new controller boards
 
-**Does not cover** (delegated):
+**Does not cover:**
 - Base `Module` / `ModuleInterface` API, `PACKED_STRUCT` mechanics, `SendData` patterns, event-code ranges,
   `MicroControllerInterface` lifecycle, MQTTCommunication, DataLogger topology, keepalive mechanics. See
   `microcontroller:firmware-module` (ataraxis marketplace) and `communication:microcontroller-interface`.
@@ -64,6 +65,9 @@ layer builds on:
 | Python `ModuleInterface` API, abstract methods  | `communication:microcontroller-interface` |
 | Wire protocol, event-code ranges, message types | Either ataraxis skill (mirrored sections) |
 | Microcontroller discovery and verification      | `communication:microcontroller-setup`     |
+| `platformio.ini` and `library.json` conventions | `automation:platformio-config`            |
+| C++ formatting, naming, Doxygen blocks          | `automation:cpp-style`                    |
+| Python formatting, typing, docstrings           | `automation:python-style`                 |
 
 The Sollertia layer **inherits all base mechanics and only documents deviations and expansions**. When a section below
 cites a base behavior, treat the ataraxis skill as the source of truth.
@@ -82,8 +86,9 @@ snapshot of the currently-deployed pair set and MUST be updated whenever a modul
 
 These rules are durable and govern how new codes are assigned. Consult the catalog file for the currently-used values.
 
-- Module type codes are `uint8_t`. Value 0 is reserved by the runtime as the "no active command" sentinel and SHOULD NOT
-  be used as a type code either.
+- Module type codes are `uint8_t` in the range 1-255. The base `ModuleInterface` constructor raises `TypeError` for any
+  value outside that range, so 0 is unusable as a type code. Separately, command code 0 is reserved by the firmware
+  runtime as the "no active command" sentinel, so command enums start at 1.
 - The `(module_type, module_id)` pair MUST be unique on a single controller board. Two firmware instances of the same
   `Module` subclass on the same board take different `module_id` values.
 - When allocating a new type code, pick the next unused value from the catalog rather than recycling a freed one.
@@ -116,6 +121,21 @@ accessors. They apply to every `ModuleInterface` subclass in
 
 ---
 
+## Shared logging contract
+
+The `MicroControllerInterface` communication process auto-logs every message sent to or received from the
+microcontroller through its `SerialCommunication` instance, so no wrapper in `cross_system/module_interfaces.py`
+writes its own log entries. `data_codes` select which received events
+additionally reach `process_received_data()`, and `error_codes` map the event codes that raise `RuntimeError` and abort
+the runtime. Both sets draw their values from the same firmware `kCustomStatusCodes` enum, and every code must lie in
+the custom event-code range. See `communication:microcontroller-interface` for the base mechanics.
+
+The `SharedMemoryArray` buffers that five wrappers maintain are live IPC state read by other runtime processes. They
+are not a logging channel, so a value that must survive the session reaches disk through the auto-logged message rather
+than through the array.
+
+---
+
 ## Cross-side contract
 
 Both sides MUST agree on the following, exactly:
@@ -137,6 +157,31 @@ message or raises a spurious RuntimeError on the PC side.
 When modifying either side, modify the other in the same commit (or in tightly coupled commits on a feature branch).
 Cross-repository drift is the most common source of "the firmware compiles and the PC runs but data is garbage" bugs in
 this stack.
+
+---
+
+## Cross-repo constants that move together
+
+Each row names a value that is declared twice, once in firmware and once on the host. A one-sided change usually
+produces a runtime that connects and then misreads every message. The serial baud rate is the exception, because
+Teensy boards ignore the declared `kSerialBaudRate` value (`slmc/src/main.cpp`). Citations under `slmc/` are firmware,
+and the rest are relative to `src/sollertia_experiment/`.
+
+| Constant                              | Firmware declaration                                                             | Host mirror                                                                                                 |
+|---------------------------------------|----------------------------------------------------------------------------------|-------------------------------------------------------------------------------------------------------------|
+| Keepalive interval, 500 ms            | `kKeepaliveInterval` (`slmc/src/main.cpp`)                                       | The active system's configuration passes it to every `MicroControllerInterface`                             |
+| Serial baud rate, 115200              | `kSerialBaudRate` (`slmc/src/main.cpp`), `monitor_speed` (`slmc/platformio.ini`) | `_MICROCONTROLLER_BAUDRATE: int = 115200` (`interfaces/get.py`)                                             |
+| Controller ids 101, 152, 203          | the per-target `kControllerID` constants (`slmc/src/main.cpp`)                   | The active system's binding class passes each id to one `MicroControllerInterface`                          |
+| `(module_type, module_id)` pairs      | the first two arguments of each module instantiation (`slmc/src/main.cpp`)       | the `module_type` and `module_id` arguments in each wrapper's `super().__init__()` (`module_interfaces.py`) |
+| `kCustomStatusCodes` values           | each `slmc/src/<name>_module.h`                                                  | the `data_codes` and `error_codes` sets in each wrapper's `__init__` (`module_interfaces.py`)               |
+| `kModuleCommands` values              | each `slmc/src/<name>_module.h`                                                  | the cached `np.uint8` command attributes in each wrapper's `__init__` (`module_interfaces.py`)              |
+| `CustomRuntimeParameters` field order | each `slmc/src/<name>_module.h`                                                  | the tuple each wrapper's `set_parameters()` hands to `send_parameters()`                                    |
+| Valve calibration count, 200          | `kDefaultCalibrationCount` (`slmc/src/valve_module.h`)                           | `self._calibration_count = np.uint16(200)` (`WaterValveInterface.__init__` in `module_interfaces.py`)       |
+
+The keepalive interval also bounds the host-side valve safety cap. `_MAXIMUM_VALVE_PULSE_DURATION_MS = 400` is set
+below the 500 ms interval so a pulse cannot outlast the handshake (`module_interfaces.py`). The controller ids
+and the interval reach the firmware through the acquisition system's own configuration, so the two rows naming the
+active system route through that system's skill. `mesoscope:mesoscope-vr` holds the current worked example.
 
 ---
 
@@ -175,12 +220,15 @@ every consumer of that module, while adding a Python wrapper is a Python-only ch
      new target instead when [Controller board allocation](#controller-board-allocation-principles) calls for one.
 
 3. **Write the Python wrapper**:
-   - New class in `sle/src/sollertia_experiment/cross_system/module_interfaces.py` following the sle conventions above
-     and the base `communication:microcontroller-interface` mechanics.
+   - New class in `cross_system/module_interfaces.py` following the sle conventions above and the base
+     `communication:microcontroller-interface` mechanics.
    - Hardcode `module_type`, `module_id`, `name`, `data_codes`, `error_codes` in `super().__init__()`.
    - Expose calibration and policy values as regular constructor parameters that call sites pass by keyword. Reserve
      true keyword-only syntax (a `*` separator) for the binary state setters.
    - Implement `set_parameters` / `set_state` / domain-specific methods per the sle public-method patterns.
+   - Add the class to the `from .module_interfaces import (...)` block and to `__all__` in
+     `cross_system/__init__.py`, because every binding class imports its wrappers from the package rather than the
+     submodule, through the `from ..cross_system import (...)` block of `mesoscope_vr/binding_classes.py`.
 
 4. **Verify the contract**: Walk the [Cross-side contract](#cross-side-contract) table item by item. Compile the
    firmware (`pio run`), clear the clang-tidy gate (`pio check`), and instantiate the wrapper in a Python REPL to check
@@ -189,15 +237,16 @@ every consumer of that module, while adding a Python wrapper is a Python-only ch
 5. **Update the catalog**: Add a new block to [`references/module-catalog.md`](references/module-catalog.md) following
    the same template as existing entries.
 
-6. **Bump versions**: Bump `slmc`'s version and `sle`'s `pyproject.toml` version so older deployments refuse to load
-   against the new module surface. slmc is a firmware project with no package manifest, so its release version is the
-   git tag. The only in-repository copy of that version is `PROJECT_NUMBER` in `slmc/Doxyfile`, which stamps the
-   generated API documentation and MUST be updated to match the tag.
+6. **Bump versions**: Bump `sle`'s `pyproject.toml` version so older deployments refuse to load against the new module
+   surface. slmc is a firmware project rather than a PlatformIO library, so it ships no `library.json` and
+   `slmc/platformio.ini` carries no version field. slmc declares its version in two places, `PROJECT_NUMBER` at
+   `slmc/Doxyfile` and `release` in `slmc/docs/source/conf.py`. Both stamp the generated API documentation and both
+   MUST be bumped, in lockstep, alongside the sle version.
 
 7. **Hand off to per-system skills**: Binding-class integration (composing this module into a `MicroControllerInterface`
    instance, surfacing calibration knobs into a system-specific dataclass, updating the system configuration YAML
-   schema) is owned by `mesoscope:mesoscope-vr` for the current Mesoscope-VR system. The pattern those steps follow is
-   documented in `/acquisition-system-design`.
+   schema) is owned by the consuming system's own skill, currently `mesoscope:mesoscope-vr`. The platform-general
+   pattern those steps follow is documented in `/acquisition-system-design`.
 
 ### Workflow: adding a wrapper for an existing firmware module
 
@@ -238,165 +287,67 @@ Removing a module is a coordinated change across slmc and sle. Before removing:
 
 Each controller board runs one firmware binary corresponding to one target macro in `main.cpp`. Deciding which board a
 module belongs on, and whether a new board is needed at all, is the most consequential design decision in this stack.
-The decision lives at the slmc level because it is a firmware-layout decision, and per-system binding-class needs inform
-it.
+The decision lives at the slmc level because it is a firmware-layout decision, and per-system binding-class needs
+inform it.
 
-### When to add to an existing controller board
+The consolidation and split criteria, the current slmc deployment and its reuse ordering, and the step-by-step workflow
+for adding a board live in [`references/board-allocation.md`](references/board-allocation.md).
 
-Default to adding new modules to an existing board. Reasons to consolidate:
+---
 
-- **Pin budget headroom**: Each board has a finite pin count (check the target board's spec sheet). Each module consumes
-  1-3 pins. Confirm the target board's free pin count exceeds the new module's pin requirements before adding it.
-- **Bandwidth headroom**: Each board's serial bandwidth depends on its USB or UART configuration. Boards running few
-  high-rate (sub-millisecond polling) sensors generally have bandwidth headroom, and a high-rate sensor on an
-  already-saturated board may need its own board.
-- **Role coherence**: The new module shares the same input/output role as the board's existing modules. Mixing input and
-  output modules on one board is permitted but reduces debuggability, because emergency resets driven by sensor-side
-  keepalive lapses also reset the actuators on the same board.
+## Extension
 
-### When to add a new controller board
-
-Stand up a new board (= new target macro in `main.cpp`) when one of these applies:
-
-1. **Interrupt isolation**: The new module needs exclusive control over hardware interrupts (e.g., the `EncoderModule`'s
-   `ENCODER_USE_INTERRUPTS` flag is incompatible with any other `AttachInterrupt()`-using library on the same board).
-   The slmc Mesoscope-VR ENCODER target exists precisely for this reason.
-
-2. **Reset isolation**: The new module's correct operation must not be interrupted if another module on the same board
-   causes a keepalive-triggered emergency reset. Actuators that must hold state reliably (e.g., a long-running brake
-   engagement) belong on a board separated from high-frequency sensors whose polling could lapse the keepalive.
-
-3. **Latency budget**: Multiple polling-style sensors on one board share the `RuntimeCycle()` iteration budget. If the
-   new module requires sub-100us polling and the existing board already runs several polling sensors, the cumulative
-   cycle time may exceed the budget. Split onto a dedicated board.
-
-4. **Pin or bandwidth exhaustion**: An existing board has run out of physical pins for the new module's requirements, or
-   the board's USB serial bandwidth is saturated by existing high-rate data. (In practice, the boards currently in slmc
-   do not saturate their serial bandwidth from the existing module set, so this constraint only triggers for
-   hypothetical extreme cases.)
-
-5. **Role separation policy**: The acquisition system's architecture deliberately partitions modules by role for
-   debuggability or safety. The Mesoscope-VR ACTOR / SENSOR / ENCODER split is the canonical example. ACTOR holds
-   outputs (valves, brake, screen), SENSOR holds inputs (lick, torque, TTL), and ENCODER is dedicated because of
-   constraint #1.
-
-### Mesoscope-VR as a worked example, not a prescription
-
-The current `main.cpp` defines three targets, ACTOR (id 101), SENSOR (id 152), and ENCODER (id 203), because
-Mesoscope-VR is the only acquisition system slmc currently supports. These specific names, ids, and module assignments
-are **not** a mandatory layout, so a new acquisition system is free to re-partition.
-
-The targets above, and the modules assigned to them, are **reusable assets**. The whole stack is designed for reuse, and
-reuse is heavily preferred over standing up new firmware. When bringing up a new acquisition system, prefer, in order:
-
-1. **Reuse an existing target unchanged** when its module set already covers the new system's needs, so the same
-   firmware binary drives a different rig with no rebuild.
-2. **Reuse existing modules on an existing target**, adding an already-defined module (or a new Python wrapper around
-   one, per [Adding modules](#adding-modules)) to a target that still has pin and bandwidth headroom.
-3. **Add a new target** only when the criteria in [When to add a new controller
-   board](#when-to-add-a-new-controller-board) force a split no existing target can absorb.
-
-A new system might therefore reuse all three targets, reuse one, or add a fourth, driven by the principles above and a
-reuse-first bias rather than by copying or discarding the Mesoscope-VR layout.
-
-### Workflow: adding a new controller board
-
-1. **Pick a target macro name**: short, all-caps, semantically meaningful (e.g., `STIMULUS`, `RECORD`). The macro is
-   conventionally one word, so avoid underscores or punctuation. Document the macro's purpose in a comment on the
-   `#elif defined <NAME>` line in `main.cpp`.
-
-2. **Allocate a controller ID**: `uint8_t`, must be unique across all controller boards a single DataLogger will ingest
-   from. The ataraxis advised range for `MicroControllerInterface` instances is 101-150, and the current slmc deployment
-   uses 101, 152, 203 across the three Mesoscope-VR boards. Pick a value not currently used by any slmc target and that
-   does not collide with the advised ranges of other ataraxis libraries (video systems, etc.). Coordinate with the
-   binding-class layer in sle.
-
-3. **Update `main.cpp`**:
-   - Add the new `#elif defined <NEW_TARGET>` block.
-   - Set `kControllerID` to the chosen value.
-   - Include only the headers for modules instantiated on this board.
-   - Build the per-board `Module* modules[]` array.
-
-4. **Add the PlatformIO environment**: Add an `[env:<board>_<target>]` section to `platformio.ini` that extends the
-   board's `[<board>_base]` template and appends `-D <NEW_TARGET>` to `build_flags`. Without it the target compiles
-   only when the macro is passed by hand, so `pio run` never gates it.
-
-5. **Keep the trailing `#else static_assert(false, ...)` block intact**. It MUST remain the last branch so that
-   compilations without a defined target fail with a clear message.
-
-6. **Update slmc README and CLAUDE.md**: Add the new target to the per-target configuration table and to the
-   build-system environment table. The README and CLAUDE.md are platform-general and SHOULD list every supported
-   target, not only the Mesoscope-VR three.
-
-7. **Hand off to `mesoscope:mesoscope-vr`** (for the current Mesoscope-VR consumer): The host-PC binding class must add
-   a new `MicroControllerInterface` instance for the new board, with the new controller ID and the appropriate
-   `ModuleInterface` instances. This skill does not cover that step.
+`/library-extension` catalogues the three slmc seams, new firmware module, new controller target, and new board family,
+together with the sollertia-experiment mirrors each one obliges. This skill owns the paired-module conventions and the
+catalog of what currently exists, and that skill owns the seam map a new acquisition system walks.
 
 ---
 
 ## Maintenance contract for this skill
 
-This skill is a knowledge repository split across four files:
+This skill is a knowledge repository split across four files, and each one carries its own update trigger.
 
-- **SKILL.md** (this file) holds the durable conventions, contracts, principles, and workflows. Update when a new
-  convention is established or a workflow changes.
-- **[`references/module-catalog.md`](references/module-catalog.md)** holds the state snapshot of the currently-deployed
-  Module + Interface pairs. Update whenever modules are added, removed, or modified, per the rules below.
-- **[`references/slmc-conventions.md`](references/slmc-conventions.md)** holds the slmc firmware conventions every
-  `Module` subclass follows.
-- **[`references/sle-conventions.md`](references/sle-conventions.md)** holds the sle conventions every `ModuleInterface`
-  subclass follows.
+| File                                                               | Holds                                                 | Update when                                                                                |
+|--------------------------------------------------------------------|-------------------------------------------------------|--------------------------------------------------------------------------------------------|
+| SKILL.md                                                           | Durable conventions, contracts, principles, workflows | A new target macro reaches `main.cpp`, or a contract, allocation rule, or workflow changes |
+| [`references/module-catalog.md`](references/module-catalog.md)     | The state snapshot of the deployed pairs              | A module or wrapper is added, removed, or changed in any surface the catalog records       |
+| [`references/slmc-conventions.md`](references/slmc-conventions.md) | The firmware conventions every `Module` follows       | A new slmc convention is established that future modules must follow                       |
+| [`references/sle-conventions.md`](references/sle-conventions.md)   | The wrapper conventions every interface follows       | A new sle convention is established that future wrappers must follow                       |
 
-Update `references/module-catalog.md` whenever:
-
-- A new firmware module is added or removed. Update the type-code registry table and add or remove the corresponding
-  hardware-surface block.
-- An existing module's command codes, event codes, parameter struct, or template parameters change. Update the
-  corresponding catalog block.
-- An existing module's parameter DEFAULT changes, meaning any `kDefault*` constant in `slmc/src/<module>_module.h`.
-  Update the "Boot defaults" row of the corresponding catalog block. This trigger is called out separately because a
-  default can change without the struct layout, the command codes, or the event codes changing, so none of the other
-  triggers fire and the drift is silent. The firmware compiles, the wrapper still matches, and the catalog is quietly
-  wrong until someone reads it.
-- A new `ModuleInterface` wrapper is added or an existing one's constructor signature or public-method surface changes.
-  Update the wrapper section of the corresponding catalog block.
-
-Update SKILL.md whenever:
-
-- A new target macro is added to `main.cpp`. Note it in the [Workflow: adding a new controller
-  board](#workflow-adding-a-new-controller-board) section's discussion of currently-deployed targets.
-- A durable contract, allocation rule, principle, or workflow changes.
-
-Update `references/slmc-conventions.md` or `references/sle-conventions.md` whenever a new slmc or sle convention is
-established that future modules must follow.
-
-Out-of-date catalog entries are worse than missing entries, because an agent acting on stale data will ship a
-firmware/wrapper pair that does not match the actual codebase. When in doubt, re-read the source files
-(`slmc/src/*_module.h`, `sle/.../module_interfaces.py`, `slmc/src/main.cpp`) and reconcile
-`references/module-catalog.md` against ground truth.
+A changed parameter **default**, meaning any `kDefault*` constant in `slmc/src/<name>_module.h`, is the one catalog
+trigger that fires alone. The struct layout, the command codes, and the event codes all stay valid, so the firmware
+compiles and the wrapper still matches while the "Boot defaults" row goes quietly wrong. An agent acting on a stale
+catalog ships a pair that the codebase does not contain, so re-read `slmc/src/*_module.h`, `slmc/src/main.cpp`, and
+`cross_system/module_interfaces.py` and reconcile the catalog whenever the entry is in doubt.
 
 ---
 
 ## Related skills
 
+Every entry prefixed `microcontroller:`, `communication:`, or `automation:` resolves through the ataraxis marketplace.
+
 | Skill                                     | Relationship                                                                                                     |
 |-------------------------------------------|------------------------------------------------------------------------------------------------------------------|
 | `microcontroller:firmware-module`         | Authoritative base for C++ `Module` mechanics. This skill defers all base patterns and only adds the slmc layer. |
 | `communication:microcontroller-interface` | Authoritative base for Python `ModuleInterface` mechanics. This skill defers and adds the sle layer.             |
-| `communication:microcontroller-setup`     | Post-flash discovery / MQTT verification, called after adding a board or module to confirm the hardware.         |
+| `communication:microcontroller-setup`     | Post-flash discovery and MQTT verification, run after adding a board or module to confirm the hardware.          |
 | `automation:cpp-style`                    | Authoritative for slmc Doxygen file headers, formatting, naming.                                                 |
 | `automation:python-style`                 | Authoritative for sle docstrings, type annotations, formatting.                                                  |
-| `/acquisition-system-setup`               | Post-flash hardware enumeration / verification at the acquisition-system level.                                  |
+| `automation:platformio-config`            | Authoritative for `platformio.ini` structure, per-board environments, and pinned `lib_deps`.                     |
+| `/library-extension`                      | Owns the slmc module, target, and board seams, and the sollertia-experiment mirror each one obliges.             |
+| `/acquisition-system-setup`               | Post-flash hardware enumeration and verification at the acquisition-system level.                                |
 | `/acquisition-system-design`              | Platform-general pattern for composing wrappers into binding classes and a system configuration.                 |
-| `mesoscope:mesoscope-vr`                  | Current Mesoscope-VR worked instance, composes the wrappers documented here into `MicroControllerInterfaces`.    |
-| `mesoscope:mesoscope-vr-runtime`          | Mesoscope-VR runtime behavior (state machine, training modes, CLI). Consumes wrapper APIs documented here.       |
+| `mesoscope:mesoscope-vr`                  | Current worked instance, composes the wrappers documented here into its microcontroller binding class.           |
+| `mesoscope:mesoscope-vr-runtime`          | The worked instance's runtime behavior, which consumes the wrapper APIs documented here.                         |
 
 ---
 
 ## Verification checklist
 
 ```text
-When adding or modifying a paired Module + Interface:
+Tool-settled (run `rg -n '.{121,}' <file>` and `wc -l <file>`):
+- [ ] All lines at or under 120 characters (tables and code blocks may exceed for clarity)
+- [ ] SKILL.md under 500 lines
 
 Firmware (slmc):
 - [ ] Type code allocated from the next unused value in the registry, OR reused id chosen for an existing type
@@ -419,7 +370,8 @@ Firmware (slmc):
       for polled pin reads
 - [ ] Module added to the appropriate #ifdef target block in main.cpp and to the Module* modules[] array
 - [ ] Module added to slmc/Doxyfile INPUT list and slmc/docs/source/api.rst
-- [ ] slmc release version bumped (git tag, plus PROJECT_NUMBER in slmc/Doxyfile)
+- [ ] PROJECT_NUMBER in slmc/Doxyfile and release in slmc/docs/source/conf.py bumped to the same value, the two
+      in-repository version declarations slmc carries
 
 Wrapper (sle):
 - [ ] Class in cross_system/module_interfaces.py named <FirmwareModuleName-without-Module>Interface
@@ -428,11 +380,12 @@ Wrapper (sle):
 - [ ] module_type / module_id / name / data_codes / error_codes hardcoded in super().__init__()
 - [ ] Calibration math (unit conversion, curve_fit, derived factors) computed in __init__ and cached at full
       np.float64 precision
-- [ ] SharedMemoryArray (if used) created with exists_ok=True and named f"{module_type}_{module_id}_<purpose>"
-- [ ] initialize_local_assets() implemented for shared-memory parent-process setup
+- [ ] SharedMemoryArray (if used) created with exists_ok=True and named
+      f"{int(self._module_type)}_{int(self._module_id)}_<purpose>"
+- [ ] initialize_local_assets() implemented for shared-memory parent-process setup, and the system's binding class
+      calls it after the owning MicroControllerInterface has started
 - [ ] initialize_remote_assets() connects shared memory and initializes non-picklable assets (e.g., PrecisionTimer)
-- [ ] terminate_remote_assets() disconnects shared memory
-- [ ] __del__ disconnects and destroys shared memory
+- [ ] terminate_remote_assets() disconnects shared memory and drops non-picklable assets
 - [ ] Command codes cached as np.uint8 instance attributes in __init__
 - [ ] Module-level numpy constants (_ZERO_UINT64, _FALSE, etc.) reused on hot paths
 - [ ] Typed set_parameters() with named keyword args matching firmware field names and types

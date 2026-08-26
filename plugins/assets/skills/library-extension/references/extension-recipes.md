@@ -199,11 +199,12 @@ one, enumerating both explicitly rather than lengthening a "currently only X" ch
 - `sollertia-experiment` owns the system-level hardware and software configuration classes and the acquisition runtime.
   Hand off to `experiment:acquisition-system-design` for the configuration and binding-class design, and to
   `experiment:acquisition-system-runtime` for the runtime behavior.
-- Step 9 of `experiment:acquisition-system-design`'s "Building a new acquisition system from scratch" workflow adds the
-  per-system `interfaces/<system>_tools.py` MCP tool module, without which the system is CLI-driveable but exposes no
-  system-specific MCP surface. Steps 10 and 11 of the same workflow author the system's dedicated agentic assets, a
-  per-system instance skill and, when the system has non-trivial runtime modes, a per-system runtime skill. Both live in
-  the system's dedicated companion plugin rather than in the experiment plugin, and both are required deliverables. The
+- The "Author the system's MCP tool module" step of `experiment:acquisition-system-design`'s "Building a new acquisition
+  system from scratch" workflow adds the per-system `interfaces/<system>_tools.py` module, without which the system is
+  CLI-driveable but exposes no system-specific MCP surface. The "Author the system's dedicated companion plugin" step
+  authors the system's agentic assets, a per-system instance skill and, when the system has non-trivial runtime modes, a
+  per-system runtime skill. Both live in the system's companion plugin rather than in the experiment plugin, and both
+  are required deliverables. The
   assets plugin's generic skills carry pointers that assume the per-system schema skills exist, so a system that stops
   at the code is driveable yet undocumented for every agent that would drive it.
 - `sollertia-forgery` dispatches every per-system behavior through ten registries in

@@ -8,9 +8,9 @@ workflows that govern this layer.
 
 ## Header conventions
 
-- **Include guards**: `SLMC_<MODULE_NAME>_MODULE_H` (e.g., `SLMC_ENCODER_MODULE_H`). The base skill permits
-  `#pragma once`, and slmc uses traditional guards with the `SLMC_` prefix so a module header cannot collide with a
-  same-named header in the upstream ataraxis-micro-controller library.
+- **Include guards**: `SLMC_<MODULE_NAME>_MODULE_H` (e.g., `SLMC_ENCODER_MODULE_H`). This is the
+  `LIBRARY_PREFIX_FILE_NAME_H` form `automation:cpp-style` mandates, instantiated with slmc's `SLMC_` prefix so a
+  module header cannot collide with a same-named header in the upstream ataraxis-micro-controller library.
 - **File-header Doxygen**: Every header starts with `/** @file @brief ... */` and uses `@warning`, `@note`, `@tparam`,
   `@param` tags. `automation:cpp-style` is the authoritative reference for the format, and this skill notes only that
   file headers are mandatory.
@@ -108,7 +108,7 @@ Two peripherals wired to one pin is a configuration error the compiler can catch
 
 ## `constexpr` polarity logic
 
-For modules with `kNormallyOpen` / `kNormallyClosed` / `kNormallyEngaged` polarity flags, derive the "active" and
+For modules with `kNormallyClosed` / `kNormallyEngaged` / `kNormallyOff` polarity flags, derive the "active" and
 "inactive" signal levels as `static constexpr bool` members instead of branching at runtime:
 
 ```cpp
@@ -117,9 +117,10 @@ static constexpr bool kDisengage = kNormallyEngaged ? HIGH : LOW;
 ```
 
 Then use `kEngage` / `kDisengage` directly in `digitalWriteFast()` calls. This pattern appears in `BrakeModule`,
-`ValveModule`, and `ScreenModule`. `BrakeModule` is the one module that routes every digital write through a private
-`WriteDigital()` helper instead of calling `digitalWriteFast()` inline. It also drives the pin with `analogWrite()`, so
-it has to reclaim the pin from the PWM peripheral before the write lands.
+`ValveModule`, and `ScreenModule`. `BrakeModule` is the one module that routes every command-path digital write
+through a private `WriteDigital()` helper instead of calling `digitalWriteFast()` inline. `SetupModule()` is the
+exception: it writes inline because the `pinMode()` call directly above it already reclaimed the pin. The module also
+drives the pin with `analogWrite()`, so it has to reclaim the pin from the PWM peripheral before the write lands.
 
 ---
 
@@ -163,8 +164,8 @@ the `pinMode()` call it just made. The test is simple: any member written outsid
 ## Stage-based commands and blocking exceptions
 
 Multistep commands (any command that involves a timed delay) MUST use the stage-based pattern: `get_command_stage()` →
-`AdvanceCommandStage()` → `WaitForMicros()` → `CompleteCommand()`. The base skill documents the mechanics, and slmc uses
-this pattern for every output-pulse command (`BrakeModule::SendPulse`, `ValveModule::Pulse`, `ValveModule::Tone`,
+`AdvanceCommandStage()` → `WaitForMicros()` → `CompleteCommand()`. The base skill documents the mechanics, and slmc
+uses this pattern for every output-pulse command (`BrakeModule::SendPulse`, `ValveModule::Pulse`, `ValveModule::Tone`,
 `ScreenModule::Toggle`, `TTLModule::SendPulse`).
 
 **Blocking exceptions**: `ValveModule::Calibrate` and `EncoderModule::GetPPR` block the runtime in-place via
@@ -179,8 +180,7 @@ calibration, follow the same `@warning` convention.
 - **Pin writes** use the Teensy core's `digitalWriteFast()`, an always-inline register-level write. Its pin argument is
   a compile-time constant in every slmc module, because pins are template parameters. `BrakeModule` reaches it through
   `WriteDigital()` for the reason given under [`constexpr` polarity logic](#constexpr-polarity-logic).
-- **Pin modes** use the Teensy core's `pinMode()`. A `pinModeFast` alias is also in scope and expands to `pinMode` on
-  Teensy, so `pinMode()` is the name that matches what runs.
+- **Pin modes** use the Teensy core's `pinMode()`, called from `SetupModule()` in all seven headers.
 - **Pin reads** in polling modules go through the base `Module` helpers `AnalogRead<kPin>(pool_size)` and
   `DigitalRead<kPin>(pool_size)`, which take the pin as a template argument and apply the instance's `average_pool_size`
   in one call. `LickModule`, `TorqueModule`, and `TTLModule` all read this way. `EncoderModule::GetPPR` reads the index
@@ -198,54 +198,90 @@ blocks:
 
 ```cpp
 #ifdef ACTOR   // The building PlatformIO environment defines exactly one target macro.
+#include "brake_module.h"
+// ... the remaining ACTOR headers ...
+
     static constexpr uint8_t kControllerID = 101;
     BrakeModule<33, false, true> wheel_brake(3, 1, axmc_communication);
-    // ... ACTOR-specific instances ...
-    Module* modules[] = { &wheel_brake, /* ... */ };
+    // ... the remaining ACTOR instances ...
+    Module* modules[] = {&wheel_brake, /* ... */};
 
 #elif defined SENSOR
     static constexpr uint8_t kControllerID = 152;
-    // ... SENSOR-specific instances ...
+    // ... the SENSOR includes, instances, and modules[] array ...
 
 #elif defined ENCODER
     static constexpr uint8_t kControllerID = 203;
-    // ... ENCODER-specific instances ...
+    // ... the ENCODER includes, instances, and modules[] array ...
 
 #else
-    static_assert(false, "Define one of the supported microcontroller targets.");
+static_assert(
+    false,
+    "Unable to resolve the target microcontroller. Build with a PlatformIO environment that defines one of the "
+    "supported target macros (ACTOR, SENSOR, ENCODER)."
+);
 #endif
 ```
+
+The module `#include` directives sit inside the selected branch, so a target compiles only the headers it instantiates
+(`slmc/src/main.cpp`). `Kernel axmc_kernel(kControllerID, axmc_communication, modules, kKeepaliveInterval);` follows
+the block and is target-agnostic, consuming whichever `kControllerID` and `modules[]` the selected branch defined.
 
 A PlatformIO environment in `platformio.ini` supplies the target macro through its `build_flags`. The environments are
 named `<board>_<target>` and extend a shared, non-buildable `[<board>_base]` template that holds every field common to
 them, so `pio run` without `-e` compiles every target and fails on a break in a target other than the one being
 flashed. Adding a target therefore means adding both an `#elif defined` block and its matching environment.
 
-This is the slmc-general pattern for supporting multiple controller boards from one firmware codebase. The specific
-targets `ACTOR`, `SENSOR`, and `ENCODER` are the Mesoscope-VR instance of this pattern. When adding a different
-acquisition system, define new target macros (e.g., `STIMULUS`, `RECORD`) following the same structure. See [Controller
-board allocation principles](../SKILL.md#controller-board-allocation-principles) for when to add a new target vs.
-extending an existing one.
+This is the slmc-general pattern for supporting multiple controller boards from one firmware codebase. The current slmc
+deployment defines exactly three target macros, `ACTOR`, `SENSOR`, and `ENCODER` (`slmc/src/main.cpp`). A new
+acquisition system defines new target macros, such as `STIMULUS` or `RECORD`, following the same structure. See
+[Controller board allocation principles](../SKILL.md#controller-board-allocation-principles) for when to add a new
+target rather than extending an existing one.
 
-The fallback `static_assert(false, ...)` block under `#else` MUST remain, so that compiling without selecting a target
-fails loudly.
+The fallback `static_assert(false, ...)` block under `#else` MUST remain the last branch, and its message MUST list
+every supported target macro, so a build that selects none fails with the list it could have chosen from
+(`slmc/src/main.cpp`).
 
 Three named constants at the top of `main.cpp` are set globally for all targets and apply to every module regardless of
-board. They are `kKeepaliveInterval = 500` (milliseconds), `kSerialBaudRate = 115200` (ignored by Teensy boards), and
-`kAnalogReadResolution = 12` (the 0-4095 readout range the analog modules assume).
+board. They are `kKeepaliveInterval = 500` milliseconds, `kSerialBaudRate = 115200`, which Teensy boards ignore, and
+`kAnalogReadResolution = 12`, the 0-4095 readout range the analog modules assume.
 
-The target-selection block is wrapped in a `NOLINTBEGIN(*-magic-numbers)` / `NOLINTEND` band. Its literals are hardware
-assignments, covering pin numbers, module type codes, per-controller instance ids, and the torque sensor's ADC baseline.
-A named constant would restate the number without adding meaning. Keep new target blocks inside the band rather than
-suppressing the check per line.
+The target-selection block is wrapped in a `NOLINTBEGIN(*-magic-numbers)` / `NOLINTEND` band. Its literals are
+hardware assignments, covering pin numbers, module type codes, per-controller instance ids, and the torque
+sensor's ADC baseline. A named constant would restate the number without adding meaning. Keep new target blocks inside
+the band rather than suppressing the check per line.
+
+---
+
+## The `platformio.ini` build matrix
+
+`[teensy41_base]` in `slmc/platformio.ini` is the template every environment extends. The name omits the `env:` prefix,
+which is what keeps PlatformIO from building the template itself.
+
+| Key             | Value      | Key               | Value        |
+|-----------------|------------|-------------------|--------------|
+| `platform`      | `teensy`   | `test_framework`  | `unity`      |
+| `board`         | `teensy41` | `upload_protocol` | `teensy-cli` |
+| `framework`     | `arduino`  | `build_flags`     | `-std=c++17` |
+| `monitor_speed` | `115200`   | `check_tool`      | `clangtidy`  |
+
+Three environments extend it, `[env:teensy41_actor]`, `[env:teensy41_sensor]`, and `[env:teensy41_encoder]`, each
+appending one `-D <MACRO>` to the inherited `build_flags`. Every environment therefore inherits board `teensy41` and
+monitor speed 115200, so Teensy 4.1 is the only board family slmc targets today. A second board family
+means a second non-`env:` template plus one environment per target macro.
+
+`lib_deps` holds three caret-pinned entries: `inkaros/ataraxis-transport-layer-mc@^4.0.1`,
+`inkaros/ataraxis-micro-controller@^4.0.2`, and `paulstoffregen/Encoder@^1.4.4`. A new third-party library is added
+here with the same caret pin. `slmc` ships no `library.json`, because it is a firmware project rather than a PlatformIO
+library, so `automation:platformio-config`'s `lib_deps` mirroring rule has nothing to mirror into.
 
 ---
 
 ## Clang-tidy gate
 
 `platformio.ini` enables clang-tidy as a PlatformIO check tool, so `pio check` is a gate on firmware changes alongside
-`pio run`. The curated check list lives in `.clang-tidy`, and `check_flags` narrows and corrects the invocation in four
-ways that all matter:
+`pio run`. The curated check list lives in `.clang-tidy`, and the `check_flags` key in `slmc/platformio.ini` narrows
+and corrects the invocation through six flags:
 
 - `--config-file=.clang-tidy` is mandatory. PlatformIO appends `--checks=*` when it is absent, which discards the
   curated list.
@@ -254,6 +290,9 @@ ways that all matter:
 - `--extra-arg=--target=arm-none-eabi` gives clang the board's pointer and integer widths.
 - `--extra-arg=-ferror-limit=0` keeps clang parsing to the end of the translation unit. Without it clang stops at the
   twentieth error and analyses a truncated syntax tree, which reports findings the source does not contain.
+- `--extra-arg=-Wno-invalid-constexpr` and `--extra-arg=-Wno-unusable-partial-specialization` silence the GCC libstdc++
+  headers that the bundled clang 15 cannot fully parse. A compiler diagnostic bypasses the header filter, so these two
+  have to be turned off at the source of the invocation.
 
 A new module is expected to pass the gate without new suppressions. Where a suppression is unavoidable, use the
 narrowest `NOLINT` form that covers the site and state the reason in the adjacent comment.

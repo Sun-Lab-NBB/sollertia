@@ -1,15 +1,11 @@
 ---
 name: mesoscope-vr-experiment-schema
 description: >-
-  Documents Mesoscope-VR's concrete instance of the per-system experiment-configuration contract:
-  the MesoscopeExperimentConfiguration field schema, its MesoscopeWaterRewardTrial and
-  MesoscopeGasPuffTrial trial classes, the trigger-type-to-trial mapping, the REST/RUN system-state
-  codes, and the from_task_template builder defaults. Use when reading or hand-authoring a
-  Mesoscope-VR experiment configuration YAML, interpreting its trial or state fields, deciding which
-  TriggerType maps to which trial class, or checking a per-trial or per-state default. For the
-  generic create/write/validate/describe tooling and registry dispatch, defer to
-  assets:experiment-configuration; for how the runtime loads and executes the config, see
-  /mesoscope-vr-runtime.
+  Documents Mesoscope-VR's concrete instance of the per-system experiment-configuration contract: the
+  MesoscopeExperimentConfiguration field schema, its MesoscopeWaterRewardTrial and MesoscopeGasPuffTrial trial
+  classes, the trigger-type-to-trial mapping, the REST/RUN system-state codes, and the from_task_template builder
+  defaults. Use when reading or hand-authoring a Mesoscope-VR experiment configuration YAML, interpreting its trial or
+  state fields, deciding which TriggerType maps to which trial class, or checking a per-trial or per-state default.
 user-invocable: false
 ---
 
@@ -183,10 +179,9 @@ this skill documents only which codes an experiment configuration accepts.
 
 ## The `from_task_template` builder
 
-`MesoscopeExperimentConfiguration.from_task_template` is the contract builder
-`create_experiment_from_vr_template_tool` dispatches to for Mesoscope-VR. It maps the template's
-trial structures to runtime trial classes by trigger type, then seeds `state_count` default-valued
-runtime states.
+`MesoscopeExperimentConfiguration.from_task_template` is the contract builder `create_experiment_from_vr_template_tool`
+dispatches to for Mesoscope-VR. It maps the template's trial structures to runtime trial classes by trigger type, then
+seeds `state_count` default-valued runtime states.
 
 ### Signature and defaults
 
@@ -289,8 +284,8 @@ every instance `from_task_template` returns.
 
 ## Verification checklist
 
-You MUST verify any field, default, or enum cited from this skill against the
-`sollertia-shared-assets` source before relying on it.
+You MUST verify any field, default, or enum cited from this skill against the `sollertia-shared-assets` source before
+relying on it.
 
 ```text
 - [ ] Field names, types, and defaults match mesoscope_vr/experiment_configuration.py exactly

@@ -11,21 +11,20 @@ user-invocable: false
 
 # Sollertia Mesoscope-VR position snapshots
 
-Reads and writes the per-session frozen position snapshot YAML files written by the runtime during a
-`sle mesoscope run <session-type>` session. Every session type writes `zaber_positions.yaml`, and the
-`experiment` and `window-checking` session types additionally write `mesoscope_positions.yaml`.
-Uses the `sle mcp` server. This skill is the **exclusive** owner of `write_session_zaber_positions_tool`
-and `write_session_mesoscope_positions_tool` — no other skill in the marketplace may call these.
+Reads and writes the per-session frozen position snapshot YAML files written by the runtime during a `sle mesoscope run
+<session-type>` session. Every session type writes `zaber_positions.yaml`, and the `experiment` and `window-checking`
+session types additionally write `mesoscope_positions.yaml`. Uses the `sle mcp` server. This skill is the **exclusive**
+owner of `write_session_zaber_positions_tool` and `write_session_mesoscope_positions_tool`. No other skill in the
+marketplace may call these.
 
-These position snapshots are specific to the Mesoscope-VR acquisition system: both the snapshot
-schemas and the MCP tools that read and write them are bound to Mesoscope-VR hardware (the Zaber
-motor groups and the mesoscope objective), with no `acquisition_system` schema selector. The
-*live* Zaber motor interface is platform-general and reusable across acquisition systems (see
-`experiment:zaber-interface`); this skill manages the *frozen per-session records*, not the reusable
-interface.
+These position snapshots are specific to the Mesoscope-VR acquisition system. Both the snapshot schemas and the MCP
+tools that read and write them are bound to Mesoscope-VR hardware, which is the Zaber motor groups and the mesoscope
+objective, and neither carries an `acquisition_system` schema selector. The *live* Zaber motor interface is
+platform-general and reusable across acquisition systems, and `experiment:zaber-interface` owns it. This skill manages
+the *frozen per-session records* alone.
 
-The third per-session snapshot, `MesoscopeHardwareState`, is **not** covered by this skill. It lives on the slsa
-MCP server, because the dataclass is shared between the acquisition runtime and the processing pipeline. Hand off to
+The third per-session snapshot, `MesoscopeHardwareState`, is **not** covered by this skill. It lives on the slsa MCP
+server, because the dataclass is shared between the acquisition runtime and the processing pipeline. Hand off to
 `assets:session-hardware-state` for the generic read, write, and describe tooling over `hardware_state.yaml`, and to
 `mesoscope:mesoscope-vr-session-schema` for the field-level Mesoscope-VR schema those tools operate on.
 
@@ -49,35 +48,42 @@ MCP server, because the dataclass is shared between the acquisition runtime and 
   `assets:experiment-configuration` `read_experiment_configuration_tool`)
 - Reading subject metadata (see `assets:data-assets`)
 - Live Zaber motor configuration during runtime (see `experiment:zaber-interface`)
+- The slsa registration contract a new system's `<system>/raw_data.py` satisfies (see `assets:library-extension`)
+- The sollertia-experiment seams a new system's snapshot tools plug into (see `experiment:library-extension`)
+- The runtime that writes these snapshots, and the `sle mesoscope` CLI that starts it (see
+  `mesoscope:mesoscope-vr-runtime`)
 
 ---
 
 ## What is a position snapshot
 
-During a `sle mesoscope run <session-type>` acquisition session, the runtime records the positions of the
-motorized stages and writes them to YAML files inside the session directory. The Zaber positions are
-queried automatically from the motors; the mesoscope objective positions are queried from the ScanImage
-software over MQTT, except for the red-dot alignment Z position (`red_dot_alignment_z`), which the
-ScanImage software cannot report and which the operator enters through a terminal prompt that defaults to
-the previous runtime's value. These **frozen snapshots** are used post-hoc to:
+During a `sle mesoscope run <session-type>` acquisition session, the runtime records the positions of the motorized
+stages and writes them to YAML files inside the session directory. The Zaber positions are queried automatically from
+the motors. The mesoscope objective positions are queried from the ScanImage software over MQTT, except for the red-dot
+alignment Z position (`red_dot_alignment_z`), which the ScanImage software cannot report and which the operator enters
+through a terminal prompt. That prompt defaults to the value held by the animal's persistent snapshot. These **frozen
+snapshots** are used post-hoc to:
 
 - Reproduce the exact stage configuration that was active during the session
 - Diagnose drift between the recorded positions and what the binding class expected
 - Recover lost positions after a manual stage adjustment
 
 The runtime writes the snapshots (not this skill). `generate_zaber_snapshot` returns early when at least one of the
-managed Zaber motor groups is disconnected, and while the `nk.bin` marker is still present, so a session that trips
-either gate ends with no `zaber_positions.yaml` at all rather than a partial one. For the `lick-training`,
-`run-training`, and `experiment` session types, which drive the `MesoscopeVRSystem` controller, the controller writes
-the snapshot once, during `stop()`, after `mark_runtime_initialized()` has cleared `nk.bin`. An aborted initialization
+three managed Zaber motor groups is disconnected, and again while the `nk.bin` marker is still present
+(`mesoscope_vr/acquisition_components.py`). A session that trips either gate ends with no `zaber_positions.yaml` at all
+rather than a partial one. For the `lick-training`, `run-training`, and `experiment` session types, which drive the
+`MesoscopeVRSystem` controller, the controller writes the snapshot once, during `stop()`, after
+`mark_runtime_initialized()` has cleared `nk.bin` (`mesoscope_vr/system_controller.py`). An aborted initialization
 leaves `nk.bin` in place, so the write is skipped and no file is produced. The `window-checking` session type runs its
 own sequence and writes the snapshot after it marks the session initialized and before it finalizes the session
-descriptor. Both write sites run before the motors are returned to their parking position, so the snapshot records the
-pose the session ended in rather than the parked pose. The `experiment` and `window-checking` session types
-seed a precursor mesoscope objective snapshot at session start and record the queried objective positions at the
-end of the session, so `lick-training` and `run-training` session directories carry only `zaber_positions.yaml`.
-This skill exists to **read** them for inspection and to **patch** them when a snapshot file is corrupted or out
-of sync with reality.
+descriptor (`window_checking_logic` in `mesoscope_vr/data_acquisition.py`). Both write sites run before the motors are
+returned to their parking position, so the snapshot records the pose the session ended in rather than the parked pose.
+`generate_mesoscope_position_snapshot` applies the same `nk.bin` gate, queries the driver, prompts for the red-dot Z,
+and writes the session copy alongside the animal's persistent copy (`mesoscope_vr/acquisition_components.py`). The
+`experiment` and `window-checking` session types seed a precursor mesoscope objective snapshot at session start and
+record the queried objective positions at the end of the session, so `lick-training` and `run-training` session
+directories carry only `zaber_positions.yaml`. This skill exists to **read** them for inspection and to **patch** them
+when a snapshot file is corrupted or out of sync with reality.
 
 | Snapshot             | File                       | Captures                                                         |
 |----------------------|----------------------------|------------------------------------------------------------------|
@@ -95,23 +101,36 @@ of sync with reality.
 | `read_session_mesoscope_positions_tool`  | `sle mcp`  | Reads `MesoscopePositions` for a session                        |
 | `write_session_mesoscope_positions_tool` | `sle mcp`  | Writes (patches) `MesoscopePositions` (exclusive to this skill) |
 
-Both write tools take the snapshot payload as the `positions_payload` argument and accept a keyword-only
-`overwrite` flag (default `True`); pass `overwrite=False` to refuse replacing an existing snapshot file.
+Both write tools, `write_session_zaber_positions_tool` and `write_session_mesoscope_positions_tool`
+(`interfaces/mesoscope_vr_tools.py`), take the snapshot payload as the `positions_payload` argument and accept a
+keyword-only `overwrite` flag that defaults to `True`. That default replaces an existing snapshot silently. The system
+configuration writer that `mesoscope:mesoscope-vr` owns, `write_system_configuration_tool`
+(`interfaces/mesoscope_vr_tools.py`), defaults the same flag to `False`, so the safer default does not carry over to
+these two tools. You MUST pass `overwrite=False` on any write you did not intend as a deliberate rewrite of a recorded
+history.
 
-Every tool here takes `session_path`, which accepts either the session root or its `raw_data` subdirectory. Any other
-existing path fails with `Could not locate the raw_data directory under <path>`, and a path that does not exist fails
-with `Session path does not exist: <path>`. Because the resolution is anchored on `raw_data`, these tools cannot reach
-the per-animal `persistent_data` copies of the snapshots that the recovery workflow draws on.
+Every tool here takes `session_path`, which `_resolve_session_root` accepts as either a session root holding a
+`raw_data` subdirectory or the `raw_data` directory itself, returning the parent in the second case
+(`interfaces/mesoscope_vr_tools.py`). Any other existing path fails with `Could not locate the raw_data directory
+under <path>`, and a path that does not exist fails with `Session path does not exist: <path>`. Because the
+resolution is anchored on `raw_data`, these tools cannot reach the per-animal `persistent_data` copies of the snapshots
+that the recovery workflow draws on.
 
 The `sle mcp` server exposes no describe-schema tool for either snapshot, so the field rosters below are the reference.
-Each write tool round-trips `positions_payload` through its dataclass. The `sle mcp` write helper is stricter than the
-`slsa mcp` one, so the permissive write semantics the assets skills document do not transfer here:
+Each write tool round-trips `positions_payload` through `write_yaml_validated`, the four-stage shared write helper of
+the `sle mcp` server (`interfaces/mcp_instance.py`). Stage 1 is the existence gate that `overwrite` releases.
+Stage 2 rejects payload keys the dataclass does not declare, reporting them as dotted names. Stage 3 writes the payload
+to a temporary sibling file, loads it back through the dataclass, and re-runs `__post_init__` when the class defines
+one. Stage 4 rejects a field whose value violates its declared annotation, then persists through `to_yaml`, since
+neither snapshot class defines a `save()` method. The `slsa mcp` server carries its own `write_yaml_validated`
+(`sollertia-shared-assets/src/sollertia_shared_assets/interfaces/mcp_instance.py`), which runs stages 1 and 3 alone, so
+the permissive write semantics the assets skills document do not transfer here:
 
-| Payload defect      | Outcome                                                                                       |
-|---------------------|-----------------------------------------------------------------------------------------------|
-| Omitted key         | Accepted silently, written at the field's dataclass default (`0` or `0.0`)                    |
-| Misspelled key      | Rejected with `Validation failed for <Class>: the payload carries the unknown key(s) <name>.` |
-| Wrongly typed value | Rejected with `Validation failed for <Class>: <field> is <type>, expected <annotation>.`      |
+| Payload defect      | Outcome                                                                                                  |
+|---------------------|----------------------------------------------------------------------------------------------------------|
+| Omitted key         | Accepted silently, written at the field's dataclass default (`0` or `0.0`)                               |
+| Misspelled key      | Rejected at stage 2 with `Validation failed for <Class>: the payload carries the unknown key(s) <name>.` |
+| Wrongly typed value | Rejected at stage 4 with `Validation failed for <Class>: <field> is <type>, expected <annotation>.`      |
 
 Because the omitted-key case is the silent one, you MUST read the current snapshot first and send the complete field
 roster on every write.
@@ -119,11 +138,11 @@ roster on every write.
 On the read side, both read tools detect only file-level corruption: a missing file, malformed YAML, or a document that
 does not load as its dataclass. A snapshot whose keys were dropped or misspelled loads cleanly, with `0` or `0.0`
 standing in for every field the file does not name, so a successful read is not evidence that the file is intact. You
-MUST treat an all-zero or partially zero read as suspect and check it against the animal's `persistent_data` copy
-before using it.
+MUST treat an all-zero or partially zero read as suspect and check it against the animal's `persistent_data` copy before
+using it.
 
-`ZaberPositions` (`zaber_positions.yaml`) holds seven `int` fields, each an absolute position in native motor
-units:
+`ZaberPositions` (`zaber_positions.yaml`) holds seven `int` fields defaulting to `0`, each an absolute position in
+native motor units (`mesoscope_vr/system.py`):
 
 | Field           | Captures                                     |
 |-----------------|----------------------------------------------|
@@ -135,7 +154,8 @@ units:
 | `lickport_x`    | LickPort x-axis motor position               |
 | `wheel_x`       | Running wheel platform x-axis motor position |
 
-`MesoscopePositions` (`mesoscope_positions.yaml`) holds nine `float` fields:
+`MesoscopePositions` (`mesoscope_positions.yaml`) holds nine `float` fields defaulting to `0.0`
+(`mesoscope_vr/system.py`):
 
 | Field                 | Captures                                                                 |
 |-----------------------|--------------------------------------------------------------------------|
@@ -150,31 +170,36 @@ units:
 | `red_dot_alignment_z` | Objective Z-axis position used for the red-dot alignment, in micrometers |
 
 The runtime floors every `MesoscopePositions` field to at most three decimal places before writing, discarding the
-spurious sub-micrometer and sub-millidegree precision the ScanImage software reports. A patched payload should carry at
-most three decimals to stay consistent with the runtime-written records.
+spurious sub-micrometer and sub-millidegree precision the ScanImage software reports. That rounding runs through
+`_floor_to_three_decimals`, which `generate_mesoscope_position_snapshot` applies to every field before it persists the
+snapshot (both in `mesoscope_vr/acquisition_components.py`). A patched payload should carry at most three decimals to
+stay consistent with the runtime-written records.
 
 For the `MesoscopeHardwareState` read/write/describe trio (`read_session_hardware_state_tool`,
 `write_session_hardware_state_tool`, `describe_session_hardware_state_schema_tool`), hand off to
-`assets:session-hardware-state`. For the fields those tools carry, hand off to
-`mesoscope:mesoscope-vr-session-schema`.
+`assets:session-hardware-state`. For the fields those tools carry, hand off to `mesoscope:mesoscope-vr-session-schema`.
 
 ---
 
 ## Mesoscope-VR raw-data layout contract
 
-Descriptors, hardware state, trial types, experiment configuration, and **raw-data layout** form a universal
-per-system contract: every Sollertia acquisition system is expected to define its own concrete instance. The
-generic registry dispatch and the create/write/validate/describe tooling are system-agnostic and live in the
-assets plugin (see `assets:session-data`). This section documents only Mesoscope-VR's **concrete instance** of
-the raw-data layout contract — the system-specific filenames, subdirectories, and path-resolution fields keyed by
-`SYSTEM_RAW_DATA_REGISTRY[AcquisitionSystems.MESOSCOPE_VR] -> MesoscopeRawData`.
+Descriptors, hardware state, trial types, experiment configuration, and **raw-data layout** form a universal per-system
+contract, and every Sollertia acquisition system defines its own concrete instance of each. The generic registry
+dispatch and the create/write/validate/describe tooling are system-agnostic and live in the assets plugin (see
+`assets:session-data`). This section documents only Mesoscope-VR's **concrete instance** of the raw-data layout
+contract, which is the system-specific filenames, subdirectories, and path-resolution fields keyed by
+`SYSTEM_RAW_DATA_REGISTRY[AcquisitionSystems.MESOSCOPE_VR] -> MesoscopeRawData`
+(`sollertia-shared-assets/src/sollertia_shared_assets/registries.py`). That registry is the one dispatch table absent
+from the package root exports, so code imports it from the submodule as `from sollertia_shared_assets.registries import
+SYSTEM_RAW_DATA_REGISTRY`.
 
-Unlike the descriptor / hardware-state / experiment-configuration contracts (which register a `YamlConfig`
-describe/read/write trio), the raw-data contract registers a **path-resolution dataclass**. `MesoscopeRawData` does
-not read or write any file: it only resolves the absolute on-disk locations of the system-specific raw assets under
-a session's `raw_data` directory. The position snapshots that this skill reads and writes are two of those assets.
-The snapshot MCP tools reach those same two files on their own, joining module-local filename constants onto the
-resolved session root, so they duplicate the canonical filenames that this dataclass resolves.
+Unlike the descriptor, hardware-state, and experiment-configuration contracts, which register a `YamlConfig`
+describe/read/write trio, the raw-data contract registers a **path-resolution dataclass**. `MesoscopeRawData` does not
+read or write any file. It resolves the absolute on-disk locations of the system-specific raw assets under a session's
+`raw_data` directory (`sollertia-shared-assets/src/sollertia_shared_assets/mesoscope_vr/raw_data.py`). The snapshots
+that this skill writes are two of those assets. The snapshot MCP tools reach those same two files on their own, joining
+the module-local `_ZABER_POSITIONS_FILENAME` and `_MESOSCOPE_POSITIONS_FILENAME` constants onto the resolved session
+root (`interfaces/mesoscope_vr_tools.py`), so they duplicate the canonical filenames that this dataclass resolves.
 
 `MesoscopeRawDataFiles` enumerates the canonical filenames at the root of `raw_data` written exclusively by the
 Mesoscope-VR acquisition system:
@@ -186,10 +211,10 @@ Mesoscope-VR acquisition system:
 | `WINDOW_SCREENSHOT`   | `window_screenshot.png`    | Cranial imaging window screenshot captured at session start     |
 
 `window_screenshot.png` arrives through `setup_mesoscope`, which blocks the operator until exactly one `.png` file sits
-in the ScanImagePC `mesodata` directory, moves that file to the session's `window_screenshot_path`, and copies it to
-the animal's persistent directory. `setup_mesoscope` runs only for `experiment` and `window-checking` sessions, so
-`lick-training` and `run-training` sessions carry no `window_screenshot.png`. That absence is the expected layout for
-those session types rather than a missing file.
+at the root of the ScanImagePC mesoscope data directory, moves that file to the session's `window_screenshot_path`, and
+copies it to the animal's persistent directory (`mesoscope_vr/acquisition_components.py`). `setup_mesoscope`
+runs only for `experiment` and `window-checking` sessions, so `lick-training` and `run-training` sessions carry no
+`window_screenshot.png`. That absence is the expected layout for those session types rather than a missing file.
 
 `MesoscopeDirectories` enumerates the canonical subdirectory names under `raw_data` written exclusively by the
 Mesoscope-VR acquisition system:
@@ -198,9 +223,8 @@ Mesoscope-VR acquisition system:
 |------------------|------------------|-------------------------------------------------------------------------------|
 | `MESOSCOPE_DATA` | `mesoscope_data` | LERC-compressed TIFF stacks and acquisition metadata written by preprocessing |
 
-`MesoscopeRawData.build(root)` is the single source of truth for the enum-to-field mapping. `SessionData`
-constructs the instance when the session's acquisition system is `MESOSCOPE_VR`, resolving each field as
-`root.joinpath(<enum value>)`:
+`MesoscopeRawData.build(root)` is the single source of truth for the enum-to-field mapping. `SessionData` constructs the
+instance when the session's acquisition system is `MESOSCOPE_VR`, resolving each field as `root.joinpath(<enum value>)`:
 
 | Field                      | Resolves to                         | Source enum member                          |
 |----------------------------|-------------------------------------|---------------------------------------------|
@@ -210,15 +234,32 @@ constructs the instance when the session's acquisition system is `MESOSCOPE_VR`,
 | `mesoscope_data_path`      | `raw_data/mesoscope_data/`          | `MesoscopeDirectories.MESOSCOPE_DATA`       |
 
 `zaber_positions_path` and `mesoscope_positions_path` are the on-disk targets the position-snapshot tools read and
-write (this skill); `window_screenshot_path` and `mesoscope_data_path` are produced by the runtime and
-preprocessing and are not written by this skill. For the generic registry dispatch and the system-agnostic tools
+write, which is this skill's surface. The runtime and preprocessing produce `window_screenshot_path` and
+`mesoscope_data_path`, which this skill never writes. For the generic registry dispatch and the system-agnostic tools
 that operate over the raw-data layout, hand off to `assets:session-data`.
+
+`SessionData` exposes this instance as the `system_raw_data` attribute, built by `_build_sub_dataclasses` during
+`create()` and `load()` alone. An instance built straight through `from_yaml` carries no `system_raw_data`, and touching
+the attribute raises `AttributeError`. The `SessionData` class docstring and `SessionData._build_sub_dataclasses` state
+and enforce that rule, both in `sollertia-shared-assets/src/sollertia_shared_assets/data_hierarchy/session_data.py`.
 
 `MesoscopeRawData` is declared `@dataclass(frozen=True, slots=True)`, so assigning to a resolved path raises
 `FrozenInstanceError`. Rebuild the instance with `MesoscopeRawData.build(root=...)` instead of mutating one.
 
-This section is also the reference an extender copies when authoring a new acquisition system's `<system>/raw_data.py`.
-See `assets:library-extension` for the registration contract that file must satisfy.
+### Platform seams this instance fills
+
+Mesoscope-VR is currently the only registered acquisition system, so this skill doubles as the worked example an
+extender copies when authoring a new system's snapshot surface. Each row names the Mesoscope-VR choice, the
+platform-general seam it fills, and the skill that owns that seam.
+
+| Mesoscope-VR choice                                                   | Platform-general seam                                          | Seam owner                              |
+|-----------------------------------------------------------------------|----------------------------------------------------------------|-----------------------------------------|
+| `MesoscopeRawData` keyed into `SYSTEM_RAW_DATA_REGISTRY`              | The slsa raw-data layout registry a new system claims          | `assets:library-extension`              |
+| `ZaberPositions` and `MesoscopePositions` in `mesoscope_vr/system.py` | A system's own snapshot dataclasses, held outside any registry | `experiment:library-extension`          |
+| The four snapshot tools in `interfaces/mesoscope_vr_tools.py`         | The `<system>_tools.py` module the MCP server globs on import  | `experiment:library-extension`          |
+| The private `_RAW_DATA_DIR` and filename constants                    | Per-system tool-module constants, shared with nothing          | `experiment:library-extension`          |
+| `write_yaml_validated` and `read_yaml` reused unchanged               | The shared validation plumbing every system's tools inherit    | `experiment:library-extension`          |
+| The `nk.bin` gate both snapshot writers apply                         | `mark_runtime_initialized()` and the initialization marker     | `experiment:acquisition-system-runtime` |
 
 ---
 
@@ -245,22 +286,21 @@ See `assets:library-extension` for the registration contract that file must sati
 ### Rescuing a bad auto-generated `ZaberPositions` snapshot
 
 A snapshot that exists is always complete, because all seven `ZaberPositions` fields are built in one constructor call
-from a single query pass. A disconnected motor group or a session still carrying `nk.bin` yields no snapshot file at
-all rather than a truncated one. What a session-time fault does produce is a complete snapshot recording the pose the
-motors reached after the fault, which is a faithful record of the wrong stage configuration. Use this workflow to
-overwrite such a snapshot with the positions the session would have recorded had it completed normally, restoring a
-faithful frozen record of the stage configuration for downstream use. The write tool targets the session's `raw_data`
-copy only. The per-animal `persistent_data` copy that seeds the next runtime is a separate file and is not modified
-here.
+from a single query pass. A disconnected motor group or a session still carrying `nk.bin` yields no snapshot file at all
+rather than a truncated one. What a session-time fault does produce is a complete snapshot recording the pose the motors
+reached after the fault, which is a faithful record of the wrong stage configuration. Use this workflow to overwrite
+such a snapshot with the positions the session would have recorded had it completed normally, restoring a faithful
+frozen record of the stage configuration for downstream use. The write tool targets the session's `raw_data` copy only.
+The per-animal `persistent_data` copy that seeds the next runtime is a separate file and is not modified here.
 
-1. **Verify the user actually wants to modify the frozen snapshot.** Patching a snapshot rewrites
-   history — the original captured state is lost.
+1. **Verify the user actually wants to modify the frozen snapshot.** Patching a snapshot rewrites history, and
+   the original captured state is lost.
 2. **Read the current positions:**
    ```text
    read_session_zaber_positions_tool(session_path="<absolute>")
    ```
-3. **Build the corrected dictionary** with the positions the session should have recorded —
-   typically the same animal's last good snapshot (see [Recovering a corrupted
+3. **Build the corrected dictionary** with the positions the session should have recorded, which is typically
+   the same animal's last good snapshot (see [Recovering a corrupted
    snapshot](#recovering-a-corrupted-snapshot) for sourcing it from an adjacent session or the
    `persistent_data` copy). Carry all seven `ZaberPositions` fields listed under
    [MCP tool surface](#mcp-tool-surface), since an omitted key silently writes its default.
@@ -273,20 +313,19 @@ here.
 
 ### Recovering a corrupted snapshot
 
-If a position snapshot fails to parse, the read tool returns an error. The two position snapshots
-cover disjoint subsystems (Zaber stages vs. the Mesoscope objective) and share no fields, so the
-*other* snapshot in the same session cannot supply the corrupted one's values. Recover from the same
-snapshot **type** elsewhere: the runtime mirrors each snapshot to the animal's `persistent_data`
-directory (overwriting it on every completed session) and re-seeds the next runtime from it, so the
-same animal's positions drift little between sessions.
+If a position snapshot fails to parse, the read tool returns an error. The two position snapshots cover disjoint
+subsystems (Zaber stages vs. the Mesoscope objective) and share no fields, so the *other* snapshot in the same session
+cannot supply the corrupted one's values. Recover from the same snapshot **type** elsewhere. The runtime mirrors each
+snapshot to the animal's `persistent_data` directory, overwriting it on every completed session, and re-seeds the next
+runtime from it, so the same animal's positions drift little between sessions.
 
 1. **Recover the values from the same-type snapshot of the same animal.** Read an adjacent same-animal
-   session's snapshot of the same type with `read_session_zaber_positions_tool` /
-   `read_session_mesoscope_positions_tool` (pass that session's `session_path`), or read the animal's
-   persistent-directory copy directly — `<animal>/persistent_data/zaber_positions.yaml` or
-   `mesoscope_positions.yaml`, the same schema as the session snapshot. The persistent copy reflects
-   the most recent completed session: an exact match when the corrupted snapshot is the latest,
-   otherwise a close approximation. Reject an all-zero persistent `mesoscope_positions.yaml` as a recovery source. A
+   session's snapshot of the same type with `read_session_zaber_positions_tool` or
+   `read_session_mesoscope_positions_tool`, passing that session's `session_path`. The alternative is a plain read of
+   the animal's persistent-directory copy, which is `<animal>/persistent_data/zaber_positions.yaml` or
+   `mesoscope_positions.yaml` and carries the same schema as the session snapshot. The persistent copy reflects
+   the most recent completed session, so it is an exact match when the corrupted snapshot is the latest and a
+   close approximation otherwise. Reject an all-zero persistent `mesoscope_positions.yaml` as a recovery source. A
    window-checking session seeds that file with all-zero defaults at session start for an animal it has never imaged,
    so an animal whose first window-checking session never reached teardown carries defaults rather than a recorded
    pose.
@@ -312,45 +351,57 @@ the animal's persistent directory, which is `AnimalData.persistent_data_path` an
 | `window_screenshot.png`          | Session start, after the screenshot moves into the session's `raw_data` |
 | `<session-type>_descriptor.yaml` | Session end, copied from the session's finalized descriptor             |
 
-The descriptor filename varies with the session type, and `mesoscope:mesoscope-vr-session-schema` carries the four
-exact names. **No MCP tool reaches any of these files.** The snapshot tools resolve their targets under a session's
-`raw_data` directory, and neither server exposes a tool that takes a persistent-directory path. You MUST read a
-persistent copy with a plain filesystem read.
+The descriptor filename varies with the session type, and `mesoscope:mesoscope-vr-session-schema` carries the four exact
+names. **No MCP tool reaches any of these files.** The snapshot tools resolve their targets under a session's `raw_data`
+directory, and neither server exposes a tool that takes a persistent-directory path. You MUST read a persistent copy
+with a plain filesystem read.
 
 ### Coordinated multi-snapshot patching
 
-If you need to patch position snapshots **and** the hardware state snapshot together (e.g., after
-replacing the entire acquisition rig), patch the position snapshots from this skill and hand off to
-`assets:session-hardware-state` for the hardware state write. `assets:session-hardware-state` owns
-`write_session_hardware_state_tool`.
+If you need to patch position snapshots **and** the hardware state snapshot together (e.g., after replacing the entire
+acquisition rig), patch the position snapshots from this skill and hand off to `assets:session-hardware-state` for the
+hardware state write. `assets:session-hardware-state` owns `write_session_hardware_state_tool`.
 
 ---
 
 ## Related skills
 
-| Skill                                         | Relationship                                                     |
-|-----------------------------------------------|------------------------------------------------------------------|
-| `experiment:experiment-mcp-environment-setup` | Run first if `sle mcp` is not connected                          |
-| `assets:session-hardware-state`               | Sibling: owns `MesoscopeHardwareState`, the third snapshot       |
-| `mesoscope:mesoscope-vr-session-schema`       | Owns the field-level descriptor and hardware-state schema        |
-| `assets:session-data`                         | Owns the `SessionData` marker file and the raw-data dispatch     |
-| `assets:session-descriptors`                  | Owns the per-session descriptor files                            |
-| `assets:project-hierarchy`                    | Owns `AnimalData.persistent_data_path`, the snapshot cache       |
-| `mesoscope:mesoscope-vr`                      | Provides `read_session_system_configuration_tool` to cross-check |
-| `assets:experiment-configuration`             | Provides `read_experiment_configuration_tool` to cross-check     |
-| `experiment:zaber-interface`                  | Owns live motor configuration and per-motor calibration          |
+| Skill                                         | Relationship                                                      |
+|-----------------------------------------------|-------------------------------------------------------------------|
+| `experiment:experiment-mcp-environment-setup` | Run first if `sle mcp` is not connected                           |
+| `assets:session-hardware-state`               | Sibling that owns `MesoscopeHardwareState`, the third snapshot    |
+| `mesoscope:mesoscope-vr-session-schema`       | Owns the field-level descriptor and hardware-state schema         |
+| `mesoscope:mesoscope-vr-runtime`              | Owns the runtime that writes these snapshots and the CLI it runs  |
+| `assets:session-data`                         | Owns the `SessionData` marker file and the raw-data dispatch      |
+| `assets:session-descriptors`                  | Owns the per-session descriptor files                             |
+| `assets:project-hierarchy`                    | Owns `AnimalData.persistent_data_path`, the snapshot cache        |
+| `mesoscope:mesoscope-vr`                      | Provides `read_session_system_configuration_tool` to cross-check  |
+| `assets:experiment-configuration`             | Provides `read_experiment_configuration_tool` to cross-check      |
+| `experiment:zaber-interface`                  | Owns live motor configuration and per-motor calibration           |
+| `assets:library-extension`                    | Owns the slsa registration contract the raw-data layout satisfies |
+| `experiment:library-extension`                | Owns the sollertia-experiment seams the snapshot tools plug into  |
+| `experiment:acquisition-system-runtime`       | Owns the initialization marker that gates both snapshot writers   |
 
 ---
 
 ## Verification checklist
 
 ```text
+Tool-settled (run `rg -n '.{121,}' <file>` and `wc -l <file>`):
+- [ ] All lines at or under 120 characters (tables and code blocks may exceed for clarity)
+- [ ] SKILL.md under 500 lines
+
+Prerequisites:
 - [ ] sle mcp (sollertia-experiment) is connected
-- [ ] User confirmed the planned snapshot patch (snapshots are historical records)
+- [ ] User confirmed the planned snapshot patch, since snapshots are historical records
+
+Writes:
 - [ ] Every write payload carried the complete field roster for its snapshot type
+- [ ] Passed overwrite=False on any write not intended as a replacement of an existing snapshot
 - [ ] write_session_*_positions_tool succeeded without errors
 - [ ] read_session_*_positions_tool returned the expected content after every write
-- [ ] Did not call write_session_hardware_state_tool from this skill — handed off to
-      assets:session-hardware-state instead
-- [ ] Did not touch SessionData, descriptors, or subject metadata from this skill
+
+Boundaries:
+- [ ] Handed off to assets:session-hardware-state rather than calling write_session_hardware_state_tool
+- [ ] Left SessionData, descriptors, and subject metadata to their owning skills
 ```

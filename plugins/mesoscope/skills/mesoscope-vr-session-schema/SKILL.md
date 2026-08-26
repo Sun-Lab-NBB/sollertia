@@ -1,14 +1,11 @@
 ---
 name: mesoscope-vr-session-schema
 description: >-
-  Documents Mesoscope-VR's concrete instance of the per-system session-record contract: the four
-  session descriptors (LickTraining, RunTraining, MesoscopeExperiment, WindowChecking) and the
-  MesoscopeHardwareState snapshot, with exact field names, types, defaults, enums, and
-  per-session-type applicability. Field-level schema reference only. Use when reading, amending,
-  validating, or reasoning about the fields of a Mesoscope-VR session_descriptor.yaml or
-  hardware_state.yaml, when deciding which descriptor class a session type uses, when checking
-  which hardware-state fields a session type populates versus leaves None, or when grading a
-  window-checking surgery_quality value.
+  Documents Mesoscope-VR's concrete instance of the per-system session-record contract: the four session descriptors
+  (LickTraining, RunTraining, MesoscopeExperiment, WindowChecking) and the MesoscopeHardwareState snapshot, with their
+  field names, types, defaults, enums, and per-session-type applicability. Use when reading, amending, or validating a
+  Mesoscope-VR session_descriptor.yaml or hardware_state.yaml, deciding which descriptor class a session type uses,
+  checking which hardware-state fields a session type populates or leaves None, or grading a surgery_quality value.
 user-invocable: false
 ---
 
@@ -72,10 +69,10 @@ the parsing dataclass changes.
 | Session descriptor | `DESCRIPTOR_REGISTRY`     | `SessionTypes`       | `LickTrainingDescriptor`, `RunTrainingDescriptor`, `MesoscopeExperimentDescriptor`, `WindowCheckingDescriptor` |
 | Hardware state     | `HARDWARE_STATE_REGISTRY` | `AcquisitionSystems` | `MesoscopeHardwareState`                                                                                       |
 
-`SYSTEM_SESSION_TYPES[MESOSCOPE_VR]` claims all four session types; `SESSION_TYPES_USING_VR_TASK`
-contains only `MESOSCOPE_EXPERIMENT`, so only experiment sessions also write a
-`vr_configuration.yaml` task-template snapshot. Registry dispatch mechanics are owned by the
-`assets` plugin — this skill documents only the resolved Mesoscope-VR classes.
+`SYSTEM_SESSION_TYPES[MESOSCOPE_VR]` claims all four session types; `SESSION_TYPES_USING_VR_TASK` contains only
+`MESOSCOPE_EXPERIMENT`, so only experiment sessions also write a `vr_configuration.yaml` task-template snapshot.
+Registry dispatch mechanics are owned by the `assets` plugin — this skill documents only the resolved Mesoscope-VR
+classes.
 
 This skill is also the worked reference an extender copies when authoring a new acquisition system's
 `<system>/runtime_data.py`. The extension workflow itself is owned by `assets:library-extension`.
@@ -107,9 +104,9 @@ non-window-checking caches. `assets:project-hierarchy` owns the `persistent_data
 All four descriptors share three required-or-defaulted fields:
 
 | Field                | Type   | Default                           | Meaning                                                                                                                                                                                                                              |
-|----------------------|--------|-----------------------------------|----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+|----------------------|--------|-----------------------------------|--------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
 | `experimenter`       | `str`  | (required, no default)            | The ID of the experimenter running the session.                                                                                                                                                                                      |
-| `incomplete`         | `bool` | `True`                            | `True` marks the session as incomplete, meaning it ran past initialization but hit a runtime issue and may carry data gaps, so it is held back from unsupervised processing. The runtime flips it to `False` at a clean session end.  |
+| `incomplete`         | `bool` | `True`                            | `True` marks the session as incomplete, meaning it ran past initialization but hit a runtime issue and may carry data gaps, so it is held back from unsupervised processing. The runtime flips it to `False` at a clean session end. |
 | `experimenter_notes` | `str`  | `"Replace this with your notes."` | The experimenter's notes made during runtime.                                                                                                                                                                                        |
 
 Every registered descriptor must declare `incomplete`, a platform contract enforced at import and owned by
@@ -118,17 +115,16 @@ Every registered descriptor must declare `incomplete`, a platform contract enfor
 The three **non-window-checking** descriptors (`LickTrainingDescriptor`, `RunTrainingDescriptor`,
 `MesoscopeExperimentDescriptor`) additionally share:
 
-| Field                                | Type    | Default                | Meaning                                                                                                                                                                      |
-|--------------------------------------|---------|------------------------|------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
-| `animal_weight_g`                    | `float` | (required, no default) | The animal's weight, in grams, at the beginning of the session.                                                                                                              |
+| Field                                | Type    | Default                | Meaning                                                                                                                                                                       |
+|--------------------------------------|---------|------------------------|-------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| `animal_weight_g`                    | `float` | (required, no default) | The animal's weight, in grams, at the beginning of the session.                                                                                                               |
 | `maximum_unconsumed_rewards`         | `int`   | `1`                    | Cap on consecutive delivered-but-unconsumed rewards before delivery is paused. Setting it to `0` removes the limit entirely, so every delivered reward may remain unconsumed. |
-| `dispensed_water_volume_ml`          | `float` | `0.0`                  | Total water, in mL, dispensed during runtime (excludes the paused/idle state).                                                                                               |
-| `pause_dispensed_water_volume_ml`    | `float` | `0.0`                  | Total water, in mL, dispensed during the paused (idle) state.                                                                                                                |
-| `experimenter_given_water_volume_ml` | `float` | `0.0`                  | Additional water, in mL, administered manually by the experimenter after the session.                                                                                        |
+| `dispensed_water_volume_ml`          | `float` | `0.0`                  | Total water, in mL, dispensed during runtime (excludes the paused/idle state).                                                                                                |
+| `pause_dispensed_water_volume_ml`    | `float` | `0.0`                  | Total water, in mL, dispensed during the paused (idle) state.                                                                                                                 |
+| `experimenter_given_water_volume_ml` | `float` | `0.0`                  | Additional water, in mL, administered manually by the experimenter after the session.                                                                                         |
 
-`WindowCheckingDescriptor` carries **none** of these: no `animal_weight_g`,
-`maximum_unconsumed_rewards`, or water totals. Its only session-type-specific field is
-`surgery_quality`.
+`WindowCheckingDescriptor` carries **none** of these: no `animal_weight_g`, `maximum_unconsumed_rewards`, or water
+totals. Its only session-type-specific field is `surgery_quality`.
 
 ### Per-descriptor field tables
 
@@ -168,8 +164,8 @@ three water-total floats) and the three universal fields (`experimenter`, `incom
 | `water_reward_size_ul`             | `float` | `5.0`   | Water volume, in microliters, dispensed when the animal achieves the required running speed and duration thresholds. |
 | `reward_tone_duration_ms`          | `int`   | `300`   | Duration, in milliseconds, of the reward auditory tone.                                                              |
 
-Plus the shared non-window-checking fields and the three universal fields. Note
-`maximum_training_time_min` defaults to `40` here versus `20` for lick training.
+Plus the shared non-window-checking fields and the three universal fields. Note `maximum_training_time_min` defaults to
+`40` here versus `20` for lick training.
 
 #### `MesoscopeExperimentDescriptor`
 
@@ -182,9 +178,9 @@ is carried by the descriptor.
 
 #### `WindowCheckingDescriptor`
 
-| Field             | Type  | Default | Meaning                                                                                                                                                                                                                                                                                                                          |
-|-------------------|-------|---------|----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
-| `surgery_quality` | `int` | `0`     | Cranial window / surgery quality on a `0`-`3` inclusive scale: `0` non-usable to `3` publication-grade. The range is a convention, not a constraint. `WindowCheckingDescriptor` declares no `__post_init__`, so `write_session_descriptor_tool` accepts an out-of-range integer without error. Validate the value before writing.   |
+| Field             | Type  | Default | Meaning                                                                                                                                                                                                                                                                                                                           |
+|-------------------|-------|---------|-----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| `surgery_quality` | `int` | `0`     | Cranial window / surgery quality on a `0`-`3` inclusive scale: `0` non-usable to `3` publication-grade. The range is a convention, not a constraint. `WindowCheckingDescriptor` declares no `__post_init__`, so `write_session_descriptor_tool` accepts an out-of-range integer without error. Validate the value before writing. |
 
 Carries only `experimenter`, `surgery_quality`, `incomplete`, and `experimenter_notes` — no
 `animal_weight_g`, no reward fields, no water totals.

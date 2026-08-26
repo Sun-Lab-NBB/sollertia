@@ -12,8 +12,8 @@ user-invocable: false
 # Mesoscope-VR fluorescence alignment
 
 Documents how the Mesoscope-VR dataset-forging pipeline aligns two-photon fluorescence frames to the
-microcontroller-logged frame-acquisition TTL pulses, building the frame-indexed reference time vector that the
-session assembly stage interpolates every other stream onto.
+microcontroller-logged frame-acquisition TTL pulses, building the frame-indexed reference time vector onto which
+the session assembly stage interpolates every other stream.
 
 This is the concrete Mesoscope-VR instance of the agnostic processing-stage seam owned by the forging plugin.
 The alignment consumes upstream cindra single-recording and multi-recording fluorescence outputs and the
@@ -38,7 +38,7 @@ assembled session `data.feather`.
   `mesoscope:mesoscope-vr-dataset-assembly`
 
 **Does not cover:**
-- cindra single-recording and multi-day fluorescence production (upstream; see
+- cindra single-recording and multi-day fluorescence production (upstream, see
   `forging:dataset-forging-input-format`)
 - Assembly of the fluorescence frames into the session `data.feather` and the `Array(Float32)` column shapes (see
   `mesoscope:mesoscope-vr-dataset-assembly` and `forging:dataset-forging-results`)
@@ -52,10 +52,9 @@ assembled session `data.feather`.
 The forging plugin owns the agnostic processing-stage doctrine: feather-as-interchange between stages, the
 prepare-then-execute batch model, and the worker-budget concurrency contract (see
 `forging:data-processing-design`). This skill documents only the Mesoscope-VR-specific content of the
-fluorescence-alignment stage — the alignment algorithm and its constants — not the orchestration that schedules
-it.
+fluorescence-alignment stage (the alignment algorithm and its constants), not the orchestration that schedules it.
 
-`assemble_cindra_dataset` in `mesoscope_vr/fluorescence.py` is the stage entry point. It takes four directory
+`assemble_cindra_dataset` in `mesoscope_vr/two_photon_dataset.py` is the stage entry point. It takes four directory
 paths and returns a single Polars DataFrame:
 
 | Parameter                   | Supplies                                                                                      |
@@ -78,11 +77,11 @@ shape through a memory-mapped header read (`np.load(..., mmap_mode="r").shape`) 
 ## Primary TTL duration-window alignment
 
 The mesoscope frame TTL feather (`BehaviorDataFiles.MESOSCOPE_FRAME` = `mesoscope_frame_data.feather`, produced
-by the TTL module parser; see `mesoscope:mesoscope-vr-module-parsing`) holds `time_us` and `ttl_state` columns,
+by the TTL module parser, see `mesoscope:mesoscope-vr-module-parsing`) holds `time_us` and `ttl_state` columns,
 one row per logged TTL transition. The stage reads it memory-mapped, sorts by `time_us`, and reconstructs whole
 pulses:
 
-1. Compute `ttl_diff` as the first difference of `ttl_state` (null-filled with 0); a value of `1` marks a rising
+1. Compute `ttl_diff` as the first difference of `ttl_state` (null-filled with 0). A value of `1` marks a rising
    edge, `-1` a falling edge.
 2. Assign a `pulse_id` as the cumulative sum of rising edges.
 3. Filter rising edges into `(pulse_id, pulse_start)` and falling edges into `(pulse_id, pulse_end)`, then inner-
@@ -91,7 +90,8 @@ pulses:
    `paired_pulses` table.
 
 The expected pulse duration is derived from cindra's per-plane sampling rate. The combined cindra metadata
-archive (`combined_metadata.npz`) supplies `sampling_rate`; the first element becomes `scanning_frequency`, and:
+archive (`combined_metadata.npz`) supplies the scalar `sampling_rate`, which is read directly as
+`scanning_frequency`, and:
 
 ```python
 expected_duration_ms = 1000 / scanning_frequency        # _MILLISECONDS_PER_SECOND / scanning_frequency
@@ -105,11 +105,11 @@ fixed `_SCAN_PULSE_TOLERANCE_MS = 20` ms on either side of the expected duration
 
 After the primary filter, the row count is reconciled against the cindra frame count:
 
-| Condition                       | Action                                                                            |
-|---------------------------------|-----------------------------------------------------------------------------------|
-| In-window pulses `>` `frames`   | Clip the front: keep the last `frames` rows (`.tail(frames)`)                      |
-| In-window pulses `==` `frames`  | Use the in-window pulses directly                                                  |
-| In-window pulses `<` `frames`   | Fall back to ScanImage-metadata alignment (`_align_pulses_to_scanimage`)           |
+| Condition                      | Action                                                                   |
+|--------------------------------|--------------------------------------------------------------------------|
+| In-window pulses `>` `frames`  | Clip the front: keep the last `frames` rows (`.tail(frames)`)            |
+| In-window pulses `==` `frames` | Use the in-window pulses directly                                        |
+| In-window pulses `<` `frames`  | Fall back to ScanImage-metadata alignment (`_align_pulses_to_scanimage`) |
 
 Front-clipping is correct because excess in-window pulses arise when the operator manually triggers mesoscope
 scanning before the main experiment runtime, so any aberrant frames precede the real session.
@@ -118,25 +118,25 @@ scanning before the main experiment runtime, so any aberrant frames precede the 
 
 ## ScanImage metadata fallback path
 
-When the duration filter rejects real frames (the mesoscope can briefly hold a TTL outside the tolerance window
-even though a scan was acquired), the duration-filtered count falls below cindra's frame count and the stage
+The duration-filtered count falls below cindra's frame count when the duration filter rejects real frames, because
+the mesoscope can briefly hold a TTL outside the tolerance window even though a scan was acquired. The stage then
 delegates to `_align_pulses_to_scanimage`. ScanImage writes one entry per acquired TIFF to
 `frame_variant_metadata.npz`, making its per-frame timestamps the authoritative record of which TTL rising edges
 correspond to real frames. Pulses that match no ScanImage frame within tolerance are dropped as electrical noise
 (typically clustered at session start during mesoscope arming and at session end after ScanImage stopped).
 
 The fallback resolves the metadata archive at `raw_data_path / mesoscope_data / frame_variant_metadata.npz`
-(`MesoscopeDirectories.MESOSCOPE_DATA` is `mesoscope_data`; the filename constant is
+(`MesoscopeDirectories.MESOSCOPE_DATA` is `mesoscope_data`, and the filename constant is
 `_FRAME_VARIANT_METADATA_FILENAME`). It raises `ValueError` (via `console.error`) when the archive is missing,
 when the archive entry count does not equal the cindra frame count, or when the final matching does not produce
 exactly `expected_frame_count` rows.
 
 Two ScanImage metadata keys are read from the archive:
 
-| Constant                  | Key value               | Meaning                                                                  |
-|---------------------------|-------------------------|--------------------------------------------------------------------------|
-| `_SI_FRAME_NUMBER_KEY`    | `frameNumberAcquisition`| Strictly monotonic per-frame counter used to recover chronological order |
-| `_SI_FRAME_TIMESTAMP_KEY` | `frameTimestamps_sec`   | Per-frame ScanImage clock timestamps in seconds                          |
+| Constant                  | Key value                | Meaning                                                                  |
+|---------------------------|--------------------------|--------------------------------------------------------------------------|
+| `_SI_FRAME_NUMBER_KEY`    | `frameNumberAcquisition` | Strictly monotonic per-frame counter used to recover chronological order |
+| `_SI_FRAME_TIMESTAMP_KEY` | `frameTimestamps_sec`    | Per-frame ScanImage clock timestamps in seconds                          |
 
 The archive is stored in TIFF-page-concatenation order, which can interleave frames across stack files, so the
 fallback sorts by `frameNumberAcquisition` (stable `argsort`) before converting `frameTimestamps_sec` to
@@ -151,22 +151,22 @@ ScanImage and the microcontroller run on separate clocks. The fallback estimates
 anchoring a candidate TTL pulse to the first ScanImage frame, then choosing the offset that yields the most
 matches:
 
-1. For each candidate anchor (the first `_SI_ANCHOR_SEARCH_LIMIT = 10` pulses, or fewer if the log is shorter),
+1. For each candidate anchor (the first `_SCANIMAGE_ANCHOR_SEARCH_LIMIT = 10` pulses, or fewer if the log is shorter),
    compute `candidate_offset = pulse_microseconds[anchor] - si_microseconds[0]`.
 2. Shift the ScanImage timestamps by the candidate offset and count how many TTL rising edges have a ScanImage
-   frame strictly less than `_SI_MATCH_TOLERANCE_US` away.
+   frame strictly less than `_SCANIMAGE_MATCH_TOLERANCE_US` away.
 3. Keep the offset with the highest match count.
 
-The anchor search starts from the first few pulses because front-of-session noise is typically two short pulses;
-ten anchors leave headroom for unusual setups. With the best offset applied, each pulse is matched to its nearest
+The anchor search starts from the first few pulses because front-of-session noise is typically two short pulses.
+Ten anchors leave headroom for unusual setups. With the best offset applied, each pulse is matched to its nearest
 aligned ScanImage frame via `searchsorted`-based nearest-target lookup. Conflicts where multiple pulses claim the
-same frame are resolved by keeping the pulse closer to that frame's expected time; pulses not strictly closer than
-`_SI_MATCH_TOLERANCE_US` to any frame are dropped.
+same frame are resolved by keeping the pulse closer to that frame's expected time. Pulses not strictly closer
+than `_SCANIMAGE_MATCH_TOLERANCE_US` to any frame are dropped.
 
-| Constant                  | Value    | Rationale                                                                            |
-|---------------------------|----------|-------------------------------------------------------------------------------------|
-| `_SI_MATCH_TOLERANCE_US`  | `50_000` | Strict 50 ms bound absorbing pulse-edge jitter and clock drift (up to ~15 ms over an hour) |
-| `_SI_ANCHOR_SEARCH_LIMIT` | `10`     | Maximum leading pulses tried as anchors; front noise is usually two short pulses     |
+| Constant                         | Value    | Rationale                                                                                  |
+|----------------------------------|----------|--------------------------------------------------------------------------------------------|
+| `_SCANIMAGE_MATCH_TOLERANCE_US`  | `50_000` | Strict 50 ms bound absorbing pulse-edge jitter and clock drift (up to ~15 ms over an hour) |
+| `_SCANIMAGE_ANCHOR_SEARCH_LIMIT` | `10`     | Maximum leading pulses tried as anchors, since front noise is usually two short pulses     |
 
 The fallback returns a DataFrame with `frame` (the matched pulse's original `pulse_id`) and `time_us` (the
 rising-edge microsecond timestamp), sorted by `frame`, containing exactly `expected_frame_count` rows.
@@ -178,20 +178,20 @@ rising-edge microsecond timestamp), sorted by `frame`, containing exactly `expec
 Regardless of which path produced the frame-aligned table, the stage finalizes a frame index and a within-session
 time column:
 
-| Column            | Type      | Derivation                                                                            |
-|-------------------|-----------|---------------------------------------------------------------------------------------|
-| `frame`           | `UInt32`  | Re-assigned as a contiguous 1-based range over the surviving rows                      |
-| `time_us`         | `UInt64`  | The TTL rising-edge timestamp, carried from the alignment path                         |
-| `elapsed_minutes` | `Float32` | `(time_us - time_us.min())` divided by 60,000,000, rounded to 2 decimals               |
+| Column            | Type      | Derivation                                                               |
+|-------------------|-----------|--------------------------------------------------------------------------|
+| `frame`           | `UInt32`  | Re-assigned as a contiguous 1-based range over the surviving rows        |
+| `time_us`         | `UInt64`  | The TTL rising-edge timestamp, carried from the alignment path           |
+| `elapsed_minutes` | `Float32` | `(time_us - time_us.min())` divided by 60,000,000, rounded to 2 decimals |
 
 `time_us` is the frame-aligned reference time vector consumed by the assembly stage as `reference_time` (every
-behavior and runtime stream is interpolated onto it); `elapsed_minutes` is a derived within-session display
+behavior and runtime stream is interpolated onto it). `elapsed_minutes` is a derived within-session display
 column. See `mesoscope:mesoscope-vr-dataset-assembly`.
 
 Cell masking uses the single-recording cell classification. cindra stores `cell_classification.npy` as a
 `(num_rois, 2)` float32 array where column 0 holds the is-cell label (`1.0` or `0.0`) and column 1 the classifier
 probability. The mask keeps ROIs where `classification[:, 0] == 1`. The mask is applied only to the single-day
-fluorescence sources; the multi-day sources are added unmasked.
+fluorescence sources. The multi-day sources are added unmasked.
 
 ---
 
@@ -201,19 +201,19 @@ Eight fluorescence Series are streamed onto the frame-aligned table one file at 
 mapped, masked if applicable, transposed to `(frames, rois)`, cast to float32, and appended), keeping peak memory
 to one array-worth rather than eight:
 
-| Source directory     | File                        | Column name                            | Cell-masked |
-|----------------------|-----------------------------|----------------------------------------|-------------|
-| `cindra_data_path`   | `cell_fluorescence.npy`     | `single_day_cell_fluorescence`         | Yes         |
-| `cindra_data_path`   | `neuropil_fluorescence.npy` | `single_day_neuropil_fluorescence`     | Yes         |
-| `cindra_data_path`   | `subtracted_fluorescence.npy`| `single_day_subtracted_fluorescence`  | Yes         |
-| `cindra_data_path`   | `spikes.npy`                | `single_day_spikes`                    | Yes         |
-| `multiday_data_path` | `cell_fluorescence.npy`     | `multi_day_cell_fluorescence`          | No          |
-| `multiday_data_path` | `neuropil_fluorescence.npy` | `multi_day_neuropil_fluorescence`      | No          |
-| `multiday_data_path` | `subtracted_fluorescence.npy`| `multi_day_subtracted_fluorescence`   | No          |
-| `multiday_data_path` | `spikes.npy`                | `multi_day_spikes`                     | No          |
+| Source directory     | File                          | Column name                          | Cell-masked |
+|----------------------|-------------------------------|--------------------------------------|-------------|
+| `cindra_data_path`   | `cell_fluorescence.npy`       | `single_day_cell_fluorescence`       | Yes         |
+| `cindra_data_path`   | `neuropil_fluorescence.npy`   | `single_day_neuropil_fluorescence`   | Yes         |
+| `cindra_data_path`   | `subtracted_fluorescence.npy` | `single_day_subtracted_fluorescence` | Yes         |
+| `cindra_data_path`   | `spikes.npy`                  | `single_day_spikes`                  | Yes         |
+| `multiday_data_path` | `cell_fluorescence.npy`       | `multi_day_cell_fluorescence`        | No          |
+| `multiday_data_path` | `neuropil_fluorescence.npy`   | `multi_day_neuropil_fluorescence`    | No          |
+| `multiday_data_path` | `subtracted_fluorescence.npy` | `multi_day_subtracted_fluorescence`  | No          |
+| `multiday_data_path` | `spikes.npy`                  | `multi_day_spikes`                   | No          |
 
-The two neuropil-subtracted, baseline-corrected columns are enumerated as `FluorescenceColumn`
-(`single_day_subtracted_fluorescence` and `multi_day_subtracted_fluorescence`); they are the columns the
+The two neuropil-subtracted, baseline-corrected columns are enumerated as `DatasetColumn`
+(`single_day_subtracted_fluorescence` and `multi_day_subtracted_fluorescence`). They are the columns the
 downstream place-cell, reward-cell, and SCE detectors treat as valid analysis inputs.
 
 ---
@@ -234,15 +234,19 @@ downstream place-cell, reward-cell, and SCE detectors treat as valid analysis in
 ## Verification checklist
 
 ```text
+Tool-settled (run `rg -n '.{121,}' <file>` and `wc -l <file>`):
+- [ ] All lines at or under 120 characters (tables and code blocks may exceed for clarity)
+- [ ] SKILL.md under 500 lines
+
 - [ ] Primary path keeps pulses with duration within expected_duration_ms ± 20 ms (_SCAN_PULSE_TOLERANCE_MS)
 - [ ] expected_duration_ms derived as 1000 / scanning_frequency from cindra combined_metadata.npz sampling_rate
 - [ ] Excess in-window pulses front-clipped to the cindra frame count; deficit triggers the ScanImage fallback
 - [ ] Fallback resolves raw_data/mesoscope_data/frame_variant_metadata.npz and raises ValueError when absent
 - [ ] Fallback reads frameNumberAcquisition and frameTimestamps_sec; sorts by the frame counter before matching
-- [ ] _SI_MATCH_TOLERANCE_US = 50_000 us and _SI_ANCHOR_SEARCH_LIMIT = 10 quoted exactly
+- [ ] _SCANIMAGE_MATCH_TOLERANCE_US = 50_000 us and _SCANIMAGE_ANCHOR_SEARCH_LIMIT = 10 quoted exactly
 - [ ] Clock offset chosen as the anchor maximizing within-tolerance matches over the first 10 pulses
 - [ ] Output columns are frame (UInt32, 1-based), time_us (UInt64), elapsed_minutes (Float32)
 - [ ] Cell mask is classification[:, 0] == 1, applied to single-day sources only
 - [ ] Eight fluorescence sources (single/multi day cell, neuropil, subtracted, spikes) appended correctly
-- [ ] No reStructuredText specifiers; cross-references use the plugin:skill syntax (ataraxis@ where applicable)
+- [ ] No reStructuredText specifiers; cross-references use exact plugin:skill syntax with no ataraxis@ prefix
 ```

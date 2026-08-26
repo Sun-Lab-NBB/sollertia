@@ -2,10 +2,9 @@
 name: scene-setup
 description: >-
   Guides Editor-side scene configuration for sollertia-virtual-reality: the consolidated Task
-  Parameters window, the three-monitor Display rig and its displayplacer / xrandr monitor-enumeration
-  prerequisite, the LinearTreadmill / SimulatedLinearTreadmill controller swap, and the optional
-  UI-lick-reward canvas. Use when preparing a scene for Play Mode, swapping to the simulated
-  treadmill, or fixing missing display / controller / monitor-detection errors.
+  Parameters window, the three-monitor Display rig, the LinearTreadmill / SimulatedLinearTreadmill
+  controller swap, and the optional UI-lick-reward canvas. Use when preparing a scene for Play Mode,
+  swapping to the simulated treadmill, or fixing missing display / controller / monitor-detection errors.
 user-invocable: false
 ---
 
@@ -24,7 +23,6 @@ human / GUI flow between "scene exists" and "scene is runnable."
 - Auto-created scene infrastructure (`Actors`, `Controllers`, `MQTT Client`, default Actor + Display) seeded by
   `MainWindow.InitializeScene`
 - Three-monitor VR setup (Left / Center / Right View) defined here for downstream acquisition rigs
-- The `displayplacer` (macOS) / `xrandr` (Linux) monitor-enumeration prerequisite Camera Mapping needs
 - Swapping between `LinearTreadmill` (hardware) and `SimulatedLinearTreadmill` (keyboard) via the Actor section's
   Controller dropdown
 - Brightness / VR height tuning via the Display section
@@ -41,6 +39,8 @@ human / GUI flow between "scene exists" and "scene is runnable."
 - Entering / exiting Play Mode (see `/play-mode`)
 - GIMBL class APIs (see `/gimbl-framework`)
 - MQTT topic details (see `/mqtt-contract`)
+- The `displayplacer` / `xrandr` monitor-enumeration helper, its per-platform choice, and where the Editor looks for
+  it (see `/unity-mcp-environment-setup`)
 
 ---
 
@@ -129,16 +129,14 @@ co-design it in a generative, collaborative mode. You MUST NOT hand-author a new
 
 ### Monitor-enumeration prerequisite
 
-Camera Mapping rows are built from `Monitor.EnumerateMonitors`, not from `InitializeScene`. Windows enumerates through
-`user32.EnumDisplayMonitors` and needs nothing extra. macOS requires
-[`displayplacer`](https://github.com/jakehilborn/displayplacer) (`brew install displayplacer`), resolved in order from
-`/opt/homebrew/bin/displayplacer`, `/usr/local/bin/displayplacer`, then the bare name on `PATH`. Linux requires `xrandr`
-from the X11 server utilities, resolved from `PATH`.
+Camera Mapping rows are built from `Monitor.EnumerateMonitors`, not from `InitializeScene`. Windows needs nothing
+extra, while macOS and Linux each need a helper. `/unity-mcp-environment-setup` owns which helper each platform uses
+and where the Editor looks for it.
 
 Without the helper the section lists **no monitors** and full-screen views cannot be assigned. The failure surfaces as a
-Console *warning* rather than an exception, namely `Monitor enumeration: failed to start '<command>'.`, with a `brew
-install displayplacer` hint appended on macOS. Every tool therefore keeps reporting success while returning an empty
-monitor list. No amount of refreshing fixes it, so install the helper first.
+Console *warning* rather than an exception, namely `Monitor enumeration: failed to start '<command>'.`. Every tool
+therefore keeps reporting success while returning an empty monitor list. No amount of refreshing fixes it, so install
+the helper first.
 
 ### Assigning monitors
 

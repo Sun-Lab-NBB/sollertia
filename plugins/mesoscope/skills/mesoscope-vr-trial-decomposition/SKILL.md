@@ -1,12 +1,11 @@
 ---
 name: mesoscope-vr-trial-decomposition
 description: >-
-  Documents Mesoscope-VR's concrete runtime-log decomposition: the runtime message codes, the
-  numba-accelerated greedy longest-first cue-sequence-to-trial-motif matching, trial-type and
-  cumulative-distance sequence extraction, and the task-template trial geometry (trigger zones, cue
-  offsets on sequence restart). Use when interpreting the vr_cue, vr_trigger_zone, or trial feathers,
-  or debugging cue-sequence decomposition failures. This is the forging-side runtime LOG decomposition,
-  distinct from the acquisition-side runtime behavior layer in mesoscope:mesoscope-vr-runtime.
+  Documents Mesoscope-VR's concrete runtime-log decomposition: the runtime message codes, the numba-accelerated greedy
+  longest-first cue-sequence-to-trial-motif matching, trial-type and cumulative-distance sequence extraction, and the
+  task-template trial geometry (trigger zones, cue offsets on sequence restart). Use when interpreting the vr_cue,
+  vr_trigger_zone, or trial feathers, or debugging cue-sequence decomposition failures. This is the forging-side runtime
+  LOG decomposition, distinct from the acquisition-side runtime behavior layer in mesoscope:mesoscope-vr-runtime.
 user-invocable: false
 ---
 
@@ -17,12 +16,11 @@ Decomposes the Mesoscope-VR runtime log archive into the per-trial behavior feat
 against the experiment's trial motifs.
 
 This skill documents the **forging-side runtime LOG decomposition** implemented in
-`src/sollertia_forgery/mesoscope_vr/runtime.py`. It is **not** the acquisition-side runtime behavior layer (the
-state machine, orchestrator, GUI, and CLI) — that is owned by `mesoscope:mesoscope-vr-runtime`. That layer is a
-distinct, non-delegating counterpart: its only notion of "trial decomposition" is the acquisition-time Unity
-cue-sequence decomposition, which it delegates to `experiment:vr-driver-interface`, and it never invokes
-`parse_runtime`. The two concerns share no producer/consumer relationship. See
-[Related skills](#related-skills) for the disambiguation.
+`src/sollertia_forgery/mesoscope_vr/runtime.py`. It is **not** the acquisition-side runtime behavior layer (the state
+machine, orchestrator, GUI, and CLI) — that is owned by `mesoscope:mesoscope-vr-runtime`. That layer is a distinct,
+non-delegating counterpart: its only notion of "trial decomposition" is the acquisition-time Unity cue-sequence
+decomposition, which it delegates to `experiment:vr-driver-interface`, and it never invokes `parse_runtime`. The two
+concerns share no producer/consumer relationship. See [Related skills](#related-skills) for the disambiguation.
 
 ---
 
@@ -100,14 +98,14 @@ a long payload is consumed by that branch whether or not the session collects it
 length would let a wall-cue sequence fall through to the code chain, where its first two cue codes read as a state
 transition.
 
-| Concern                | Constant                          | Code | Extracts                                                          |
-|------------------------|-----------------------------------|------|------------------------------------------------------------------|
-| VR system state        | `_SYSTEM_STATE_CODE`              | `1`  | `system_state` (uint8 from `payload[1]`) and message timestamp   |
-| Session runtime state  | `_RUNTIME_STATE_CODE`            | `2`  | `runtime_state` (uint8 from `payload[1]`) and message timestamp  |
-| Reinforcing guidance   | `_REINFORCING_GUIDANCE_STATE_CODE`| `3`  | `reinforcing_guidance_state` (uint8) and message timestamp       |
-| Aversive guidance      | `_AVERSIVE_GUIDANCE_STATE_CODE`  | `4`  | `aversive_guidance_state` (uint8) and message timestamp          |
-| Distance snapshot      | `_DISTANCE_SNAPSHOT_CODE`        | `5`  | A float64 traveled distance from `payload[1:9]` (little-endian)  |
-| VR wall-cue sequence   | (none — length-based)            | n/a  | The full uint8 cue array, when `len(payload) > 500`              |
+| Concern               | Constant                           | Code | Extracts                                                        |
+|-----------------------|------------------------------------|------|-----------------------------------------------------------------|
+| VR system state       | `_SYSTEM_STATE_CODE`               | `1`  | `system_state` (uint8 from `payload[1]`) and message timestamp  |
+| Session runtime state | `_RUNTIME_STATE_CODE`              | `2`  | `runtime_state` (uint8 from `payload[1]`) and message timestamp |
+| Reinforcing guidance  | `_REINFORCING_GUIDANCE_STATE_CODE` | `3`  | `reinforcing_guidance_state` (uint8) and message timestamp      |
+| Aversive guidance     | `_AVERSIVE_GUIDANCE_STATE_CODE`    | `4`  | `aversive_guidance_state` (uint8) and message timestamp         |
+| Distance snapshot     | `_DISTANCE_SNAPSHOT_CODE`          | `5`  | A float64 traveled distance from `payload[1:9]` (little-endian) |
+| VR wall-cue sequence  | (none — length-based)              | n/a  | The full uint8 cue array, when `len(payload) > 500`             |
 
 Message timestamps come from the decoded `time_us` column, which already carries absolute microsecond values because
 the decoding stage resolved the archive onsets, so this parser computes no onset offset of its own.
@@ -161,7 +159,7 @@ value over a session's trials.
 `_decompose_cue_sequence_into_trials` (decorated with `@njit(cache=True)`) performs the actual greedy match. Walking
 the cue sequence from the front, at each position it scans the length-sorted motifs and accepts the first one whose
 cues match exactly, advances the position by that motif's length, and records the motif's original index. If no motif
-matches at the current position, it returns a trial count of `-1` together with the position it stopped at. The
+matches at the current position, it returns a trial count of `-1` together with the position at which it stopped. The
 caller bounds the walk with `maximum_trials`, the total cue count across all sequences floor-divided by the
 shortest motif's length, plus one.
 
@@ -172,8 +170,8 @@ sequence N of M into a sequence of trial distances. No trial motif matched at po
 Trials are accumulated with a running `cumulative_distance` that **opens at minus the corridor cue offset**
 (`task_template.vr_environment.cue_offset_cm`), because the animal enters each corridor already that far into its
 first cue and therefore completes a trial after traveling that much less than the trial's corridor length. Opening
-the accumulator there puts every emitted distance in the traveled-distance frame the encoder reports and the corridor
-swap snapshots are recorded in.
+the accumulator there puts every emitted distance in the traveled-distance frame that the encoder reports and that
+carries the recorded corridor swap snapshots.
 
 For every sequence except the last, when a trial would push the cumulative distance past that sequence's
 `distance_breakpoint`, the trial is truncated. It is recorded at the breakpoint distance, but only when the truncated
@@ -195,13 +193,13 @@ does: the ordered trial names come from `experiment_configuration.trial_structur
 These are the only template fields this stage reads. Their full schema, including the fields this stage ignores, is
 owned by `assets:task-templates`.
 
-| Field                                           | Read for                                                           |
-|-------------------------------------------------|--------------------------------------------------------------------|
-| `TrialStructure.cue_sequence`                   | The ordered cue names forming the trial's motif and cue walk       |
-| `TrialStructure.stimulus_trigger_zone_start_cm` | The trial-relative start of the stimulus trigger zone              |
-| `TrialStructure.stimulus_trigger_zone_end_cm`   | The trial-relative end of the stimulus trigger zone                |
-| `Cue.name`, `Cue.code`, `Cue.length_cm`         | The cue catalog, indexed by name into a uint8 code and a length    |
-| `VREnvironment.cue_offset_cm`                   | The corridor offset applied at a sequence start or restart         |
+| Field                                           | Read for                                                        |
+|-------------------------------------------------|-----------------------------------------------------------------|
+| `TrialStructure.cue_sequence`                   | The ordered cue names forming the trial's motif and cue walk    |
+| `TrialStructure.stimulus_trigger_zone_start_cm` | The trial-relative start of the stimulus trigger zone           |
+| `TrialStructure.stimulus_trigger_zone_end_cm`   | The trial-relative end of the stimulus trigger zone             |
+| `Cue.name`, `Cue.code`, `Cue.length_cm`         | The cue catalog, indexed by name into a uint8 code and a length |
+| `VREnvironment.cue_offset_cm`                   | The corridor offset applied at a sequence start or restart      |
 
 Walking the trial's cue sequence, each cue contributes its `length_cm` to a running cumulative distance, and the
 cue's code together with the cumulative distance at its onset are appended to the cue/distance output. Two special
@@ -237,11 +235,11 @@ trigger-zone start distances (float64), the trigger-zone end distances (float64)
 `parse_runtime` writes the three decomposition feathers (uncompressed Arrow IPC) under the names defined by
 the `BehaviorDataFiles` roster. The roster member, on-disk filename, and column schema are:
 
-| Roster member     | Filename                    | Columns                                                          |
-|-------------------|-----------------------------|-----------------------------------------------------------------|
-| `VR_CUE`          | `vr_cue_data.feather`       | `vr_cue` (cue id), `traveled_distance_cm` (cumulative distance)  |
-| `VR_TRIGGER_ZONE` | `vr_trigger_zone_data.feather`| `trigger_zone_start_cm`, `trigger_zone_end_cm`               |
-| `TRIAL`           | `trial_data.feather`        | `trial_type_index`, `traveled_distance_cm` (trial start distance)|
+| Roster member     | Filename                       | Columns                                                           |
+|-------------------|--------------------------------|-------------------------------------------------------------------|
+| `VR_CUE`          | `vr_cue_data.feather`          | `vr_cue` (cue id), `traveled_distance_cm` (cumulative distance)   |
+| `VR_TRIGGER_ZONE` | `vr_trigger_zone_data.feather` | `trigger_zone_start_cm`, `trigger_zone_end_cm`                    |
+| `TRIAL`           | `trial_data.feather`           | `trial_type_index`, `traveled_distance_cm` (trial start distance) |
 
 The `vr_cue` column is the cue/distance pair produced by `_process_trial_sequence`; the trigger-zone columns are its
 trigger start/end arrays; and `trial_data` pairs the `trial_type_index` array (the decomposed trial-type indices)
