@@ -42,8 +42,8 @@ only registered read asset today. The rest of this skill uses it to illustrate t
   source is the sheet. The MCP layer **does not query it at runtime**, and writes here amend only the one on-disk file
   whose path the caller passes. Edit the upstream source for a fix that should apply to every future capture.
 - Propagating an amendment from one copy of the file to another, because copies are independent on disk
-- Partial or per-section updates. The write tool validates and replaces the **full** payload. To change one field, read
-  the current file, mutate the returned dict, then write it back whole.
+- Partial or per-section updates, because there is no partial-update tool. To change one field, read the current file,
+  mutate the returned dict, then write it back whole.
 - Resolving the canonical `file_path` for you. The caller, or a collaborating skill, supplies the absolute path, and
   this skill only reads and writes.
 - Discovering animals (see `/project-hierarchy`)
@@ -73,15 +73,11 @@ tools take.
 
 `overwrite` is keyword-only and defaults to `True`, so a write replaces an existing file silently. Passing
 `overwrite=False` refuses the write instead and returns
-`Unable to write <Class> to <path>: a file already exists at this path. Pass overwrite=True to replace it.` The tool
-creates any missing parent directories, so it also authors a new read-asset copy at a path that does not yet exist
-rather than failing on the absent directory.
+`Unable to write <Class> to <path>: a file already exists at this path. Pass overwrite=True to replace it.`
 
-What a `write_*` tool actually validates is the plugin-wide contract in the `## Response contract` section of
-`/assets-mcp-environment-setup`. The mechanism is a round trip. The payload is dumped to a temporary sibling file and
-loaded back through the resolved dataclass, so the **destination** is never touched by a bad payload, though the parent
-directory chain is created before the round trip runs. `SurgeryData` defines no `__post_init__`, so no value checking
-runs for surgery data and the write is a shape check only.
+What a `write_*` tool actually validates, and why every amendment MUST be a read-mutate-write of the complete record,
+is documented in the `## Response contract` section of `/assets-mcp-environment-setup`. `SurgeryData` defines no
+`__post_init__`, so no value checking runs for surgery data and the write is a shape check only.
 
 For downstream Python callers working in code rather than through MCP, `resolve_read_asset` is the code-path counterpart
 of `read_data_asset_tool`'s dispatch and is documented in `/library-extension`.
@@ -167,10 +163,10 @@ belongs to exactly one project (see `/project-hierarchy`). The authoritative sou
 MCP layer **does not query it at runtime** and only reads the YAML file whose path the caller passes.
 `surgery_metadata.yaml` (`RawDataFiles.SURGERY_METADATA`) is materialized into:
 
-| Location                                        | Populated by                                                        | Discovery path                                                                  |
-|-------------------------------------------------|---------------------------------------------------------------------|---------------------------------------------------------------------------------|
-| `<session>/raw_data/surgery_metadata.yaml`      | Acquisition runtime at session start (snapshot of the Google Sheet) | `SessionData.raw_data.surgery_metadata_path`, reported under `raw_data_files`   |
-| `<dataset_root>/<animal>/surgery_metadata.yaml` | Forging pipeline (from the animal's latest session)                 | `DatasetData.animals`, then `DatasetAnimal.surgery_path` (owned by `/datasets`) |
+| Location                                        | Populated by                                                                       | Discovery path                                                                  |
+|-------------------------------------------------|------------------------------------------------------------------------------------|---------------------------------------------------------------------------------|
+| `<session>/raw_data/surgery_metadata.yaml`      | Acquisition-system preprocessing (`snapshot_surgery_data`), after the session ends | `SessionData.raw_data.surgery_metadata_path`, reported under `raw_data_files`   |
+| `<dataset_root>/<animal>/surgery_metadata.yaml` | Forging pipeline (from the animal's latest session)                                | `DatasetData.animals`, then `DatasetAnimal.surgery_path` (owned by `/datasets`) |
 
 Prefer the MCP route to path arithmetic on either side. `inspect_sessions_tool` (`/session-data`) reports the session
 copy under `raw_data_files`, and `inspect_datasets_tool` (`/datasets`) reports each animal's `animal_path` together with
@@ -179,10 +175,16 @@ its `surgery_metadata` artifact entry.
 All copies are **snapshots** of the Google Sheet state when their pipeline ran, and none is a live view. A write to one
 does not update any sibling copy or flow back to the sheet.
 
-`surgery_metadata.yaml` is never a required raw asset. Neither the session inventory nor the dataset inventory flags its
-absence, so a missing file means the upstream capture skipped the animal rather than that the session or the dataset is
-broken. Route that case to `experiment:google-sheets-processing`, which owns the capture, rather than to a repair write
-here.
+`surgery_metadata.yaml` is never a required raw asset, and neither the session inventory nor the dataset inventory
+flags its absence. The session copy does not exist until preprocessing runs, so its absence on a session that was
+acquired but not yet preprocessed is normal rather than a sign of corruption. Route that case to
+`experiment:data-management`, which runs preprocessing. A file still missing after preprocessing means the capture
+skipped the animal, so route that case to `experiment:google-sheets-processing`, which owns the capture, rather than to
+a repair write here.
+
+Each preprocessing run rewrites the session copy from the Google Sheet, so a later run replaces any amendment made here
+with `write_data_asset_tool`. Amend the session copy only after preprocessing has produced it, and re-apply the
+amendment if the session is preprocessed again.
 
 ---
 
@@ -214,11 +216,10 @@ amendment affects only the one file whose path is passed.
 2. **Read the current record** so you mutate a validated baseline:
    `read_data_asset_tool(file_path="<absolute path>", data_asset="<asset>")`.
 3. **Mutate `response["data"]`** in memory. Change only the fields that need correcting, and keep every other section
-   intact, because the write replaces the full record.
+   intact, as the write contract in `/assets-mcp-environment-setup` requires.
 4. **Write back to the same path:**
-   `write_data_asset_tool(file_path="<absolute path>", data_asset="<asset>", data_asset_payload=<mutated dict>)`. The
-   payload round-trips through a temporary sibling file before the destination is touched, so a malformed edit fails
-   without damaging the file. `SurgeryData` defines no `__post_init__`, so nothing checks the values themselves.
+   `write_data_asset_tool(file_path="<absolute path>", data_asset="<asset>", data_asset_payload=<mutated dict>)`.
+   `SurgeryData` defines no `__post_init__`, so nothing checks the values themselves.
 5. **Tell the user which copy was amended** and that the change does not propagate to sibling copies or to the upstream
    source.
 
@@ -226,10 +227,10 @@ amendment affects only the one file whose path is passed.
 
 | Scenario                                                                            | Use                                                                                      |
 |-------------------------------------------------------------------------------------|------------------------------------------------------------------------------------------|
-| One session's snapshot has a data-entry error, and re-acquiring is overkill         | `write_data_asset_tool` on the session file                                              |
+| One session's snapshot has a data-entry error, and re-preprocessing is overkill     | `write_data_asset_tool` on the session file                                              |
 | A dataset's per-animal copy is wrong                                                | `write_data_asset_tool` on the dataset file                                              |
 | The same field is wrong in both the session snapshot and the dataset copy           | `write_data_asset_tool` against each file separately, because there is no propagation    |
-| A field is wrong for the animal itself and should be right for every future capture | Edit the upstream Google Sheet, and the next acquisition, plus the downstream forge, captures the fix |
+| A field is wrong for the animal itself and should be right for every future capture | Edit the upstream Google Sheet, and the next preprocessing run, plus the forge, captures the fix      |
 | Both a past file and future captures need fixing                                    | Do both, using the write tool for the existing file(s) and the source for future captures |
 
 The MCP layer never pushes an amendment back upstream, and copies stay separate until the next capture.
@@ -241,13 +242,14 @@ The MCP layer never pushes an amendment back upstream, and copies stay separate 
 | Skill                                 | Relationship                                                                                                                                                   |
 |---------------------------------------|----------------------------------------------------------------------------------------------------------------------------------------------------------------|
 | `/assets-mcp-environment-setup`       | Run first if the MCP server is not connected                                                                                                                   |
-| `/working-directory` | Bootstraps the working directory and the Google credentials required by the acquisition-side capture. The data-asset tools take absolute paths and need neither |
+| `/working-directory` | Bootstraps the working directory and the Google credentials required by the preprocessing-side capture. The data-asset tools take absolute paths and need neither |
 | `/library-extension`                  | Adds a **new** read asset (dataclass + `ReadAssets` member + `READ_ASSET_REGISTRY` entry) and owns `resolve_read_asset`                                        |
 | `/project-hierarchy`                  | Owns `get_data_root_overview_tool` and the project tree walk, and enumerates animals                                                                          |
 | `/session-discovery`                  | Resolves session roots for session-snapshot paths                                                                                                              |
 | `/session-data`                       | Owns `inspect_sessions_tool` that classifies read-asset files under a session                                                                                  |
 | `/session-descriptors`                | Sibling whose descriptors capture per-session runtime state, held separately from read assets                                                                 |
 | `/datasets`                           | Owns `inspect_datasets_tool` and resolves the dataset per-animal `surgery_metadata.yaml` path                                                                  |
+| `experiment:data-management`          | Runs the preprocessing that writes the session copy of `surgery_metadata.yaml` after the session ends                                                          |
 | `experiment:google-sheets-processing` | Owns the reader that captures a read asset from its external source into the on-disk dataclass                                                                 |
 
 ---

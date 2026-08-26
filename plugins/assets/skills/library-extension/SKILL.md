@@ -34,6 +34,8 @@ checklist before reporting an extension complete.
 - Adding a `ReadAssets` member, with its on-disk dataclass and `READ_ASSET_REGISTRY` entry
 - Adding a `CredentialsTypes` member, with its `CREDENTIALS_FILE_REGISTRY` filename
 - Adding an MCP tool module to the `slsa mcp` server
+- The companion plugin and schema skills a new acquisition system ships with, and the supported-systems table
+  through which operate-time routing reaches them
 - The registry model, the four import-time contract checks, and the `list_supported_*` introspection family that
   confirms an extension landed
 - The cross-skill touch list and the downstream coordination with sollertia-experiment and sollertia-forgery
@@ -85,7 +87,9 @@ Two properties of that table decide how it is used:
   `SYSTEM_SESSION_TYPES`, and `SESSION_TYPES_USING_VR_TASK` are importable from `sollertia_shared_assets` directly.
 - `SESSION_TYPES_USING_VR_TASK` is the sixth system-tier touch point and the one system-tier touch point no import-time
   check covers. Extend it whenever a new session type runs the corridor task, because it decides whether
-  `SessionData.required_raw_assets` demands the `vr_configuration.yaml` snapshot.
+  `SessionData.required_raw_assets` demands the `vr_configuration.yaml` snapshot. Membership carries a second
+  consequence: `SessionData.create()` rejects a session of a listed type created without an `experiment_name`, because
+  the task template is resolved from the experiment configuration's `unity_scene_name`.
 
 Every `<System>ExperimentConfiguration` shares one contract: an `experiment_states` field holding the experiment state
 machine, a `trial_structures` field holding the trials the experiment runs, a `unity_scene_name` field naming the
@@ -106,12 +110,12 @@ mapping the current reference system implements.
 
 `registries.py` runs three assertions at the bottom of its module body, and the third folds in a fourth check:
 
-| Check                                         | What it enforces                                                                                                                                                                                                         |
-|-----------------------------------------------|--------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
-| `_assert_registry_coverage()`                 | Every member of the four keying enums has an entry in each of the six dispatch registries it keys, every acquisition system declares at least one session type, and every session type is claimed by at least one system |
-| `_assert_descriptor_contract()`               | Every registered descriptor declares a field named `incomplete`                                                                                                                                                          |
-| `_assert_experiment_configuration_contract()` | Every registered `<System>ExperimentConfiguration` declares `experiment_states`, `trial_structures`, and `unity_scene_name`, and provides a callable `from_task_template`                                                |
-| `_experiment_builder_signature_gaps()`        | `template`, `unity_scene_name`, and `state_count` are reachable by keyword on `from_task_template`, which rules out `POSITIONAL_ONLY` unless the builder accepts `**kwargs`, and every other parameter carries a default |
+| Check                                         | What it enforces                                                                                                                                                                                                                                              |
+|-----------------------------------------------|---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| `_assert_registry_coverage()`                 | Every member of the four keying enums has an entry in each of the six dispatch registries it keys, every acquisition system declares at least one session type, and every session type is claimed by at least one system                                      |
+| `_assert_descriptor_contract()`               | Every registered descriptor declares a field named `incomplete`                                                                                                                                                                                               |
+| `_assert_experiment_configuration_contract()` | Every registered `<System>ExperimentConfiguration` declares `experiment_states`, `trial_structures`, and `unity_scene_name`, and provides a callable `from_task_template`                                                                                     |
+| `_experiment_builder_signature_gaps()`        | `from_task_template` declares `template`, `unity_scene_name`, and `state_count`, exposes all three by keyword rather than `POSITIONAL_ONLY`, and gives every other parameter a default. A builder accepting `**kwargs` is exempt from the presence rule alone |
 
 The package `__init__.py` imports `registries.py` directly, so all four run on a bare `import sollertia_shared_assets`
 rather than only when `slsa mcp` starts. An extension that misses an entry in one of the six dispatch registries
@@ -121,10 +125,12 @@ the touch it names.
 
 ### What the checks do not catch
 
-Six touch points pass a bare import and fail later, so tests rather than a guardrail cover each one. They are the four
-trial-kind discriminator edits, the `trial_structures` type union, the trigger-to-trial mapping, the
-`_SystemRawDataBuilder.build` contract, `SESSION_TYPES_USING_VR_TASK` membership, and a stale registry key left behind
-by a removed enum member. The last one passes because the coverage check computes only `expected - actual`.
+Nine touch points pass a bare import and fail later, so tests rather than a guardrail cover each one. They are the four
+trial-kind discriminator edits, the `trial_structures` type union, the trigger-to-trial mapping, the `occupancy_types`
+tuple, the `_validate_zone_positions` trigger classification, the `_SystemRawDataBuilder.build` contract, both
+consequences of `SESSION_TYPES_USING_VR_TASK` membership, and a stale registry key left behind by a removed enum member.
+Membership counts twice because it drives the required-asset policy and the `SessionData.create()` gate independently.
+The stale key passes because the coverage check computes only `expected - actual`.
 [references/guardrails.md](references/guardrails.md) carries how each omission surfaces and where to cover it.
 
 ---
@@ -189,7 +195,9 @@ skills that document it in this order, against the three modules of the `<system
 | `mesoscope:mesoscope-vr`                   | The sollertia-experiment side of the reference system, where its runtime, configuration, and CLI live                                             | None here. Hand off to `experiment:acquisition-system-design` |
 
 Mirror the shape and leave the values behind. Every concrete Mesoscope-VR field name, enum member, and filename stays in
-the mesoscope plugin, and a new system's equivalents are recorded in that system's own schema skill.
+the mesoscope plugin, and a new system's equivalents are recorded in that system's own schema skill. No such schema
+skill exists for a new system yet, so the extension creates one inside a new companion plugin, as the acquisition-system
+recipe's marketplace touch points spell out.
 
 ---
 
@@ -198,21 +206,26 @@ the mesoscope plugin, and a new system's equivalents are recorded in that system
 Each recipe names the skills its scenario touches. This table is the inverse view, and a review of a finished extension
 checks against it.
 
-| Skill                                                             | Touched by                                                 | What changes                                                                                                                                                                                              |
-|-------------------------------------------------------------------|------------------------------------------------------------|-----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
-| `/session-data`                                                   | New session type, new acquisition system                   | The `SessionTypes` enumeration, the required-assets paragraph, and the `instance.system_raw_data` field list                                                                                              |
-| `/session-descriptors`                                            | New session type                                           | The generic `<session-type>_descriptor.yaml` placeholder shape and the path-resolution handoff. The skill carries no per-system filename roster                                                           |
-| `/session-hardware-state`                                         | New acquisition system                                     | The per-system schema-skill pointers and the matching Related-skills row. The skill stays system-agnostic across new session types                                                                        |
-| `/experiment-configuration`                                       | New session type, acquisition system, trial class, trigger | The per-system schema-skill pointers, the trigger to trial-class pairing convention, and the rule that any session created with an `experiment_name` is required to carry `experiment_configuration.yaml` |
-| `/task-templates` | New trial class, new trigger type, new acquisition system | The `TriggerType` enumeration and primitives table, the trial-class enumeration, and the experiment-configuration classes into which a template builds |
-| `/data-assets`                                                    | New read asset                                             | Nothing structural. Add the asset to the worked examples when it is notable                                                                                                                               |
-| `/datasets`                                                       | New read asset, new acquisition system                     | The acquisition-system vocabulary a dataset records and the read-asset artifacts an inventory reports per animal                                                                                          |
-| `/working-directory`                                              | New credentials category                                   | The credentials-category roster documented alongside `list_supported_credentials_tool`                                                                                                                    |
-| `mesoscope:mesoscope-vr-session-schema`                           | New session type run by Mesoscope-VR                       | The new descriptor class, its field schema, and its persistent-cache filename                                                                                                                             |
-| `mesoscope:mesoscope-vr-experiment-schema`                        | New trial class or trigger branch on Mesoscope-VR          | The trial-class field roster and the trigger-to-trial mapping table                                                                                                                                       |
-| `experiment:vr-driver-interface`                                  | New trial class                                            | How the orchestrator dispatches per-trigger outcomes through the driver's `Stimulus` events                                                                                                               |
-| `experiment:google-sheets-processing`                             | New read asset, new credentials category                   | The reader that translates the external source, and the client for a new external service                                                                                                                 |
-| `unity:zone-prefabs`, `unity:task-generator`, `unity:unity-tests` | New trigger type                                           | The three Unity slices of the trigger-type recipe, each owned by the skill named                                                                                                                          |
+| Skill                                                             | Touched by                                                 | What changes                                                                                                                                                                                                                                 |
+|-------------------------------------------------------------------|------------------------------------------------------------|----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| `/session-data`                                                   | New session type, new acquisition system                   | The `SessionTypes` enumeration, the required-assets paragraph, and the `instance.system_raw_data` field list                                                                                                                                 |
+| `/session-descriptors`                                            | New session type                                           | The generic `<session-type>_descriptor.yaml` placeholder shape and the path-resolution handoff. The skill carries no per-system filename roster                                                                                              |
+| `/session-hardware-state`                                         | New acquisition system                                     | The per-system schema-skill pointers and the matching Related-skills row. The skill stays system-agnostic across new session types                                                                                                           |
+| `/experiment-configuration`                                       | New session type, acquisition system, trial class, trigger | The per-system schema-skill pointers, the trigger to trial-class pairing convention, and the rule that any session created with an `experiment_name` is required to carry `experiment_configuration.yaml`                                    |
+| `/task-templates`                                                 | New trial class, new trigger type, new acquisition system  | The `TriggerType` enumeration and primitives table, the trial-class enumeration, the experiment-configuration classes into which a template builds, and the trigger-mode counts and firing-rule table in its `references/field-semantics.md` |
+| `/data-assets`                                                    | New read asset                                             | Nothing structural. Add the asset to the worked examples when it is notable                                                                                                                                                                  |
+| `/datasets`                                                       | New read asset, new acquisition system                     | The acquisition-system vocabulary a dataset records and the read-asset artifacts an inventory reports per animal                                                                                                                             |
+| `/working-directory`                                              | New credentials category                                   | The credentials-category roster documented alongside `list_supported_credentials_tool`                                                                                                                                                       |
+| `mesoscope:mesoscope-vr-session-schema`                           | New session type run by Mesoscope-VR                       | The new descriptor class, its field schema, and its persistent-cache filename                                                                                                                                                                |
+| `mesoscope:mesoscope-vr-experiment-schema`                        | New trial class or trigger branch on Mesoscope-VR          | The trial-class field roster and the trigger-to-trial mapping table                                                                                                                                                                          |
+| `mesoscope:mesoscope-vr-runtime`                                  | New session type run by Mesoscope-VR                       | The runtime wiring of the new mode, and the registry rules this skill owns that the runtime skill restates                                                                                                                                   |
+| `experiment:acquisition-system-setup`                             | New acquisition system                                     | The "Supported acquisition systems" table, which is how `experiment:pipeline` resolves the running system to its owning skill                                                                                                                |
+| The new system's companion plugin                                 | New acquisition system                                     | A `plugins/<system>/` plugin, its `marketplace.json` entry, and the session-schema, experiment-schema, and snapshot skills holding the system's concrete material                                                                            |
+| `experiment:vr-driver-interface`                                  | New trial class                                            | How the orchestrator dispatches per-trigger outcomes through the driver's `Stimulus` events                                                                                                                                                  |
+| `experiment:google-sheets-processing`                             | New read asset, new credentials category                   | The reader that translates the external source, and the client for a new external service                                                                                                                                                    |
+| `forging:dataset-definition`                                      | New session type, new acquisition system                   | The admission policy deciding which sessions join a forged dataset, and the per-system column descriptions a dataset records                                                                                                                 |
+| `forging:data-processing-design`                                  | New acquisition system                                     | The per-system processing-stage design behind the `sollertia-forgery` registry entries the system needs                                                                                                                                      |
+| `unity:zone-prefabs`, `unity:task-generator`, `unity:unity-tests` | New trigger type                                           | The three Unity slices of the trigger-type recipe, each owned by the skill named                                                                                                                                                             |
 
 ---
 
@@ -258,7 +271,7 @@ reaches.
 
 | Pitfall                                                | Why it bites                                                                                                                                                                                                          |
 |--------------------------------------------------------|-----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
-| Trusting the import to prove the extension is complete | The checks cover the six dispatch registries and two contract shapes. Six further touch points fail only at load, at session creation, or silently, so run the test suite and the matching `list_supported_*` call    |
+| Trusting the import to prove the extension is complete | The checks cover the six dispatch registries and two contract shapes. Nine further touch points fail only at load, at session creation, or silently, so run the test suite and the matching `list_supported_*` call   |
 | Changing an existing dataclass schema in place         | On-disk YAML documents written by earlier releases can fail to load. Treat a schema change to a registered dataclass as a migration coordinated through the library's semantic versioning rather than as an extension |
 | Reading an unmapped trigger as a wiring bug            | A system maps only the trigger subset it implements, so an unmapped member is a deliberate per-system choice. Record the decision explicitly rather than adding a branch to silence the raise                         |
 
@@ -284,15 +297,16 @@ sollertia marketplace.
 | `mesoscope:mesoscope-vr-experiment-schema` | The reference trial classes, discriminator, and trigger mapping a new `<system>/experiment_configuration.py` mirrors                                                                                                                   |
 | `mesoscope:mesoscope-vr-snapshots`         | The reference raw-data layout a new `<system>/raw_data.py` mirrors                                                                                                                                                                     |
 | `mesoscope:mesoscope-vr`                   | The sollertia-experiment side of the reference acquisition system                                                                                                                                                                      |
+| `mesoscope:mesoscope-vr-runtime`           | Restates several of this skill's registry rules, so it is revisited whenever a new session type runs on Mesoscope-VR                                                                                                                   |
 | `experiment:system-design-pipeline`        | Orchestrates the four-layer build of a new acquisition system and designates this skill as Phase 1. Return there once the shared-assets contract lands                                                                                 |
 | `experiment:acquisition-system-design`     | Owns the runtime-side configuration and binding-class design. Step 9 of its from-scratch workflow adds the per-system `interfaces/<system>_tools.py` MCP tool module, and steps 10 and 11 author the system's dedicated agentic assets |
 | `experiment:acquisition-system-runtime`    | Owns the runtime that creates and runs sessions of a new session type during acquisition                                                                                                                                               |
+| `experiment:acquisition-system-setup`      | Owns the "Supported acquisition systems" table through which `experiment:pipeline` routes to a newly added system at operate time                                                                                                      |
 | `experiment:data-management`               | Manages the post-acquisition lifecycle of sessions of any type                                                                                                                                                                         |
 | `experiment:google-sheets-processing`      | Owns the reader that translates an external source into a read asset's on-disk dataclass, and the client for a new credentials category                                                                                                |
 | `experiment:vr-driver-interface`           | Decomposes the VR cue sequence into `DecomposedTrials`, which a new trial class joins through `trial_names`                                                                                                                            |
-| `forging:behavior-input-format`            | Decides eligibility of a new session type for behavior processing                                                                                                                                                                      |
-| `forging:project-manifest`                 | Tabulates a new session type in the project manifest                                                                                                                                                                                   |
-| `forging:dataset-forging-input-format`     | Decides eligibility of a new session type for dataset forging                                                                                                                                                                          |
+| `forging:dataset-definition`               | Owns the admission policy that decides whether a new session type's sessions may join a forged dataset                                                                                                                                 |
+| `forging:data-processing-design`           | Owns the per-system processing-stage design behind the `sollertia-forgery` registry entries a new acquisition system needs                                                                                                             |
 | `unity:zone-prefabs`                       | Manufactures the trigger zone prefab a new `TriggerType` member needs through `clone_zone_prefab_tool`                                                                                                                                 |
 | `unity:task-generator`                     | Owns the `CreateTask` pipeline edits and `DeleteProtectedPaths` a new `TriggerType` member needs                                                                                                                                       |
 | `unity:unity-tests`                        | Owns the EditMode and PlayMode fixtures a new `TriggerType` member changes                                                                                                                                                             |
@@ -349,6 +363,11 @@ Skill side:
 - [ ] Walked the cross-skill touch table and applied every update the scenario names
 - [ ] Enumerated the new member alongside the existing one instead of lengthening a "currently only X" chain
 - [ ] Recorded concrete per-system material in the owning system's schema skill rather than in a generic skill
+- [ ] A new acquisition system ships a plugins/<system>/ companion plugin carrying its own
+      .claude-plugin/plugin.json, an entry in the marketplace's .claude-plugin/marketplace.json, and its
+      session-schema, experiment-schema, and snapshot skills
+- [ ] A new acquisition system is listed in experiment:acquisition-system-setup's supported-systems table,
+      which is how experiment:pipeline routes to it at operate time
 - [ ] Cross-references between the touched skills still resolve
 
 Downstream side:

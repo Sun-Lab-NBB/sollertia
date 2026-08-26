@@ -4,18 +4,21 @@ description: >-
   Authors, modifies, and validates reusable TaskTemplate YAMLs, the Virtual-Reality task asset against
   which every corridor-task session is acquired (VR environment, cue catalog, trial structures with
   per-trial cue sequences and zones), via the sollertia-shared-assets MCP server. Owns
-  write_template_tool, validate_template_tool, and the schema and trigger-type introspection helpers.
-  Use when designing or modifying a task template for a VR experiment.
+  write_template_tool, validate_template_tool, and describe_template_schema_tool. Use when designing or
+  modifying a task template for a VR experiment.
 user-invocable: false
 ---
 
 # Sollertia task templates
 
 Authors and modifies reusable `TaskTemplate` YAML files for `sollertia-shared-assets` using the `slsa mcp` MCP server.
-This skill is the **exclusive** owner of `write_template_tool`, the template schema introspection tool, the template
-validator, and the trigger-type enum helper, and no other skill in the marketplace may call these.
-`list_supported_trial_types_tool` belongs to `/experiment-configuration`, and this skill only reads it to learn which
-runtime trial classes an experiment configuration can pair with a template's trial structures.
+This skill is the **exclusive** owner of the template write and validation surface, meaning `write_template_tool`,
+`describe_template_schema_tool`, and `validate_template_tool`. No other skill in the marketplace may call these. This
+skill also owns the trigger-type vocabulary as a template uses it, together with the authoring guidance for
+`list_supported_trigger_types_tool`, while `/library-extension` calls that same helper read-only as its
+extension-verification check. `list_supported_trial_types_tool` belongs to `/experiment-configuration`, and this skill
+only reads it to learn which runtime trial classes an experiment configuration can pair with a template's trial
+structures.
 
 ---
 
@@ -52,23 +55,31 @@ configurations across many projects. Mesoscope-VR is the only acquisition system
 `MesoscopeExperimentConfiguration` is currently the only concrete experiment configuration, while the
 `AcquisitionSystems` enum and the registry dispatch behind it are designed for additional acquisition systems.
 
-### Live templates vs. per-session snapshots
+### Known file locations
 
-A `TaskTemplate` YAML exists in two places, both parsed by the same `TaskTemplate` dataclass:
+A `TaskTemplate` YAML exists in three canonical locations, all parsed by the same `TaskTemplate` dataclass:
 
-- **Live template**, at `<templates-directory>/<template-name>.yaml`. This is the authoring surface owned by this skill,
-  shared across projects and sessions, and the source of truth from which Unity generation reads. Editing here is
-  intentional and affects every future session that picks the template.
-- **Per-session frozen snapshot**, at `<session>/raw_data/vr_configuration.yaml`. This is an immutable copy that
-  `SessionData.create()` caches into the session's `raw_data` directory when the session names an experiment **and** its
-  session type is listed in `SESSION_TYPES_USING_VR_TASK`. The snapshot is keyed off the experiment configuration's
-  `unity_scene_name` and records the exact template against which the session was acquired. Downstream processing,
-  covering forgery and analysis, joins the snapshot to behavioral data, so it must not drift after the session is
-  created.
+| Location                                                  | Populated by                                                           | Discovery path                                                                   |
+|-----------------------------------------------------------|------------------------------------------------------------------------|----------------------------------------------------------------------------------|
+| `<templates-directory>/<template-name>.yaml`              | This skill, via `write_template_tool`                                  | `discover_templates_tool`, with `/working-directory` owning the directory        |
+| `<session>/raw_data/vr_configuration.yaml`                | `SessionData.create()` at session creation                             | `inspect_sessions_tool` (`/session-data`), as `vr_configuration_path`            |
+| `<dataset_root>/<animal>/<session>/vr_configuration.yaml` | Forging pipeline at dataset assembly                                   | `/datasets`, whose `inspect_datasets_tool` returns the absolute path             |
 
-The same MCP tools serve both. Pass the live path to author or modify a template, and pass the session snapshot path to
-read or validate the frozen copy. `write_template_tool` targets the live surface only. Snapshots are produced
-exclusively by `SessionData.create()` and are not callers' to overwrite.
+- The **live template** is the authoring surface owned by this skill, shared across projects and sessions, and the
+  source of truth from which Unity generation reads. Editing here is intentional and affects every future session that
+  picks the template.
+- The **per-session frozen snapshot** is an immutable copy that `SessionData.create()` caches into the session's
+  `raw_data` directory when the session names an experiment **and** its session type is listed in
+  `SESSION_TYPES_USING_VR_TASK`. The snapshot is keyed off the experiment configuration's `unity_scene_name` and records
+  the exact template against which the session was acquired. Downstream processing, covering forgery and analysis, joins
+  the snapshot to behavioral data, so it must not drift after the session is created.
+- The **forged dataset copy** is written next to the session's `data.feather` when the dataset is assembled. It is a
+  required dataset artifact only when the dataset's session type is listed in `SESSION_TYPES_USING_VR_TASK`. `/datasets`
+  audits its presence and routes questions about its contents here.
+
+The same MCP tools serve all three. Pass the live path to author or modify a template, and pass a snapshot path to read
+or validate a frozen copy. `write_template_tool` targets the live surface only. The frozen copies are produced by
+`SessionData.create()` and by the forging pipeline, and are not callers' to overwrite.
 
 A template defines **what is possible** for a VR experiment. The paired experiment configuration picks a template by
 `unity_scene_name` and parameterizes it with state durations, per-trial reward volumes and puff durations, and
@@ -90,8 +101,8 @@ Scenes/<name>.unity                 scene (instantiates the task prefab)
 ```
 
 The canonical reference for this hierarchy is `unity:task-prefabs`. When you rename a template, the regenerated task
-prefab and the next scene created from it inherit the new name, and the old `.prefab` and `.unity` files remain on disk
-until deleted via `delete_asset_tool`.
+prefab and the next scene created from it inherit the new name, and the artifacts generated under the old name remain on
+disk. Removing them is owned by `unity:task-prefabs`, which handles it end to end through `delete_task_tool`.
 
 ---
 
@@ -230,10 +241,14 @@ trial structure, picking a trigger mode, or deciding on which side of the templa
 | `describe_template_schema_tool`     | Returns the field schema for `TaskTemplate` (exclusive to this skill)                                                                   |
 | `validate_template_tool`            | Validates a template against its schema and cross-reference constraints                                                                 |
 | `list_supported_trial_types_tool`   | Enumerates the runtime trial classes the named `acquisition_system`'s experiment configuration declares (requires `acquisition_system`) |
-| `list_supported_trigger_types_tool` | Enumerates the `TriggerType` enum values (exclusive)                                                                                    |
+| `list_supported_trigger_types_tool` | Enumerates the `TriggerType` enum values                                                                                                |
 
 `list_supported_trial_types_tool` is a reference here rather than an owned tool. `/experiment-configuration` owns it and
 the trial-class vocabulary it returns, so hand off there when a caller needs more than the class names.
+
+`list_supported_trigger_types_tool` is read-only on both sides that call it. This skill owns the trigger-type vocabulary
+as a template uses it, and `/library-extension` calls the same helper to confirm that a newly added `TriggerType` member
+reached the tooling.
 
 `read_template_tool`, `write_template_tool`, and `validate_template_tool` take an explicit `file_path`, and path
 resolution is the caller's responsibility. The canonical home for **live** templates is the directory set via
@@ -332,8 +347,7 @@ when intentionally replacing an existing template.
 - cue names are unique
 - each cue name is non-empty and matches `^[A-Za-z0-9_]+$`, the same pattern trial names use, because the name is
   embedded in the `Cue_<name>_<length>cm` asset filename and in the space-joined cue-sequence signature on which Unity
-  compares trials. Unity enforces the pattern on the template filename stem and on trial names, so the cue-name half is
-  caught only here
+  compares trials. Unity enforces the same pattern independently on its own side (see `unity:task-generator`)
 - each cue `length_cm` is positive and finite
 - each cue `texture` is a non-empty filename, because the field is required and carries no default
 - each trial name matches `^[A-Za-z0-9_]+$`, used verbatim in the Unity-side `<TemplateName>-<TrialName>.prefab` segment
@@ -430,6 +444,9 @@ for instantiating templates into experiment configurations.
 | `/experiment-configuration`                | Consumer that instantiates templates into per-project experiments and owns `list_supported_trial_types_tool` |
 | `mesoscope:mesoscope-vr-experiment-schema` | Owns Mesoscope-VR's concrete trial-class field schema for the classes named here                          |
 | `/library-extension`                       | Cross-cutting recipe to add a new `TriggerType` or runtime trial class                                    |
+| `/datasets`                                | Owns the forged dataset copy of the template snapshot and the `inspect_datasets_tool` audit               |
+| `/session-data`                            | Owns `inspect_sessions_tool`, which locates the raw per-session template snapshot                         |
+| `/session-discovery`                       | Resolves the session roots from which snapshot paths are built                                            |
 | `unity:task-prefabs`                       | Downstream step that generates and validates the Unity prefab                                             |
 | `unity:task-scenes`                        | Downstream step that opens and inspects the scene `create_task_tool` produced                             |
 | `unity:zone-prefabs`                       | Owns the zone prefab each `TriggerType` mode bakes                                                        |

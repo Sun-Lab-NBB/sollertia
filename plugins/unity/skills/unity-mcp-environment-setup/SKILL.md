@@ -348,6 +348,11 @@ The Unity half is unreachable from Claude until a matching wrapper exists in
 - Bump the remaining counts: the `sollertia-virtual-reality` README's "15 Editor operations" bullet, its `CLAUDE.md`
   "dispatches 15 tools" line, the `eleven of the fifteen` counts in `/unity-tests`, and the `<remarks>` count on
   `Dispatch_DeclaredToolName_DoesNotFallThroughToUnknownTool` in `McpBridgeTests.cs`.
+- Bump the count in `plugins/assets/skills/assets-mcp-environment-setup/SKILL.md`, which says "15 Unity-relay tools,
+  spanning seven families". Its family grouping must still partition the full roster: a new tool either joins one of
+  the seven families or makes an eighth, so update the family count in the same edit.
+- Bump the `fifteen-tool` wording in the plugin descriptions, meaning `plugins/unity/.claude-plugin/plugin.json` and the
+  unity plugin's entry in `.claude-plugin/marketplace.json`, because both advertise the relay's tool surface.
 - Document the tool in the owning skill's own tool surface, and register the handler with whichever bridge fixture its
   prerequisites allow, meaning `McpBridgeTests`, `McpBridgeTaskParametersTests`, or `McpBridgePlayModeTests` (see
   `/unity-tests`).

@@ -277,8 +277,7 @@ animal-level facts.
 1. **Fetch the schema** with `describe_dataset_data_schema_tool()` and read `required` off each field.
 2. **Recover the current content**, through `read_dataset_data_tool(file_path=…)` when the file still loads, or through
    `inspect_datasets_tool` and a directory listing when it does not.
-3. **Write the complete record**, carrying every field, because an omitted field is written back at its dataclass
-   default rather than rejected:
+3. **Write the complete record**, carrying every field:
    ```text
    write_dataset_data_tool(file_path="<absolute>/dataset.yaml", dataset_data_payload={...})
    ```
@@ -365,8 +364,7 @@ so prefer `define_forging_dataset_tool` for any dataset a forging run will consu
       inspect_datasets_tool rather than reassembled by hand
 - [ ] The counts vocabulary was read against the tool that produced it (ok/error for discovery,
       complete/incomplete/error for inspection)
-- [ ] write_dataset_data_tool was only invoked to repair a corrupted marker, and its payload carried every field,
-      because an omitted field is written back at its dataclass default
+- [ ] write_dataset_data_tool was only invoked to repair a corrupted marker, and its payload carried every field
 - [ ] inspect_datasets_tool was called after every write_dataset_data_tool call, and the marker was confirmed to
       match the directory tree it describes
 - [ ] Adding sessions to a dataset was routed to forging:dataset-definition rather than to write_dataset_data_tool

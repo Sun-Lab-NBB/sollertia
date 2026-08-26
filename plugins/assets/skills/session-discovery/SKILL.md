@@ -89,19 +89,10 @@ counts:                  Root-wide status tally across every discovered session 
 total_projects, total_animals, total_sessions, root_directory
 ```
 
-`status="error"` has two sources, and the two carry different payloads.
-
-A marker that fails to load produces a four-key entry holding only `session_path`, `marker` (the `session_data.yaml`
-path itself), `status`, and `error_detail` (`Failed to load SessionData: <reason>`). Its identity is untrusted, so the
-entry names no project, no animal, and no other path.
-
-A marker that loads while its `session_descriptor.yaml` is missing or unparsable produces a full entry carrying every
-identity and path key. Here `error_detail` reports the descriptor failure, either `Descriptor file not found at <path>`
-or the message the parser raised.
-
-In both cases the entry is excluded from the project rollup and from `filter_sessions_tool`'s `session_paths`, so a
-descriptor problem silently shrinks the batch a downstream skill receives. You MUST surface every error entry to the
-user before handing off.
+`status="error"` entries come in two shapes, both owned and documented by `/project-hierarchy`, which also states the
+rule excluding them from the `projects[*]` aggregates. Because `filter_sessions_tool` drops them from `session_paths`,
+a marker or descriptor problem silently shrinks the batch a downstream skill receives. You MUST surface every error
+entry to the user before handing off.
 
 ### Session filtering
 
@@ -191,7 +182,10 @@ Present the final `session_paths` list to the user. Once confirmed, hand off to 
 - The forging plugin's `forging:checksum-verification` for data integrity operations
 - The forging plugin's `forging:project-manifest` for manifest generation
 - The forging plugin's `forging:behavior-processing` for behavior extraction, filtering by eligible session types first
+- The forging plugin's `forging:dataset-definition` for dataset composition, taking session names rather than paths
 - The forging plugin's `forging:dataset-forging` for dataset assembly
+- The experiment plugin's `experiment:data-management` for preprocessing, migration, and deletion. That skill owns no
+  discovery tools, and it rejects any session path that does not lie inside the data root
 
 ---
 
@@ -259,19 +253,21 @@ that does not exist or is not a directory. Its message string is surfaced verbat
 
 ## Related skills
 
-| Skill                           | Relationship                                                                      |
-|---------------------------------|-----------------------------------------------------------------------------------|
-| `/assets-mcp-environment-setup` | Prerequisite: MCP server connectivity                                             |
-| `/working-directory` | | `/working-directory` | Required prerequisite. Persists the data root that `read_data_root_tool` supplies as the default | |
-| `/project-hierarchy`            | Owns `get_data_root_overview_tool` as the tree walk                               |
-| `/session-data`                 | Reference: SessionData marker and `inspect_sessions_tool` for per-session health  |
-| `/session-descriptors`          | Reference: per-session descriptor repair                                          |
-| `/datasets`                     | Downstream: dataset definition consumes the filtered session list                 |
-| `forging:project-manifest`      | Downstream: manifest reading and generation                                       |
-| `forging:checksum-verification` | Downstream: consumes confirmed session_paths                                      |
-| `forging:behavior-processing`   | Downstream: consumes confirmed session_paths                                      |
-| `forging:dataset-forging`       | Downstream: consumes confirmed session names                                      |
-| `forging:behavior-input-format` | Reference: behavior-processing eligibility rules                                  |
+| Skill                           | Relationship                                                                                     |
+|---------------------------------|--------------------------------------------------------------------------------------------------|
+| `/assets-mcp-environment-setup` | Prerequisite: MCP server connectivity                                                            |
+| `/working-directory`            | Required prerequisite. Persists the data root that `read_data_root_tool` supplies as the default |
+| `/project-hierarchy`            | Owns `get_data_root_overview_tool` as the tree walk                                              |
+| `/session-data`                 | Reference: SessionData marker and `inspect_sessions_tool` for per-session health                 |
+| `/session-descriptors`          | Reference: per-session descriptor repair                                                         |
+| `/datasets`                     | Downstream: reads and audits the dataset container once `forging:dataset-definition` composes it |
+| `forging:project-manifest`      | Downstream: manifest reading and generation                                                      |
+| `forging:checksum-verification` | Downstream: consumes confirmed session_paths                                                     |
+| `forging:behavior-processing`   | Downstream: consumes confirmed session_paths                                                     |
+| `forging:dataset-definition`    | Downstream: composes a dataset from the confirmed session names                                  |
+| `forging:dataset-forging`       | Downstream: consumes confirmed session names                                                     |
+| `forging:behavior-input-format` | Reference: behavior-processing eligibility rules                                                 |
+| `experiment:data-management`    | Downstream: consumes confirmed session paths inside the data root                                |
 
 ---
 

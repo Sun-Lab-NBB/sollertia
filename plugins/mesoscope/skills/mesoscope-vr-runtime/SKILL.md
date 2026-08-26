@@ -346,15 +346,12 @@ touch repositories outside `sollertia-experiment` are delegated via explicit han
 
 ### Step 1: Author the session descriptor (assets plugin)
 
-Hand off to `assets:library-extension` to add the new `SessionTypes` member, create the descriptor dataclass, register
-it under that member in `DESCRIPTOR_REGISTRY` in `registries.py`, export it, and bump the `sollertia-shared-assets`
-version. The new descriptor MUST declare `incomplete: bool = True`, or `import sollertia_shared_assets` fails the
-import-time `_assert_descriptor_contract` check.
+Hand off to `assets:library-extension`, which owns the full touch list for adding a new `SessionTypes` member. The one
+Mesoscope-VR-specific point is that the new member MUST be claimed by `AcquisitionSystems.MESOSCOPE_VR` in
+`SYSTEM_SESSION_TYPES` to be runnable on this system.
 
-The new member MUST also be claimed by `AcquisitionSystems.MESOSCOPE_VR` in `SYSTEM_SESSION_TYPES`, or the library
-fails at import with `SYSTEM_SESSION_TYPES does not claim <NAMES>...`. When the mode runs a Unity VR task, the member
-MUST additionally be added to `SESSION_TYPES_USING_VR_TASK`, since that set gates the `vr_configuration.yaml`
-task-template snapshot.
+That skill's registry-model and import-time-guardrail sections carry the rest of the touch list, and its "What the
+checks do not catch" section carries the touch points a bare import never rejects.
 
 The descriptor's field surface is documented in `/mesoscope-vr-session-schema`.
 
@@ -460,10 +457,7 @@ reconcile this skill against ground truth.
 When adding a new runtime mode:
 
 Cross-repo handoffs:
-- [ ] SessionTypes member added and registered in DESCRIPTOR_REGISTRY via assets:library-extension
-- [ ] Descriptor dataclass authored with an 'incomplete: bool = True' field (import fails without it)
-- [ ] New member claimed by AcquisitionSystems.MESOSCOPE_VR in SYSTEM_SESSION_TYPES (import fails otherwise)
-- [ ] New member added to SESSION_TYPES_USING_VR_TASK if the mode runs a Unity VR task
+- [ ] assets:library-extension's verification checklist completed for the new SessionTypes member
 - [ ] Descriptor field surface documented via /mesoscope-vr-session-schema
 - [ ] sollertia-shared-assets version bumped
 

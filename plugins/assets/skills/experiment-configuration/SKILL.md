@@ -58,17 +58,13 @@ schema skill (for Mesoscope-VR, see `mesoscope:mesoscope-vr-experiment-schema`).
 
 ## Templates vs. experiment configurations
 
-A **task template** (`TaskTemplate`) is the corridor task asset that seeds every experiment. It is project- and
-system-agnostic, so the same template can back many experiment configurations across many projects.
+`/task-templates` owns this boundary and states what a `TaskTemplate` carries. Read the template side there rather
+than here.
 
-| Concept                           | What it is                                         | Owning skill      |
-|-----------------------------------|----------------------------------------------------|-------------------|
-| `TaskTemplate`                    | Reusable corridor environment, trials, cue catalog | `/task-templates` |
-| System-specific experiment config | Per-project state machine + per-trial parameters   | this skill        |
-
-The template defines **what is possible**, and the experiment configuration picks a template (by `unity_scene_name`) and
-parameterizes it (state durations, reward volumes, project-specific overrides). The template and the experiment
-configuration are owned by two different skills.
+The configuration side is what this skill owns. An experiment configuration is per-project and system-specific. It
+selects its template by `unity_scene_name` and parameterizes it, contributing the phase-level state machine
+(`experiment_states`) and the per-trial runtime parameters (`trial_structures`). It enumerates no trials and carries no
+spatial data of its own, so the template defines what is possible and the configuration decides how it is run.
 
 ---
 
@@ -207,20 +203,26 @@ All read, write, validate, and create tools in this skill take **explicit file p
 caller resolves both, and the tools never consult `root_directory`, a project name, an experiment name, or a template
 name. The canonical paths are:
 
-| Asset                                         | Canonical path                                     |
-|-----------------------------------------------|----------------------------------------------------|
-| Per-project experiment configuration          | `<root>/<project>/configuration/<experiment>.yaml` |
-| Task template                                 | `<templates-directory>/<template-name>.yaml`       |
-| Per-session frozen experiment-config snapshot | `<session>/raw_data/experiment_configuration.yaml` |
+| Asset                                         | Canonical path                                                    |
+|-----------------------------------------------|-------------------------------------------------------------------|
+| Per-project experiment configuration          | `<root>/<project>/configuration/<experiment>.yaml`                |
+| Task template                                 | `<templates-directory>/<template-name>.yaml`                      |
+| Per-session frozen experiment-config snapshot | `<session>/raw_data/experiment_configuration.yaml`                |
+| Forged dataset per-session snapshot           | `<dataset_root>/<animal>/<session>/experiment_configuration.yaml` |
 
 Use `discover_experiments_tool(root_directory=..., project=...)` to enumerate existing configs and their absolute paths,
-and use `discover_templates_tool()` to enumerate template paths.
+and use `discover_templates_tool()` to enumerate template paths. The forged copy is discovered through
+`inspect_datasets_tool` (`/datasets`), which returns its absolute path for every session the dataset claims. That copy
+is conditional, because the dataset marker does not carry the per-session experiment, so read its `present` flag off the
+same report before passing the path to any tool.
 
 **Resolving `acquisition_system`.** It is required and carries no default. Resolve it **automatically** wherever
 possible and prompt the user only as a fallback. For a **per-session snapshot**, read it from the session's own
 `SessionData`, where `inspect_sessions_tool` (`/session-data`) reports `identity.acquisition_system`, or read the marker
-directly via `read_session_data_tool`. For **per-project authoring**, use the system the project or host targets, and
-enumerate the options with `list_supported_acquisition_systems_tool`. Pass the resolved value to every tool below.
+directly via `read_session_data_tool`. For a **forged dataset copy**, no sibling `session_data.yaml` is reachable, so
+read the value from the dataset marker instead, which `/datasets` surfaces as the `acquisition_system` field of
+`dataset.yaml`. For **per-project authoring**, use the system the project or host targets, and enumerate the options
+with `list_supported_acquisition_systems_tool`. Pass the resolved value to every tool below.
 
 ---
 
@@ -399,10 +401,14 @@ read_experiment_configuration_tool(
 )
 ```
 
-This is a read-only operation. Do not attempt to write to the frozen file, because modifying historical session metadata
-is the responsibility of `mesoscope:mesoscope-vr-snapshots`, which deals with position snapshots rather than the
-experiment config. The sollertia-shared-assets MCP layer currently supports no path for amending a frozen experiment
-config.
+The frozen copy is conventionally immutable once written, and downstream pipelines expect it that way. Amendment is
+still possible, because `write_experiment_configuration_tool` writes exactly the one file its `file_path` names, and
+that path may be the frozen snapshot. Confirm the planned write with the user before every such call, and pass
+`overwrite=True` explicitly, because the tool defaults to `overwrite=False` and refuses an existing file otherwise.
+Verify the result by re-reading the snapshot and diffing the returned payload field by field against the payload you
+intended. The amendment is local to the file whose path was passed and does not propagate to the project source
+configuration at `<root>/<project>/configuration/<experiment>.yaml`, so a correction that must apply to both is written
+to each file explicitly.
 
 ---
 
@@ -448,9 +454,11 @@ path has no separate "no class is registered" message.
 | `/assets-mcp-environment-setup`            | Run first if the MCP server is not connected                                                                                                                                                                                                                                |
 | `/task-templates`                          | Required dependency that owns corridor template authoring and exposes `discover_templates_tool` for template paths                                                                                                                                                    |
 | `/project-hierarchy`                       | Discovers the project tree and owns project creation (`create_project_tool` and `slsa configure project`)                                                                                                                                                                        |
+| `/datasets`                                | Owns the forged-dataset container and resolves the forged `experiment_configuration.yaml` copy's path via `inspect_datasets_tool`                                                                                                                                           |
+| `/session-data`                            | Owns the `SessionData` marker from which this skill reads `acquisition_system` for a per-session snapshot                                                                                                                                                                   |
 | `mesoscope:mesoscope-vr-experiment-schema` | Owns Mesoscope-VR's concrete instance, covering the trial-class and experiment field schema, the trigger-type-to-trial mapping, the system-state codes, and the `from_task_template` defaults to which this skill defers |
 | `experiment:acquisition-system-design`     | Documents the per-system system-configuration pattern (Mesoscope-VR instance: `MesoscopeSystemConfiguration`)                                                                                                                                                               |
-| `experiment:data-management`               | Downstream consumer whose `SessionData.create` copies the authored `experiment_configuration.yaml` into every new experiment session at acquisition time                                                                                                                        |
+| `experiment:acquisition-system-runtime`    | Downstream consumer whose `SessionData.create` copies the authored `experiment_configuration.yaml` into every new experiment session at acquisition time                                                                                                                    |
 | `unity:task-prefabs`                       | Validates template values against the Unity prefab state                                                                                                                                                                                                                    |
 | `experiment:pipeline`                      | Phase 4 of the experiment lifecycle (experiment authoring) hands off to this skill                                                                                                                                                                                          |
 | `/library-extension`                       | Cross-cutting recipe to add a new `AcquisitionSystems`, runtime trial class, or `TriggerType` member. A new `TriggerType` member does **not** require a `from_task_template` branch, because a system may leave it unmapped. Lists the prose here that needs updating in lockstep |

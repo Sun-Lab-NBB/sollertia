@@ -31,6 +31,8 @@ concrete field-level schema for any one system lives in that system's schema ski
 - Reading any `session_descriptor.yaml` (any supported session type) via `read_session_descriptor_tool`
 - Writing or repairing any `session_descriptor.yaml` via `write_session_descriptor_tool` (full-record replacement behind
   a shape-only check, which does not propagate to any sibling copy of the same descriptor)
+- Reconstructing a missing or unparseable `session_descriptor.yaml` from the schema, the session's own identity, and
+  values the user confirms
 - Schema introspection via `describe_session_descriptor_schema_tool`
 - The relationship between `SessionTypes` enum values and descriptor classes
 - Guidance on where `session_descriptor.yaml` is expected to live (raw session snapshot and forged dataset per-session
@@ -39,8 +41,8 @@ concrete field-level schema for any one system lives in that system's schema ski
 **Does not cover:**
 - Propagating an amendment from one copy of a descriptor to another. The raw session snapshot and the forged dataset
   copy are independent files on disk, so writing to one does not update any other.
-- Partial or per-field updates. The write tool validates and replaces the **full** descriptor payload. To change one
-  field, read the current file, mutate the returned dict, then write it back whole.
+- Partial or per-field updates. The write tool validates and replaces the **full** descriptor payload, so a
+  single-field correction goes through the amend workflow below.
 - Resolving the canonical path for you. The caller, or a collaborating skill, supplies the absolute `file_path`, and
   this skill only reads and writes.
 - Documenting any one system's concrete descriptor field-level schema (descriptor classes, field names, types,
@@ -203,7 +205,8 @@ consequences for how you check whether one exists:
   adds the `issues` string `Missing required session_descriptor.yaml at <path>`.
 - A missing or unparseable descriptor collapses the session's `status` to `"error"` in both status-reporting tools
   (`get_data_root_overview_tool` and `inspect_sessions_tool`), sets `incomplete` to `null`, and puts the reason in
-  `error_detail`. That collapsed status is the usual reason this skill gets invoked.
+  `error_detail`. That collapsed status is the usual reason this skill gets invoked, and the repair path for it is
+  **Reconstructing an unreadable descriptor** under **Workflows**.
 
 ---
 
@@ -241,23 +244,19 @@ ad-hoc paths where no sibling `session_data.yaml` is reachable, the caller MUST 
 `/assets-mcp-environment-setup`. Read it there. Two consequences are specific to descriptors:
 
 - **No value checking runs at all.** None of the registered descriptor classes defines `__post_init__`, so the write
-  reduces to a shape check. An out-of-range number, a nonsensical string, or a wrong-typed value is persisted exactly as
-  supplied.
-- **Every omitted field is silently reset.** A field left out of the payload is written back at its dataclass default
-  rather than rejected, and descriptors declare a default for nearly every field they carry. A partial payload therefore
-  succeeds and quietly resets everything it did not mention. Read the `required` marker off
+  reduces to a shape check. An out-of-range number or a nonsensical string is persisted exactly as supplied.
+- **Nearly every field carries a default.** Descriptors declare one for all but a handful of the fields they hold, so a
+  partial payload passes the write and quietly resets everything it did not mention. Read the `required` marker off
   `describe_session_descriptor_schema_tool` (see **Schema payload shape** under the `## Response contract` section of
   `/assets-mcp-environment-setup`) to learn which fields have no default, and never treat the absence of a rejection as
   evidence the payload was complete.
 
-There is no partial-update tool. To change a single field, you MUST read the current file, mutate the returned dict, and
-write the whole record back.
+There is no partial-update tool on this surface.
 
-`write_session_descriptor_tool` also creates any missing parent directories before writing, so an unverified `file_path`
-does not error. It writes a stray descriptor into a newly created tree. You MUST confirm the destination path exists
-before writing to a path from which you did not just read, either from a prior successful read or from
-`inspect_sessions_tool` (`/session-data`). The read path is not symmetric: `read_session_descriptor_tool` against a path
-that does not exist fails with `Unable to read <Class> from <path>: the file does not exist.`
+You MUST confirm the destination path exists before writing to a path from which you did not just read, either from a
+prior successful read or from `inspect_sessions_tool` (`/session-data`). A read needs no such confirmation, because
+`read_session_descriptor_tool` against a path that does not exist fails with
+`Unable to read <Class> from <path>: the file does not exist.`
 
 `describe_session_descriptor_schema_tool` returns two keys: `session_type` (the caller's input string, echoed back) and
 `schema` (the field schema of the session type's descriptor dataclass).
@@ -302,7 +301,8 @@ resolves.
 ## Workflows
 
 All workflows reduce to: **resolve the path, pick the session type, then read or write**. The resolution step changes
-depending on where the file lives, and the read and write step is the same everywhere.
+depending on where the file lives, and the read and write step is the same everywhere. One workflow starts without a
+readable file: **Reconstructing an unreadable descriptor** rebuilds the record from the schema rather than from a read.
 
 ### Reading a descriptor (generic)
 
@@ -348,16 +348,15 @@ handled separately. The amendment affects only the one file whose path is passed
    ```text
    describe_session_descriptor_schema_tool(session_type="<type>")
    ```
-4. **Mutate the returned `response["data"]` dict** in memory. Change only the fields that need correcting. You MUST
-   carry every other field through untouched, because the write replaces the full record and any field you drop is
-   written back at its dataclass default instead of being rejected. Never hand-build a payload from a subset of the
-   fields.
+4. **Mutate the returned `response["data"]` dict** in memory. Change only the fields that need correcting, and carry
+   every other field through untouched. The read in step 2 supplies a complete baseline here, so within this workflow
+   you MUST NOT hand-build a payload from a subset of the fields. When the file cannot be read at all, use
+   **Reconstructing an unreadable descriptor** below instead.
 5. **Confirm the planned write with the user.** `write_session_descriptor_tool` defaults to `overwrite=True`, so it
    silently clobbers the existing descriptor file with no backup. If the user wants the call to refuse-on-existing
    instead, pass `overwrite=False` explicitly.
-6. **Write the corrected payload back to the same path the read returned.** The tool creates missing parent directories,
-   so a mistyped path succeeds and plants a stray descriptor in a new tree. Confirm the destination is the path the read
-   in step 2 returned before you call:
+6. **Write the corrected payload back to the same path the read returned.** Confirm the destination is the path the
+   read in step 2 returned before you call:
    ```text
    write_session_descriptor_tool(
        file_path="<absolute path>",
@@ -366,8 +365,8 @@ handled separately. The amendment affects only the one file whose path is passed
        overwrite=True,  # the default, set to False to refuse-on-existing
    )
    ```
-   Descriptors define no `__post_init__`, so this is a shape check only. A malformed payload fails without damaging the
-   file, but a wrong-typed or out-of-range value is written exactly as supplied.
+   Descriptors define no `__post_init__`, so this is a shape check only, and a wrong-typed or out-of-range value is
+   written exactly as supplied.
 7. **Re-read and diff to verify:**
    ```text
    read_session_descriptor_tool(file_path="<absolute path>", session_type="<type>")
@@ -376,6 +375,51 @@ handled separately. The amendment affects only the one file whose path is passed
    was silently reset to its default, and you MUST do it before reporting success.
 8. **Tell the user which copy was amended** and that the change does not propagate to any sibling copy (raw session,
    forged dataset, persistent cache). If other copies should match, amend each explicitly.
+
+### Reconstructing an unreadable descriptor
+
+Use this when the descriptor is missing or fails to parse, which is the condition that collapses the session's `status`
+to `"error"` and sets `incomplete` to `null`. The amend workflow cannot start here, because there is no record to read
+and mutate. Treat the result as a repair of a historical record rather than an authoring pass: every value you put in
+the payload is a claim about a session that already ran.
+
+1. **Resolve the `file_path`** as in the read workflow, and confirm from the container's owner that the file is the one
+   that is missing or unparseable (`inspect_sessions_tool` via `/session-data` for a raw session snapshot,
+   `inspect_datasets_tool` via `/datasets` for a forged copy).
+2. **Determine `session_type` from outside the descriptor.** Read `identity.session_type` off `inspect_sessions_tool`,
+   or read the marker with `read_session_data_tool(file_path="<session>/raw_data/session_data.yaml")` (`/session-data`).
+   For a forged copy or an ad-hoc path, the caller supplies it.
+3. **Recover the field set** with `describe_session_descriptor_schema_tool(session_type="<type>")`, and read `required`
+   off each field to learn which ones the schema leaves without a default:
+   ```text
+   describe_session_descriptor_schema_tool(session_type="<type>")
+   ```
+4. **Recover the session identity** from `inspect_sessions_tool` (`/session-data`), which reports the animal, the
+   session name, and the session type for the session that owns the file.
+5. **Recover whatever the raw file still yields.** An unparseable YAML is often readable as text, so salvage the
+   key-value pairs that survived and treat the rest as unknown.
+6. **Confirm every reconstructed value with the user before it is written**, field by field, including the values you
+   salvaged from the file text. A value the user cannot confirm goes in at the schema default, and you MUST tell the
+   user which fields were defaulted rather than recovered. A field the schema marks `required` carries no default to
+   fall back on, so its value MUST come from the user.
+7. **Write the complete record**, carrying every field the schema names:
+   ```text
+   write_session_descriptor_tool(
+       file_path="<absolute path>",
+       session_type="<type>",
+       descriptor_payload=<reconstructed dict>,
+       overwrite=True,  # the default, set to False to refuse-on-existing
+   )
+   ```
+8. **Re-read and diff to verify:**
+   ```text
+   read_session_descriptor_tool(file_path="<absolute path>", session_type="<type>")
+   ```
+   Compare every key in the returned `data` against the payload you intended before reporting success.
+9. **Re-check the session status** with `inspect_sessions_tool` (`/session-data`) to confirm the descriptor now parses
+   and the session no longer reports `status: "error"`.
+10. **Tell the user which copy was reconstructed**, which fields were defaulted, and that sibling copies (raw session,
+    forged dataset, persistent cache) are untouched.
 
 ### Inspecting a descriptor without modification
 
@@ -412,6 +456,7 @@ match the durability the user actually wants:
 | `/library-extension`                    | Cross-cutting recipe to add a `SessionTypes` member and its registry mapping      |
 | `mesoscope:mesoscope-vr-session-schema` | Owns Mesoscope-VR's concrete descriptor schema and cache filenames                |
 | `mesoscope:mesoscope-vr-snapshots`      | Owns the frozen Zaber and mesoscope-objective position snapshots                  |
+| `experiment:acquisition-system-runtime` | Writes the descriptor at session end, whose repair and amendment this skill owns  |
 | `experiment:data-management`            | Owns the acquisition-side per-animal record logging of descriptor fields          |
 | `forging:project-manifest`              | Owns the project-level manifest that reads descriptor status fields               |
 | `forging:dataset-forging`               | Owns the assembly step that copies the descriptor into a forged dataset           |
@@ -433,11 +478,14 @@ match the durability the user actually wants:
       structure was not already known
 - [ ] User confirmed the planned write, including awareness that overwrite defaults to True
 - [ ] Payload was passed as descriptor_payload (the correct kwarg name)
-- [ ] Every field returned by the read was carried into the write payload, because an omitted
-      field is written back at its dataclass default rather than rejected
+- [ ] Every field the read or the schema returned was carried into the write payload
 - [ ] The destination path was confirmed to exist before writing (prior successful read or
-      inspect_sessions_tool), because the write tool creates missing parent directories
-      instead of erroring
+      inspect_sessions_tool)
+- [ ] If the descriptor was missing or unparseable: session_type came from the session marker
+      rather than from the descriptor, every reconstructed value was confirmed with the user
+      before the write, and the defaulted fields were reported afterwards
+- [ ] After a reconstruction, inspect_sessions_tool was re-run to confirm the session no longer
+      reports status "error"
 - [ ] The write was verified by re-reading and diffing the result against the intended payload
 - [ ] If refuse-on-existing semantics were required, overwrite=False was passed explicitly
 - [ ] If writing: the user was told which single copy was amended and that the change does not

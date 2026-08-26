@@ -140,11 +140,9 @@ ad-hoc paths, the caller supplies `acquisition_system` directly.
 `write_session_hardware_state_tool` also accepts `hardware_state_payload: dict[str, Any]` (the full record) and a
 keyword-only `overwrite: bool = True`. What a write tool actually validates is documented in the `## Response contract`
 section of `/assets-mcp-environment-setup`, and hardware state is the sharpest case in the plugin.
-`MesoscopeHardwareState` declares no `__post_init__` and gives all 11 of its fields a `None` default, so a misspelled or
-omitted field name is silently dropped and persisted as `None`. Under that schema's own semantics a `None` reads
-downstream as "this hardware module was not used", which means a single typo writes a false claim onto a frozen
-acquisition record and nothing rejects it. You MUST re-read the file after every write and diff the returned `data`
-against the payload you intended before reporting success. There is no partial-update tool.
+`MesoscopeHardwareState` gives all 11 of its fields a `None` default, and under that schema's own semantics a `None`
+reads downstream as "this hardware module was not used". A field missing from the payload therefore lands on a frozen
+acquisition record as a false claim rather than as a visible gap. There is no partial-update tool.
 
 On success, `read_session_hardware_state_tool` and `write_session_hardware_state_tool` both return the same four payload
 keys: `data` (the serialized record), `file_path`, `acquisition_system` (the echoed input), and `hardware_state_class`
@@ -214,13 +212,10 @@ conventionally immutable once written, so confirm with the user before every wri
    describe_session_hardware_state_schema_tool(acquisition_system="<system>")
    ```
 4. **Mutate `response["data"]` from step 2 into the new payload.** Change only the fields that need correcting and carry
-   every other field through unchanged. The write tool replaces the full record, so a field you drop is written back at
-   its dataclass default. The population rules and the null semantics are system-specific.
+   every other field through unchanged. The population rules and the null semantics are system-specific.
 5. **Confirm the planned write with the user.** This file is normally written only by the acquisition runtime at session
    start. `write_session_hardware_state_tool` defaults to `overwrite=True`, so it silently clobbers the existing
    snapshot with no backup. If the user wants the call to refuse-on-existing instead, pass `overwrite=False` explicitly.
-   Confirm that the parent directory of `file_path` already exists as well, because the tool creates any missing parent
-   directories and a mistyped path therefore produces a stray file instead of an error.
 6. **Write the corrected payload back to the same path:**
    ```text
    write_session_hardware_state_tool(
@@ -230,8 +225,6 @@ conventionally immutable once written, so confirm with the user before every wri
        overwrite=True,  # the default, set to False to refuse-on-existing
    )
    ```
-   The hardware-state class defines no `__post_init__`, so this write is a shape check only and a dropped or misspelled
-   key persists as `None` instead of failing.
 7. **Re-read and diff. This step is mandatory, not a formality:**
    ```text
    read_session_hardware_state_tool(file_path="<absolute path>", acquisition_system="<system>")
@@ -275,8 +268,6 @@ conventionally immutable once written, so confirm with the user before every wri
       structure was not already known
 - [ ] The payload carried every field of the record rather than only the fields being changed
 - [ ] User confirmed the planned write, including awareness that overwrite defaults to True
-- [ ] The parent directory of file_path already existed, since the write tool creates missing
-      parents instead of failing on a mistyped path
 - [ ] Payload was passed as hardware_state_payload (the correct kwarg name)
 - [ ] If refuse-on-existing semantics were required, overwrite=False was passed explicitly
 - [ ] After writing: the file was re-read and the returned data was diffed field by field

@@ -97,13 +97,15 @@ references this section by pointer and MUST NOT restate it.
 
 ### Response envelope
 
-Every tool on the `slsa mcp` server returns a `dict` and never raises. A successful call returns
-`{"success": true, ...payload}` with the payload keys at the top level, and a failed call returns
-`{"success": false, "error": "<message>"}`. Branch on `response["success"]` before reading any other key. Two tools
-report a verdict rather than a failure. `validate_template_tool` and `validate_experiment_configuration_tool` return a
-success envelope carrying `valid: false` and a single-element `issues` list when the document loads but fails
-validation, and the error envelope only when the file does not exist. A batch tool can likewise return `success: true`
-while individual items inside it failed, `inspect_sessions_tool` through per-session `status: "error"` reports and
+Every tool on the `slsa mcp` server returns a `dict` rather than raising, with one exception. `filter_sessions_tool`
+propagates the `dateutil` parse error for an unparsable `start_date` or `end_date`, and `assets:session-discovery`
+documents that case in its error table. A successful call returns `{"success": true, ...payload}` with the payload keys
+at the top level, and a failed call returns `{"success": false, "error": "<message>"}`. Branch on `response["success"]`
+before reading any other key. Three tools report a verdict rather than a failure. `validate_template_tool`,
+`validate_experiment_configuration_tool`, and `validate_dataset_descriptions_tool` return a success envelope carrying
+`valid: false` and an `issues` list when the target loads but fails validation, and the error envelope when the target
+does not exist or an identifier argument does not resolve. A batch tool can likewise return `success: true` while
+individual items inside it failed, `inspect_sessions_tool` through per-session `status: "error"` reports and
 `filter_sessions_tool` through `invalid_entries`.
 
 ### What a write tool validates
@@ -143,12 +145,8 @@ lies outside the environment, so investigate tool-specific errors instead.
 
 ### Step 2: Read the platform environment status
 
-Once the server connects, call `get_platform_environment_status_tool()` once. It returns `overall_ok` together with a
-`components` map covering `working_directory` (`required: true`), `data_root`, `task_templates_directory`, and one
-`<credentials_type>_credentials` entry per credentials category. Every component carries `required`, `configured`, `ok`,
-and either `path` when it is configured or `error` when it is not. `overall_ok` reflects the required components only,
-which today is `working_directory` alone, so an `overall_ok` of `true` does not mean the optional paths are set. The
-tool never returns an error envelope. Route a false `ok` on any component to `assets:working-directory`, which owns the
+Once the server connects, call `get_platform_environment_status_tool()` once and read `overall_ok`. The tool never
+returns an error envelope. Route any component whose `ok` is false to `assets:working-directory`, which owns the
 field-level detail and the repair procedure.
 
 ### Step 3: Verify command availability
@@ -237,9 +235,8 @@ If the slsa server itself is healthy but a Unity-relay tool returns
 
 A Unity-relay tool that instead reports that
 `The Editor accepted the connection but did not answer within 30 seconds or dropped it mid-response` is a different
-failure and MUST NOT be handed off. The bridge is reachable and the Editor main thread is busy with a long operation
-such as a domain reload or an asset import, so the correct action is to wait for that operation to finish and retry the
-call.
+failure, so hand that case off to `unity:unity-mcp-environment-setup` as well. That skill routes this message to its
+"Editor-side foot-guns" section, which carries every cause and the remedy each one takes.
 
 ---
 
@@ -258,7 +255,7 @@ call.
 | `Unable to persist <Class> to <path>` | Destination suffix is not `.yaml`/`.yml` | Re-issue the write to a `.yaml` path       |
 | `Unable to load <path> as <Class>`    | Invalid YAML from a previous edit        | Repair the file, then re-read it           |
 | `Unable to reach the Unity Editor`    | McpBridge / Editor offline               | See `unity:unity-mcp-environment-setup`    |
-| `did not answer within 30 seconds`    | Editor main thread busy                  | Wait for the Editor, then retry the call   |
+| `did not answer within 30 seconds`    | Editor busy or scene cache cleared       | See `unity:unity-mcp-environment-setup`    |
 
 The two path getters each raise `FileNotFoundError` in three conditions, not one. Those three conditions are the
 following: the cached path record does not exist (`as it has not been set`), the record exists but is empty

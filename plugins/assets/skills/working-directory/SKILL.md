@@ -128,14 +128,11 @@ back to the persisted record whenever `root_directory` is omitted.
 ## Task templates directory
 
 The task templates directory is a standalone directory (separate from the working directory) that holds reusable
-`TaskTemplate` YAML files. Each template describes a complete behavioral paradigm: the VR environment, the cue catalog,
-and the trial structures. Each trial structure carries its own cue sequence, zone geometry, trigger type, and
-`transitions` map, and there is no separate segment catalog at the template level. This is typically the path to the
-local sollertia-virtual-reality repository's template directory:
-`<local-repo>/Assets/InfiniteCorridorTask/Configurations/`. The MCP `create_task_tool` refuses templates outside that
-directory (see `unity_tools.py`), and the Unity-side `CreateFromTemplate` generator scans the same directory (see
-`unity:task-prefabs` for `create_task_tool` and `unity:task-generator` for the generator's directory scan), so this
-directory is the single source of truth. Keep it pointed at the canonical repo path.
+`TaskTemplate` YAML files. This is typically the path to the local sollertia-virtual-reality repository's template
+directory: `<local-repo>/Assets/InfiniteCorridorTask/Configurations/`. The MCP `create_task_tool` refuses templates
+outside that directory (see `unity_tools.py`), and the Unity-side `CreateFromTemplate` generator scans the same
+directory (see `unity:task-prefabs` for `create_task_tool` and `unity:task-generator` for the generator's directory
+scan), so this directory is the single source of truth. Keep it pointed at the canonical repo path.
 
 Templates are **project-agnostic**, so the same template can back many per-project experiment configuration instances
 across different projects and even across different hosts. Decoupling the templates directory from the working directory
@@ -151,13 +148,8 @@ template to `create_experiment_from_vr_template_tool`. If the directory is empty
 authored before they can be referenced by experiment configurations. The directory only needs to be re-configured if its
 location on disk changes.
 
-A template defines **what is possible**, the full trial vocabulary within the linear infinite corridor, and also how
-often each trial runs. Trial frequency lives on the template as `TrialStructure.transitions`, a map of transition
-probabilities into the other trials of the same template, alongside that trial's cue sequence, zone geometry, and
-trigger type. An experiment configuration picks **which template to use** through `unity_scene_name` and parameterizes
-it: the state durations, the per-trial runtime parameters supplied by the acquisition system's own trial classes, and
-project-specific overrides. Templates are authored by `/task-templates`, and experiment configurations are authored by
-`/experiment-configuration`.
+`/task-templates` owns what lives on a `TaskTemplate`, and `/experiment-configuration` owns what an experiment
+configuration parameterizes on top of one.
 
 ---
 
@@ -326,6 +318,9 @@ rejects a missing target before the library is reached. A fifth setter, `slsa co
 project directory under the data root. It resolves that root from `get_data_root()` and accepts no override, so it fails
 on a host that skipped Step 3.
 
+Once the bootstrap steps above are done, return to `experiment:pipeline`, which owns the canonical phase order for the
+whole Sollertia lifecycle and names the phase that follows working-directory setup.
+
 ---
 
 ## When to re-run this skill
@@ -396,6 +391,7 @@ each downstream skill picks up after the working directory is set.
 | Downstream skill                       | What it needs from this skill                                                     |
 |----------------------------------------|-----------------------------------------------------------------------------------|
 | `/assets-mcp-environment-setup`        | (sibling, run first if the MCP server is not connected)                           |
+| `experiment:pipeline`                  | (owns the canonical lifecycle phase order; return there once bootstrap completes) |
 | `experiment:acquisition-system-design` | Working directory                                                                 |
 | `forging:server-configuration`         | Working directory                                                                 |
 | `/library-extension`                   | Working directory                                                                 |
@@ -408,8 +404,12 @@ each downstream skill picks up after the working directory is set.
 | `/session-descriptors`                 | Working directory                                                                 |
 | `/session-hardware-state`              | Working directory                                                                 |
 | `mesoscope:mesoscope-vr-snapshots`     | Working directory                                                                 |
-| `/data-assets`                         | Working directory + Google credentials                                            |
+| `/data-assets`                         | None. The tools take absolute paths                                               |
 | `/datasets`                            | Working directory                                                                 |
+
+The Google credentials are consumed by the preprocessing-side capture that reads a read asset out of its Google Sheet,
+which `experiment:google-sheets-processing` owns. The `/data-assets` tools themselves take absolute paths and need
+neither the working directory nor the credentials.
 
 ---
 

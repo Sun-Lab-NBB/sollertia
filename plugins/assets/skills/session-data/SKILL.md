@@ -123,7 +123,7 @@ Every Sollertia session is a directory whose YAML files live **inside `raw_data/
 ├── raw_data/                                  # acquired data and frozen metadata (written by the acquisition runtime)
 │   ├── session_data.yaml                      # SessionData marker (THIS SKILL)
 │   ├── session_descriptor.yaml                # /session-descriptors (per-session-type dataclass, flat filename)
-│   ├── surgery_metadata.yaml                  # /data-assets
+│   ├── surgery_metadata.yaml                  # /data-assets (written by preprocessing, not acquisition)
 │   ├── system_configuration.yaml              # frozen system config (owned by sollertia-experiment)
 │   ├── experiment_configuration.yaml          # /experiment-configuration (frozen, experiment sessions only)
 │   ├── vr_configuration.yaml                  # /task-templates frozen snapshot (corridor-task sessions only)
@@ -136,6 +136,9 @@ Every Sollertia session is a directory whose YAML files live **inside `raw_data/
 │   └── camera_data/                           # raw camera recordings
 └── processed_data/                            # populated by downstream processing pipelines
 ```
+
+`surgery_metadata.yaml` is the one exception to the `raw_data/` comment above. Acquisition-system preprocessing writes
+it after the session ends, so it is absent until preprocessing runs (see `/data-assets`).
 
 `nk.bin` and the descriptor's `incomplete` field are the two independent signals described above.
 

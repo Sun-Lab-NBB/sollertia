@@ -266,9 +266,10 @@ remedy.
 }
 ```
 
-Entries in the flat `sessions` list come in two shapes. A marker that loads yields the full identity entry
-(`session_name`, `project`, `animal`, `session_type`, `acquisition_system`, and the resolved paths). A marker that fails
-to load yields a four-key entry instead:
+Entries in the flat `sessions` list come in two shapes, and `status: "error"` reaches them from two separate origins.
+
+A marker that loads yields the full identity entry (`session_name`, `project`, `animal`, `session_type`,
+`acquisition_system`, and the resolved paths). A marker that fails to load yields a four-key entry instead:
 
 ```text
 {
@@ -279,9 +280,16 @@ to load yields a four-key entry instead:
 }
 ```
 
-`total_sessions` and the top-level `counts.error` include these failed markers, while the `projects[*]` aggregates
-exclude them. A caller chaining `sessions` into `filter_sessions_tool` MUST therefore expect entries carrying no
-`session_name` and no `animal`, and drop or repair them before keying on identity.
+The second origin is a marker that loads while its `session_descriptor.yaml` is missing or unparsable. That entry keeps
+the full identity shape, carries `status: "error"`, and reports the descriptor failure in `error_detail`, either
+`Descriptor file not found at <path>` or the message the parser raised.
+
+`total_sessions` and the top-level `counts.error` include both kinds of error entry, while the `projects[*]` aggregates
+exclude every entry whose `status` is `error`, whichever of the two shapes it carries. The aggregates also drop any
+entry whose `project` or `animal` value is not a non-empty string. A descriptor failure therefore withholds a session
+that is otherwise fully identified, so you MUST surface every error entry to the user before handing off. A caller
+chaining `sessions` into `filter_sessions_tool` MUST additionally expect entries carrying no `session_name` and no
+`animal`, and drop or repair them before keying on identity.
 
 ---
 

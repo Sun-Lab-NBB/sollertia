@@ -62,7 +62,10 @@ registry entry.
    every session requires `session_descriptor.yaml` and `system_configuration.yaml`, a session carrying an
    `experiment_name` also requires `experiment_configuration.yaml`, and a type listed in `SESSION_TYPES_USING_VR_TASK`
    also requires `vr_configuration.yaml`. Add the new type to that frozenset when it runs the corridor task, or extend
-   `required_raw_assets` when it needs some other asset.
+   `required_raw_assets` when it needs some other asset. Membership also gates session creation, because
+   `SessionData.create()` rejects a session of a listed type created without an `experiment_name`. The VR task template
+   is resolved from the experiment configuration's `unity_scene_name`, so a corridor-running training mode added to the
+   frozenset is created with an experiment from that point on.
 5. Cover the new type in `tests/data_hierarchy/session_data_test.py`, where `required_raw_assets` is unit-tested.
    Membership in `SESSION_TYPES_USING_VR_TASK` is not import-checked.
 
@@ -74,6 +77,7 @@ that owns the concrete per-system material, so record the new material there.
 | `/session-data`                         | The `SessionTypes` enumeration under "Session types", and the required-assets paragraph when the new type changes which snapshots a session must carry                                                                        |
 | `/session-descriptors`                  | The generic `<session-type>_descriptor.yaml` placeholder shape and the path-resolution handoff. The skill stays system-agnostic and carries no filename roster                                                                |
 | `mesoscope:mesoscope-vr-session-schema` | The new descriptor class, its field schema, and its persistent-cache filename, when Mesoscope-VR is the system that runs the new type                                                                                         |
+| `mesoscope:mesoscope-vr-runtime`        | The runtime wiring of the new mode and the registry rules the skill restates from this recipe, when Mesoscope-VR is the system that runs the new type                                                                         |
 | `/session-hardware-state`               | Nothing. The skill stays system-agnostic. Record which fields the new type populates, and whether it writes a `hardware_state.yaml`, in the owning system's schema skill                                                      |
 | `/experiment-configuration`             | The statement of which sessions carry an experiment configuration. Any session created with an `experiment_name` is required to carry `experiment_configuration.yaml`, and only the VR-task snapshot is gated by session type |
 
@@ -82,8 +86,14 @@ that owns the concrete per-system material, so record the new material there.
 - `sollertia-experiment` creates sessions of the new type during acquisition. Hand off to
   `experiment:acquisition-system-runtime` and its per-system instance, and to `experiment:data-management` for the
   post-acquisition session lifecycle.
-- `sollertia-forgery` decides whether the new type is eligible for each per-session pipeline. Hand off to
-  `forging:behavior-input-format`, `forging:project-manifest`, and `forging:dataset-forging-input-format`.
+- `sollertia-forgery` decides whether sessions of the new type may join a forged dataset, and
+  `forging:dataset-definition` owns that admission policy. The code touch is the per-system session-type mapping the
+  admission registry dispatches through, which is `MESOSCOPE_ADMISSION_PIPELINES` in
+  `src/sollertia_forgery/mesoscope_vr/forging.py` for the reference system, reached through
+  `_FORGING_ADMISSION_REGISTRY` in `src/sollertia_forgery/registries.py`. A session type absent from a system's mapping
+  joins no dataset. `_MULTI_RECORDING_SESSION_TYPE_REGISTRY` in the same module is the second session-type-keyed
+  structure, and it decides whether the new type's animals are tracked across recordings. Hand off to
+  `forging:dataset-definition`.
 
 ---
 
@@ -154,6 +164,25 @@ task-templates directory.
 | The checked-in `.pyi` stubs | Regenerated stubs, produced by `tox -e stubs`, which depends on `tox -e lint`                                             | Nothing. A stale stub ships with the release                                                 |
 | `pyproject.toml`            | A `sollertia-shared-assets` version bump                                                                                  | Nothing. The new system reaches the downstream libraries only through a released version     |
 
+### Marketplace-level touch points
+
+These four land in the `sollertia` plugin marketplace rather than in the library, and no code recipe names them. A
+system whose extension stops at the code still runs, and stays invisible to every agent that would drive it.
+
+| Touch point                           | What to add                                                                                   | What catches an omission                                                                                                                            |
+|---------------------------------------|-----------------------------------------------------------------------------------------------|-----------------------------------------------------------------------------------------------------------------------------------------------------|
+| `plugins/<system>/`                   | A companion plugin for the new system, carrying its own `.claude-plugin/plugin.json`          | Nothing. The directory belongs to no marketplace and installs nowhere                                                                               |
+| `.claude-plugin/marketplace.json`     | A `plugins` entry naming the new plugin and pointing its `source` at `./plugins/<system>`     | Nothing. The plugin ships uninstallable                                                                                                             |
+| `plugins/<system>/skills/`            | The three per-system schema skills the generic skills defer to, named below the table         | Nothing. Every per-system pointer in the generic skills routes to a skill that does not exist                                                       |
+| `experiment:acquisition-system-setup` | A row in its "Supported acquisition systems" table naming the new system and its schema skill | Nothing. `experiment:pipeline` routes to the running system's owning skill through that table, so operate-time routing never reaches the new system |
+
+The three schema skills mirror the mesoscope trio, and copying that trio is the shortest route to them.
+`mesoscope:mesoscope-vr-session-schema` carries the session-record schema, which is the descriptors and the
+hardware-state snapshot. `mesoscope:mesoscope-vr-experiment-schema` carries the experiment-configuration schema, which
+is the trial classes, the trial-kind discriminator, the trigger-to-trial mapping, and the builder defaults.
+`mesoscope:mesoscope-vr-snapshots` carries the raw-data layout and the per-session position snapshots. Name the new
+plugin after the system, and keep every concrete per-system value in it rather than in a core plugin skill.
+
 **Skill touches.** Apply each update so the skill's framing and pointers cover the new member alongside the existing
 one, enumerating both explicitly rather than lengthening a "currently only X" chain.
 
@@ -173,9 +202,21 @@ one, enumerating both explicitly rather than lengthening a "currently only X" ch
 - Step 9 of `experiment:acquisition-system-design`'s "Building a new acquisition system from scratch" workflow adds the
   per-system `interfaces/<system>_tools.py` MCP tool module, without which the system is CLI-driveable but exposes no
   system-specific MCP surface. Steps 10 and 11 of the same workflow author the system's dedicated agentic assets, a
-  per-system instance skill and, when the system has non-trivial runtime modes, a per-system runtime skill. Those two
-  are optional for the system to run, and omitting them leaves the system driveable yet undocumented for agents.
-- `sollertia-forgery` may need new behavior-processing or video-processing branches per system.
+  per-system instance skill and, when the system has non-trivial runtime modes, a per-system runtime skill. Both live in
+  the system's dedicated companion plugin rather than in the experiment plugin, and both are required deliverables. The
+  assets plugin's generic skills carry pointers that assume the per-system schema skills exist, so a system that stops
+  at the code is driveable yet undocumented for every agent that would drive it.
+- `sollertia-forgery` dispatches every per-system behavior through ten registries in
+  `src/sollertia_forgery/registries.py`, and the new system needs an entry in each of them before its sessions are
+  processed or forged. They are `_MICROCONTROLLER_PARSER_REGISTRY`, `_MICROCONTROLLER_EVENT_CODE_REGISTRY`,
+  `_MICROCONTROLLER_ELIGIBILITY_REGISTRY`, `_FORGING_ASSEMBLY_REGISTRY`, `_FORGING_ADMISSION_REGISTRY`,
+  `_CINDRA_CONFIGURATION_REGISTRY`, `_MULTI_RECORDING_SESSION_TYPE_REGISTRY`, `_RUNTIME_PARSER_REGISTRY`,
+  `_TWO_PHOTON_DATA_REGISTRY`, and `_VIDEO_TRACKING_REGISTRY`. Two of them gate the dataset seam outright.
+  `_FORGING_ASSEMBLY_REGISTRY` carries the system's `column_descriptions`, which the agnostic pipeline bakes into the
+  dataset's `data_descriptions.feather` when the dataset is defined, and `_FORGING_ADMISSION_REGISTRY` carries the
+  per-session-type pipeline requirements, so a session type absent from a system's mapping joins no dataset. Hand off to
+  `forging:dataset-definition` for the admission policy and the column-description companion, and to
+  `forging:data-processing-design` for the per-stage processing design behind the remaining entries.
 - `sollertia-virtual-reality` may need new scene scaffolding when the new system uses Unity.
 
 ---
@@ -241,19 +282,34 @@ The full extension is split four ways, and each skill owns its slice:
 
 1. Append the member to `TriggerType` in `configuration/vr_configuration.py`, which is where the enum lives rather than
    in the leaf `enums.py` module.
-2. For each system that supports the new member, add the matching branch to that system's `from_task_template`,
+2. Decide whether the new member reads a dwell time. An occupancy-style member is added to the `occupancy_types` tuple
+   in `TrialStructure.__post_init__` in the same module, which holds `OCCUPANCY_DISARM`, `OCCUPANCY_ARM`, and
+   `OCCUPANCY_TRIGGER` today and gates whether `occupancy_duration_ms` is required. An occupancy-style member left out
+   of that tuple ships with no dwell-time validation, so a template that omits the duration loads cleanly and the trial
+   reaches the acquisition runtime with `occupancy_duration_ms=None`.
+3. Classify the new member for geometry validation in `TaskTemplate._validate_zone_positions`, also in the same module.
+   That method sets `validates_zone = trigger_value != TriggerType.COLLISION.value` and
+   `validates_boundary = trigger_value != TriggerType.OCCUPANCY_TRIGGER.value`, so every member other than those two
+   validates the trigger zone, the stimulus boundary, and their relative ordering. A collision-style member left out
+   of that classification raises spurious geometry errors on every legitimate template that uses it.
+4. For each system that supports the new member, add the matching branch to that system's `from_task_template`,
    instantiating the runtime trial class to which the trigger resolves. A system that leaves the member unmapped raises
    the "not mapped to a runtime trial class" error for it, which is the intended unsupported-on-this-system signal
    rather than a wiring bug, so record the per-system decision explicitly.
-3. Cover the new branch in the experiment-configuration tests. No import-time check covers trigger coverage.
+5. Cover the new branch and both per-member classifications in the configuration tests. No import-time check covers
+   trigger coverage.
+
+Steps 2 and 3 are silent at import time. The enum member itself imports cleanly whether or not either branch mentions
+it, and neither branch is named by any of the checks in [guardrails.md](guardrails.md), so the tests in
+`tests/configuration/vr_configuration_test.py` are the only guardrail over them.
 
 **Skill touches:**
 
-| Skill                                      | What to update                                                                              |
-|--------------------------------------------|---------------------------------------------------------------------------------------------|
-| `/task-templates`                          | The `TriggerType` enumeration sentence and the primitives table                             |
-| `/experiment-configuration`                | The trigger to trial-class pairing convention                                               |
-| `mesoscope:mesoscope-vr-experiment-schema` | The trigger-to-trial mapping table, whenever Mesoscope-VR gains a branch for the new member |
+| Skill                                      | What to update                                                                                                                                                                                                                                                                                                                 |
+|--------------------------------------------|--------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| `/task-templates`                          | The `TriggerType` enumeration sentence and the primitives table in SKILL.md, plus `references/field-semantics.md`, which hardcodes the trigger-mode count in its intro, its section heading, and three sentences of that section, counts the occupancy modes separately, and carries a firing-rule table with one row per mode |
+| `/experiment-configuration`                | The trigger to trial-class pairing convention                                                                                                                                                                                                                                                                                  |
+| `mesoscope:mesoscope-vr-experiment-schema` | The trigger-to-trial mapping table, whenever Mesoscope-VR gains a branch for the new member                                                                                                                                                                                                                                    |
 
 ---
 
