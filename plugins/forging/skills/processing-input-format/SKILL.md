@@ -26,6 +26,7 @@ inputs into a job universe, and the reason a unit resolves fewer jobs than its u
 - Why a job sits in a pipeline's universe without being possible for a given unit
 - The admission gate a session clears before it joins a forged dataset
 - The cross-library handoff contract naming each upstream artifact, its producer, and its tracker
+- The consumer half of an external tool binding, namely the donated locator and the job discovery it gates
 
 **Does not cover:**
 - Batch preparation, execution, monitoring, and output cleaning. Owned by `/batch-processing`.
@@ -316,6 +317,41 @@ The Mesoscope-VR admission policy and assembly worker that fill these seams are 
 
 ---
 
+## External tool bindings
+
+An external tool binding is a tool the acquisition stack invokes but cannot host, because its runtime, its dependency
+pins, its license, or its own launcher forbids installing or driving it beside the stack. It is reached as a subprocess
+rather than imported, so what reaches this library is the artifact it left on disk rather than an API.
+`experiment:external-tool-bindings` owns the convention and the producer half. This section states the half this library
+implements.
+
+A bound tool's artifact enters through a locator donated per acquisition system, which is the same registry seam through
+which every other per-system input resolves. The locator takes the loaded session, applies the naming rule that picks
+the artifact out of its directory, and returns the path or `None`.
+
+**The locator gates possibility, not the universe.** A stage whose input is externally produced declares its job in
+the universe unconditionally and appends it to the possible subset only when the locator resolves. `video.pipeline`
+does exactly this for the tracking stage, listing `TRACKING_JOB_NAME` in the universe and appending it to `possible`
+only when `resolve_pose_prediction_locator(system=...)(session=session)` returns a path. An absent artifact therefore
+leaves the job declared and unresolvable, which is the case the readiness rules above describe, rather than failing
+the batch.
+
+**The donated worker degrades a second time.** The worker locates the artifact again and returns without writing when
+it finds none, so a job that was discovered and then lost its input completes with no output rather than raising. Both
+guards are required, because discovery and execution are separated by the batch.
+
+**Every system registers a locator, including one that binds nothing.** The registries carrying external-artifact
+locators sit inside `_assert_registry_coverage`, so a system with no bound tool registers a locator that always returns
+`None`, which resolves to a possible subset that never contains the dependent job. The job stays in the universe, as it
+does for every system. Leaving the entry out aborts the import
+instead.
+
+**The artifact resolves from the session record.** A locator reads its directory from the session record rather than
+from a literal path, so an artifact written to a scratch directory is invisible to every stage here.
+`experiment:external-tool-bindings` owns the placement decision and the reason behind it.
+
+---
+
 ## Cross-library handoff contract
 
 Every upstream artifact below is produced outside this library. The tracker column names the tracker whose jobs go
@@ -328,7 +364,7 @@ unfilled when the artifact is missing.
 | The microcontroller manifest and its log archives        | ataraxis-communication-interface        | `communication:log-input-format`        | `microcontroller_processing_tracker.yaml` |
 | The camera manifest and its log archives                 | ataraxis-video-system                   | `video:log-input-format`                | `video_processing_tracker.yaml`           |
 | The camera recordings the energy jobs read               | ataraxis-video-system                   | `video:post-recording`                  | `video_processing_tracker.yaml`           |
-| The externally produced pose predictions                 | the system's own inference tool         | `mesoscope:mesoscope-vr-video-tracking` | `video_processing_tracker.yaml`           |
+| The externally produced pose predictions                 | a bound external tool                   | `experiment:external-tool-bindings`     | `video_processing_tracker.yaml`           |
 | The cindra acquisition parameters file                   | cindra                                  | `cindra:acquisition-data-preparation`   | `single_recording_tracker.yaml`           |
 | The per-session cindra outputs the multi-day stages read | cindra                                  | `cindra:single-recording-results`       | `forging_tracker.yaml`                    |
 | The `session_paths` lists every batch consumes           | sollertia-shared-assets                 | `assets:session-discovery`              | none                                      |
@@ -340,29 +376,31 @@ unfilled when the artifact is missing.
 The `video:`, `communication:`, and `cindra:` entries below resolve through the ataraxis and cindra marketplaces. Every
 other entry resolves inside the sollertia marketplace.
 
-| Skill                                          | Relationship                                                                |
-|------------------------------------------------|-----------------------------------------------------------------------------|
-| `/batch-processing`                            | Downstream: prepares and runs the jobs whose inputs this skill locates      |
-| `/job-planning`                                | Downstream: sizes each job from the inputs this skill locates               |
-| `/processing-results`                          | Downstream: the artifacts each pipeline writes from these inputs            |
-| `/dataset-definition`                          | Upstream: creates the dataset hierarchy the forging pipeline reads          |
-| `/dataset-forging`                             | Peer: the forging pipeline's own stage semantics                            |
-| `/data-processing-design`                      | Context: the registry seams through which every per-system input resolves   |
-| `/pipeline`                                    | Context: the end-to-end phase map this skill sits inside                    |
-| `/forging-mcp-environment-setup`               | Prerequisite: server connectivity and the response contract                 |
-| `assets:session-discovery`                     | Upstream: the exclusive producer of the session path lists a batch consumes |
-| `experiment:data-management`                   | Upstream: the preprocessing that materializes a session's acquired data     |
-| `mesoscope:mesoscope-vr-processing-schema`     | Reference: the Mesoscope-VR file name and column rosters the seams produce  |
-| `mesoscope:mesoscope-vr-module-parsing`        | Reference: the Mesoscope-VR event codes, eligibility rules, and parsers     |
-| `mesoscope:mesoscope-vr-trial-decomposition`   | Reference: the Mesoscope-VR runtime source identifier and its parser        |
-| `mesoscope:mesoscope-vr-video-tracking`        | Reference: the Mesoscope-VR pose-prediction locator and tracking pass       |
-| `mesoscope:mesoscope-vr-imaging-configuration` | Reference: the Mesoscope-VR imaging locator and cindra resolvers            |
-| `mesoscope:mesoscope-vr-dataset-assembly`      | Reference: the Mesoscope-VR admission policy and assembly worker            |
-| `communication:log-input-format`               | Upstream: the microcontroller manifest and log archive format               |
-| `video:log-input-format`                       | Upstream: the camera manifest and log archive format                        |
-| `video:post-recording`                         | Upstream: verifying the camera recordings before the energy jobs read them  |
-| `cindra:acquisition-data-preparation`          | Upstream: the acquisition parameters the two-photon pipeline requires       |
-| `cindra:single-recording-results`              | Upstream: the per-session outputs the cross-recording stages read           |
+| Skill                                          | Relationship                                                                                |
+|------------------------------------------------|---------------------------------------------------------------------------------------------|
+| `/batch-processing`                            | Downstream: prepares and runs the jobs whose inputs this skill locates                      |
+| `/job-planning`                                | Downstream: sizes each job from the inputs this skill locates                               |
+| `/processing-results`                          | Downstream: the artifacts each pipeline writes from these inputs                            |
+| `/dataset-definition`                          | Upstream: creates the dataset hierarchy the forging pipeline reads                          |
+| `/dataset-forging`                             | Peer: the forging pipeline's own stage semantics                                            |
+| `/data-processing-design`                      | Context: the registry seams through which every per-system input resolves                   |
+| `/pipeline`                                    | Context: the end-to-end phase map this skill sits inside                                    |
+| `/forging-mcp-environment-setup`               | Prerequisite: server connectivity and the response contract                                 |
+| `assets:session-discovery`                     | Upstream: the exclusive producer of the session path lists a batch consumes                 |
+| `experiment:data-management`                   | Upstream: the preprocessing that materializes a session's acquired data                     |
+| `experiment:external-tool-bindings`            | Owner: the binding convention and the producer half this section pairs with                 |
+| `/library-extension`                           | Downstream: the registries a donated locator joins, and the stage a new artifact kind needs |
+| `mesoscope:mesoscope-vr-processing-schema`     | Reference: the Mesoscope-VR file name and column rosters the seams produce                  |
+| `mesoscope:mesoscope-vr-module-parsing`        | Reference: the Mesoscope-VR event codes, eligibility rules, and parsers                     |
+| `mesoscope:mesoscope-vr-trial-decomposition`   | Reference: the Mesoscope-VR runtime source identifier and its parser                        |
+| `mesoscope:mesoscope-vr-video-tracking`        | Reference: the Mesoscope-VR pose-prediction locator and tracking pass                       |
+| `mesoscope:mesoscope-vr-imaging-configuration` | Reference: the Mesoscope-VR imaging locator and cindra resolvers                            |
+| `mesoscope:mesoscope-vr-dataset-assembly`      | Reference: the Mesoscope-VR admission policy and assembly worker                            |
+| `communication:log-input-format`               | Upstream: the microcontroller manifest and log archive format                               |
+| `video:log-input-format`                       | Upstream: the camera manifest and log archive format                                        |
+| `video:post-recording`                         | Upstream: verifying the camera recordings before the energy jobs read them                  |
+| `cindra:acquisition-data-preparation`          | Upstream: the acquisition parameters the two-photon pipeline requires                       |
+| `cindra:single-recording-results`              | Upstream: the per-session outputs the cross-recording stages read                           |
 
 ---
 

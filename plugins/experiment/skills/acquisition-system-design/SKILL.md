@@ -351,22 +351,23 @@ acquisition system or only to one. The pattern skill answers "every", and a per-
 
 The last two rows resolve through the ataraxis marketplace.
 
-| Skill                                     | Relationship                                                       |
-|-------------------------------------------|--------------------------------------------------------------------|
-| `/microcontroller-interface`              | The per-module wrapper layer that binding classes compose.         |
-| `/zaber-interface`                        | Zaber motor mechanics a motor binding class composes.              |
-| `/acquisition-system-runtime`             | The runtime counterpart to this static-composition pattern.        |
-| `/vr-driver-interface`                    | The Unity VR task driver every acquisition system carries.         |
-| `/acquisition-system-setup`               | Hardware discovery that populates configuration fields.            |
-| `/pipeline`                               | Operate-time phase ordering for an existing system.                |
-| `/system-design-pipeline`                 | Build-time phase ordering across the four repositories.            |
-| `/google-sheets-processing`               | The external data-service processor category and its schema.       |
-| `/library-extension`                      | The seam catalog a new system composes in sle and slmc.            |
-| `assets:library-extension`                | The shared-assets enum and registry recipe for a new system.       |
-| `mesoscope:mesoscope-vr`                  | The current worked instance of this pattern.                       |
-| `mesoscope:mesoscope-vr-runtime`          | The current worked instance's runtime behavior.                    |
-| `video:camera-interface`                  | VideoSystem mechanics a camera binding class composes.             |
-| `communication:microcontroller-interface` | MicroControllerInterface mechanics a board binding class composes. |
+| Skill                                     | Relationship                                                        |
+|-------------------------------------------|---------------------------------------------------------------------|
+| `/external-tool-bindings`                 | Owns the configuration section that addresses a bound external tool |
+| `/microcontroller-interface`              | The per-module wrapper layer that binding classes compose.          |
+| `/zaber-interface`                        | Zaber motor mechanics a motor binding class composes.               |
+| `/acquisition-system-runtime`             | The runtime counterpart to this static-composition pattern.         |
+| `/vr-driver-interface`                    | The Unity VR task driver every acquisition system carries.          |
+| `/acquisition-system-setup`               | Hardware discovery that populates configuration fields.             |
+| `/pipeline`                               | Operate-time phase ordering for an existing system.                 |
+| `/system-design-pipeline`                 | Build-time phase ordering across the four repositories.             |
+| `/google-sheets-processing`               | The external data-service processor category and its schema.        |
+| `/library-extension`                      | The seam catalog a new system composes in sle and slmc.             |
+| `assets:library-extension`                | The shared-assets enum and registry recipe for a new system.        |
+| `mesoscope:mesoscope-vr`                  | The current worked instance of this pattern.                        |
+| `mesoscope:mesoscope-vr-runtime`          | The current worked instance's runtime behavior.                     |
+| `video:camera-interface`                  | VideoSystem mechanics a camera binding class composes.              |
+| `communication:microcontroller-interface` | MicroControllerInterface mechanics a board binding class composes.  |
 
 ---
 

@@ -439,6 +439,7 @@ inside the sollertia marketplace.
 
 | Skill                                     | Relationship                                                                                    |
 |-------------------------------------------|-------------------------------------------------------------------------------------------------|
+| `experiment:external-tool-bindings`       | Owns the binding convention the `video_tracking` section instantiates                           |
 | `/mesoscope-vr-cli-reference`             | Owns the `sle mesoscope configure system` and `configure experiment` command surface            |
 | `experiment:acquisition-system-design`    | The platform-general pattern this system implements. Required reading.                          |
 | `experiment:library-extension`            | The seam catalog a new acquisition system fills, of which this system is the worked instance.   |

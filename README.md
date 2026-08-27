@@ -71,9 +71,8 @@ ___
                 |                              |                          |
     sollertia-micro-controllers        MQTT task contract          cindra (imaging)
     (AXMC firmware)                                                       |
-                |                                                         |
-    sollertia-video-tracking  ----------------------------------->  forged datasets
-    (DeepLabCut inference)
+                                                                          |
+                                                                    forged datasets
 ```
 
 Shared assets sit at the center, because both the acquisition side and the processing side read the same records. The
@@ -107,10 +106,25 @@ ___
 - **[sollertia-forgery](https://github.com/Sun-Lab-NBB/sollertia-forgery)** (Python). Turns recorded sessions into
   per-session data tables and multi-session datasets across six batch pipelines, locally or on a SLURM cluster. Ships
   the `slf` CLI and MCP server.
-- **[sollertia-video-tracking](https://github.com/Sun-Lab-NBB/sollertia-video-tracking)** (Python). Designs and
-  deploys the DeepLabCut pose-estimation pipelines whose predictions the video processing stage consumes. It ships no
-  marketplace plugin, and its `slvt` CLI is its only agent-facing surface, because project creation and frame labeling
-  happen in a DeepLabCut GUI that an agent cannot drive.
+
+___
+
+## External Tool Bindings
+
+Some tools the platform runs cannot live inside it. An external tool binding is reached across a process boundary,
+because its runtime, its dependency pins, its license, or its own launcher forbids installing or driving it beside the
+stack, and its contract is the artifact it leaves on disk rather than an API. A binding is not indexed above, ships no
+marketplace plugin, and is not version-checked as a sibling clone. It is documented at the two seams it touches, the
+call that produces the artifact and the stage that reads it back. The `experiment:external-tool-bindings` skill owns
+the convention and the producer seam, and `forging:processing-input-format` owns the consumer seam.
+
+- **[sollertia-video-tracking](https://github.com/Sun-Lab-NBB/sollertia-video-tracking)** (Python, DeepLabCut). Bolted
+  into Mesoscope-VR acquisition preprocessing, which invokes its `slvt infer` command through `conda run` and leaves
+  the DeepLabCut prediction beside the face-camera video. The forging video pipeline reads that prediction back to
+  compute pupil metrics. DeepLabCut supports only Python 3.10 to 3.12 and the numpy 1.x series, so it cannot share the
+  stack's Python 3.14 and numpy 2 environment, and the project pins itself to the newest interpreter DeepLabCut
+  allows. The binding is skipped where the host leaves it unconfigured or the face-camera video is absent, while an
+  inference that runs and fails aborts the session transfer rather than passing silently.
 
 ___
 
@@ -120,17 +134,15 @@ ___
 
 The libraries do not share one distribution channel, so install each from the channel that publishes it.
 
-Python libraries are available via PyPI. The acquisition and processing stack requires Python `>=3.14,<3.15`:
+Python libraries are available via PyPI and require Python `>=3.14,<3.15`:
 
 ```bash
 pip install sollertia-shared-assets sollertia-experiment sollertia-forgery
 ```
 
-The tracking library is pinned to Python `>=3.12,<3.13` by DeepLabCut, so install it into its own environment:
-
-```bash
-pip install sollertia-video-tracking
-```
+An external tool binding installs into its own environment instead, on the interpreter its own pins allow. For
+sollertia-video-tracking that is Python `>=3.12,<3.13`, and the acquisition configuration names the environment it
+created.
 
 C++ firmware is built and uploaded with PlatformIO from a clone of the repository, and the Unity project is opened
 directly in the Unity Editor. Both carry their own setup instructions in their READMEs.
@@ -147,7 +159,7 @@ skills available to Claude Code and, for the plugins that bundle an MCP server, 
 | Plugin       | MCP Server                | Skills | Focus                                                                    |
 |--------------|---------------------------|--------|--------------------------------------------------------------------------|
 | `assets`     | `sollertia-shared-assets` | 13     | Record schemas, session discovery, dataset inspection, the Unity relay.  |
-| `experiment` | `sollertia-experiment`    | 14     | Acquisition-system design, hardware interfaces, runtime, and extension.  |
+| `experiment` | `sollertia-experiment`    | 15     | Acquisition-system design, hardware interfaces, runtime, and extension.  |
 | `forging`    | `sollertia-forgery`       | 14     | Batch processing, job planning, dataset forging, and remote execution.   |
 | `mesoscope`  | —                         | 13     | The Mesoscope-VR reference system, acquisition side and processing side. |
 | `unity`      | —                         | 11     | Unity Editor integration, VR task generation, scenes, and Play Mode.     |

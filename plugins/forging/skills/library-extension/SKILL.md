@@ -310,6 +310,7 @@ marketplaces. Every other entry resolves inside the sollertia marketplace.
 
 | Skill                                           | Relationship                                                                                            |
 |-------------------------------------------------|---------------------------------------------------------------------------------------------------------|
+| `experiment:external-tool-bindings`             | Owns the binding convention whose consumer locator joins a registry here                                |
 | `/forging-mcp-environment-setup`                | Owns the `slf mcp` server a new tool module joins, and the response contract that module returns        |
 | `/data-processing-design`                       | Owns the per-system donation design behind a registry entry, and the doctrine a new stage follows       |
 | `/dataset-definition`                           | Owns the admission policy and the column descriptions a new session type or system changes              |

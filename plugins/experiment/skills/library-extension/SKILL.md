@@ -336,6 +336,7 @@ Every other entry resolves inside the sollertia marketplace.
 
 | Skill                                     | Relationship                                                                                            |
 |-------------------------------------------|---------------------------------------------------------------------------------------------------------|
+| `/external-tool-bindings`                 | Owns the binding path for a tool that cannot be installed beside the stack                              |
 | `/cli-reference`                          | Owns the `sle` surface a new acquisition system joins through `_register_subcommands()`                 |
 | `assets:library-extension`                | Owns the sollertia-shared-assets half. Step 1 hands off there and gates on its import check             |
 | `assets:working-directory`                | Bootstraps the working directory, data root, credentials, and templates directory every seam consumes   |

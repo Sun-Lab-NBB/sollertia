@@ -286,6 +286,7 @@ own system skill, resolved through `/acquisition-system-setup`'s **Supported acq
 
 | Skill                            | Relationship                                                                            |
 |----------------------------------|-----------------------------------------------------------------------------------------|
+| `/external-tool-bindings`        | Context: how a tool that cannot share the stack environment is wired in                 |
 | `/cli-reference`                 | Reference: the `sle` commands a phase runs by hand while the server is down             |
 | `/system-design-pipeline`        | The build-time counterpart, hands a finished acquisition system to this pipeline        |
 | `/library-extension`             | Owns the sollertia-experiment and sollertia-micro-controllers seam catalog for a system |
