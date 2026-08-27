@@ -443,6 +443,7 @@ entry resolves inside the sollertia marketplace.
 
 | Skill                                           | Relationship                                                                |
 |-------------------------------------------------|-----------------------------------------------------------------------------|
+| `experiment:external-tool-bindings`             | Owns the convention behind an externally produced input this library reads  |
 | `/pipeline`                                     | Context: where each pattern here sits in the end-to-end route               |
 | `/batch-processing`                             | Downstream: the tools that drive the prepare and execute steps              |
 | `/job-planning`                                 | Downstream: the tools that drive the plan step and read the resource model  |

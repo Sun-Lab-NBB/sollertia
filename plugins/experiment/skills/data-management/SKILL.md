@@ -334,6 +334,7 @@ per-session pipelines. `forging:server-configuration` owns the remote compute se
 
 | Skill                               | Relationship                                                               |
 |-------------------------------------|----------------------------------------------------------------------------|
+| `/external-tool-bindings`           | Owns the convention behind an external tool invoked during preprocessing   |
 | `/cli-reference`                    | Owns the `sle` command surface a user runs by hand when the server is down |
 | `/experiment-mcp-environment-setup` | Run first if the `sle mcp` server is not connected                         |
 | `/google-sheets-processing`         | Owns the `SurgeryLog` and `WaterLog` processors preprocessing invokes      |

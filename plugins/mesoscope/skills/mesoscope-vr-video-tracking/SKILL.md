@@ -370,6 +370,7 @@ the sollertia marketplace.
 
 | Skill                                  | Relationship                                                                                |
 |----------------------------------------|---------------------------------------------------------------------------------------------|
+| `experiment:external-tool-bindings`    | Owns the binding convention behind the externally produced prediction file                  |
 | `/mesoscope-vr`                        | Producer: owns the acquisition-side `video_tracking` section and the `slvt infer` call      |
 | `/mesoscope-vr-processing-schema`      | Owns the `VideoDataFiles` filename roster and the `DatasetColumn` rows these columns become |
 | `/mesoscope-vr-dataset-assembly`       | Downstream: calls both `video_dataset.py` functions and chooses the reference clock         |
