@@ -3,8 +3,8 @@ name: mesoscope-vr
 description: >-
   Knowledge repository for the Mesoscope-VR data acquisition system: its hardware subsystem inventory, the
   MesoscopeSystemConfiguration dataclass and YAML lifecycle, the per-subsystem binding classes, and the
-  hardware/calibration modification workflows. Use when configuring, modifying, or auditing Mesoscope-VR's hardware
-  and configuration layer, or reading the frozen per-session system-configuration snapshot.
+  hardware/calibration modification workflows. Use when configuring, modifying, or auditing Mesoscope-VR's hardware and
+  configuration layer, or reading the frozen per-session system-configuration snapshot.
 user-invocable: false
 ---
 
@@ -33,7 +33,7 @@ runtime behavior (state machine, training modes, CLI) to `/mesoscope-vr-runtime`
 - The `video_tracking` section that binds the acquisition stack to the sollertia-video-tracking (slvt) inference tool
 - Configuration authoring and modification workflows
 
-**Does not cover** (delegated):
+**Does not cover:**
 - The platform-general design pattern this system implements. See `experiment:acquisition-system-design`
 - The extension seams a new acquisition system touches across the four repositories. See `experiment:library-extension`
 - Mesoscope-VR runtime behavior (state machine, training modes, visualizers, `sle mesoscope` CLI commands) and the
@@ -439,6 +439,7 @@ inside the sollertia marketplace.
 
 | Skill                                     | Relationship                                                                                    |
 |-------------------------------------------|-------------------------------------------------------------------------------------------------|
+| `/mesoscope-vr-cli-reference`             | Owns the `sle mesoscope configure system` and `configure experiment` command surface            |
 | `experiment:acquisition-system-design`    | The platform-general pattern this system implements. Required reading.                          |
 | `experiment:library-extension`            | The seam catalog a new acquisition system fills, of which this system is the worked instance.   |
 | `experiment:microcontroller-interface`    | The slmc + sle wrapper layer the microcontroller binding class composes.                        |

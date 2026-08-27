@@ -1,10 +1,9 @@
 ---
 name: session-data
 description: >-
-  Reads, writes, and validates SessionData markers and produces per-session health and
-  inventory reports via the sollertia-shared-assets MCP server. Owns inspect_sessions_tool
-  and the file-path based read / write / describe trio for session_data.yaml. Use when
-  inspecting one or more sessions, auditing lifecycle status, or repairing a corrupted
+  Reads, writes, and validates SessionData markers and produces per-session health and inventory reports via the
+  sollertia-shared-assets MCP server. Owns inspect_sessions_tool and the file-path based read / write / describe trio
+  for session_data.yaml. Use when inspecting one or more sessions, auditing lifecycle status, or repairing a corrupted
   SessionData marker.
 user-invocable: false
 ---
@@ -334,13 +333,13 @@ A Sollertia session moves through a small set of lifecycle states.
 `inspect_sessions_tool` (and `get_data_root_overview_tool`) collapse the flag combination into a single `status` enum
 with the following precedence (highest wins):
 
-| `status`        | Meaning                                                                                                                     |
-|-----------------|-----------------------------------------------------------------------------------------------------------------------------|
-| `uninitialized` | `nk.bin` present. Session never finished runtime init, so it holds no data of value. Safe to purge.                         |
+| `status`        | Meaning                                                                                                                                                                                                                   |
+|-----------------|---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| `uninitialized` | `nk.bin` present. Session never finished runtime init, so it holds no data of value. Safe to purge.                                                                                                                       |
 | `error`         | `nk.bin` absent, and either the descriptor YAML cannot be loaded (missing, malformed, wrong schema) or `SessionData.load()` failed on the marker itself (see "How `SessionData.load()` finds the marker"). State unknown. |
-| `incomplete`    | Descriptor loaded and its `incomplete` field is True. Session ran but had runtime issues, so data may have gaps.            |
-| `processed`     | Clean session (descriptor `incomplete=False`) with a `processed_data/` directory that exists and holds at least one entry.  |
-| `acquired`      | Clean session (descriptor `incomplete=False`) with no `processed_data/` directory, or an empty one.                         |
+| `incomplete`    | Descriptor loaded and its `incomplete` field is True. Session ran but had runtime issues, so data may have gaps.                                                                                                          |
+| `processed`     | Clean session (descriptor `incomplete=False`) with a `processed_data/` directory that exists and holds at least one entry.                                                                                                |
+| `acquired`      | Clean session (descriptor `incomplete=False`) with no `processed_data/` directory, or an empty one.                                                                                                                       |
 
 In addition to `status`, each per-session report returns the independent boolean flags `uninitialized`, `incomplete`,
 and `has_processed_data`, so callers can compose their own logic. `incomplete` is nullable, holding `None` both when the
@@ -432,22 +431,23 @@ acquisition system, because the unscoped form returns every platform session typ
 
 ## Related skills
 
-| Skill                                  | Relationship                                                                                                                                            |
-|----------------------------------------|---------------------------------------------------------------------------------------------------------------------------------------------------------|
-| `/assets-mcp-environment-setup`        | Run first if the MCP server is not connected                                                                                                            |
-| `/working-directory`                   | Required prerequisite that bootstraps the local working directory the agent uses to resolve project roots                                              |
-| `/project-hierarchy`                   | Owns `get_data_root_overview_tool` for root-wide discovery                                                                                              |
-| `/session-discovery`                   | Filters the flat `sessions` list from `get_data_root_overview_tool`                                                                                     |
-| `/session-descriptors`                 | Sibling that owns the per-session descriptor read, write, and schema tools                                                                                             |
-| `/session-hardware-state`              | Sibling that owns the per-session hardware-state snapshot                                                                                                  |
-| `mesoscope:mesoscope-vr-snapshots`     | Owns the frozen Zaber and mesoscope-objective position snapshots                                                                                        |
-| `/data-assets`                         | Sibling that owns read assets, such as animal-scoped surgery records                                                                                        |
-| `mesoscope:mesoscope-vr`               | Owns `read_session_system_configuration_tool` for the frozen `system_configuration.yaml` snapshot                                                       |
-| `/experiment-configuration`            | Owns `read_experiment_configuration_tool` (reads both project source and frozen session snapshot)                                                       |
-| `/task-templates`                      | Owns `vr_configuration.yaml`, the frozen VR task snapshot captured at session start                                                                     |
-| `/library-extension`                   | Cross-cutting recipe to add new `SessionTypes` or `AcquisitionSystems` members. Lists the skill content that needs updating in lockstep            |
-| `/datasets`                            | Datasets aggregate sessions                                                                                                                             |
-| `experiment:data-management`           | Preprocesses, migrates, and deletes sessions. Project directories must already exist (created via `create_project_tool`) before sessions can be created |
+| Skill                              | Relationship                                                                                                                                            |
+|------------------------------------|---------------------------------------------------------------------------------------------------------------------------------------------------------|
+| `/cli-reference`                   | Reference: the `slsa` commands available while the MCP server is down                                                                                   |
+| `/assets-mcp-environment-setup`    | Run first if the MCP server is not connected                                                                                                            |
+| `/working-directory`               | Required prerequisite that bootstraps the local working directory the agent uses to resolve project roots                                               |
+| `/project-hierarchy`               | Owns `get_data_root_overview_tool` for root-wide discovery                                                                                              |
+| `/session-discovery`               | Filters the flat `sessions` list from `get_data_root_overview_tool`                                                                                     |
+| `/session-descriptors`             | Sibling that owns the per-session descriptor read, write, and schema tools                                                                              |
+| `/session-hardware-state`          | Sibling that owns the per-session hardware-state snapshot                                                                                               |
+| `mesoscope:mesoscope-vr-snapshots` | Owns the frozen Zaber and mesoscope-objective position snapshots                                                                                        |
+| `/data-assets`                     | Sibling that owns read assets, such as animal-scoped surgery records                                                                                    |
+| `mesoscope:mesoscope-vr`           | Owns `read_session_system_configuration_tool` for the frozen `system_configuration.yaml` snapshot                                                       |
+| `/experiment-configuration`        | Owns `read_experiment_configuration_tool` (reads both project source and frozen session snapshot)                                                       |
+| `/task-templates`                  | Owns `vr_configuration.yaml`, the frozen VR task snapshot captured at session start                                                                     |
+| `/library-extension`               | Cross-cutting recipe to add new `SessionTypes` or `AcquisitionSystems` members. Lists the skill content that needs updating in lockstep                 |
+| `/datasets`                        | Datasets aggregate sessions                                                                                                                             |
+| `experiment:data-management`       | Preprocesses, migrates, and deletes sessions. Project directories must already exist (created via `create_project_tool`) before sessions can be created |
 
 ---
 

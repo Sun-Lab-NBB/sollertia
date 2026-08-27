@@ -1,11 +1,11 @@
 ---
 name: mesoscope-vr-processing-schema
 description: >-
-  Documents the Mesoscope-VR metadata schema in metadata.py: the BehaviorDataFiles and VideoDataFiles filename
-  rosters, the fifty-member DatasetColumn roster with its per-session-type presence matrix, and the derived
-  MESOSCOPE_COLUMN_DESCRIPTIONS mapping donated to the forging assembly registry. Use when you need the master
-  filename or assembled-column roster, when adding a processed feather or an assembled column, or when verifying
-  that a producer's output names match the contract.
+  Documents the Mesoscope-VR metadata schema in metadata.py: the BehaviorDataFiles and VideoDataFiles filename rosters,
+  the fifty-member DatasetColumn roster with its per-session-type presence matrix, and the derived
+  MESOSCOPE_COLUMN_DESCRIPTIONS mapping donated to the forging assembly registry. Use when you need the master filename
+  or assembled-column roster, when adding a processed feather or an assembled column, or when verifying that a
+  producer's output names match the contract.
 user-invocable: false
 ---
 
@@ -40,7 +40,8 @@ reaches the agnostic forging pipeline through the `_FORGING_ASSEMBLY_REGISTRY` s
 - The assembly algorithms that compute the `DatasetColumn` values, the sub-dataset concatenation, and the clipping
   applied afterwards. Owned by `/mesoscope-vr-dataset-assembly`.
 - The pupil-metric computation behind the face-camera pupil feather. Owned by `/mesoscope-vr-video-tracking`.
-- The forged dataset directory layout and the output verification path. Owned by `forging:processing-results`.
+- The forged dataset directory layout. Owned by `forging:processing-results`.
+- The query order that verifies a finished batch. Owned by `forging:project-state`.
 
 ---
 
@@ -303,9 +304,11 @@ producing or consuming stage. This skill owns all three, and the producing and c
 | `/mesoscope-vr-trial-decomposition`    | Producer of the seven runtime feathers and owner of their column schemas               |
 | `/mesoscope-vr-video-tracking`         | Producer of the face-camera pupil feather and owner of the pupil-metric definitions    |
 | `/mesoscope-vr-fluorescence-alignment` | Consumer of `MESOSCOPE_FRAME`, producer of the cindra fluorescence columns             |
+| `/mesoscope-vr-imaging-configuration`  | Resolver of the cindra configuration behind those fluorescence columns                 |
 | `/mesoscope-vr-dataset-assembly`       | Consumer: assembles the roster feathers into the `DatasetColumn` set of `data.feather` |
 | `forging:dataset-definition`           | Consumer: bakes `MESOSCOPE_COLUMN_DESCRIPTIONS` into `data_descriptions.feather`       |
-| `forging:processing-results`           | Reference: the forged dataset layout and the output verification path                  |
+| `forging:processing-results`           | Reference: the forged dataset layout these rosters are written into                    |
+| `forging:project-state`                | Reference: the query order that verifies a finished batch                              |
 | `forging:data-processing-design`       | Reference: the registry seams every Mesoscope-VR donation fills                        |
 | `assets:session-data`                  | Owner of `Directories` and the `ProcessedData` path properties                         |
 

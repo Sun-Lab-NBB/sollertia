@@ -1,11 +1,10 @@
 ---
 name: vr-driver-interface
 description: >-
-  Documents the Virtual Reality task driver subsystem: the VRTaskDriver class and its
-  configuration, the MQTT topic contract with the Unity game engine, the editor MCP Bridge it drives
-  for scene activation and Play Mode control, the per-cycle VRTaskEvent model, and the cue-sequence
-  trial decomposition. Use when modifying Unity coupling, the editor bridge, adding an MQTT topic or
-  VR task event, or wiring a new acquisition system to Unity.
+  Documents the Virtual Reality task driver subsystem: the VRTaskDriver class and its configuration, the MQTT topic
+  contract with the Unity game engine, the editor MCP Bridge it drives for scene activation and Play Mode control, the
+  per-cycle VRTaskEvent model, and the cue-sequence trial decomposition. Use when modifying Unity coupling, the editor
+  bridge, adding an MQTT topic or VR task event, or wiring a new acquisition system to Unity.
 user-invocable: false
 ---
 
@@ -409,6 +408,7 @@ The `communication:microcontroller-interface` entry below resolves through the a
 
 | Skill                                      | Relationship                                                                 |
 |--------------------------------------------|------------------------------------------------------------------------------|
+| `/cli-reference`                           | Owns the `sle get unity` command surface that probes this bridge             |
 | `mesoscope:mesoscope-vr-runtime`           | Owns the orchestrator that composes and drives this driver                   |
 | `mesoscope:mesoscope-vr`                   | Owns the worked example's system configuration nesting `VRTaskConfiguration` |
 | `mesoscope:mesoscope-vr-experiment-schema` | Owns the worked example's trigger-type-to-trial-class mapping                |

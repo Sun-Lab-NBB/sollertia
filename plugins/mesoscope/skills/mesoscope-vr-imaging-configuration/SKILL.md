@@ -2,10 +2,9 @@
 name: mesoscope-vr-imaging-configuration
 description: >-
   Documents the Mesoscope-VR two-photon donations sollertia-forgery dispatches through its acquisition-system
-  registries: the raw calcium-imaging directory locator, the cross-recording session-type frozenset, and the two
-  cindra configuration resolvers with their genotype-driven calcium-indicator selection. Use when resolving a
-  session's cindra configuration, when a genotype fails to map to an indicator, or when changing an indicator-tuned
-  imaging parameter.
+  registries: the raw calcium-imaging directory locator, the cross-recording session-type frozenset, and the two cindra
+  configuration resolvers with their genotype-driven calcium-indicator selection. Use when resolving a session's cindra
+  configuration, when a genotype fails to map to an indicator, or when changing an indicator-tuned imaging parameter.
 user-invocable: false
 ---
 

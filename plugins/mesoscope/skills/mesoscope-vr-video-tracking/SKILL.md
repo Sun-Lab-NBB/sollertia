@@ -1,11 +1,11 @@
 ---
 name: mesoscope-vr-video-tracking
 description: >-
-  Documents the Mesoscope-VR pupil-tracking pass and video sub-dataset assembler donated to the sollertia-forgery
-  video and forging pipelines. Covers the pose-prediction locator, the thirteen canonical bodyparts and the
-  ring-ellipse fit, the nineteen pupil columns with the blink and dilation partition, and the per-camera video
-  sub-dataset with its interpolation split and slowest-camera clock. Use when interpreting the face-camera pupil
-  feather, tracing a NaN or a blink flag back to its rule, or debugging the video columns of a forged dataset.
+  Documents the Mesoscope-VR pupil-tracking pass and video sub-dataset assembler donated to the sollertia-forgery video
+  and forging pipelines. Covers the pose-prediction locator, the thirteen canonical bodyparts and the ring-ellipse fit,
+  the nineteen pupil columns with the blink and dilation partition, and the per-camera video sub-dataset with its
+  interpolation split and slowest-camera clock. Use when interpreting the face-camera pupil feather, tracing a NaN or a
+  blink flag back to its rule, or debugging the video columns of a forged dataset.
 user-invocable: false
 ---
 

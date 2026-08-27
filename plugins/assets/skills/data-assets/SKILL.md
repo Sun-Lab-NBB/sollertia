@@ -1,11 +1,10 @@
 ---
 name: data-assets
 description: >-
-  Reads, writes, and describes on-disk read-asset dataclasses via the sollertia-shared-assets MCP
-  server's generic data-asset tools, dispatched by a `data_asset` identifier resolved from the
-  platform's read-asset registry. Surgery data (`surgery_data` → `SurgeryData`) is the current
-  worked example. Use when looking up or amending an animal's surgical history, or any other
-  registered read asset.
+  Reads, writes, and describes on-disk read-asset dataclasses via the sollertia-shared-assets MCP server's generic
+  data-asset tools, dispatched by a `data_asset` identifier resolved from the platform's read-asset registry. Surgery
+  data (`surgery_data` → `SurgeryData`) is the current worked example. Use when looking up or amending an animal's
+  surgical history, or any other registered read asset.
 user-invocable: false
 ---
 
@@ -225,13 +224,13 @@ amendment affects only the one file whose path is passed.
 
 ### Amendment vs. upstream correction (surgery example)
 
-| Scenario                                                                            | Use                                                                                      |
-|-------------------------------------------------------------------------------------|------------------------------------------------------------------------------------------|
-| One session's snapshot has a data-entry error, and re-preprocessing is overkill     | `write_data_asset_tool` on the session file                                              |
-| A dataset's per-animal copy is wrong                                                | `write_data_asset_tool` on the dataset file                                              |
-| The same field is wrong in both the session snapshot and the dataset copy           | `write_data_asset_tool` against each file separately, because there is no propagation    |
-| A field is wrong for the animal itself and should be right for every future capture | Edit the upstream Google Sheet, and the next preprocessing run, plus the forge, captures the fix      |
-| Both a past file and future captures need fixing                                    | Do both, using the write tool for the existing file(s) and the source for future captures |
+| Scenario                                                                            | Use                                                                                              |
+|-------------------------------------------------------------------------------------|--------------------------------------------------------------------------------------------------|
+| One session's snapshot has a data-entry error, and re-preprocessing is overkill     | `write_data_asset_tool` on the session file                                                      |
+| A dataset's per-animal copy is wrong                                                | `write_data_asset_tool` on the dataset file                                                      |
+| The same field is wrong in both the session snapshot and the dataset copy           | `write_data_asset_tool` against each file separately, because there is no propagation            |
+| A field is wrong for the animal itself and should be right for every future capture | Edit the upstream Google Sheet, and the next preprocessing run, plus the forge, captures the fix |
+| Both a past file and future captures need fixing                                    | Do both, using the write tool for the existing file(s) and the source for future captures        |
 
 The MCP layer never pushes an amendment back upstream, and copies stay separate until the next capture.
 
@@ -239,18 +238,19 @@ The MCP layer never pushes an amendment back upstream, and copies stay separate 
 
 ## Related skills
 
-| Skill                                 | Relationship                                                                                                                                                   |
-|---------------------------------------|----------------------------------------------------------------------------------------------------------------------------------------------------------------|
-| `/assets-mcp-environment-setup`       | Run first if the MCP server is not connected                                                                                                                   |
-| `/working-directory` | Bootstraps the working directory and the Google credentials required by the preprocessing-side capture. The data-asset tools take absolute paths and need neither |
-| `/library-extension`                  | Adds a **new** read asset (dataclass + `ReadAssets` member + `READ_ASSET_REGISTRY` entry) and owns `resolve_read_asset`                                        |
-| `/project-hierarchy`                  | Owns `get_data_root_overview_tool` and the project tree walk, and enumerates animals                                                                          |
-| `/session-discovery`                  | Resolves session roots for session-snapshot paths                                                                                                              |
-| `/session-data`                       | Owns `inspect_sessions_tool` that classifies read-asset files under a session                                                                                  |
-| `/session-descriptors`                | Sibling whose descriptors capture per-session runtime state, held separately from read assets                                                                 |
-| `/datasets`                           | Owns `inspect_datasets_tool` and resolves the dataset per-animal `surgery_metadata.yaml` path                                                                  |
-| `experiment:data-management`          | Runs the preprocessing that writes the session copy of `surgery_metadata.yaml` after the session ends                                                          |
-| `experiment:google-sheets-processing` | Owns the reader that captures a read asset from its external source into the on-disk dataclass                                                                 |
+| Skill                                 | Relationship                                                                                                                                                      |
+|---------------------------------------|-------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| `/cli-reference`                      | Reference: the `slsa` commands available while the MCP server is down                                                                                             |
+| `/assets-mcp-environment-setup`       | Run first if the MCP server is not connected                                                                                                                      |
+| `/working-directory`                  | Bootstraps the working directory and the Google credentials required by the preprocessing-side capture. The data-asset tools take absolute paths and need neither |
+| `/library-extension`                  | Adds a **new** read asset (dataclass + `ReadAssets` member + `READ_ASSET_REGISTRY` entry) and owns `resolve_read_asset`                                           |
+| `/project-hierarchy`                  | Owns `get_data_root_overview_tool` and the project tree walk, and enumerates animals                                                                              |
+| `/session-discovery`                  | Resolves session roots for session-snapshot paths                                                                                                                 |
+| `/session-data`                       | Owns `inspect_sessions_tool` that classifies read-asset files under a session                                                                                     |
+| `/session-descriptors`                | Sibling whose descriptors capture per-session runtime state, held separately from read assets                                                                     |
+| `/datasets`                           | Owns `inspect_datasets_tool` and resolves the dataset per-animal `surgery_metadata.yaml` path                                                                     |
+| `experiment:data-management`          | Runs the preprocessing that writes the session copy of `surgery_metadata.yaml` after the session ends                                                             |
+| `experiment:google-sheets-processing` | Owns the reader that captures a read asset from its external source into the on-disk dataclass                                                                    |
 
 ---
 

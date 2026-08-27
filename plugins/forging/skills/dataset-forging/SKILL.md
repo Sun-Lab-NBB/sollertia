@@ -2,8 +2,8 @@
 name: dataset-forging
 description: >-
   Documents what the forging batch pipeline does differently from the five per-session pipelines. Covers the dataset
-  processing unit, the three job types its tracker records, the cross-recording stages it dispatches in process, and
-  the assembly concurrency ceiling. Use when forging a dataset, when preparing or executing a forging batch, or when a
+  processing unit, the three job types its tracker records, the cross-recording stages it dispatches in process, and the
+  assembly concurrency ceiling. Use when forging a dataset, when preparing or executing a forging batch, or when a
   forging job reports blocked or fails to assemble.
 user-invocable: false
 ---
@@ -55,8 +55,8 @@ is the human path and `/cli-reference` owns it. Where the MCP tools are unavaila
 `/forging-mcp-environment-setup`.
 
 You MUST confirm the dataset has been defined before preparing a forging batch. Preparation resolves jobs from the
-hierarchy `define_forging_dataset_tool` built and never builds it, so a dataset that does not exist yet is an error
-rather than an empty batch.
+hierarchy `define_forging_dataset_tool` built and never builds it, so a dataset that does not exist yet prepares as an
+unresolved unit carrying an error entry and no jobs rather than as a forging batch.
 
 You MUST pass dataset roots wherever a forging batch names units, never session paths. A dataset root is the one
 `define_forging_dataset_tool` reported or one `list_project_datasets_tool` lists, both owned by `/dataset-definition`.
@@ -174,8 +174,9 @@ rule that produces it.
 ## Processing workflow
 
 1. **Confirm the dataset exists.** Ask `/dataset-definition` for the project's datasets before preparing anything. A
-   name that no hierarchy backs fails preparation with the dataset marker's own `FileNotFoundError` wrapped in the
-   preparation error, and composing the dataset is that skill's work rather than an argument to this pipeline.
+   name that no hierarchy backs does not fail preparation. The call succeeds with that dataset carried as a
+   `units[*].error` entry and `total_jobs` of zero, and composing the dataset is that skill's work rather than an
+   argument to this pipeline.
 
 2. **Read the recorded job state first.** `/dataset-definition` owns the dataset state artifact, which reports every
    tracked job with its scope, animal, session, and status. Read it whenever the dataset may already have been forged,
@@ -226,7 +227,7 @@ Every row below is specific to this pipeline. `/batch-processing` owns the gener
 
 | Condition                                                         | Where it surfaces                                                      | Remedy                                                                                                 |
 |-------------------------------------------------------------------|------------------------------------------------------------------------|--------------------------------------------------------------------------------------------------------|
-| The named dataset has no marker under the project root            | Preparation, as a wrapped `FileNotFoundError`                          | Define the dataset through `/dataset-definition`                                                       |
+| The named dataset has no marker under the project root            | Preparation, as a `units[*].error` entry inside a successful response  | Define the dataset through `/dataset-definition`                                                       |
 | The dataset carries no `data_descriptions.feather` companion      | Pipeline initialization, before any job runs                           | Recreate the dataset, which writes the companion at creation                                           |
 | The assembler wrote a column the dataset does not describe        | One assembly job, as `ValueError` naming every undescribed column      | The acquisition system's description donation is incomplete, so extend it through `/library-extension` |
 | A source session lacks a shared asset it is required to re-export | One assembly job, as `FileNotFoundError` naming the asset and its path | Restore the source session, since the check runs before any expensive work                             |

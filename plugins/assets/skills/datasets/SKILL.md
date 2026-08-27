@@ -337,22 +337,23 @@ so prefer `define_forging_dataset_tool` for any dataset a forging run will consu
 
 ## Related skills
 
-| Skill                                     | Relationship                                                                                         |
-|-------------------------------------------|------------------------------------------------------------------------------------------------------|
-| `/assets-mcp-environment-setup`           | Run first if the MCP server is not connected, and owns the response, write, and schema contracts     |
-| `/working-directory` | Required prerequisite, bootstraps the working directory and data root that anchor path resolution |
-| `/project-hierarchy`                      | Owns `get_data_root_overview_tool`, whose per-project `dataset_count` this skill's discovery expands |
-| `/session-discovery` | Filters the candidate sessions from which a dataset is defined |
-| `/session-data` | Owns the source session marker from which each forged session copy was produced |
-| `/session-descriptors`                    | Owns the schema behind each forged `session_descriptor.yaml` copy                                    |
-| `/data-assets`                            | Owns the surgery record behind each forged per-animal `surgery_metadata.yaml` copy                   |
-| `/experiment-configuration`               | Owns the schema behind each forged `experiment_configuration.yaml` copy                              |
-| `/task-templates`                         | Owns the VR task template behind each forged `vr_configuration.yaml` copy                            |
-| `/library-extension` | Recipe for adding the `SessionTypes` and `AcquisitionSystems` members against which the marker validates |
-| `forging:dataset-definition`              | Composes and grows datasets under an admission policy, and reports their forging job state           |
-| `forging:dataset-forging`                 | Runs the per-session `data.feather` assembly whose output this container holds                       |
-| `forging:processing-results`              | Owns the processed-data output layout and how a completed stage is verified                          |
-| `mesoscope:mesoscope-vr-processing-schema` | Owns the Mesoscope-VR column roster and the current `SESSION_TYPES_USING_VR_TASK` membership        |
+| Skill                                      | Relationship                                                                                             |
+|--------------------------------------------|----------------------------------------------------------------------------------------------------------|
+| `/cli-reference`                           | Reference: the `slsa` commands available while the MCP server is down                                    |
+| `/assets-mcp-environment-setup`            | Run first if the MCP server is not connected, and owns the response, write, and schema contracts         |
+| `/working-directory`                       | Required prerequisite, bootstraps the working directory and data root that anchor path resolution        |
+| `/project-hierarchy`                       | Owns `get_data_root_overview_tool`, whose per-project `dataset_count` this skill's discovery expands     |
+| `/session-discovery`                       | Filters the candidate sessions from which a dataset is defined                                           |
+| `/session-data`                            | Owns the source session marker from which each forged session copy was produced                          |
+| `/session-descriptors`                     | Owns the schema behind each forged `session_descriptor.yaml` copy                                        |
+| `/data-assets`                             | Owns the surgery record behind each forged per-animal `surgery_metadata.yaml` copy                       |
+| `/experiment-configuration`                | Owns the schema behind each forged `experiment_configuration.yaml` copy                                  |
+| `/task-templates`                          | Owns the VR task template behind each forged `vr_configuration.yaml` copy                                |
+| `/library-extension`                       | Recipe for adding the `SessionTypes` and `AcquisitionSystems` members against which the marker validates |
+| `forging:dataset-definition`               | Composes and grows datasets under an admission policy, and reports their forging job state               |
+| `forging:dataset-forging`                  | Runs the per-session `data.feather` assembly whose output this container holds                           |
+| `forging:processing-results`               | Owns the processed-data output layout and how a completed stage is verified                              |
+| `mesoscope:mesoscope-vr-processing-schema` | Owns the Mesoscope-VR column roster and the current `SESSION_TYPES_USING_VR_TASK` membership             |
 
 ---
 

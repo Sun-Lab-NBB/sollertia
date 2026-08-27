@@ -237,6 +237,7 @@ otherwise. For lick-training and run-training it is fixed `False`, because those
 
 | Skill                             | Relationship                                                                                                                                              |
 |-----------------------------------|-----------------------------------------------------------------------------------------------------------------------------------------------------------|
+| `/mesoscope-vr-cli-reference`     | Owns the `sle mesoscope run` commands whose runtime populates these records                                                                               |
 | `assets:session-descriptors`      | Generic owner of the descriptor read/write/validate/describe tools and `DESCRIPTOR_REGISTRY` dispatch.                                                    |
 | `assets:session-hardware-state`   | Generic owner of the hardware-state read/write/validate/describe tools and `HARDWARE_STATE_REGISTRY` dispatch.                                            |
 | `assets:library-extension`        | Owns the platform contract that requires `incomplete`, and the workflow for authoring a new system's `runtime_data.py`.                                   |

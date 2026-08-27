@@ -2,9 +2,9 @@
 name: batch-processing
 description: >-
   Orchestrates batch processing through the sollertia-forgery MCP server for all six batch pipelines. Covers batch
-  preparation, job execution, monitoring, cancellation, tracker reset, output cleaning, and the prepared-batch
-  registry. Use when running a checksum, runtime, microcontroller, video, two_photon, or forging batch, when
-  monitoring or canceling a run, when re-running failed jobs, or when recovering a lost batch identifier.
+  preparation, job execution, monitoring, cancellation, tracker reset, output cleaning, and the prepared-batch registry.
+  Use when running a checksum, runtime, microcontroller, video, two_photon, or forging batch, when monitoring or
+  canceling a run, when re-running failed jobs, or when recovering a lost batch identifier.
 user-invocable: false
 ---
 
@@ -31,7 +31,8 @@ and `forget_prepared_batches_tool`. No other skill in the marketplace may docume
 - The durable prepared-batch registry and batch identifier recovery
 
 **Does not cover:**
-- Session and dataset root discovery. Owned by `assets:session-discovery`.
+- Unit-root discovery, with session roots owned by `assets:session-discovery` and dataset roots by
+  `/dataset-definition`.
 - Job planning, per-unit job estimates, and the declared resource model. Owned by `/job-planning`.
 - The project manifest, the project job artifact, and manifest generation state. Owned by `/project-state`.
 - Dataset hierarchy creation and dataset state. Owned by `/dataset-definition`.
@@ -56,8 +57,9 @@ functions directly and do not shell out to `slf`. Where the tools are unavailabl
 The response envelope every tool on this server returns, and the staged-read contract its read tools follow, are
 documented in the `## Response contract` section of `/forging-mcp-environment-setup`.
 
-`assets:session-discovery` is the exclusive producer of the `session_paths` lists every batch consumes. You MUST obtain
-unit roots from it, never assemble one yourself, and confirm both the selection and its single owning project with the
+`assets:session-discovery` is the exclusive producer of the session roots the five per-session pipelines consume, and
+`/dataset-definition` of the dataset roots a `forging` batch consumes. You MUST obtain
+unit roots from one of them, never assemble one yourself, and confirm both the selection and its owning project with the
 user.
 
 You MUST treat `prepare_batch_tool` as an expensive write. It plans each unit, creates and aligns that unit's
@@ -173,12 +175,13 @@ Timing is `detailed=True` here, which adds `started_at`, `completed_at`, and `el
 There is no timing tool and no output-verification tool. Verification runs through these breakdowns, through
 `read_project_jobs_tool` under `/project-state`, and through `read_dataset_state_tool` under `/dataset-definition`.
 
-**Note:** `summary`, `status`, and `breakdown` always describe the whole batch and never respect a filter. Only `jobs`,
-`rows`, and `matched_rows` do. A local read with no live state ignores every filter argument, reporting the recorded
-outcomes of the named batches where any exist and otherwise only that no batch is running in this process. Restarting
-the MCP server loses the in-process run, so that second shape is what a restart produces while outcome files sit on
-disk. Blocked jobs arrive as an integer `blocked_jobs` count plus a `blocked_reason` string rather than a list, and
-their tracker record still reads scheduled, so list them with `status_filter="scheduled"`.
+**Note:** `summary`, `status`, and `breakdown` describe the whole covered batch and never respect a per-job filter. Only
+`jobs`, `rows`, and `matched_rows` do. Remotely, `batch_ids` narrows the covered batches, so it narrows `active`,
+`summary`, and `breakdown` with them. A local read with no live state ignores every filter argument, reporting the
+recorded outcomes of the named batches where any exist and otherwise only that no batch is running in this process.
+Restarting the MCP server loses the in-process run, so that second shape is what a restart produces while outcome files
+sit on disk. Blocked jobs arrive as an integer `blocked_jobs` count plus a `blocked_reason` string rather than a list,
+and their tracker record still reads scheduled, so list them with `status_filter="scheduled"`.
 
 `cancel_processing_tool` stops a run. Locally it is cooperative, remotely it kills queued and running allocations alike
 and lets the scheduler cascade the cancellation onto their dependents.
@@ -323,8 +326,8 @@ identifier and every per-unit operation is scoped by the unit path paired with t
 1. **Orient before starting.** Where the project may already have been processed, call `list_prepared_batches_tool`
    first. Its `breakdown` names the pipelines and hosts the registry holds, and `outcome_recorded` marks settled work.
 
-2. **Resolve the unit roots.** Obtain session roots, or dataset roots for `forging`, through `assets:session-discovery`,
-   then confirm the selection and the single owning project with the user.
+2. **Resolve the unit roots.** Obtain session roots through `assets:session-discovery` and dataset roots for `forging`
+   through `/dataset-definition`, then confirm the selection and the single owning project with the user.
 
 3. **Confirm the host.** A local batch reads this filesystem and a remote batch reads paths on the compute server, so
    confirm the server configuration through `/server-configuration` before a remote run.
@@ -359,20 +362,7 @@ identifier and every per-unit operation is scoped by the unit path paired with t
 
 Present a live batch as one header block and one job table. Fill the rows from a `get_processing_status_tool` call
 with `include_items=True` and `detailed=True`. The header identity comes from the preparation record, not this read.
-
-```text
-**Batch processing status**
-
-Batch 4f2a9c1e77b30d58 | pipeline video | host local | status processing | active true | canceled false
-Summary: 8 total | 4 succeeded | 1 running | 3 scheduled | 0 failed | 2 blocked
-
-| Job id           | Job name                    | Specifier | Unit   | Status    | Elapsed |
-|------------------|-----------------------------|-----------|--------|-----------|---------|
-| 3f9c1a2b4d5e6f70 | camera_timestamp_extraction | 0         | unit_a | succeeded | 41.2 s  |
-| 8b1e0d7c6a5f4e32 | camera_timestamp_extraction | 1         | unit_a | running   | 12.8 s  |
-| c47a5e9b18d20f63 | camera_timestamp_rename     | --        | unit_a | scheduled | --      |
-| 5d3f8a0c2b71e4d9 | motion_energy               | 0         | unit_b | succeeded | 96.5 s  |
-```
+[tool-responses.md](references/tool-responses.md) carries the rendering template both blocks follow.
 
 The header `status` is the roll-up label, resolved from the counts by a fixed priority, so the labels are not mutually
 exclusive descriptions of the batch.
@@ -467,7 +457,7 @@ Unsupported host '{host}'. Available: local, remote.
 | `/project-state`                           | Downstream: the project manifest and job artifacts a batch refreshes              |
 | `/cli-reference`                           | Reference: the human-facing `slf` command surface                                 |
 | `/pipeline`                                | Context: where batch processing sits in the end-to-end workflow                   |
-| `mesoscope:mesoscope-vr-processing-schema` | Reference: the acquisition-system donations that fill the registry seams          |
+| `mesoscope:mesoscope-vr-processing-schema` | Reference: Mesoscope-VR file names and columns, and the per-pipeline skill map    |
 
 ---
 

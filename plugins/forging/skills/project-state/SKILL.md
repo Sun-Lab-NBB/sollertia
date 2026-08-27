@@ -3,9 +3,9 @@ name: project-state
 description: >-
   Documents the project state artifacts of sollertia-forgery, the session manifest and the job table published beside
   it. Covers their column schemas, the one call that writes both, the three widening reads that query them, and the
-  query order that establishes whether a batch succeeded. Use when generating or reading a project manifest, when
-  asking which sessions finished a pipeline, when investigating why a job failed, or when verifying the outcome of a
-  processing batch.
+  query order that establishes whether a batch succeeded. Use when generating or reading a project manifest, when asking
+  which sessions finished a pipeline, when investigating why a job failed, or when verifying the outcome of a processing
+  batch.
 user-invocable: false
 ---
 

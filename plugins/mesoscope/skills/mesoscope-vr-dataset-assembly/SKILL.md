@@ -1,11 +1,11 @@
 ---
 name: mesoscope-vr-dataset-assembly
 description: >-
-  Documents the Mesoscope-VR session-assembly worker and admission policy that sollertia-forgery dispatches through
-  its forging registries. Covers the session-type dispatcher, the experiment and training assembly paths, the behavior
-  and runtime interpolation rules, sentinel masking, and the session-bounds clip. Use when interpreting an assembled
-  session feather, debugging an assembly failure or an unexpected row count, or deciding which session types join a
-  forged dataset.
+  Documents the Mesoscope-VR session-assembly worker and admission policy that sollertia-forgery dispatches through its
+  forging registries. Covers the session-type dispatcher, the experiment and training assembly paths, the behavior and
+  runtime interpolation rules, sentinel masking, and the session-bounds clip. Use when interpreting an assembled session
+  feather, debugging an assembly failure or an unexpected row count, or deciding which session types join a forged
+  dataset.
 user-invocable: false
 ---
 
@@ -240,8 +240,9 @@ The temporary tone, active-flag, event-id, water-delta, and per-event-water colu
 ### System-state code inversion
 
 The `MesoscopeHardwareState` supplies a `system_state_codes` mapping (name to code). The assembly inverts it
-(code to name) and casts `system_state` to a Polars Enum built from the mapping's keys, yielding the descriptive
-state names (`idle`, `rest`, `run`) used by the downstream special cases and by masking. If the hardware state is
+(code to name) and casts `system_state` to a Polars Enum built from the mapping's keys, yielding the five descriptive
+state names (`idle`, `rest`, `run`, `lick training`, `run training`), of which the downstream special cases and the
+masking test only `idle`, `rest`, and `run`. If the hardware state is
 missing `system_state_codes`, assembly raises a `ValueError`.
 
 ### Torque, distance, and brake special cases
@@ -389,7 +390,7 @@ setup, so the first row of an assembled feather carries an `elapsed_minutes` val
 | `ValueError`            | `forging.py`                                   | The session type is neither the experiment type nor a member of `_TRAINING_SESSION_TYPES`                  |
 | `FileNotFoundError`     | `experiment_dataset.py`, `training_dataset.py` | The processed microcontroller-data or runtime-data directory does not exist                                |
 | `FileNotFoundError`     | `experiment_dataset.py`                        | The single-recording cindra output directory does not exist                                                |
-| `FileNotFoundError`     | `training_dataset.py`                          | No camera clock qualifies as the training reference clock                                                  |
+| `FileNotFoundError`     | `video_dataset.py`                             | No camera clock qualifies as the training reference clock                                                  |
 | `FileNotFoundError`     | `behavior_dataset.py`                          | The hardware state YAML, or the valve, lick, or system-state feather, is missing                           |
 | `ValueError`            | `behavior_dataset.py`                          | The hardware state is missing `system_state_codes`, or `minimum_brake_strength` when brake data is present |
 | `InvalidOperationError` | `behavior_dataset.py`                          | The system-state feather carries a code absent from the `system_state_codes` mapping                       |

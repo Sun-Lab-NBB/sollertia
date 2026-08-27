@@ -1,11 +1,11 @@
 ---
 name: library-extension
 description: >-
-  Owns the extension path of sollertia-experiment and sollertia-micro-controllers: the acquisition-system
-  configuration registry, the shared cross_system primitives a new system composes, the MCP tool-module and CLI
-  group registration seams, the absence of a generic runtime base class, and the firmware module, controller
-  target, and board family seams. Use when implementing a new acquisition system against the Mesoscope-VR worked
-  example, adding a firmware module or controller board, or auditing which seams a half-built system still misses.
+  Owns the extension path of sollertia-experiment and sollertia-micro-controllers: the acquisition-system configuration
+  registry, the shared cross_system primitives a new system composes, the MCP tool-module and CLI group registration
+  seams, the absence of a generic runtime base class, and the firmware module, controller target, and board family
+  seams. Use when implementing a new acquisition system against the Mesoscope-VR worked example, adding a firmware
+  module or controller board, or auditing which seams a half-built system still misses.
 user-invocable: false
 ---
 
@@ -336,6 +336,7 @@ Every other entry resolves inside the sollertia marketplace.
 
 | Skill                                     | Relationship                                                                                            |
 |-------------------------------------------|---------------------------------------------------------------------------------------------------------|
+| `/cli-reference`                          | Owns the `sle` surface a new acquisition system joins through `_register_subcommands()`                 |
 | `assets:library-extension`                | Owns the sollertia-shared-assets half. Step 1 hands off there and gates on its import check             |
 | `assets:working-directory`                | Bootstraps the working directory, data root, credentials, and templates directory every seam consumes   |
 | `assets:experiment-configuration`         | Owns authoring against a registered `<System>ExperimentConfiguration` once the extension lands          |

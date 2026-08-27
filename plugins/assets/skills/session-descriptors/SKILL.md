@@ -168,10 +168,10 @@ written by the same tools, and this skill does not distinguish between them beyo
 path.
 
 | Location                                                    | Populated by                                                                   | Discovery path                                                                                                            |
-|-------------------------------------------------------------|--------------------------------------------------------------------------------|-----------------------------------------------------------------------------------------------------------------------------|
+|-------------------------------------------------------------|--------------------------------------------------------------------------------|---------------------------------------------------------------------------------------------------------------------------|
 | `<session>/raw_data/session_descriptor.yaml`                | Acquisition runtime at session end (primary on-disk copy)                      | Session root from `/session-discovery`. `inspect_sessions_tool` (`/session-data`) confirms presence via `required_assets` |
-| `<dataset_root>/<animal>/<session>/session_descriptor.yaml` | Forging pipeline (copy alongside `data.feather` at dataset assembly)           | `/datasets`, whose `inspect_datasets_tool` returns the absolute path directly                                            |
-| `<animal>/persistent_data/<session-type>_descriptor.yaml`   | Acquisition runtime (per-animal cache used to seed the next same-type session) | `/project-hierarchy`                                                                                                     |
+| `<dataset_root>/<animal>/<session>/session_descriptor.yaml` | Forging pipeline (copy alongside `data.feather` at dataset assembly)           | `/datasets`, whose `inspect_datasets_tool` returns the absolute path directly                                             |
+| `<animal>/persistent_data/<session-type>_descriptor.yaml`   | Acquisition runtime (per-animal cache used to seed the next same-type session) | `/project-hierarchy`                                                                                                      |
 
 Other locations are possible, because the tools take any absolute path, but the three above are the ones populated
 automatically. The dataset root is the directory that holds the dataset's `dataset.yaml` marker, which `DatasetData`
@@ -458,7 +458,7 @@ match the durability the user actually wants:
 | `mesoscope:mesoscope-vr-snapshots`      | Owns the frozen Zaber and mesoscope-objective position snapshots                  |
 | `experiment:acquisition-system-runtime` | Writes the descriptor at session end, whose repair and amendment this skill owns  |
 | `experiment:data-management`            | Owns the acquisition-side per-animal record logging of descriptor fields          |
-| `forging:project-state`              | Owns the project-level manifest that reads descriptor status fields               |
+| `forging:project-state`                 | Owns the project-level manifest that reads descriptor status fields               |
 | `forging:dataset-forging`               | Owns the assembly step that copies the descriptor into a forged dataset           |
 | `forging:dataset-definition`            | Owns dataset composition semantics (which sessions a dataset claims)              |
 

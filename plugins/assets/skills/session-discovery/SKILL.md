@@ -1,11 +1,10 @@
 ---
 name: session-discovery
 description: >-
-  Discovers Sollertia sessions under a project root and filters by date range, animal, or
-  session name via the sollertia-shared-assets MCP server. Chains
-  get_data_root_overview_tool through filter_sessions_tool to produce `session_paths` lists
-  consumed by downstream batch skills. Use when locating sessions ahead of any batch workflow
-  or filtering a previously discovered list.
+  Discovers Sollertia sessions under a project root and filters by date range, animal, or session name via the
+  sollertia-shared-assets MCP server. Chains get_data_root_overview_tool through filter_sessions_tool to produce
+  `session_paths` lists consumed by downstream batch skills. Use when locating sessions ahead of any batch workflow or
+  filtering a previously discovered list.
 user-invocable: false
 ---
 
@@ -253,21 +252,22 @@ that does not exist or is not a directory. Its message string is surfaced verbat
 
 ## Related skills
 
-| Skill                           | Relationship                                                                                     |
-|---------------------------------|--------------------------------------------------------------------------------------------------|
-| `/assets-mcp-environment-setup` | Prerequisite: MCP server connectivity                                                            |
-| `/working-directory`            | Required prerequisite. Persists the data root that `read_data_root_tool` supplies as the default |
-| `/project-hierarchy`            | Owns `get_data_root_overview_tool` as the tree walk                                              |
-| `/session-data`                 | Reference: SessionData marker and `inspect_sessions_tool` for per-session health                 |
-| `/session-descriptors`          | Reference: per-session descriptor repair                                                         |
-| `/datasets`                     | Downstream: reads and audits the dataset container once `forging:dataset-definition` composes it |
-| `forging:project-state`      | Downstream: manifest reading and generation                                                      |
-| `forging:batch-processing` | Downstream: consumes confirmed session_paths                                                     |
-| `forging:batch-processing`   | Downstream: consumes confirmed session_paths                                                     |
-| `forging:dataset-definition`    | Downstream: composes a dataset from the confirmed session names                                  |
-| `forging:dataset-forging`       | Downstream: consumes confirmed session names                                                     |
+| Skill                             | Relationship                                                                                     |
+|-----------------------------------|--------------------------------------------------------------------------------------------------|
+| `/cli-reference`                  | Reference: the `slsa` bootstrap commands, which carry no discovery counterpart                   |
+| `/assets-mcp-environment-setup`   | Prerequisite: MCP server connectivity                                                            |
+| `/working-directory`              | Required prerequisite. Persists the data root that `read_data_root_tool` supplies as the default |
+| `/project-hierarchy`              | Owns `get_data_root_overview_tool` as the tree walk                                              |
+| `/session-data`                   | Reference: SessionData marker and `inspect_sessions_tool` for per-session health                 |
+| `/session-descriptors`            | Reference: per-session descriptor repair                                                         |
+| `/datasets`                       | Downstream: reads and audits the dataset container once `forging:dataset-definition` composes it |
+| `forging:project-state`           | Downstream: manifest reading and generation                                                      |
+| `forging:batch-processing`        | Downstream: consumes confirmed session_paths                                                     |
+| `forging:batch-processing`        | Downstream: consumes confirmed session_paths                                                     |
+| `forging:dataset-definition`      | Downstream: composes a dataset from the confirmed session names                                  |
+| `forging:dataset-forging`         | Downstream: consumes confirmed session names                                                     |
 | `forging:processing-input-format` | Reference: the artifacts each processing pipeline requires on disk                               |
-| `experiment:data-management`    | Downstream: consumes confirmed session paths inside the data root                                |
+| `experiment:data-management`      | Downstream: consumes confirmed session paths inside the data root                                |
 
 ---
 

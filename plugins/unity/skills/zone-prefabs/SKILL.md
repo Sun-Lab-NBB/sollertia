@@ -1,10 +1,10 @@
 ---
 name: zone-prefabs
 description: >-
-  Manufactures new trigger zone prefabs for sollertia-virtual-reality with the `clone_zone_prefab_tool` MCP
-  tool. The tool copies one of the two canonical base prefabs, then swaps the modifier scripts, region names,
-  and field defaults through Unity's serialization layer. Use when adding a new `TriggerType` member or
-  designing a new stimulus-zone variant that mixes existing modifier zones in a new configuration.
+  Manufactures new trigger zone prefabs for sollertia-virtual-reality with the `clone_zone_prefab_tool` MCP tool. The
+  tool copies one of the two canonical base prefabs, then swaps the modifier scripts, region names, and field defaults
+  through Unity's serialization layer. Use when adding a new `TriggerType` member or designing a new stimulus-zone
+  variant that mixes existing modifier zones in a new configuration.
 user-invocable: false
 ---
 
@@ -338,6 +338,9 @@ handles routine variants in one call.
 ---
 
 ## Related skills
+
+The `automation:` entries below resolve through the ataraxis marketplace. Every other entry resolves inside the
+sollertia marketplace.
 
 | Skill                                        | Relationship                                                                                          |
 |----------------------------------------------|-------------------------------------------------------------------------------------------------------|

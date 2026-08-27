@@ -3,8 +3,8 @@ name: mesoscope-vr-runtime
 description: >-
   Documents the Mesoscope-VR runtime behavior layer: the MesoscopeVRStates state machine, the MesoscopeVRSystem
   orchestrator, the per-mode runtime logic functions, the two control GUIs and the visualizer, the session data
-  lifecycle, and the `sle mesoscope` CLI. Use when adding a training mode or session type, extending the state machine,
-  changing a GUI, wiring a new CLI command, or preprocessing, purging, migrating, or deleting a Mesoscope-VR session.
+  lifecycle, and what each `sle mesoscope` command does once it starts. Use when adding a training mode or session
+  type, extending the state machine, changing a GUI, or preprocessing, purging, migrating, or deleting a session.
 user-invocable: false
 ---
 
@@ -27,10 +27,10 @@ the static pattern in `experiment:acquisition-system-design`, and the seam catal
 - `BehaviorVisualizer`, `VisualizerMode`, `RuntimeControlUI`, and `MaintenanceControlUI`
 - The session data lifecycle: `preprocess_session_data`, `purge_session`, `migrate_animal_between_projects`
 - Session-descriptor consumption, where the runtime reads and completes what assets-plugin tooling authors
-- The `sle mesoscope` CLI command surface
 - The workflow for adding a training mode across sollertia-shared-assets and sollertia-experiment
 
 **Does not cover:**
+- The `sle mesoscope` command and option surface. See `/mesoscope-vr-cli-reference`.
 - Mesoscope-VR hardware composition, configuration dataclasses, and the system YAML. See `/mesoscope-vr`.
 - The platform-general runtime pattern, and the seams a new acquisition system composes. See
   `experiment:acquisition-system-runtime` and `experiment:library-extension`.
@@ -270,9 +270,9 @@ decomposition are documented in `experiment:vr-driver-interface`, and the Unity 
 ## Detailed surfaces
 
 [`references/runtime-surface.md`](references/runtime-surface.md) carries the enumerations this file summarizes. Those
-are the per-mode logic function sequence with its function table and descriptor consumption pattern, and the
-`sle mesoscope` command table with every option surface. The same file holds the shared-memory index maps, prototype
-defaults, and per-control tables of both GUIs and the visualizer.
+are the per-mode logic function sequence with its function table and descriptor consumption pattern. The same file
+holds the shared-memory index maps, prototype defaults, and per-control tables of both GUIs and the visualizer. The
+`sle mesoscope` command and option tables live in `/mesoscope-vr-cli-reference`.
 
 ---
 
@@ -445,6 +445,7 @@ When in doubt, re-read the source (`mesoscope_vr/system_controller.py`, `mesosco
 
 | Skill                                   | Relationship                                                                          |
 |-----------------------------------------|---------------------------------------------------------------------------------------|
+| `/mesoscope-vr-cli-reference`           | Owns the `sle mesoscope` command and option surface this runtime sits behind          |
 | `experiment:acquisition-system-runtime` | Platform-general runtime pattern this system instantiates                             |
 | `experiment:library-extension`          | Catalogs the sollertia-experiment seams a new system's runtime composes               |
 | `/mesoscope-vr`                         | Hardware composition for the binding classes the runtime drives                       |

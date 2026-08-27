@@ -46,8 +46,8 @@ it reports differently for a dataset unit is recorded here.
 - Remote compute server credentials and transfer settings. Owned by `/server-configuration`.
 - MCP server connectivity. Owned by `/forging-mcp-environment-setup` for `slf`, and by
   `assets:assets-mcp-environment-setup` for `slsa`.
-- Declaring an acquisition system, its session types, and its processing pipelines. Owned by
-  `experiment:acquisition-system-design`.
+- Declaring an acquisition system and its session types. Owned by `assets:library-extension`.
+- Declaring a processing pipeline. Owned by `/library-extension`.
 
 **Handoff rules:** If the `slf` MCP tools are unavailable, invoke `/forging-mcp-environment-setup`. If the session list
 is not yet confirmed, invoke `assets:session-discovery` first, which runs on the `slsa` server. Once the hierarchy is
@@ -464,8 +464,8 @@ per-animal configurations, and undoing that means deleting and rebuilding it.
 | `/processing-input-format`                 | Reference: what each admission-gating pipeline consumes                            |
 | `/processing-results`                      | Downstream reference: the forged outputs and what their columns contain            |
 | `/server-configuration`                    | Prerequisite: every `host="remote"` call resolves through it                       |
-| `/library-extension`                       | Recipe for registering a new job name, admission mapping, or description donation  |
-| `experiment:acquisition-system-design`     | Reference: how a system declares its session types and processing pipelines        |
+| `/library-extension`                       | Recipe for a new pipeline, job name, admission mapping, or description donation    |
+| `assets:library-extension`                 | Reference: declares the acquisition system and the session types admitted here     |
 | `mesoscope:mesoscope-vr-processing-schema` | Owns the Mesoscope-VR donations that fill the column-description seam              |
 
 ---

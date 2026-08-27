@@ -1,11 +1,11 @@
 ---
 name: task-parameters
 description: >-
-  Reads and writes the consolidated Task Parameters editor window in sollertia-virtual-reality via
-  the sollertia-shared-assets MCP server's Unity relay. Owns read_task_parameters_tool,
-  write_task_parameters_tool, and refresh_monitors_tool, which mirror the window's five sections. Use
-  when inspecting or changing per-scene Task, Actor, Display, MQTT, or Camera Mapping settings, or
-  re-detecting the host's monitors, without opening the Editor window manually.
+  Reads and writes the consolidated Task Parameters editor window in sollertia-virtual-reality via the
+  sollertia-shared-assets MCP server's Unity relay. Owns read_task_parameters_tool, write_task_parameters_tool, and
+  refresh_monitors_tool, which mirror the window's five sections. Use when inspecting or changing per-scene Task, Actor,
+  Display, MQTT, or Camera Mapping settings, or re-detecting the host's monitors, without opening the Editor window
+  manually.
 user-invocable: false
 ---
 

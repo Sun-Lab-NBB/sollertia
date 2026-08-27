@@ -1,11 +1,11 @@
 ---
 name: library-extension
 description: >-
-  Owns the extension path of the sollertia-shared-assets registry system: adding an AcquisitionSystems,
-  SessionTypes, ReadAssets, CredentialsTypes, or TriggerType member, a runtime trial class, or a new MCP tool
-  module. Covers the per-scenario touch lists, the four import-time contract checks, the list_supported_* registry
-  introspection family, and the sibling-skill updates. Use when implementing a new acquisition system against the
-  Mesoscope-VR reference, adding any registry entry, or when an import-time RuntimeError names a registry.
+  Owns the extension path of the sollertia-shared-assets registry system: adding an AcquisitionSystems, SessionTypes,
+  ReadAssets, CredentialsTypes, or TriggerType member, a runtime trial class, or a new MCP tool module. Covers the
+  per-scenario touch lists, the four import-time contract checks, the list_supported_* registry introspection family,
+  and the sibling-skill updates. Use when implementing a new acquisition system against the Mesoscope-VR reference,
+  adding any registry entry, or when an import-time RuntimeError names a registry.
 user-invocable: false
 ---
 
@@ -302,6 +302,7 @@ sollertia marketplace.
 
 | Skill                                      | Relationship                                                                                                                                                                                                                                                                                                                 |
 |--------------------------------------------|------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| `/cli-reference`                           | Owns the `slsa configure credentials --category` surface a new registry member widens                                                                                                                                                                                                                                        |
 | `/assets-mcp-environment-setup`            | Owns the MCP response contract every introspection tool returns, and diagnoses the server startup failure an incomplete extension causes                                                                                                                                                                                     |
 | `/working-directory`                       | Bootstraps the working directory and the credentials directory every extension touch point consumes                                                                                                                                                                                                                          |
 | `/session-data`                            | Owns the session record a new session type or acquisition system widens                                                                                                                                                                                                                                                      |

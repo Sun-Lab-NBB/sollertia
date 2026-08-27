@@ -1,11 +1,10 @@
 ---
 name: task-prefabs
 description: >-
-  Creates, deletes, and inspects Unity tasks for sollertia-virtual-reality from YAML task templates.
-  Owns create_task_tool (single-step template → prefab + scene), delete_task_tool (single-step
-  removal of every generated artifact for a task), inspect_prefab_tool, and delete_asset_tool
-  (individual cue / material cleanup). Use when a template needs a matching task built or removed,
-  or when auditing prefab hierarchy and colliders.
+  Creates, deletes, and inspects Unity tasks for sollertia-virtual-reality from YAML task templates. Owns
+  create_task_tool (single-step template → prefab + scene), delete_task_tool (single-step removal of every generated
+  artifact for a task), inspect_prefab_tool, and delete_asset_tool (individual cue / material cleanup). Use when a
+  template needs a matching task built or removed, or when auditing prefab hierarchy and colliders.
 user-invocable: false
 ---
 
@@ -345,15 +344,15 @@ The task prefab and the scene are rebuilt by every successful `create_task_tool`
 
 Use this composite flow for end-to-end task creation, where each step is owned by a different skill.
 
-| Step | Skill (owner)                     | Action                                                                                                      |
-|------|-----------------------------------|-------------------------------------------------------------------------------------------------------------|
-| 1    | `assets:task-templates`           | Author `Assets/InfiniteCorridorTask/Configurations/<name>.yaml`                                             |
-| 2    | `/task-prefabs` (this skill)      | `create_task_tool(template_name="<name>", unsaved_changes="save"\|"discard")`, giving task prefab AND scene |
-| 3    | `/task-prefabs` (this skill)      | `inspect_prefab_tool(prefab_path="Assets/InfiniteCorridorTask/Tasks/<name>.prefab")`                        |
-| 4    | `/task-scenes`                    | `open_scene_tool(scene_path="Assets/Scenes/<name>.unity")`, and the scene was created in step 2             |
-| 5    | `/scene-setup`                    | Configure Display rig and optional `SimulatedLinearTreadmill`                                               |
-| 6    | `/play-mode`                      | `enter_play_mode_tool()` → exercise → `exit_play_mode_tool()`                                               |
-| 7    | `assets:experiment-configuration` | (Optional) Bind the template to a per-project experiment configuration                                      |
+| Step | Skill (owner)                     | Action                                                                                                       |
+|------|-----------------------------------|--------------------------------------------------------------------------------------------------------------|
+| 1    | `assets:task-templates`           | Author `Assets/InfiniteCorridorTask/Configurations/<name>.yaml`                                              |
+| 2    | `/task-prefabs` (this skill)      | `create_task_tool(template_name="<name>", unsaved_changes="save"\| "discard")`, giving task prefab AND scene |
+| 3    | `/task-prefabs` (this skill)      | `inspect_prefab_tool(prefab_path="Assets/InfiniteCorridorTask/Tasks/<name>.prefab")`                         |
+| 4    | `/task-scenes`                    | `open_scene_tool(scene_path="Assets/Scenes/<name>.unity")`, and the scene was created in step 2              |
+| 5    | `/scene-setup`                    | Configure Display rig and optional `SimulatedLinearTreadmill`                                                |
+| 6    | `/play-mode`                      | `enter_play_mode_tool()` → exercise → `exit_play_mode_tool()`                                                |
+| 7    | `assets:experiment-configuration` | (Optional) Bind the template to a per-project experiment configuration                                       |
 
 Checkpoints between steps:
 
@@ -427,7 +426,7 @@ or when a segment's zone children look wrong.
 | `/task-generator` (this plugin)              | Reference for the `CreateTask` pipeline this tool invokes             |
 | `/mqtt-contract` (this plugin)               | Reference for MQTT topics wired by generated zone scripts             |
 | `/gimbl-framework` (this plugin)             | Reference for `ActorObject` coordinate frame usage                    |
-| `assets:task-templates` | Upstream, owns the YAML template from which the prefab is built |
+| `assets:task-templates`                      | Upstream, owns the YAML template from which the prefab is built       |
 | `assets:experiment-configuration`            | Downstream, per-project instantiation of the template                 |
 | `assets:assets-mcp-environment-setup`        | Run first, owns the slsa MCP server diagnostic                        |
 | `experiment:vr-driver-interface`             | Host consumes the cues and zones in the generated prefab at runtime   |

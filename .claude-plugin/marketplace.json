@@ -7,27 +7,27 @@
     {
       "name": "assets",
       "source": "./plugins/assets",
-      "description": "Provides the configuration, metadata, and session-discovery skills for sollertia-shared-assets, the asset backbone of the Sollertia platform. Authors and validates every shared asset, owns the library's registry-backed extension path, and serves the Unity Editor relay. Backed by the sollertia-shared-assets MCP server (slsa)."
+      "description": "Provides configuration, metadata, session-discovery, and dataset skills for sollertia-shared-assets, the asset backbone of the Sollertia platform. Includes MCP bindings for asset authoring and validation, project and session discovery, dataset inspection, and the Unity Editor relay, plus a reference for the human-facing slsa command-line interface."
     },
     {
       "name": "unity",
       "source": "./plugins/unity",
-      "description": "Provides Unity Editor integration skills for the sollertia-virtual-reality project. Generates VR tasks from templates, manages scenes and Play Mode, and drives the Unity Editor relay. Backed by the sollertia-shared-assets MCP server (slsa) through the assets plugin, which it requires."
+      "description": "Provides Unity Editor integration skills for sollertia-virtual-reality, generating VR tasks from templates and managing scenes, prefabs, and Play Mode. Includes MCP bindings, through the assets plugin's sollertia-shared-assets server, for the Unity Editor relay this project's McpBridge exposes."
     },
     {
       "name": "experiment",
       "source": "./plugins/experiment",
-      "description": "Provides the acquisition-system design, hardware interface, runtime, and library-extension skills for sollertia-experiment and sollertia-micro-controllers. Covers the system-agnostic core for building and operating a data acquisition system, with system-specific skills in a companion plugin such as mesoscope. Backed by the sollertia-experiment MCP server (sle)."
+      "description": "Provides acquisition-system design, hardware interface, runtime, and library-extension skills for sollertia-experiment and sollertia-micro-controllers, the system-agnostic core a companion plugin such as mesoscope extends. Includes MCP bindings for hardware discovery, system configuration, and session management, plus a reference for the human-facing sle command-line interface."
     },
     {
       "name": "mesoscope",
       "source": "./plugins/mesoscope",
-      "description": "Provides the Mesoscope-VR reference acquisition system, the worked example an agent copies when implementing a new system. Covers its acquisition runtime and configuration, its shared-asset record schemas, and the processing donations it makes to sollertia-forgery. Requires the assets, experiment, and forging plugins and their MCP servers."
+      "description": "Provides the Mesoscope-VR reference acquisition system skills, the worked example an agent copies for a new system, covering its runtime, its record schemas, and its processing donations to sollertia-forgery. Includes a reference for the human-facing sle mesoscope command group, and requires the assets, experiment, and forging plugins."
     },
     {
       "name": "forging",
       "source": "./plugins/forging",
-      "description": "Provides the data processing and dataset forging skills for sollertia-forgery, which turns recorded sessions into per-session data tables and multi-session datasets. Covers batch processing across all six pipelines, job planning, dataset composition, remote SLURM execution, and the library's extension path. Backed by the sollertia-forgery MCP server (slf)."
+      "description": "Provides data processing, job planning, dataset forging, and remote-execution skills for sollertia-forgery, which turns recorded sessions into per-session tables and multi-session datasets. Includes MCP bindings for batch processing, planning, dataset composition, and SLURM submission, plus a reference for the human-facing slf command-line interface."
     }
   ]
 }

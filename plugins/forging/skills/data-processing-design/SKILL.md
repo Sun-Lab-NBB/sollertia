@@ -1,11 +1,11 @@
 ---
 name: data-processing-design
 description: >-
-  Documents the durable design pattern behind sollertia-forgery data processing. Covers the agnostic worker packages
-  and the per-system donations they dispatch through, the registry seam with its import-time coverage check, the
-  pipeline dispatch table, the plan, prepare, execute, close job model, and the resource admission rules. Use when
-  adding a processing stage or pipeline, auditing the agnostic versus per-system split, or deciding whether a concern
-  belongs in this library or in one of its upstream dependencies.
+  Documents the durable design pattern behind sollertia-forgery data processing. Covers the agnostic worker packages and
+  the per-system donations they dispatch through, the registry seam with its import-time coverage check, the pipeline
+  dispatch table, the plan, prepare, execute, close job model, and the resource admission rules. Use when adding a
+  processing stage or pipeline, auditing the agnostic versus per-system split, or deciding whether a concern belongs in
+  this library or in one of its upstream dependencies.
 user-invocable: false
 ---
 
@@ -47,8 +47,8 @@ no single acquisition system's donations. For the concrete instance those patter
 - The on-disk schema of every artifact a stage writes. Owned by `/processing-results`.
 - The archives each pipeline's first stage consumes. Owned by `/processing-input-format`.
 - The project-level rollups of tracker state. Owned by `/project-state`.
-- Any one acquisition system's donated parsers, columns, locators, resolvers, and admission policy. Owned by
-  `mesoscope:mesoscope-vr-processing-schema`.
+- Any one acquisition system's donated parsers, columns, locators, resolvers, and admission policy. Owned by the
+  `mesoscope:mesoscope-vr-*` skill family, whose members the worked example below names one per seam.
 - The upstream microcontroller extraction schema, event-code partitioning, and typed value readers. Owned by
   `communication:log-processing-results`.
 - The `AcquisitionSystems` member and the per-system session records a new system registers upstream. Owned by
@@ -153,7 +153,7 @@ pipeline. A locator or the video-tracking function is reached in two steps, as i
 
 ### The donation Protocols
 
-Every donation is a module-level, picklable callable, because the parallel stages dispatch several of them into
+Every donated callable is a module-level, picklable function, because the parallel stages dispatch several of them into
 spawned worker processes. `registries.py` exports two of the six Protocols, and the remaining four appear only as the
 return annotations of their accessors.
 
@@ -391,12 +391,22 @@ timestamp and value readers a parser calls, and the module output path this libr
 ## Worked example
 
 `AcquisitionSystems` holds one member today, so a single acquisition system is the only registered donor and the only
-concrete consumer of every pattern above. Its donations are documented by the mesoscope companion plugin.
-`mesoscope:mesoscope-vr-processing-schema` carries the roster of processed feathers its parsers write and the columns
-its assembly worker emits, `mesoscope:mesoscope-vr-module-parsing` carries its module parsers and their eligibility
-rules, and `mesoscope:mesoscope-vr-dataset-assembly` carries the assembly stage its forging worker performs. Read
-`registries.py` itself for the donation table, which names every donated symbol of every registered system in one
-place.
+concrete consumer of every pattern above. Its donations are documented by the mesoscope companion plugin, one skill per
+seam group. Read `registries.py` itself for the donation table, which names every donated symbol of every registered
+system in one place.
+
+| Registry                                                         | Mesoscope-VR skill that documents the donation |
+|------------------------------------------------------------------|------------------------------------------------|
+| The three `_MICROCONTROLLER_*` registries                        | `mesoscope:mesoscope-vr-module-parsing`        |
+| `_RUNTIME_PARSER_REGISTRY`                                       | `mesoscope:mesoscope-vr-trial-decomposition`   |
+| `_POSE_PREDICTION_REGISTRY` and `_VIDEO_TRACKING_REGISTRY`       | `mesoscope:mesoscope-vr-video-tracking`        |
+| `_TWO_PHOTON_DATA_REGISTRY` and `_CINDRA_CONFIGURATION_REGISTRY` | `mesoscope:mesoscope-vr-imaging-configuration` |
+| `_MULTI_RECORDING_SESSION_TYPE_REGISTRY`                         | `mesoscope:mesoscope-vr-imaging-configuration` |
+| `_FORGING_ASSEMBLY_REGISTRY` and `_FORGING_ADMISSION_REGISTRY`   | `mesoscope:mesoscope-vr-dataset-assembly`      |
+
+The column-description half of `_FORGING_ASSEMBLY_REGISTRY` and the file name and column rosters every donation writes
+against are documented by `mesoscope:mesoscope-vr-processing-schema`, and the fluorescence sub-assembly the assembly
+worker calls by `mesoscope:mesoscope-vr-fluorescence-alignment`.
 
 ---
 
@@ -431,26 +441,32 @@ acquisition system or only to one. The pattern skill answers "every", and a per-
 The `communication:` and `cindra:` entries below resolve through the ataraxis and cindra marketplaces. Every other
 entry resolves inside the sollertia marketplace.
 
-| Skill                                      | Relationship                                                               |
-|--------------------------------------------|----------------------------------------------------------------------------|
-| `/pipeline`                                | Context: where each pattern here sits in the end-to-end route              |
-| `/batch-processing`                        | Downstream: the tools that drive the prepare and execute steps             |
-| `/job-planning`                            | Downstream: the tools that drive the plan step and read the resource model |
-| `/library-extension`                       | The exact code touch points for each extension scenario                    |
-| `/dataset-definition`                      | Consumer: the admission policy applied when a dataset is defined           |
-| `/dataset-forging`                         | Consumer: the dataset pipeline's own three-stage shape                     |
-| `/processing-input-format`                 | The archives each pipeline's first stage consumes                          |
-| `/processing-results`                      | The on-disk schema of every artifact a stage writes                        |
-| `/project-state`                           | The project-level rollups of tracker state                                 |
-| `/remote-execution`                        | The scheduler backend behind the remote execute step                       |
-| `/server-configuration`                    | The transport settings the remote backend reads                            |
-| `/cli-reference`                           | The `slf` commands a rendered job argument vector invokes                  |
-| `/forging-mcp-environment-setup`           | Owner: the response contract and the server-health diagnostics             |
-| `assets:library-extension`                 | The upstream enum and session-record side of registering a system          |
-| `experiment:acquisition-system-design`     | Peer: the acquisition-side counterpart of this pattern skill               |
-| `mesoscope:mesoscope-vr-processing-schema` | The worked instance of the donations this pattern dispatches               |
-| `communication:log-processing-results`     | The upstream microcontroller primitives and extracted-message schema       |
-| `cindra:single-recording-processing`       | The dependency whose job bindings the imaging stages call in-process       |
+| Skill                                           | Relationship                                                                |
+|-------------------------------------------------|-----------------------------------------------------------------------------|
+| `/pipeline`                                     | Context: where each pattern here sits in the end-to-end route               |
+| `/batch-processing`                             | Downstream: the tools that drive the prepare and execute steps              |
+| `/job-planning`                                 | Downstream: the tools that drive the plan step and read the resource model  |
+| `/library-extension`                            | The exact code touch points for each extension scenario                     |
+| `/dataset-definition`                           | Consumer: the admission policy applied when a dataset is defined            |
+| `/dataset-forging`                              | Consumer: the dataset pipeline's own three-stage shape                      |
+| `/processing-input-format`                      | The archives each pipeline's first stage consumes                           |
+| `/processing-results`                           | The on-disk schema of every artifact a stage writes                         |
+| `/project-state`                                | The project-level rollups of tracker state                                  |
+| `/remote-execution`                             | The scheduler backend behind the remote execute step                        |
+| `/server-configuration`                         | The transport settings the remote backend reads                             |
+| `/cli-reference`                                | The `slf` commands a rendered job argument vector invokes                   |
+| `/forging-mcp-environment-setup`                | Owner: the response contract and the server-health diagnostics              |
+| `assets:library-extension`                      | The upstream enum and session-record side of registering a system           |
+| `experiment:acquisition-system-design`          | Peer: the acquisition-side counterpart of this pattern skill                |
+| `mesoscope:mesoscope-vr-processing-schema`      | The file name and column rosters every Mesoscope-VR donation writes against |
+| `mesoscope:mesoscope-vr-module-parsing`         | The Mesoscope-VR donations behind the three microcontroller registries      |
+| `mesoscope:mesoscope-vr-trial-decomposition`    | The Mesoscope-VR donation behind the runtime parser registry                |
+| `mesoscope:mesoscope-vr-video-tracking`         | The Mesoscope-VR donations behind the two video registries                  |
+| `mesoscope:mesoscope-vr-imaging-configuration`  | The Mesoscope-VR donations behind the three two-photon registries           |
+| `mesoscope:mesoscope-vr-dataset-assembly`       | The Mesoscope-VR donations behind the two forging registries                |
+| `mesoscope:mesoscope-vr-fluorescence-alignment` | The Mesoscope-VR sub-assembly the forging assembly worker calls             |
+| `communication:log-processing-results`          | The upstream microcontroller primitives and extracted-message schema        |
+| `cindra:single-recording-processing`            | The dependency whose job bindings the imaging stages call in-process        |
 
 ---
 

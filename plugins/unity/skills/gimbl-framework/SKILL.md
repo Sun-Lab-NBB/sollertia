@@ -1,11 +1,10 @@
 ---
 name: gimbl-framework
 description: >-
-  Reference for the GIMBL VR framework inlined under `Assets/Gimbl/` in sollertia-virtual-reality:
-  ActorObject, ControllerObject hierarchy, DisplayObject rig, FullScreenViewManager,
-  MQTTClient / MQTTChannel / MQTTTopics, and the MainWindow Task Parameters editor. Use when
-  reading or modifying code that instantiates GIMBL components, wiring a new script to the MQTT
-  broker, or diagnosing null-reference errors during scene init.
+  Reference for the GIMBL VR framework inlined under `Assets/Gimbl/` in sollertia-virtual-reality: ActorObject,
+  ControllerObject hierarchy, DisplayObject rig, FullScreenViewManager, MQTTClient / MQTTChannel / MQTTTopics, and the
+  MainWindow Task Parameters editor. Use when reading or modifying code that instantiates GIMBL components, wiring a new
+  script to the MQTT broker, or diagnosing null-reference errors during scene init.
 user-invocable: false
 ---
 
@@ -435,6 +434,9 @@ arrangement before committing.
 ---
 
 ## Related skills
+
+The `automation:` entry below resolves through the ataraxis marketplace. Every other entry resolves inside the
+sollertia marketplace.
 
 | Skill                            | Relationship                                                                                   |
 |----------------------------------|------------------------------------------------------------------------------------------------|

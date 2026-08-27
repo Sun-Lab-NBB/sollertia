@@ -1,10 +1,10 @@
 ---
 name: project-hierarchy
 description: >-
-  Discovers the Sollertia project hierarchy (projects, animals, experiments, subjects,
-  sessions) and creates new projects via the sollertia-shared-assets MCP server. Owns
-  get_data_root_overview_tool (hierarchy discovery) and create_project_tool (project creation).
-  Use when enumerating projects, animals, or sessions, walking the project tree, or creating a project.
+  Discovers the Sollertia project hierarchy (projects, animals, experiments, subjects, sessions) and creates new
+  projects via the sollertia-shared-assets MCP server. Owns get_data_root_overview_tool (hierarchy discovery) and
+  create_project_tool (project creation). Use when enumerating projects, animals, or sessions, walking the project tree,
+  or creating a project.
 user-invocable: false
 ---
 
@@ -359,6 +359,7 @@ strategy lists it once it holds a session.
 
 | Skill                                   | Relationship                                                                                     |
 |-----------------------------------------|--------------------------------------------------------------------------------------------------|
+| `/cli-reference`                        | Owns the `slsa get projects` and `slsa configure project` commands                               |
 | `/assets-mcp-environment-setup`         | Run first if the MCP server is not connected                                                     |
 | `/working-directory`                    | Required prerequisite. Bootstraps the local working directory used to resolve project roots      |
 | `experiment:acquisition-system-runtime` | Creates sessions via `SessionData.create`. Project directories must exist beforehand             |

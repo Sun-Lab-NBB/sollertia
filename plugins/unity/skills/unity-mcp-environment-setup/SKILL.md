@@ -1,11 +1,11 @@
 ---
 name: unity-mcp-environment-setup
 description: >-
-  Diagnoses and resolves Unity Editor relay connectivity issues for the sollertia-virtual-reality
-  `McpBridge`, covering its HTTP listener on 127.0.0.1:8090, [::1]:8090, and localhost:8090, a running
-  Editor, and a compiled script. Also owns the contract for adding a new tool to the bridge. Use when
-  Unity relay tools fail with "Unable to reach" or "Unable to complete the request to" the Unity
-  Editor, when extending the bridge tool surface, or when starting a session that needs the Unity tools.
+  Diagnoses and resolves Unity Editor relay connectivity issues for the sollertia-virtual-reality `McpBridge`, covering
+  its HTTP listener on 127.0.0.1:8090, [::1]:8090, and localhost:8090, a running Editor, and a compiled script. Also
+  owns the contract for adding a new tool to the bridge. Use when Unity relay tools fail with "Unable to reach" or
+  "Unable to complete the request to" the Unity Editor, when extending the bridge tool surface, or when starting a
+  session that needs the Unity tools.
 user-invocable: false
 ---
 
@@ -378,6 +378,21 @@ The Unity half is unreachable from Claude until a matching wrapper exists in
 | `/unity-tests` (this plugin)          | Owns the test suite and the assembly catalog          |
 | `experiment:vr-driver-interface`      | Peer client, reaches the same listener on `127.0.0.1` |
 | `assets:task-templates`               | Upstream, prefabs are generated from templates        |
+
+---
+
+## Proactive behavior
+
+You SHOULD proactively invoke this skill when:
+
+- A Unity relay tool fails with "Unable to reach the Unity Editor at" or "Unable to complete the request to the Unity
+  Editor at"
+- A session begins that needs the Unity relay tools and the Editor is not confirmed running
+- The user reports trouble with the Unity Editor relay, the `McpBridge` listener, or port 8090
+- A new tool is being added to the bridge, since the `Dispatch` case, the handler, and the `@mcp.tool()` wrapper are
+  one contract
+- The `slsa` server rather than the Editor is the suspect, in which case hand off to
+  `assets:assets-mcp-environment-setup`
 
 ---
 

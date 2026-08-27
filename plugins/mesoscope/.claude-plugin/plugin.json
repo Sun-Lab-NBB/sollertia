@@ -1,7 +1,7 @@
 {
   "name": "mesoscope",
-  "version": "1.3.0",
-  "description": "Provides the Mesoscope-VR reference acquisition system, the worked example an agent copies when implementing a new system. Covers its acquisition runtime and configuration, its shared-asset record schemas, and the processing donations it makes to sollertia-forgery. Requires the assets, experiment, and forging plugins and their MCP servers.",
+  "version": "1.4.0",
+  "description": "Provides the Mesoscope-VR reference acquisition system skills, the worked example an agent copies for a new system, covering its runtime, its record schemas, and its processing donations to sollertia-forgery. Includes a reference for the human-facing sle mesoscope command group, and requires the assets, experiment, and forging plugins.",
   "repository": "https://github.com/Sun-Lab-NBB/sollertia",
   "license": "Apache-2.0",
   "skills": "./skills/"

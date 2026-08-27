@@ -1,11 +1,10 @@
 ---
 name: unity-tests
 description: >-
-  Documents the sollertia-virtual-reality Unity Test Framework suite and the project's eight-assembly
-  .asmdef layout. Covers the EditMode / PlayMode placement rule, the Support helpers, the fixtures
-  that pin enum, topic, protected-asset, and bridge-tool contracts, and both run paths. Use when
-  adding or modifying a C# script or test, when a change breaks a fixture, or when deciding which
-  assembly a new script folder joins.
+  Documents the sollertia-virtual-reality Unity Test Framework suite and the project's eight-assembly .asmdef layout.
+  Covers the EditMode / PlayMode placement rule, the Support helpers, the fixtures that pin enum, topic,
+  protected-asset, and bridge-tool contracts, and both run paths. Use when adding or modifying a C# script or test, when
+  a change breaks a fixture, or when deciding which assembly a new script folder joins.
 user-invocable: false
 ---
 
@@ -43,11 +42,11 @@ fixture, a new script folder needs an assembly, or a fixture that pins a contrac
 
 ## Test assemblies
 
-| Assembly                   | Folder                   | Holds                                        |
-|----------------------------|--------------------------|----------------------------------------------|
-| `Sollertia.Tests.EditMode` | `Assets/Tests/EditMode/` | 31 fixtures driven without a player loop     |
-| `Sollertia.Tests.PlayMode` | `Assets/Tests/PlayMode/` | 4 fixtures driven under the real player loop |
-| `Sollertia.Tests.Support` | `Assets/Tests/Support/` | 10 helper types on which both test assemblies draw |
+| Assembly                   | Folder                   | Holds                                              |
+|----------------------------|--------------------------|----------------------------------------------------|
+| `Sollertia.Tests.EditMode` | `Assets/Tests/EditMode/` | 31 fixtures driven without a player loop           |
+| `Sollertia.Tests.PlayMode` | `Assets/Tests/PlayMode/` | 4 fixtures driven under the real player loop       |
+| `Sollertia.Tests.Support`  | `Assets/Tests/Support/`  | 10 helper types on which both test assemblies draw |
 
 **EditMode** drives the private Unity lifecycle callbacks (`Awake`, `Start`, `Update`, `OnTriggerEnter`,
 `OnTriggerExit`) through the Support assembly's `PrivateAccess` reflection helper, which keeps every transition
@@ -93,7 +92,7 @@ once and used from either mode.
 | `YamlScalar`        | Renders numbers, strings, and booleans as invariant YAML scalars, including `.nan` and `.inf`    |
 | `MqttTestHarness`   | Installs an `MQTTClient` singleton and captures every payload published on every known topic     |
 | `ZoneRig`           | Assembles a `Task` plus trigger zone hierarchy and exposes the transitions a test drives         |
-| `ZoneRigOptions` | Selects which zone components a `ZoneRig` assembles and the field values from which they start |
+| `ZoneRigOptions`    | Selects which zone components a `ZoneRig` assembles and the field values from which they start   |
 
 `TemplateWorkspace` reproduces the two-directory shape `ConfigLoader` requires, because a cue texture resolves relative
 to the template file as `<template directory>/../Textures`.
@@ -235,6 +234,9 @@ and earns a `LoadTemplate_<NewMode>TriggerType_...` acceptance test.
 ---
 
 ## Related skills
+
+The `automation:` entries below resolve through the ataraxis marketplace. Every other entry resolves inside the
+sollertia marketplace.
 
 | Skill                                        | Relationship                                                                                  |
 |----------------------------------------------|-----------------------------------------------------------------------------------------------|

@@ -1,10 +1,10 @@
 ---
 name: scene-setup
 description: >-
-  Guides Editor-side scene configuration for sollertia-virtual-reality: the consolidated Task
-  Parameters window, the three-monitor Display rig, the LinearTreadmill / SimulatedLinearTreadmill
-  controller swap, and the optional UI-lick-reward canvas. Use when preparing a scene for Play Mode,
-  swapping to the simulated treadmill, or fixing missing display / controller / monitor-detection errors.
+  Guides Editor-side scene configuration for sollertia-virtual-reality: the consolidated Task Parameters window, the
+  three-monitor Display rig, the LinearTreadmill / SimulatedLinearTreadmill controller swap, and the optional
+  UI-lick-reward canvas. Use when preparing a scene for Play Mode, swapping to the simulated treadmill, or fixing
+  missing display / controller / monitor-detection errors.
 user-invocable: false
 ---
 

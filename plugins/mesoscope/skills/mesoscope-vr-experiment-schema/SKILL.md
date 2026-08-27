@@ -2,10 +2,10 @@
 name: mesoscope-vr-experiment-schema
 description: >-
   Documents Mesoscope-VR's concrete instance of the per-system experiment-configuration contract: the
-  MesoscopeExperimentConfiguration field schema, its MesoscopeWaterRewardTrial and MesoscopeGasPuffTrial trial
-  classes, the trigger-type-to-trial mapping, the REST/RUN system-state codes, and the from_task_template builder
-  defaults. Use when reading or hand-authoring a Mesoscope-VR experiment configuration YAML, interpreting its trial or
-  state fields, deciding which TriggerType maps to which trial class, or checking a per-trial or per-state default.
+  MesoscopeExperimentConfiguration field schema, its MesoscopeWaterRewardTrial and MesoscopeGasPuffTrial trial classes,
+  the trigger-type-to-trial mapping, the REST/RUN system-state codes, and the from_task_template builder defaults. Use
+  when reading or hand-authoring a Mesoscope-VR experiment configuration YAML, interpreting its trial or state fields,
+  deciding which TriggerType maps to which trial class, or checking a per-trial or per-state default.
 user-invocable: false
 ---
 
@@ -261,6 +261,7 @@ acquisition runtime instead.
 
 | Skill                             | Relationship                                                                                                                                                                                                                              |
 |-----------------------------------|-------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| `/mesoscope-vr-cli-reference`     | Owns the `sle mesoscope configure experiment` command that writes this configuration                                                                                                                                                      |
 | `assets:experiment-configuration` | Owns the generic create/write/validate/describe tooling, `EXPERIMENT_CONFIGURATION_REGISTRY` dispatch, the system-agnostic `TriggerType` taxonomy, and the `ExperimentState` schema. This skill is its Mesoscope-VR field-level companion |
 | `assets:task-templates`           | Owns the `TaskTemplate` (with per-trial `trigger_type` and spatial `TrialStructure`) that seeds `from_task_template`                                                                                                                      |
 | `assets:library-extension`        | Owns the procedure for adding a new acquisition system, for which this skill is the worked experiment-configuration example                                                                                                               |
