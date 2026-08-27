@@ -48,11 +48,12 @@ animal weight and the per-flag parameter overrides, and `experiment_logic` also 
 `window_checking_logic` takes exactly the three identifiers `experimenter`, `project_name`, and `animal_id`, all in
 `mesoscope_vr/data_acquisition.py`. `maintenance_logic()` takes no arguments.
 
-`lick_training_logic` converts an operator abort at the pre-start checkpoint into a `RecursionError` so control jumps
-straight to the teardown block. `run_training_logic` inherits the previous session's `final_run_speed_threshold_cm_s`
-and `final_run_duration_threshold_s` as its new initial thresholds and clamps every effective threshold to
-`RUN_TRAINING_THRESHOLD_LIMITS`. `experiment_logic` pre-validates that every experiment state's `system_state_code` is
-`REST` or `RUN` before starting the hardware. All three functions live in `mesoscope_vr/data_acquisition.py`.
+All three `MesoscopeVRSystem` logic functions convert an operator abort at the pre-start checkpoint into a
+`RecursionError` so control jumps straight to the teardown block. `run_training_logic` inherits the previous session's
+`final_run_speed_threshold_cm_s` and `final_run_duration_threshold_s` as its new initial thresholds and clamps every
+effective threshold to `RUN_TRAINING_THRESHOLD_LIMITS`. `experiment_logic` pre-validates that every experiment state's
+`system_state_code` is `REST` or `RUN` before starting the hardware. All three functions live in
+`mesoscope_vr/data_acquisition.py`.
 
 ### Session descriptor consumption
 
@@ -78,101 +79,9 @@ The runtime both consumes and completes the descriptor:
 
 ## CLI command surface
 
-The user-facing entry points live in `interfaces/mesoscope_vr.py`, registered under the `sle mesoscope` command group,
-which is itself attached to the top-level `sle` group by `_register_subcommands()` in `interfaces/entry_points.py`.
-
-| Command                              | Calls                                  | Notes                                                    |
-|--------------------------------------|----------------------------------------|----------------------------------------------------------|
-| `sle mesoscope configure system`     | `create_system_configuration_file`     | Writes the system configuration YAML, no options         |
-| `sle mesoscope configure experiment` | `create_experiment_configuration_file` | Creates an experiment configuration from a task template |
-| `sle mesoscope maintain`             | `maintenance_logic`                    | Hardware maintenance GUI, no session and no options      |
-| `sle mesoscope check-bridge`         | `check_mesoscope_bridge`               | Probes the ScanImagePC `runAcquisition` loop, no options |
-| `sle mesoscope run window-checking`  | `window_checking_logic`                | Cranial-window quality mode, no own options              |
-| `sle mesoscope run lick-training`    | `lick_training_logic`                  | Lickport-only training                                   |
-| `sle mesoscope run run-training`     | `run_training_logic`                   | Wheel-only training                                      |
-| `sle mesoscope run experiment`       | `experiment_logic`                     | Requires `-e/--experiment`                               |
-| `sle mesoscope preprocess`           | `preprocess_session_data`              | Session data lifecycle, see `../SKILL.md`                |
-| `sle mesoscope delete`               | `purge_session`                        | Session data lifecycle, see `../SKILL.md`                |
-| `sle mesoscope migrate`              | `migrate_animal_between_projects`      | Session data lifecycle, see `../SKILL.md`                |
-
-`sle mesoscope check-bridge` wraps `check_mesoscope_bridge()` in a `try/except`, echoing a WARNING when the call itself
-raises and otherwise echoing the returned status at SUCCESS when reachable and at WARNING when not (the `check_bridge`
-command in `interfaces/mesoscope_vr.py`).
-
-### `configure experiment` options
-
-| Option                   | Short | Type    | Default  | Required |
-|--------------------------|-------|---------|----------|----------|
-| `--project`              | `-p`  | `str`   | none     | yes      |
-| `--experiment`           | `-e`  | `str`   | none     | yes      |
-| `--template`             | `-t`  | `str`   | none     | yes      |
-| `--state-count`          | `-sc` | `int`   | `1`      | no       |
-| `--reward-size`          | none  | `float` | `5.0` µL | no       |
-| `--reward-tone-duration` | none  | `int`   | `300` ms | no       |
-| `--puff-duration`        | none  | `int`   | `100` ms | no       |
-| `--force`                | `-f`  | flag    | `False`  | no       |
-
-`--template` is the template filename stem without the `.yaml` suffix. `--force` maps to the library's `overwrite`
-argument, so it is the only way to replace an existing experiment configuration file (the `configure_experiment` command
-in `interfaces/mesoscope_vr.py`). See `assets:experiment-configuration` for the configuration contract itself.
-
-### `run` group options
-
-The `run` group parses the four session identifiers and stores them on `context.obj` as a frozen
-`_SharedSessionParameters`, so **every one of them must be given before the subcommand name** (the `run` group callback
-in `interfaces/mesoscope_vr.py`). Each `require_*` accessor on `_SharedSessionParameters` raises a `click.UsageError`
-when the subcommand needs a value the operator omitted.
-
-| Option            | Short | Type    | Click default | Enforced by                                                        |
-|-------------------|-------|---------|---------------|--------------------------------------------------------------------|
-| `--user`          | `-u`  | `str`   | `None`        | `require_user()`, every subcommand                                 |
-| `--project`       | `-p`  | `str`   | `None`        | `require_project()`, every subcommand                              |
-| `--animal`        | `-a`  | `str`   | `None`        | `require_animal()`, every subcommand                               |
-| `--animal-weight` | `-w`  | `float` | `None`        | `require_animal_weight()`, every subcommand except window-checking |
-
-### `run lick-training` options
-
-Every option below carries **no Click default**, so an omitted option arrives as `None`. The "Defaults to N" wording in
-each help string describes the runtime fallback the logic function resolves, which is the previous same-type session's
-value or the descriptor default, and no part of it is resolved inside `interfaces/`.
-
-| Option                 | Short  | Type         | Help-stated fallback         | Descriptor field             |
-|------------------------|--------|--------------|------------------------------|------------------------------|
-| `--maximum-time`       | `-t`   | `int` (min)  | 20 minutes                   | `maximum_training_time_min`  |
-| `--minimum-delay`      | `-min` | `int` (s)    | 6 seconds                    | `minimum_reward_delay_s`     |
-| `--maximum-delay`      | `-max` | `int` (s)    | 18 seconds                   | `maximum_reward_delay_s`     |
-| `--maximum-volume`     | `-v`   | `float` (mL) | 1.0 mL                       | `maximum_water_volume_ml`    |
-| `--unconsumed-rewards` | `-ur`  | `int`        | 1, and `0` removes the limit | `maximum_unconsumed_rewards` |
-
-### `run run-training` options
-
-The same no-Click-default rule applies to every option below (the `run_training` command in
-`interfaces/mesoscope_vr.py`).
-
-| Option                 | Short  | Type           | Help-stated fallback                               | Maps to                      |
-|------------------------|--------|----------------|----------------------------------------------------|------------------------------|
-| `--maximum-time`       | `-t`   | `int` (min)    | 40 minutes                                         | `maximum_training_time`      |
-| `--initial-speed`      | `-is`  | `float` (cm/s) | 0.8 cm/s                                           | `initial_speed_threshold`    |
-| `--initial-duration`   | `-id`  | `float` (s)    | 1.5 s                                              | `initial_duration_threshold` |
-| `--increase-threshold` | `-it`  | `float` (mL)   | 0.1 mL                                             | `increase_threshold`         |
-| `--speed-step`         | `-ss`  | `float` (cm/s) | 0.05 cm/s                                          | `speed_increase_step`        |
-| `--duration-step`      | `-ds`  | `float` (s)    | 0.1 s                                              | `duration_increase_step`     |
-| `--maximum-volume`     | `-v`   | `float` (mL)   | 1.0 mL                                             | `maximum_water_volume`       |
-| `--maximum-idle-time`  | `-mit` | `float` (s)    | 0.3 s, and `0` forces above-threshold speed always | `maximum_idle_time`          |
-| `--unconsumed-rewards` | `-ur`  | `int`          | 1, and `0` removes the limit                       | `maximum_unconsumed_rewards` |
-
-`run experiment` takes the required `-e/--experiment` plus the same defaultless `-ur/--unconsumed-rewards` (the
-`run_experiment` command in `interfaces/mesoscope_vr.py`).
-
-### Session data commands
-
-`preprocess` and `delete` share one `-sp/--session-path` option, typed
-`click.Path(exists=True, file_okay=False, dir_okay=True, path_type=Path)`, required, and carrying a `prompt=`. Both
-resolve `get_data_root()` and the supplied path before the containment check, which defeats a `..` segment or a symlink,
-and both raise `FileNotFoundError` through `console.error` when the session sits outside the data root (the `preprocess`
-and `delete` commands in `interfaces/mesoscope_vr.py`). `migrate` takes the required `-s/--source`, `-d/--destination`,
-and `-a/--animal`, and forwards `destination` as the library's `target_project` keyword (the `migrate` command in the
-same module).
+The `sle mesoscope` command group, every one of its Click nodes, and all thirty-three of its options are documented by
+`/mesoscope-vr-cli-reference`. This file covers only what each command does once it starts, which is the per-mode
+logic above and the GUI surfaces below.
 
 ---
 

@@ -1,11 +1,10 @@
 ---
 name: acquisition-system-runtime
 description: >-
-  Documents the platform-general runtime pattern for a Sollertia data acquisition system: the
-  per-mode logic functions, the orchestrator's state machine and per-cycle loop, typed-event
-  dispatch, and the visualizer/control-UI surface. Use when designing the runtime layer of a
-  new acquisition system, adding a runtime mode/state, or auditing an existing runtime for
-  pattern compliance.
+  Documents the platform-general runtime pattern for a Sollertia data acquisition system: the per-mode logic functions,
+  the orchestrator's state machine and per-cycle loop, typed-event dispatch, and the visualizer/control-UI surface. Use
+  when designing the runtime layer of a new acquisition system, adding a runtime mode/state, or auditing an existing
+  runtime for pattern compliance.
 user-invocable: false
 ---
 

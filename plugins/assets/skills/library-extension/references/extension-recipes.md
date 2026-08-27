@@ -191,8 +191,8 @@ one, enumerating both explicitly rather than lengthening a "currently only X" ch
 | `/session-data`             | The `instance.system_raw_data` bullet under "Path-resolution sub-dataclasses on `SessionData`", which gains the new `<System>RawData` field list                                                        |
 | `/session-hardware-state`   | The per-system schema-skill pointers in the intro, the read and amend workflows, and the checklist. Add a parallel pointer to the new system's schema skill and a matching Related-skills row           |
 | `/experiment-configuration` | The frontmatter description's per-system schema-skill pointer and the pointers in the body. The new system reuses `create_experiment_from_vr_template_tool` once its `from_task_template` builder lands |
-| `/task-templates` | The statement naming the experiment-configuration classes into which a template can be built |
-| `/datasets` | The acquisition-system vocabulary a dataset records, since `DatasetData` carries the acquisition system on which its sessions were acquired |
+| `/task-templates`           | The statement naming the experiment-configuration classes into which a template can be built                                                                                                            |
+| `/datasets`                 | The acquisition-system vocabulary a dataset records, since `DatasetData` carries the acquisition system on which its sessions were acquired                                                             |
 
 **Downstream coordination:**
 
@@ -256,12 +256,12 @@ only guardrail. Mesoscope-VR's concrete discriminator members, trial classes, an
 
 **Skill touches:**
 
-| Skill                                      | What to update                                                                                                                                                                  |
-|--------------------------------------------|---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| Skill                                      | What to update                                                                                                                                                                   |
+|--------------------------------------------|----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
 | `/experiment-configuration`                | The "Templates vs. experiment configurations" framing, the trigger to trial-class pairing convention, the `trial_structures` schema description, and the "Common patterns" table |
-| `/task-templates`                          | The trial-class enumeration in the template vocabulary section                                                                                                                  |
-| `mesoscope:mesoscope-vr-experiment-schema` | The trial-class field roster and the trigger-to-trial mapping table, whenever Mesoscope-VR is the system that gains the class                                                   |
-| `experiment:vr-driver-interface`           | How the orchestrator dispatches per-trigger outcomes through the driver's `Stimulus` events, joined by `DecomposedTrials.trial_names`                                           |
+| `/task-templates`                          | The trial-class enumeration in the template vocabulary section                                                                                                                   |
+| `mesoscope:mesoscope-vr-experiment-schema` | The trial-class field roster and the trigger-to-trial mapping table, whenever Mesoscope-VR is the system that gains the class                                                    |
+| `experiment:vr-driver-interface`           | How the orchestrator dispatches per-trigger outcomes through the driver's `Stimulus` events, joined by `DecomposedTrials.trial_names`                                            |
 
 ---
 

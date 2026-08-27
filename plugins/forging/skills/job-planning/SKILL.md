@@ -1,10 +1,10 @@
 ---
 name: job-planning
 description: >-
-  Sizes every runnable job of a session or a dataset and records the figures a batch and a scheduler are sized
-  against. Covers per-unit plan caches, the project plan projection, the declared resource model, and pre-batch
-  resource inspection. Use when planning a project's jobs, when reading planned cores and memory, when a job
-  reports as unplanned or unsized, or when sizing a local budget or a remote submission.
+  Sizes every runnable job of a session or a dataset and records the figures a batch and a scheduler are sized against.
+  Covers per-unit plan caches, the project plan projection, the declared resource model, and pre-batch resource
+  inspection. Use when planning a project's jobs, when reading planned cores and memory, when a job reports as unplanned
+  or unsized, or when sizing a local budget or a remote submission.
 user-invocable: false
 ---
 

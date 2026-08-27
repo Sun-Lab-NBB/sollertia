@@ -172,7 +172,7 @@ Every read tool answers at one of three widths, and a caller pays only for the w
 The stage-three fields differ per tool, the executor and the timestamps and the error text on the job readers, `notes`
 on the manifest reader, and `job_id` and `memory_modeled` and `prerequisite_ids` on the plan reader. The scheduler
 reader adds the requested figures against the occupied ones on its accounting view, and the allocation's shape and its
-remaining walltime on its queue view. Three tools depart from the staged read. `discover_remote_project_tool` carries no
+remaining walltime on its queue view. Four tools depart from the staged read. `discover_remote_project_tool` carries no
 `detailed` parameter and stops at stage two. `list_project_datasets_tool`, `list_prepared_batches_tool`, and
 `read_resource_model_tool` carry no `include_items` parameter, because their listing is always present, and
 `read_resource_model_tool` carries no `detailed` parameter either.

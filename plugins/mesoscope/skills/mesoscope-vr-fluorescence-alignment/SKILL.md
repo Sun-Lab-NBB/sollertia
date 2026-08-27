@@ -1,11 +1,10 @@
 ---
 name: mesoscope-vr-fluorescence-alignment
 description: >-
-  Documents Mesoscope-VR's concrete fluorescence sub-assembly: the primary TTL duration-window path, the stray
-  pulse-run discard that drops hand-triggered scanning, the reconciliation against cindra's frame count, and the
-  ScanImage metadata fallback with its three metadata keys, anchor search, and match tolerance. Use when
-  interpreting fluorescence frame alignment, debugging dropped or excess TTL pulses, or changing the alignment
-  tolerances.
+  Documents Mesoscope-VR's concrete fluorescence sub-assembly: the primary TTL duration-window path, the stray pulse-run
+  discard that drops hand-triggered scanning, the reconciliation against cindra's frame count, and the ScanImage
+  metadata fallback with its three metadata keys, anchor search, and match tolerance. Use when interpreting fluorescence
+  frame alignment, debugging dropped or excess TTL pulses, or changing the alignment tolerances.
 user-invocable: false
 ---
 
@@ -40,7 +39,12 @@ session `data.feather`.
 - The `time_us` reference clock produced here and consumed as `reference_time` by the sibling sub-assemblies
 
 **Does not cover:**
-- cindra single-recording and multi-recording fluorescence production. Owned by `forging:processing-input-format`.
+- The cindra configuration each recording is processed under, and the genotype-driven indicator selection behind it.
+  Owned by `/mesoscope-vr-imaging-configuration`.
+- The cindra pipelines that produce the fluorescence arrays this stage reads. Owned by
+  `cindra:single-recording-processing` and `cindra:multi-recording-processing`. Their output formats are owned by
+  `cindra:single-recording-results` and `cindra:multi-recording-results`.
+- The pipeline that materializes those cindra outputs inside a session. Owned by `forging:processing-input-format`.
 - Stacking the sub-datasets into the session `data.feather`, and the training-session reference clock. Owned by
   `/mesoscope-vr-dataset-assembly`.
 - The forged column roster and the per-column descriptions. Owned by `/mesoscope-vr-processing-schema`.
@@ -316,15 +320,23 @@ spike pair is OASIS-deconvolved.
 
 ## Related skills
 
-| Skill                             | Relationship                                                              |
-|-----------------------------------|---------------------------------------------------------------------------|
-| `forging:data-processing-design`  | Owns the agnostic processing-stage doctrine this sub-assembly concretizes |
-| `forging:processing-input-format` | Documents the upstream inputs the forging pipeline consumes               |
-| `forging:processing-results`      | Owns the agnostic forged-output layout on disk                            |
-| `forging:dataset-forging`         | Orchestrates the forging batch that runs this sub-assembly                |
-| `/mesoscope-vr-dataset-assembly`  | Calls this sub-assembly and consumes the reference clock it produces      |
-| `/mesoscope-vr-module-parsing`    | Produces the upstream mesoscope-frame TTL feather                         |
-| `/mesoscope-vr-processing-schema` | Owns the DatasetColumn roster and the processed-data filename roster      |
+The `cindra:` entries below resolve through the cindra marketplace. Every other entry resolves inside the sollertia
+marketplace.
+
+| Skill                                 | Relationship                                                              |
+|---------------------------------------|---------------------------------------------------------------------------|
+| `forging:data-processing-design`      | Owns the agnostic processing-stage doctrine this sub-assembly concretizes |
+| `forging:processing-input-format`     | Documents the upstream inputs the forging pipeline consumes               |
+| `forging:processing-results`          | Owns the agnostic forged-output layout on disk                            |
+| `forging:dataset-forging`             | Orchestrates the forging batch that runs this sub-assembly                |
+| `/mesoscope-vr-dataset-assembly`      | Calls this sub-assembly and consumes the reference clock it produces      |
+| `/mesoscope-vr-module-parsing`        | Produces the upstream mesoscope-frame TTL feather                         |
+| `/mesoscope-vr-imaging-configuration` | Resolves the cindra configuration each recording read here was run under  |
+| `/mesoscope-vr-processing-schema`     | Owns the DatasetColumn roster and the processed-data filename roster      |
+| `cindra:single-recording-processing`  | Produces the per-session fluorescence arrays this stage aligns            |
+| `cindra:multi-recording-processing`   | Produces the cross-day fluorescence arrays this stage aligns              |
+| `cindra:single-recording-results`     | Owns the shapes, dtypes, and NPZ keys of the single-day arrays read here  |
+| `cindra:multi-recording-results`      | Owns the shapes, dtypes, and NPZ keys of the cross-day arrays read here   |
 
 ---
 

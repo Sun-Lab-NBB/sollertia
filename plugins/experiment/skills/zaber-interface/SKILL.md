@@ -1,9 +1,9 @@
 ---
 name: zaber-interface
 description: >-
-  Guides implementation of Zaber motor interfaces using the zaber-motion library. Covers motor
-  discovery, position management, safety patterns, and binding class patterns. Use when adding
-  Zaber motor support to any acquisition system or troubleshooting motor connectivity.
+  Guides implementation of Zaber motor interfaces using the zaber-motion library. Covers motor discovery, position
+  management, safety patterns, and binding class patterns. Use when adding Zaber motor support to any acquisition system
+  or troubleshooting motor connectivity.
 user-invocable: false
 ---
 
@@ -323,22 +323,23 @@ library owns the value and rewrites it on every `device_label` write (`cross_sys
 For new motors not yet configured for use with the binding library:
 
 1. **Discover device**: `get_zaber_devices_tool()`
-2. **Set device label**: `set_zaber_device_setting_tool(port, index, "device_label", "StageA", confirm="yes")` (This
+2. **Set device label**: `set_zaber_device_setting_tool(port, device_index, "device_label", "StageA",
+   confirm="yes")` (This
    automatically calculates and sets the checksum)
-3. **Set axis label**: `set_zaber_device_setting_tool(port, index, "axis_label", "Z", confirm="yes")`
+3. **Set axis label**: `set_zaber_device_setting_tool(port, device_index, "axis_label", "Z", confirm="yes")`
 4. **Set positions**: Configure park, maintenance, and mount positions
 5. **Set unsafe flag** (if needed): Only set this during initial setup based on physical hardware constraints. Set to
    `1` if the motor can be positioned unsafely for homing (e.g., where homing could cause collision).
-6. **Validate**: `validate_zaber_configuration_tool(port, index)`
+6. **Validate**: `validate_zaber_configuration_tool(port, device_index)`
 
 ### Improper shutdown recovery workflow
 
 When a motor with `unsafe_flag=1` was not properly shut down:
 
-1. **Read current settings**: `get_zaber_device_settings_tool(port, index)` to confirm `shutdown_flag=0`
+1. **Read current settings**: `get_zaber_device_settings_tool(port, device_index)` to confirm `shutdown_flag=0`
 2. **User verification**: Ask the user to physically verify the motor is in a safe position for homing
-3. **Reset shutdown flag**: `set_zaber_device_setting_tool(port, index, "shutdown_flag", "1", confirm="yes")`
-4. **Validate**: `validate_zaber_configuration_tool(port, index)` should now show no warnings
+3. **Reset shutdown flag**: `set_zaber_device_setting_tool(port, device_index, "shutdown_flag", "1", confirm="yes")`
+4. **Validate**: `validate_zaber_configuration_tool(port, device_index)` should now show no warnings
 
 **Important:** Never modify `unsafe_flag` to work around improper shutdown. The `unsafe_flag` reflects physical hardware
 constraints and should only be changed if the hardware assembly changes.
@@ -459,6 +460,7 @@ For the full binding-class skeleton, the key-patterns table, and the configurati
 
 | Skill                               | Relationship                                                                        |
 |-------------------------------------|-------------------------------------------------------------------------------------|
+| `/cli-reference`                    | Owns the `sle get zaber` and `sle get checksum` command surface                     |
 | `/acquisition-system-design`        | Platform-general pattern for composing a Zaber subsystem into a binding class       |
 | `/acquisition-system-setup`         | Acquisition-system-level hardware discovery and verification                        |
 | `/library-extension`                | Catalogues the Zaber hierarchy as a reusable seam a new acquisition system composes |

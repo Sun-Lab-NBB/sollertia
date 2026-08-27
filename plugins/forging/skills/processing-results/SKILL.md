@@ -2,10 +2,10 @@
 name: processing-results
 description: >-
   Documents what each sollertia-forgery pipeline writes to disk, where its tracker lives, and how an agent verifies an
-  output when the library ships no verification tool. Covers the processed-data tree, the project and dataset
-  artifacts, per-pipeline output ownership, and the reading of a legitimately empty or absent output. Use when
-  evaluating processing results, when the user asks whether a session or a dataset finished, or when a stage reports
-  success while its output directory looks wrong.
+  output when the library ships no verification tool. Covers the processed-data tree, the project and dataset artifacts,
+  per-pipeline output ownership, and the reading of a legitimately empty or absent output. Use when evaluating
+  processing results, when the user asks whether a session or a dataset finished, or when a stage reports success while
+  its output directory looks wrong.
 user-invocable: false
 ---
 
@@ -16,9 +16,9 @@ real success from a vacuous one. This skill owns no MCP tools.
 
 **The server ships no output-verification tool and no feather-query tool.** Nothing on it opens a feather, counts its
 rows, or checks its schema. Verification runs through the breakdowns of `read_project_jobs_tool`,
-owned by `/project-state`, and of `get_processing_status_tool`, owned by `/batch-processing`. The forging jobs those two
-never carry are covered by `read_dataset_state_tool`, owned by `/dataset-definition`. Read the record with those tools
-first, then read the bytes by hand.
+owned by `/project-state`, and of `get_processing_status_tool`, owned by `/batch-processing`. The forging jobs the
+project job artifact never carries are covered by `read_dataset_state_tool`, owned by `/dataset-definition`. Read the
+record with those tools first, then read the bytes by hand.
 
 ---
 
@@ -37,9 +37,10 @@ first, then read the bytes by hand.
 - Preparing a batch, executing it, resetting jobs, and cleaning output. Owned by `/batch-processing`.
 - What must exist on disk before a pipeline can run. Owned by `/processing-input-format`.
 - The per-unit plan cache and the resource model behind `cores` and `memory_mb`. Owned by `/job-planning`.
-- Every acquisition-system file name, column schema, and session type. Owned by
-  `mesoscope:mesoscope-vr-processing-schema`.
-- The upstream log archive formats and the extracted-message schema. Owned by `video:log-processing-results` and
+- Every acquisition-system file name, column schema, and session type. Owned by the `mesoscope:mesoscope-vr-*` skill
+  family, one member per pipeline, listed in the related-skills table.
+- The upstream log archive formats. Owned by `video:log-input-format` and `communication:log-input-format`.
+- The extracted-message schema of those archives. Owned by `video:log-processing-results` and
   `communication:log-processing-results`.
 - The imaging library's array and image formats under the session's imaging output directory. Owned by
   `cindra:single-recording-results`.
@@ -89,21 +90,14 @@ so a `pipelines=["forging"]` filter is rejected rather than returning an empty l
 
 ## Recommended query order
 
-1. **`get_manifest_status_tool`**: confirm the stored tables exist and that the last generation succeeded. A `status`
-   of `not_started` with `exists` reporting `false` for both tables means every reading below would describe a project
-   that was never scanned.
-2. **`read_project_manifest_tool`**: read the per-session done flags. Pass `pipeline_done` with a value of `0` to
-   narrow to the sessions a pipeline has not finished, and remember that the checksum pipeline's column is `integrity`.
-3. **`read_project_jobs_tool`**: read the per-job rows behind an outstanding flag. Pass `status="FAILED"` with
-   `detailed=True` to surface `error_message`, and use the `breakdown` over `animal`, `pipeline`, `job_name`, and
-   `status` to size the problem before listing anything.
-4. **`read_dataset_state_tool`**: read the forging jobs, which the project job artifact never carries. Its `breakdown`
-   covers `scope`, `animal`, `job_name`, and `status`.
-5. **`get_processing_status_tool`**: read the batch this server process is running, for the jobs a run dispatched
-   rather than for the project's history.
-6. **Read the bytes by hand**: only after a tracker reports `SUCCEEDED` and the counts above look right. Every table
-   this library writes is uncompressed Arrow IPC, so `pl.read_ipc_schema` answers a column question from the footer
-   alone and `pl.read_ipc` memory-maps the rest.
+The order that establishes whether a batch succeeded, opening with the regeneration that stops the snapshot predating
+the batch, is the `## Recommended query order` section of `/project-state`. The forging jobs it does not reach are read
+through `read_dataset_state_tool`, owned by `/dataset-definition`, and the batch this server process is running through
+`get_processing_status_tool`, owned by `/batch-processing`.
+
+**Read the bytes by hand** only after that order reports `SUCCEEDED` and its counts look right. Every table this
+library writes is uncompressed Arrow IPC, so `pl.read_ipc_schema` answers a column question from the footer alone and
+`pl.read_ipc` memory-maps the rest.
 
 ---
 
@@ -156,7 +150,7 @@ separately by the planning pipeline, which `/job-planning` owns.
 | Path                               | Written by                                     | Row semantics                                     |
 |------------------------------------|------------------------------------------------|---------------------------------------------------|
 | `{project}_jobs.feather`           | `managing.jobs.write_project_jobs`             | one row per tracked job of a per-session pipeline |
-| `{project}_manifest.feather`       | `managing.manifest.project_manifest_path`      | one row per session with a non-empty `raw_data`   |
+| `{project}_manifest.feather`       | `managing.manifest.generate_project_manifest`  | one row per session with a non-empty `raw_data`   |
 | `manifest_processing_tracker.yaml` | `managing.manifest`                            | the single `manifest_generation` job              |
 | `{project}_plan.feather`           | `orchestration.planning.generate_project_plan` | one row per planned job, session and dataset      |
 
@@ -384,23 +378,30 @@ integers, so animal `2` precedes animal `10`. A reader comparing two listings by
 The `video:`, `communication:`, and `cindra:` entries below resolve through the ataraxis and cindra marketplaces. Every
 other entry resolves inside the sollertia marketplace.
 
-| Skill                                      | Relationship                                                                      |
-|--------------------------------------------|-----------------------------------------------------------------------------------|
-| `/project-state`                           | Owns the manifest, job, and manifest-status read tools this skill points at       |
-| `/batch-processing`                        | Owns the status, reset, and clean tools, and the batch that produced the output   |
-| `/dataset-definition`                      | Owns the dataset state read tool and the dataset marker                           |
-| `/job-planning`                            | Owns the per-unit plan cache and the project plan table                           |
-| `/processing-input-format`                 | Reference: what must exist on disk before any of these outputs can be written     |
-| `/pipeline`                                | Context: routes an end-to-end run through the skills that produce these artifacts |
-| `/forging-mcp-environment-setup`           | Prerequisite: server connectivity and the response contract                       |
-| `/cli-reference`                           | Reference: the `slf` commands that write the same artifacts without the server    |
-| `mesoscope:mesoscope-vr-processing-schema` | Reference: the elided runtime, parsed, and tracking table schemas                 |
-| `mesoscope:mesoscope-vr-dataset-assembly`  | Reference: the column universe of an assembled session table                      |
-| `assets:session-discovery`                 | Upstream: the exclusive producer of the session path lists a batch consumes       |
-| `experiment:data-management`               | Upstream: the preprocessing that materializes `raw_data`                          |
-| `video:log-processing-results`             | Reference: the upstream camera archive extraction this pipeline dispatches        |
-| `communication:log-processing-results`     | Reference: the extracted-message schema of the raw controller tables              |
-| `cindra:single-recording-results`          | Reference: the imaging library's own array and image outputs                      |
+| Skill                                           | Relationship                                                                      |
+|-------------------------------------------------|-----------------------------------------------------------------------------------|
+| `/project-state`                                | Owns the manifest, job, and manifest-status read tools this skill points at       |
+| `/batch-processing`                             | Owns the status, reset, and clean tools, and the batch that produced the output   |
+| `/dataset-definition`                           | Owns the dataset state read tool and the dataset marker                           |
+| `/job-planning`                                 | Owns the per-unit plan cache and the project plan table                           |
+| `/processing-input-format`                      | Reference: what must exist on disk before any of these outputs can be written     |
+| `/pipeline`                                     | Context: routes an end-to-end run through the skills that produce these artifacts |
+| `/forging-mcp-environment-setup`                | Prerequisite: server connectivity and the response contract                       |
+| `/cli-reference`                                | Reference: the `slf` commands that write the same artifacts without the server    |
+| `mesoscope:mesoscope-vr-processing-schema`      | Reference: the file name roster every elided entry above resolves to              |
+| `mesoscope:mesoscope-vr-dataset-assembly`       | Reference: the column universe of an assembled session table                      |
+| `mesoscope:mesoscope-vr-module-parsing`         | Reference: the elided parsed tables under `microcontroller_data`                  |
+| `mesoscope:mesoscope-vr-trial-decomposition`    | Reference: the elided tables under `runtime_data`                                 |
+| `mesoscope:mesoscope-vr-video-tracking`         | Reference: the elided tracking tables under `video_data`                          |
+| `mesoscope:mesoscope-vr-imaging-configuration`  | Reference: the resolver behind the persisted cindra `configuration.yaml`          |
+| `mesoscope:mesoscope-vr-fluorescence-alignment` | Reference: the fluorescence columns the forged dataset carries                    |
+| `assets:session-discovery`                      | Upstream: the exclusive producer of the session path lists a batch consumes       |
+| `experiment:data-management`                    | Upstream: the preprocessing that materializes `raw_data`                          |
+| `video:log-input-format`                        | Reference: the upstream camera log archive format this pipeline consumes          |
+| `communication:log-input-format`                | Reference: the upstream microcontroller log archive format it consumes            |
+| `video:log-processing-results`                  | Reference: the upstream camera archive extraction this pipeline dispatches        |
+| `communication:log-processing-results`          | Reference: the extracted-message schema of the raw controller tables              |
+| `cindra:single-recording-results`               | Reference: the imaging library's own array and image outputs                      |
 
 ---
 
@@ -413,9 +414,10 @@ Tool-settled (run `rg -n '.{121,}' <file>` and `wc -l <file>`):
 - [ ] Every code fence carries a language identifier
 - [ ] rg -n 'ataraxis@|cindra@' <file> finds nothing
 
-Result verification, tool-settled (run get_manifest_status_tool, read_project_manifest_tool, read_project_jobs_tool):
+Result verification, tool-settled (run read_project_manifest_tool, read_project_jobs_tool):
 - [ ] sollertia-forgery MCP server is connected
-- [ ] get_manifest_status_tool reports succeeded, so the stored project tables reflect the current hierarchy
+- [ ] The query order of /project-state was followed, so the stored project tables were regenerated after the batch's
+      last job retired
 - [ ] Every pipeline column of every session under review reads 1 in read_project_manifest_tool
 - [ ] read_project_jobs_tool with status FAILED and detailed True returns no row, or every returned error_message is
       accounted for

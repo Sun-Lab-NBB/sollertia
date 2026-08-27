@@ -1,11 +1,10 @@
 ---
 name: acquisition-system-design
 description: >-
-  Documents the platform-general design pattern for a Sollertia data acquisition system:
-  the YAML system configuration, the per-subsystem binding classes, and the runtime
-  orchestrator that owns master start/stop. Use when designing a new acquisition system,
-  adding a hardware subsystem, or auditing an existing system's configuration/binding layer
-  for pattern compliance.
+  Documents the platform-general design pattern for a Sollertia data acquisition system: the YAML system configuration,
+  the per-subsystem binding classes, and the runtime orchestrator that owns master start/stop. Use when designing a new
+  acquisition system, adding a hardware subsystem, or auditing an existing system's configuration/binding layer for
+  pattern compliance.
 user-invocable: false
 ---
 

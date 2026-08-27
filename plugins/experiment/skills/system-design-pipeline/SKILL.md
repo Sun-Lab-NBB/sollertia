@@ -1,11 +1,10 @@
 ---
 name: system-design-pipeline
 description: >-
-  End-to-end orchestration guide for designing and building a new Sollertia acquisition system:
-  phase ordering and handoff conditions across the shared-assets contract, the hardware interfaces,
-  the acquisition runtime, and the Unity corridor task. Use when planning or building a new
-  acquisition system from scratch, or deciding which design skill to invoke next. For operating an
-  already-built system, see `/pipeline`.
+  End-to-end orchestration guide for designing and building a new Sollertia acquisition system: phase ordering and
+  handoff conditions across the shared-assets contract, the hardware interfaces, the acquisition runtime, and the Unity
+  corridor task. Use when planning or building a new acquisition system from scratch, or deciding which design skill to
+  invoke next. For operating an already-built system, see `/pipeline`.
 user-invocable: false
 ---
 
@@ -329,8 +328,12 @@ skills. The `video:`, `communication:`, and `microcontroller:` entries resolve t
 
 ## Related skills
 
+The `microcontroller:`, `communication:`, and `video:` entries below resolve through the ataraxis marketplace. Every
+other entry resolves inside the sollertia marketplace.
+
 | Skill                                     | Relationship                                                                                  |
 |-------------------------------------------|-----------------------------------------------------------------------------------------------|
+| `/cli-reference`                          | Reference: the `sle` surface a new acquisition system extends                                 |
 | `/pipeline`                               | The operate-time counterpart, receives the built system for its first run                     |
 | `assets:library-extension`                | Owns Phase 1 half 1, the shared-assets contract, registries, and trial/trigger recipes        |
 | `/library-extension`                      | Owns Phase 1 half 2, the sollertia-experiment and sollertia-micro-controllers seam catalog    |

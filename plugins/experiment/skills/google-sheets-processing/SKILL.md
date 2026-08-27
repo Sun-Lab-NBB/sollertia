@@ -1,11 +1,10 @@
 ---
 name: google-sheets-processing
 description: >-
-  Guides implementation of Google Sheets processing assets, the SurgeryLog and WaterLog classes that read
-  animal and session records into typed platform data and write results back. Covers the processor API,
-  service-account auth, the sheet schema contract, how an acquisition system wires sheets, and authoring a
-  custom processor. Use when reading or writing Google Sheets data, adapting a processor to a new sheet
-  schema, or wiring sheets into an acquisition system.
+  Guides implementation of Google Sheets processing assets, the SurgeryLog and WaterLog classes that read animal and
+  session records into typed platform data and write results back. Covers the processor API, service-account auth, the
+  sheet schema contract, how an acquisition system wires sheets, and authoring a custom processor. Use when reading or
+  writing Google Sheets data, adapting a processor to a new sheet schema, or wiring sheets into an acquisition system.
 user-invocable: false
 ---
 
@@ -247,6 +246,7 @@ resolve the sheet and re-run. See `/data-management` for the lifecycle-level han
 
 | Skill                               | Relationship                                                                             |
 |-------------------------------------|------------------------------------------------------------------------------------------|
+| `/cli-reference`                    | Reference: the `sle mcp` command that starts the server these processors run under       |
 | `/acquisition-system-design`        | Platform-general home of the external data-service processor category and its workflow.  |
 | `/data-management`                  | Owns the shared preprocessing primitives that construct these processors.                |
 | `/library-extension`                | Catalogues the Sheets processors as a reusable seam a new acquisition system composes.   |

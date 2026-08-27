@@ -4,8 +4,8 @@ description: >-
   Owns the extension path of sollertia-forgery: adding an acquisition system, a session type, a processing stage, a
   processing pipeline, or an MCP tool. Covers the eleven donor registries, the three import-time coverage checks and
   their verbatim errors, the touch points no check reaches, and the cross-repository ordering the upstream libraries
-  impose. Use when wiring a new acquisition system into the registries, adding a processing stage or pipeline, adding
-  an slf mcp tool, or when an import-time RuntimeError names a registry, a dispatch table, or a status column.
+  impose. Use when wiring a new acquisition system into the registries, adding a processing stage or pipeline, adding an
+  slf mcp tool, or when an import-time RuntimeError names a registry, a dispatch table, or a status column.
 user-invocable: false
 ---
 
@@ -106,9 +106,9 @@ system package, so the reverse import is a cycle rather than a style preference.
 `..shared_assets`, which imports nothing from this library. Nothing enforces the rule, so the circular `ImportError`
 is the enforcement.
 
-The Mesoscope-VR donations that fill these seams are documented by the `mesoscope:mesoscope-vr-*` skill family. The
-column descriptions sit in `mesoscope:mesoscope-vr-processing-schema` and the sub-dataset assemblers in
-`mesoscope:mesoscope-vr-dataset-assembly`.
+The Mesoscope-VR donations that fill these seams are documented by the `mesoscope:mesoscope-vr-*` skill family, one
+member per seam group. `forging:data-processing-design` carries the registry-to-skill map, and the related-skills table
+below repeats it as routing.
 
 ---
 
@@ -308,33 +308,38 @@ Cross-document references follow the same rule. Cite a README or a CLAUDE.md by 
 The `video:`, `communication:`, `cindra:`, and `automation:` entries below resolve through the ataraxis and cindra
 marketplaces. Every other entry resolves inside the sollertia marketplace.
 
-| Skill                                      | Relationship                                                                                            |
-|--------------------------------------------|---------------------------------------------------------------------------------------------------------|
-| `/forging-mcp-environment-setup`           | Owns the `slf mcp` server a new tool module joins, and the response contract that module returns        |
-| `/data-processing-design`                  | Owns the per-system donation design behind a registry entry, and the doctrine a new stage follows       |
-| `/dataset-definition`                      | Owns the admission policy and the column descriptions a new session type or system changes              |
-| `/dataset-forging`                         | Owns the forging pipeline whose reach a new admission entry widens                                      |
-| `/batch-processing`                        | Owns running the pipelines and stages an extension adds                                                 |
-| `/job-planning`                            | Owns the resource model a new job type joins through `_PIPELINE_JOB_NAMES`                              |
-| `/project-state`                           | Owns the project manifest a new per-session pipeline adds a status column to                            |
-| `/processing-input-format`                 | Owns the acquired artifacts a new donation or pipeline reads                                            |
-| `/processing-results`                      | Owns the outputs a new stage or pipeline writes                                                         |
-| `/cli-reference`                           | Owns the `slf` surface a new subcommand or stage flag joins                                             |
-| `/pipeline`                                | Routes an operator to the right skill once the extension lands                                          |
-| `assets:library-extension`                 | Owns the blocking upstream half of every scenario, and gates it on its own import check                 |
-| `assets:session-data`                      | Documents the `ProcessingTrackers` filenames, the `Directories` members, and the `ProcessedData` fields |
-| `assets:session-discovery`                 | Produces the session path lists a batch consumes once the new pipeline runs                             |
-| `assets:datasets`                          | Owns the dataset records a new acquisition system's forged datasets join                                |
-| `experiment:library-extension`             | Owns the acquisition runtime that records the artifacts a donation reads                                |
-| `experiment:pipeline`                      | Owns the acquisition run that produces the first processable session of a new shape                     |
-| `mesoscope:mesoscope-vr-processing-schema` | Documents the donations of the one registered acquisition system                                        |
-| `mesoscope:mesoscope-vr-dataset-assembly`  | Documents that system's assembly routing and its sub-datasets                                           |
-| `video:log-processing`                     | Owns the camera stage this library delegates in-process and the job-name constant it reuses             |
-| `communication:log-processing`             | Owns the microcontroller extraction stage and the job-name constant it reuses                           |
-| `cindra:single-recording-processing`       | Owns the two-photon stages, their job-name enums, and the resource figures a wrapper reuses             |
-| `automation:api-docs`                      | Owns the `docs/source/api.rst` conventions a new section or directive follows                           |
-| `automation:pyproject-style`               | Owns the `pyproject.toml` conventions the coverage omit list follows                                    |
-| `automation:commit`                        | Should be invoked once the cross-repository changes land                                                |
+| Skill                                           | Relationship                                                                                            |
+|-------------------------------------------------|---------------------------------------------------------------------------------------------------------|
+| `/forging-mcp-environment-setup`                | Owns the `slf mcp` server a new tool module joins, and the response contract that module returns        |
+| `/data-processing-design`                       | Owns the per-system donation design behind a registry entry, and the doctrine a new stage follows       |
+| `/dataset-definition`                           | Owns the admission policy and the column descriptions a new session type or system changes              |
+| `/dataset-forging`                              | Owns the forging pipeline whose reach a new admission entry widens                                      |
+| `/batch-processing`                             | Owns running the pipelines and stages an extension adds                                                 |
+| `/job-planning`                                 | Owns the resource model a new job type joins through `_PIPELINE_JOB_NAMES`                              |
+| `/project-state`                                | Owns the project manifest a new per-session pipeline adds a status column to                            |
+| `/processing-input-format`                      | Owns the acquired artifacts a new donation or pipeline reads                                            |
+| `/processing-results`                           | Owns the outputs a new stage or pipeline writes                                                         |
+| `/cli-reference`                                | Owns the `slf` surface a new subcommand or stage flag joins                                             |
+| `/pipeline`                                     | Routes an operator to the right skill once the extension lands                                          |
+| `assets:library-extension`                      | Owns the blocking upstream half of every scenario, and gates it on its own import check                 |
+| `assets:session-data`                           | Documents the `ProcessingTrackers` filenames, the `Directories` members, and the `ProcessedData` fields |
+| `assets:session-discovery`                      | Produces the session path lists a batch consumes once the new pipeline runs                             |
+| `assets:datasets`                               | Owns the dataset records a new acquisition system's forged datasets join                                |
+| `experiment:library-extension`                  | Owns the acquisition runtime that records the artifacts a donation reads                                |
+| `experiment:pipeline`                           | Owns the acquisition run that produces the first processable session of a new shape                     |
+| `mesoscope:mesoscope-vr-processing-schema`      | Documents that system's file name and column rosters, and its column descriptions                       |
+| `mesoscope:mesoscope-vr-dataset-assembly`       | Documents that system's assembly routing, its admission policy, and its sub-datasets                    |
+| `mesoscope:mesoscope-vr-module-parsing`         | Documents that system's three microcontroller-registry donations                                        |
+| `mesoscope:mesoscope-vr-trial-decomposition`    | Documents that system's runtime-parser-registry donation                                                |
+| `mesoscope:mesoscope-vr-video-tracking`         | Documents that system's two video-registry donations                                                    |
+| `mesoscope:mesoscope-vr-imaging-configuration`  | Documents that system's three two-photon-registry donations                                             |
+| `mesoscope:mesoscope-vr-fluorescence-alignment` | Documents the sub-assembly that system's assembly worker calls                                          |
+| `video:log-processing`                          | Owns the camera stage this library delegates in-process and the job-name constant it reuses             |
+| `communication:log-processing`                  | Owns the microcontroller extraction stage and the job-name constant it reuses                           |
+| `cindra:single-recording-processing`            | Owns the two-photon stages, their job-name enums, and the resource figures a wrapper reuses             |
+| `automation:api-docs`                           | Owns the `docs/source/api.rst` conventions a new section or directive follows                           |
+| `automation:pyproject-style`                    | Owns the `pyproject.toml` conventions the coverage omit list follows                                    |
+| `automation:commit`                             | Should be invoked once the cross-repository changes land                                                |
 
 ---
 

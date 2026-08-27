@@ -1,11 +1,10 @@
 ---
 name: mqtt-contract
 description: >-
-  Documents every MQTT topic to which sollertia-virtual-reality publishes or subscribes, with its
-  payload shape, direction, and owning script, covering the bidirectional MQTT 5.0 contract with
-  sollertia-experiment. All topics are flat PascalCase constants centralized in
-  Assets/Gimbl/Scripts/MQTT/MQTTTopics.cs. Use when authoring or modifying MQTT wiring, diagnosing a
-  missed message, or adding a new trigger zone, lifecycle marker, or UI subscriber.
+  Documents every MQTT topic to which sollertia-virtual-reality publishes or subscribes, with its payload shape,
+  direction, and owning script, covering the bidirectional MQTT 5.0 contract with sollertia-experiment. All topics are
+  flat PascalCase constants centralized in Assets/Gimbl/Scripts/MQTT/MQTTTopics.cs. Use when authoring or modifying MQTT
+  wiring, diagnosing a missed message, or adding a new trigger zone, lifecycle marker, or UI subscriber.
 user-invocable: false
 ---
 

@@ -8,13 +8,13 @@ surface, the authoring workflow, and the verification checklist.
 
 ## How template fields are used
 
-| Field                                 | Consumer-side role                                                                                                                                                                                                                                                                                                    |
-|---------------------------------------|-----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
-| **`cues`**                            | Unity bakes wall textures from each cue's `texture` asset. The uint8 `code` is the on-the-wire identifier the runtime uses for analysis.                                                                                                                                                                              |
+| Field                                 | Consumer-side role                                                                                                                                                                                                                                                                                                       |
+|---------------------------------------|--------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| **`cues`**                            | Unity bakes wall textures from each cue's `texture` asset. The uint8 `code` is the on-the-wire identifier the runtime uses for analysis.                                                                                                                                                                                 |
 | **`vr_environment`**                  | Parameterizes corridor geometry: how many segments are visible at once, how parallel corridor instances are spaced, the centimeter to Unity-unit conversion, the padding prefab, and the cue offset that shifts the cue sequence origin relative to each corridor's spawn point. See `unity:task-prefabs` for specifics. |
-| **`trial_structures`**                | Spatial config per trial type, covering the cue sequence, stimulus trigger zone bounds, stimulus location, visible-boundary flag, trigger type, and optional transitions. The trigger type tells Unity which zone prefab to bake.                                                                                      |
-| **`trial_structures[].cue_sequence`** | Drives Unity's segment-prefab geometry: each trial generates a single segment prefab whose cue ordering matches this sequence. Cue prefab lengths sum to the segment length used by zone validation.                                                                                                                  |
-| **`trial_structures[].transitions`**  | Drives Unity's segment-sequence resolver at session init. Sampled to materialize the deterministic trial chain. A null or empty map falls back to uniform-random successor selection.                                                                                                                                 |
+| **`trial_structures`**                | Spatial config per trial type, covering the cue sequence, stimulus trigger zone bounds, stimulus location, visible-boundary flag, trigger type, and optional transitions. The trigger type tells Unity which zone prefab to bake.                                                                                        |
+| **`trial_structures[].cue_sequence`** | Drives Unity's segment-prefab geometry: each trial generates a single segment prefab whose cue ordering matches this sequence. Cue prefab lengths sum to the segment length used by zone validation.                                                                                                                     |
+| **`trial_structures[].transitions`**  | Drives Unity's segment-sequence resolver at session init. Sampled to materialize the deterministic trial chain. A null or empty map falls back to uniform-random successor selection.                                                                                                                                    |
 
 After Unity emits the materialized cue sequence at session start, the acquisition runtime **decomposes it back into a
 trial timeline** by motif-matching each `TrialStructure`'s cue sequence against the materialized sequence. The trial
@@ -29,13 +29,13 @@ the per-project experiment configuration via `/experiment-configuration`.
 `TriggerType` carries five modes, each with its own firing rule. All five share one wire contract, owned by
 `unity:mqtt-contract`, and the zone prefab each mode bakes is owned by `unity:zone-prefabs`.
 
-| Mode                | Firing rule                                                                                                                                  |
-|---------------------|------------------------------------------------------------------------------------------------------------------------------------------------|
-| `interaction`       | The animal must engage an interaction sensor inside the stimulus trigger zone to fire the stimulus.                                          |
+| Mode                | Firing rule                                                                                                                                       |
+|---------------------|---------------------------------------------------------------------------------------------------------------------------------------------------|
+| `interaction`       | The animal must engage an interaction sensor inside the stimulus trigger zone to fire the stimulus.                                               |
 | `collision`         | Crossing an invisible boundary wall (a thin collider at `stimulus_location`) fires the stimulus unconditionally, with no sensor and no occupancy. |
-| `occupancy_disarm`  | Occupying the zone disarms the boundary. Colliding with the still-armed boundary (occupancy **not** met) fires.                              |
-| `occupancy_arm`     | Occupying the zone arms the boundary. Colliding with the now-armed boundary (occupancy **met**) fires, inverting `occupancy_disarm`.         |
-| `occupancy_trigger` | Occupying the zone for the required duration fires the stimulus immediately, with no boundary collision.                                     |
+| `occupancy_disarm`  | Occupying the zone disarms the boundary. Colliding with the still-armed boundary (occupancy **not** met) fires.                                   |
+| `occupancy_arm`     | Occupying the zone arms the boundary. Colliding with the now-armed boundary (occupancy **met**) fires, inverting `occupancy_disarm`.              |
+| `occupancy_trigger` | Occupying the zone for the required duration fires the stimulus immediately, with no boundary collision.                                          |
 
 All three occupancy modes read the dwell time from `TrialStructure.occupancy_duration_ms`, and the template is its
 single source of truth because no experiment configuration carries a copy.

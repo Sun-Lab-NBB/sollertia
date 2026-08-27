@@ -1,10 +1,9 @@
 ---
 name: experiment-mcp-environment-setup
 description: >-
-  Diagnoses and resolves sollertia-experiment MCP server connectivity issues (environment,
-  `sle mcp` command availability, Python version, dependencies). Use when the experiment
-  MCP tools are unavailable, the server fails to start, or a new session needs
-  sollertia-experiment tools.
+  Diagnoses and resolves sollertia-experiment MCP server connectivity issues (environment, `sle mcp` command
+  availability, Python version, dependencies). Use when the experiment MCP tools are unavailable, the server fails to
+  start, or a new session needs sollertia-experiment tools.
 user-invocable: false
 ---
 
@@ -235,6 +234,7 @@ Treat `pip check` as the way to surface a dependency problem, because an import-
 
 | Skill                                 | Relationship                                                                             |
 |---------------------------------------|------------------------------------------------------------------------------------------|
+| `/cli-reference`                      | Owns the rest of the `sle` command surface, including every option named nowhere here    |
 | `/zaber-interface`                    | Requires the `sollertia-experiment` MCP for device discovery and settings                |
 | `/data-management`                    | Requires the `sollertia-experiment` MCP for the shared session lifecycle primitives      |
 | `/library-extension`                  | Owns the CLI and MCP registration seams a new acquisition system adds to this server     |

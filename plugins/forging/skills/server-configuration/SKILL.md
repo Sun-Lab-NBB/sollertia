@@ -2,8 +2,8 @@
 name: server-configuration
 description: >-
   Authors and modifies the ServerConfiguration YAML that authorizes SSH and SLURM execution on the sollertia-forgery
-  remote compute server. Covers the flat five-field payload, the masked-password write refusal, the overwrite guard,
-  and the on-disk location. Use when preparing a host for remote batch execution, when rotating the server account,
+  remote compute server. Covers the flat five-field payload, the masked-password write refusal, the overwrite guard, and
+  the on-disk location. Use when preparing a host for remote batch execution, when rotating the server account,
   password, host, data root, or environment name, or when a remote call reports an unreadable server configuration.
 user-invocable: false
 ---
@@ -158,8 +158,8 @@ itself.
 `get_server_configuration_path` composes that path from `get_working_directory()`, the `CONFIGURATION_DIRECTORY`
 constant whose value is `configuration`, and `_SERVER_CONFIGURATION_FILENAME` whose value is
 `server_configuration.yaml`. The looser phrasing is widespread. Both tool docstrings place the file in the working
-directory, the library README says the same, and the not-found message from `get_server_configuration` reads "in the
-Sollertia platform working directory" while interpolating the full file path. Report the subdirectory path when a user
+directory, and the not-found message from `get_server_configuration` reads "in the Sollertia platform working
+directory" while interpolating the full file path. Report the subdirectory path when a user
 asks where the file lives.
 
 The write tool creates the configuration subdirectory when it is absent, because the scratch file it validates through

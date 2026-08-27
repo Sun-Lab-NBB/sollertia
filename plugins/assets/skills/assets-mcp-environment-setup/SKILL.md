@@ -1,9 +1,9 @@
 ---
 name: assets-mcp-environment-setup
 description: >-
-  Diagnoses and resolves sollertia-shared-assets MCP server connectivity issues (environment,
-  `slsa` command availability, Python version, dependencies). Use when the MCP tools are
-  unavailable, the server fails to start, or a new session needs the assets plugin's tools.
+  Diagnoses and resolves sollertia-shared-assets MCP server connectivity issues (environment, `slsa` command
+  availability, Python version, dependencies). Use when the MCP tools are unavailable, the server fails to start, or a
+  new session needs the assets plugin's tools.
 user-invocable: false
 ---
 
@@ -20,6 +20,8 @@ Diagnoses and resolves sollertia-shared-assets MCP server connectivity and envir
 - Diagnosing why the `slsa` command is unavailable
 - Checking Python version compatibility
 - Validating sollertia-shared-assets package installation and dependencies
+- The response envelope every `slsa mcp` tool returns, and the write-validation contract its write tools follow
+- The `--help` exemption to the ban on invoking `slsa`, which this skill owns
 
 **Does not cover:**
 - MCP tool usage for any specific configuration task (see other assets plugin skills)
@@ -137,6 +139,12 @@ fields a write payload must carry.
 ## Diagnostic workflow
 
 You MUST follow these steps in order when MCP tools are unavailable.
+
+**This skill owns the one exemption to the ban on invoking `slsa`.** `slsa --help` and `slsa COMMAND --help` may be
+run. They are read-only, start no server, touch no hardware, and report the installed build rather than a documented
+snapshot of it. Use them to smoke-test the install and to settle any question about a command's real options. No other
+`slsa` invocation is exempt. Always use the long form, because `-h` is never a help alias. `assets:cli-reference` owns
+the option surface and records the reason.
 
 ### Step 1: Check MCP server status
 
@@ -272,15 +280,16 @@ mesoscope plugin skill that reads or writes a shared descriptor, snapshot, or co
 skill that consumes the Unity-relay tools. The cross-plugin map below covers only the relationships that the blanket
 prerequisite does not already capture.
 
-| Skill                                         | Relationship                                                                |
-|-----------------------------------------------|-----------------------------------------------------------------------------|
-| `assets:working-directory`                    | Owns the configured-path taxonomy behind every environment-status component |
-| `assets:library-extension`                    | Owns the registry contracts whose import-time checks raise at server start  |
-| `assets:datasets`                             | Consumer of the dataset tool family served by this same MCP server          |
-| `mesoscope:mesoscope-vr`                      | Consumer that reads Mesoscope-VR descriptors and snapshots through this server |
-| `unity:unity-mcp-environment-setup`           | Sibling that owns the McpBridge HTTP-relay diagnostic on the Unity side     |
-| `experiment:experiment-mcp-environment-setup` | Peer carrying the equivalent diagnostic for the experiment plugin's MCP server |
-| `forging:forging-mcp-environment-setup`       | Peer carrying the equivalent diagnostic for the forging plugin's MCP server |
+| Skill                                         | Relationship                                                                        |
+|-----------------------------------------------|-------------------------------------------------------------------------------------|
+| `assets:cli-reference`                        | Owns the `slsa` command surface, and the command to hand a user when MCP stays down |
+| `assets:working-directory`                    | Owns the configured-path taxonomy behind every environment-status component         |
+| `assets:library-extension`                    | Owns the registry contracts whose import-time checks raise at server start          |
+| `assets:datasets`                             | Consumer of the dataset tool family served by this same MCP server                  |
+| `mesoscope:mesoscope-vr`                      | Consumer that reads Mesoscope-VR descriptors and snapshots through this server      |
+| `unity:unity-mcp-environment-setup`           | Sibling that owns the McpBridge HTTP-relay diagnostic on the Unity side             |
+| `experiment:experiment-mcp-environment-setup` | Peer carrying the equivalent diagnostic for the experiment plugin's MCP server      |
+| `forging:forging-mcp-environment-setup`       | Peer carrying the equivalent diagnostic for the forging plugin's MCP server         |
 
 ---
 

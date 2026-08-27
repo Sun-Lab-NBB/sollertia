@@ -1,10 +1,9 @@
 ---
 name: data-management
 description: >-
-  Manages the post-acquisition session lifecycle through the `sle mcp` server: the shared preprocessing
-  primitives, preprocessing sessions singly or in bulk, migrating animals between projects, and deleting
-  sessions with explicit confirmation. Use when the user asks to preprocess, migrate, or delete session
-  data.
+  Manages the post-acquisition session lifecycle through the `sle mcp` server: the shared preprocessing primitives,
+  preprocessing sessions singly or in bulk, migrating animals between projects, and deleting sessions with explicit
+  confirmation. Use when the user asks to preprocess, migrate, or delete session data.
 user-invocable: false
 ---
 
@@ -333,20 +332,21 @@ per-session pipelines. `forging:server-configuration` owns the remote compute se
 
 ## Related skills
 
-| Skill                               | Relationship                                                          |
-|-------------------------------------|-----------------------------------------------------------------------|
-| `/experiment-mcp-environment-setup` | Run first if the `sle mcp` server is not connected                    |
-| `/google-sheets-processing`         | Owns the `SurgeryLog` and `WaterLog` processors preprocessing invokes |
-| `/library-extension`                | Catalogues the preprocessing primitives as a reusable seam            |
-| `/pipeline`                         | Phase 7 (post-process and manage) is owned by this skill              |
-| `assets:project-hierarchy`          | Enumerates projects, animals, and sessions, read-only                 |
-| `assets:session-data`               | Owns the `SessionData` marker and the `nk.bin` marker semantics       |
-| `assets:session-discovery`          | Filters sessions and returns the paths these tools consume            |
-| `mesoscope:mesoscope-vr`            | Owns the worked example's storage-destination configuration           |
-| `mesoscope:mesoscope-vr-runtime`    | Owns the worked example's preprocessing and purge specifics           |
-| `forging:project-state`          | Owns the project manifest downstream processing reads                 |
-| `forging:batch-processing`       | Consumes the transferred raw data                                     |
-| `forging:server-configuration`      | Owns the remote transfer and cloud compute configuration              |
+| Skill                               | Relationship                                                               |
+|-------------------------------------|----------------------------------------------------------------------------|
+| `/cli-reference`                    | Owns the `sle` command surface a user runs by hand when the server is down |
+| `/experiment-mcp-environment-setup` | Run first if the `sle mcp` server is not connected                         |
+| `/google-sheets-processing`         | Owns the `SurgeryLog` and `WaterLog` processors preprocessing invokes      |
+| `/library-extension`                | Catalogues the preprocessing primitives as a reusable seam                 |
+| `/pipeline`                         | Phase 7 (post-process and manage) is owned by this skill                   |
+| `assets:project-hierarchy`          | Enumerates projects, animals, and sessions, read-only                      |
+| `assets:session-data`               | Owns the `SessionData` marker and the `nk.bin` marker semantics            |
+| `assets:session-discovery`          | Filters sessions and returns the paths these tools consume                 |
+| `mesoscope:mesoscope-vr`            | Owns the worked example's storage-destination configuration                |
+| `mesoscope:mesoscope-vr-runtime`    | Owns the worked example's preprocessing and purge specifics                |
+| `forging:project-state`             | Owns the project manifest downstream processing reads                      |
+| `forging:batch-processing`          | Consumes the transferred raw data                                          |
+| `forging:server-configuration`      | Owns the remote transfer and cloud compute configuration                   |
 
 ---
 

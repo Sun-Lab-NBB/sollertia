@@ -1,10 +1,9 @@
 ---
 name: system-health-check
 description: >-
-  Comprehensive pre-flight verification for acquisition systems. Orchestrates MCP tools and skill
-  hand-offs to check platform configuration readiness, network storage mounts, hardware
-  connectivity, and configuration validity. Use before running acquisition sessions or when
-  troubleshooting system issues.
+  Comprehensive pre-flight verification for acquisition systems. Orchestrates MCP tools and skill hand-offs to check
+  platform configuration readiness, network storage mounts, hardware connectivity, and configuration validity. Use
+  before running acquisition sessions or when troubleshooting system issues.
 user-invocable: true
 ---
 
@@ -264,6 +263,7 @@ Entries prefixed `video:` and `communication:` resolve through the ataraxis mark
 
 | Skill                                 | Relationship                                                                          |
 |---------------------------------------|---------------------------------------------------------------------------------------|
+| `/cli-reference`                      | Reference: the `sle get` commands behind these hardware checks                        |
 | `/acquisition-system-setup`           | Owns the full hardware-discovery sweep and the supported-systems registry             |
 | `mesoscope:mesoscope-vr`              | The current worked example's skill, resolved by Phase 0 on a host running that system |
 | `/library-extension`                  | Owns the seams a new acquisition system fills before this sweep can resolve it        |

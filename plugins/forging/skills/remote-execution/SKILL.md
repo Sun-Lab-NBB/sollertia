@@ -2,10 +2,10 @@
 name: remote-execution
 description: >-
   Runs sollertia-forgery work on the configured SLURM compute server through the `slf mcp` server. Covers the host
-  parameter, remote project discovery, the three-step remote run, the submission ledger, the generated job script,
-  and scheduler queue and accounting reads. Use when preparing or submitting a batch with host='remote', when
-  resolving a project's server-side unit paths, when reading the scheduler's records, or when a remote run behaves
-  differently from a local one.
+  parameter, remote project discovery, the three-step remote run, the submission ledger, the generated job script, and
+  scheduler queue and accounting reads. Use when preparing or submitting a batch with host='remote', when resolving a
+  project's server-side unit paths, when reading the scheduler's records, or when a remote run behaves differently from
+  a local one.
 user-invocable: false
 ---
 
@@ -36,7 +36,8 @@ every job runs as its own SLURM allocation. This skill is the **exclusive** owne
 - Job planning, per-unit estimates, and the resource model that sizes each allocation. Owned by `/job-planning`.
 - The project manifest and the project job artifact a remote read mirrors. Owned by `/project-state`.
 - Dataset hierarchy creation and dataset state. Owned by `/dataset-definition`.
-- Unit-root discovery on this machine. Owned by `assets:session-discovery`.
+- Unit-root discovery on this machine, with session roots owned by `assets:session-discovery` and dataset roots by
+  `/dataset-definition`.
 - The `slf` command surface a job script invokes. Owned by `/cli-reference`.
 - MCP server connectivity. Owned by `/forging-mcp-environment-setup`.
 
@@ -456,7 +457,7 @@ inside the sollertia marketplace.
 | `/pipeline`                      | Context: where a remote run sits in the end-to-end workflow                      |
 | `/forging-mcp-environment-setup` | Prerequisite: MCP connectivity and the response contract                         |
 | `assets:working-directory`       | Upstream: the working directory holding the ledger, the mirror, and the registry |
-| `assets:session-discovery`       | Upstream: unit roots on this machine, where a local batch takes its paths        |
+| `assets:session-discovery`       | Upstream: session roots on this machine, where a local batch takes its paths     |
 | `video:log-processing`           | Reference: the upstream archive format a video job reads                         |
 | `communication:log-processing`   | Reference: the upstream archive format a microcontroller job reads               |
 

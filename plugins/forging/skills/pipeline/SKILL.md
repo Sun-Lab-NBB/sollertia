@@ -218,7 +218,8 @@ carried through them in several passes before a dataset is defined.
   an accepted disposition.
 - **Skip condition:** None. A dispatched batch is not finished until its records have been read.
 - **Cross-plugin handoffs:**
-  - `mesoscope:mesoscope-vr-processing-schema` for what a stage's outputs hold under the Mesoscope-VR system
+  - `mesoscope:mesoscope-vr-processing-schema` for the Mesoscope-VR file name and column rosters, and the per-pipeline
+    `mesoscope:mesoscope-vr-*` skill named in its related-skills table for what a given stage computes
   - `video:log-processing` and `communication:log-processing` for the upstream camera and microcontroller stages
   - `cindra:single-recording-processing` for the single-recording two-photon stages
 
@@ -299,35 +300,40 @@ Is the Sollertia working directory configured on this host?
 The `video:`, `communication:`, and `cindra:` entries below resolve through the ataraxis and cindra marketplaces.
 Every other entry resolves inside the sollertia marketplace.
 
-| You need to...                                           | Use...                                     |
-|----------------------------------------------------------|--------------------------------------------|
-| Set the working directory or the data root               | `assets:working-directory`                 |
-| Create the project directory the units live under        | `assets:project-hierarchy`                 |
-| Build the unit-path list a local batch consumes          | `assets:session-discovery`                 |
-| Name the units of a batch that lives on the server       | `/remote-execution`                        |
-| Preprocess a session so it carries `raw_data`            | `experiment:data-management`               |
-| Read a session marker or inspect session metadata        | `assets:session-data`                      |
-| Author the compute server's credentials and root         | `/server-configuration`                    |
-| See what a batch will occupy before running it           | `/job-planning`                            |
-| Prepare, execute, monitor, cancel, reset, or clean       | `/batch-processing`                        |
-| Recover a lost batch identifier                          | `/batch-processing`                        |
-| Read the scheduler's own view of an allocation           | `/remote-execution`                        |
-| Learn what must exist on disk before a job can run       | `/processing-input-format`                 |
-| Interpret a pipeline's outputs and its failures          | `/processing-results`                      |
-| Snapshot or read a project's per-session state           | `/project-state`                           |
-| Compose, grow, or rebuild a dataset hierarchy            | `/dataset-definition`                      |
-| Run the dataset assembly pipeline                        | `/dataset-forging`                         |
-| Inspect, read, or repair an already forged dataset       | `assets:datasets`                          |
-| Look up an animal's surgery, implant, or drug records    | `assets:data-assets`                       |
-| Learn what a Mesoscope-VR stage writes and what it means | `mesoscope:mesoscope-vr-processing-schema` |
-| Learn what the Mesoscope-VR assembler writes per session | `mesoscope:mesoscope-vr-dataset-assembly`  |
-| Understand an upstream camera log archive                | `video:log-processing`                     |
-| Understand an upstream microcontroller log archive       | `communication:log-processing`             |
-| Understand the single-recording two-photon stages        | `cindra:single-recording-processing`       |
-| Add a pipeline, a stage, or a registry donation          | `/library-extension`                       |
-| Decide where a concern belongs in this library           | `/data-processing-design`                  |
-| Run a command by hand while the MCP server is down       | `/cli-reference`                           |
-| Restore the `slf mcp` connection                         | `/forging-mcp-environment-setup`           |
+| You need to...                                           | Use...                                          |
+|----------------------------------------------------------|-------------------------------------------------|
+| Set the working directory or the data root               | `assets:working-directory`                      |
+| Create the project directory the units live under        | `assets:project-hierarchy`                      |
+| Build the unit-path list a local batch consumes          | `assets:session-discovery`                      |
+| Name the units of a batch that lives on the server       | `/remote-execution`                             |
+| Preprocess a session so it carries `raw_data`            | `experiment:data-management`                    |
+| Read a session marker or inspect session metadata        | `assets:session-data`                           |
+| Author the compute server's credentials and root         | `/server-configuration`                         |
+| See what a batch will occupy before running it           | `/job-planning`                                 |
+| Prepare, execute, monitor, cancel, reset, or clean       | `/batch-processing`                             |
+| Recover a lost batch identifier                          | `/batch-processing`                             |
+| Read the scheduler's own view of an allocation           | `/remote-execution`                             |
+| Learn what must exist on disk before a job can run       | `/processing-input-format`                      |
+| Interpret a pipeline's outputs and its failures          | `/processing-results`                           |
+| Snapshot or read a project's per-session state           | `/project-state`                                |
+| Compose, grow, or rebuild a dataset hierarchy            | `/dataset-definition`                           |
+| Run the dataset assembly pipeline                        | `/dataset-forging`                              |
+| Inspect, read, or repair an already forged dataset       | `assets:datasets`                               |
+| Look up an animal's surgery, implant, or drug records    | `assets:data-assets`                            |
+| Look up a Mesoscope-VR processed file name or column     | `mesoscope:mesoscope-vr-processing-schema`      |
+| Learn what the Mesoscope-VR assembler writes per session | `mesoscope:mesoscope-vr-dataset-assembly`       |
+| Learn what a Mesoscope-VR module parser computes         | `mesoscope:mesoscope-vr-module-parsing`         |
+| Learn how Mesoscope-VR cue sequences become trials       | `mesoscope:mesoscope-vr-trial-decomposition`    |
+| Learn what the Mesoscope-VR pupil-tracking pass computes | `mesoscope:mesoscope-vr-video-tracking`         |
+| Resolve a Mesoscope-VR session's cindra configuration    | `mesoscope:mesoscope-vr-imaging-configuration`  |
+| Learn how Mesoscope-VR fluorescence frames are aligned   | `mesoscope:mesoscope-vr-fluorescence-alignment` |
+| Understand an upstream camera log archive                | `video:log-processing`                          |
+| Understand an upstream microcontroller log archive       | `communication:log-processing`                  |
+| Understand the single-recording two-photon stages        | `cindra:single-recording-processing`            |
+| Add a pipeline, a stage, or a registry donation          | `/library-extension`                            |
+| Decide where a concern belongs in this library           | `/data-processing-design`                       |
+| Run a command by hand while the MCP server is down       | `/cli-reference`                                |
+| Restore the `slf mcp` connection                         | `/forging-mcp-environment-setup`                |
 
 ---
 

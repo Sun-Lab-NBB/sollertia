@@ -1,10 +1,10 @@
 ---
 name: working-directory
 description: >-
-  Initializes the local Sollertia working directory, data root, platform credentials, and task
-  templates directory via the sollertia-shared-assets MCP server. Prerequisite for every other
-  assets-plugin skill. Use when setting up Sollertia on a new host, relocating the data root,
-  or when configuration tools fail because the working directory is not set.
+  Initializes the local Sollertia working directory, data root, platform credentials, and task templates directory via
+  the sollertia-shared-assets MCP server. Prerequisite for every other assets-plugin skill. Use when setting up
+  Sollertia on a new host, relocating the data root, or when configuration tools fail because the working directory is
+  not set.
 user-invocable: false
 ---
 
@@ -388,8 +388,9 @@ configured", and it is the only one of the three that interpolates the offending
 This skill is a prerequisite for **every** other skill in the `assets` plugin. The relationships below summarize where
 each downstream skill picks up after the working directory is set.
 
-| Downstream skill                       | What it needs from this skill                                                     |
+| Skill                                  | Relationship                                                                      |
 |----------------------------------------|-----------------------------------------------------------------------------------|
+| `/cli-reference`                       | Owns the `slsa get` and `slsa configure` command surface these records sit behind |
 | `/assets-mcp-environment-setup`        | (sibling, run first if the MCP server is not connected)                           |
 | `experiment:pipeline`                  | (owns the canonical lifecycle phase order; return there once bootstrap completes) |
 | `experiment:acquisition-system-design` | Working directory                                                                 |

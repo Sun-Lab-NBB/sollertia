@@ -1,11 +1,10 @@
 ---
 name: task-generator
 description: >-
-  Documents the `CreateTask.cs` editor pipeline that builds cue, segment, and task prefabs from YAML
-  task templates. Covers its preflight validators, the anatomy of the generated prefabs, the placement
-  of the hand-authored zone prefabs, and the runtime contract a generated task must satisfy. Use when
-  modifying `CreateTask.cs`, adding a new zone type, hand-authoring a zone prefab, or diagnosing
-  generated-prefab geometry mismatches.
+  Documents the `CreateTask.cs` editor pipeline that builds cue, segment, and task prefabs from YAML task templates.
+  Covers its preflight validators, the anatomy of the generated prefabs, the placement of the hand-authored zone
+  prefabs, and the runtime contract a generated task must satisfy. Use when modifying `CreateTask.cs`, adding a new zone
+  type, hand-authoring a zone prefab, or diagnosing generated-prefab geometry mismatches.
 user-invocable: false
 ---
 

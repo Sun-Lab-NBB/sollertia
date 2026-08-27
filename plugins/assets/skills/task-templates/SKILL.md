@@ -1,11 +1,10 @@
 ---
 name: task-templates
 description: >-
-  Authors, modifies, and validates reusable TaskTemplate YAMLs, the Virtual-Reality task asset against
-  which every corridor-task session is acquired (VR environment, cue catalog, trial structures with
-  per-trial cue sequences and zones), via the sollertia-shared-assets MCP server. Owns
-  write_template_tool, validate_template_tool, and describe_template_schema_tool. Use when designing or
-  modifying a task template for a VR experiment.
+  Authors, modifies, and validates reusable TaskTemplate YAMLs, the Virtual-Reality task asset against which every
+  corridor-task session is acquired (VR environment, cue catalog, trial structures with per-trial cue sequences and
+  zones), via the sollertia-shared-assets MCP server. Owns write_template_tool, validate_template_tool, and
+  describe_template_schema_tool. Use when designing or modifying a task template for a VR experiment.
 user-invocable: false
 ---
 
@@ -59,11 +58,11 @@ configurations across many projects. Mesoscope-VR is the only acquisition system
 
 A `TaskTemplate` YAML exists in three canonical locations, all parsed by the same `TaskTemplate` dataclass:
 
-| Location                                                  | Populated by                                                           | Discovery path                                                                   |
-|-----------------------------------------------------------|------------------------------------------------------------------------|----------------------------------------------------------------------------------|
-| `<templates-directory>/<template-name>.yaml`              | This skill, via `write_template_tool`                                  | `discover_templates_tool`, with `/working-directory` owning the directory        |
-| `<session>/raw_data/vr_configuration.yaml`                | `SessionData.create()` at session creation                             | `inspect_sessions_tool` (`/session-data`), as `vr_configuration_path`            |
-| `<dataset_root>/<animal>/<session>/vr_configuration.yaml` | Forging pipeline at dataset assembly                                   | `/datasets`, whose `inspect_datasets_tool` returns the absolute path             |
+| Location                                                  | Populated by                               | Discovery path                                                            |
+|-----------------------------------------------------------|--------------------------------------------|---------------------------------------------------------------------------|
+| `<templates-directory>/<template-name>.yaml`              | This skill, via `write_template_tool`      | `discover_templates_tool`, with `/working-directory` owning the directory |
+| `<session>/raw_data/vr_configuration.yaml`                | `SessionData.create()` at session creation | `inspect_sessions_tool` (`/session-data`), as `vr_configuration_path`     |
+| `<dataset_root>/<animal>/<session>/vr_configuration.yaml` | Forging pipeline at dataset assembly       | `/datasets`, whose `inspect_datasets_tool` returns the absolute path      |
 
 - The **live template** is the authoring surface owned by this skill, shared across projects and sessions, and the
   source of truth from which Unity generation reads. Editing here is intentional and affects every future session that
@@ -437,22 +436,23 @@ for instantiating templates into experiment configurations.
 
 ## Related skills
 
-| Skill                                      | Relationship                                                                                              |
-|--------------------------------------------|-----------------------------------------------------------------------------------------------------------|
-| `/working-directory`                       | Required prerequisite that owns the templates directory path                                              |
-| `/assets-mcp-environment-setup`            | Run first if the MCP server is not connected                                                              |
+| Skill                                      | Relationship                                                                                                 |
+|--------------------------------------------|--------------------------------------------------------------------------------------------------------------|
+| `/cli-reference`                           | Owns the `slsa get templates` and `slsa configure templates` commands                                        |
+| `/working-directory`                       | Required prerequisite that owns the templates directory path                                                 |
+| `/assets-mcp-environment-setup`            | Run first if the MCP server is not connected                                                                 |
 | `/experiment-configuration`                | Consumer that instantiates templates into per-project experiments and owns `list_supported_trial_types_tool` |
-| `mesoscope:mesoscope-vr-experiment-schema` | Owns Mesoscope-VR's concrete trial-class field schema for the classes named here                          |
-| `/library-extension`                       | Cross-cutting recipe to add a new `TriggerType` or runtime trial class                                    |
-| `/datasets`                                | Owns the forged dataset copy of the template snapshot and the `inspect_datasets_tool` audit               |
-| `/session-data`                            | Owns `inspect_sessions_tool`, which locates the raw per-session template snapshot                         |
-| `/session-discovery`                       | Resolves the session roots from which snapshot paths are built                                            |
-| `unity:task-prefabs`                       | Downstream step that generates and validates the Unity prefab                                             |
-| `unity:task-scenes`                        | Downstream step that opens and inspects the scene `create_task_tool` produced                             |
-| `unity:zone-prefabs`                       | Owns the zone prefab each `TriggerType` mode bakes                                                        |
-| `unity:mqtt-contract` | Owns the wire contract over which every trigger mode publishes |
-| `unity:task-generator`                     | Owns the `CreateTask` pipeline and the two-repo mirror recipe for adding a new template-driven field      |
-| `experiment:vr-driver-interface`           | Consumer that decomposes the cue sequence into trials using these motifs and trigger types                |
+| `mesoscope:mesoscope-vr-experiment-schema` | Owns Mesoscope-VR's concrete trial-class field schema for the classes named here                             |
+| `/library-extension`                       | Cross-cutting recipe to add a new `TriggerType` or runtime trial class                                       |
+| `/datasets`                                | Owns the forged dataset copy of the template snapshot and the `inspect_datasets_tool` audit                  |
+| `/session-data`                            | Owns `inspect_sessions_tool`, which locates the raw per-session template snapshot                            |
+| `/session-discovery`                       | Resolves the session roots from which snapshot paths are built                                               |
+| `unity:task-prefabs`                       | Downstream step that generates and validates the Unity prefab                                                |
+| `unity:task-scenes`                        | Downstream step that opens and inspects the scene `create_task_tool` produced                                |
+| `unity:zone-prefabs`                       | Owns the zone prefab each `TriggerType` mode bakes                                                           |
+| `unity:mqtt-contract`                      | Owns the wire contract over which every trigger mode publishes                                               |
+| `unity:task-generator`                     | Owns the `CreateTask` pipeline and the two-repo mirror recipe for adding a new template-driven field         |
+| `experiment:vr-driver-interface`           | Consumer that decomposes the cue sequence into trials using these motifs and trigger types                   |
 
 ---
 

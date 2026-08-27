@@ -363,21 +363,22 @@ hardware state write. `assets:session-hardware-state` owns `write_session_hardwa
 
 ## Related skills
 
-| Skill                                         | Relationship                                                      |
-|-----------------------------------------------|-------------------------------------------------------------------|
-| `experiment:experiment-mcp-environment-setup` | Run first if `sle mcp` is not connected                           |
-| `assets:session-hardware-state`               | Sibling that owns `MesoscopeHardwareState`, the third snapshot    |
-| `/mesoscope-vr-session-schema`                | Owns the field-level descriptor and hardware-state schema         |
-| `/mesoscope-vr-runtime`                       | Owns the runtime that writes these snapshots and the CLI it runs  |
-| `assets:session-data`                         | Owns the `SessionData` marker file and the raw-data dispatch      |
-| `assets:session-descriptors`                  | Owns the per-session descriptor files                             |
-| `assets:project-hierarchy`                    | Owns `AnimalData.persistent_data_path`, the snapshot cache        |
-| `/mesoscope-vr`                               | Provides `read_session_system_configuration_tool` to cross-check  |
-| `assets:experiment-configuration`             | Provides `read_experiment_configuration_tool` to cross-check      |
-| `experiment:zaber-interface`                  | Owns live motor configuration and per-motor calibration           |
-| `assets:library-extension`                    | Owns the slsa registration contract the raw-data layout satisfies |
-| `experiment:library-extension`                | Owns the sollertia-experiment seams the snapshot tools plug into  |
-| `experiment:acquisition-system-runtime`       | Owns the initialization marker that gates both snapshot writers   |
+| Skill                                         | Relationship                                                                      |
+|-----------------------------------------------|-----------------------------------------------------------------------------------|
+| `/mesoscope-vr-cli-reference`                 | Owns the `sle mesoscope run` and `preprocess` commands that write these snapshots |
+| `experiment:experiment-mcp-environment-setup` | Run first if `sle mcp` is not connected                                           |
+| `assets:session-hardware-state`               | Sibling that owns `MesoscopeHardwareState`, the third snapshot                    |
+| `/mesoscope-vr-session-schema`                | Owns the field-level descriptor and hardware-state schema                         |
+| `/mesoscope-vr-runtime`                       | Owns the runtime that writes these snapshots and the CLI it runs                  |
+| `assets:session-data`                         | Owns the `SessionData` marker file and the raw-data dispatch                      |
+| `assets:session-descriptors`                  | Owns the per-session descriptor files                                             |
+| `assets:project-hierarchy`                    | Owns `AnimalData.persistent_data_path`, the snapshot cache                        |
+| `/mesoscope-vr`                               | Provides `read_session_system_configuration_tool` to cross-check                  |
+| `assets:experiment-configuration`             | Provides `read_experiment_configuration_tool` to cross-check                      |
+| `experiment:zaber-interface`                  | Owns live motor configuration and per-motor calibration                           |
+| `assets:library-extension`                    | Owns the slsa registration contract the raw-data layout satisfies                 |
+| `experiment:library-extension`                | Owns the sollertia-experiment seams the snapshot tools plug into                  |
+| `experiment:acquisition-system-runtime`       | Owns the initialization marker that gates both snapshot writers                   |
 
 ---
 

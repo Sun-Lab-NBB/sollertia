@@ -1,10 +1,10 @@
 ---
 name: acquisition-system-setup
 description: >-
-  Discovers, verifies, and reports the hardware connected to a Sollertia acquisition PC
-  (cameras, microcontrollers, Zaber motors, MQTT brokers) via the video, communication, and
-  experiment MCP servers. Use when bringing up a new acquisition PC, troubleshooting hardware
-  connectivity, or verifying discovered hardware against the recorded system configuration.
+  Discovers, verifies, and reports the hardware connected to a Sollertia acquisition PC (cameras, microcontrollers,
+  Zaber motors, MQTT brokers) via the video, communication, and experiment MCP servers. Use when bringing up a new
+  acquisition PC, troubleshooting hardware connectivity, or verifying discovered hardware against the recorded system
+  configuration.
 user-invocable: false
 ---
 
@@ -328,24 +328,25 @@ to the assets plugin skill that owns the affected asset.
 
 Entries prefixed `video:` and `communication:` resolve through the ataraxis marketplace.
 
-| Skill                                               | Relationship                                                               |
-|-----------------------------------------------------|----------------------------------------------------------------------------|
-| `assets:working-directory`                          | Owns bootstrap state (working dir, credentials, templates dir)             |
-| `mesoscope:mesoscope-vr`                            | Owns the current worked example's configuration authoring and validation   |
-| `/library-extension`                                | Owns the seam catalog and the registration deliverables of a new system    |
-| `forging:server-configuration`                      | Owns `ServerConfiguration` authoring and validation                        |
-| `assets:project-hierarchy`                          | Owns project creation (`create_project_tool`)                              |
-| `assets:task-templates`                             | Owns task template authoring                                               |
-| `assets:experiment-configuration`                   | Owns per-project experiment configuration authoring                        |
-| `/system-health-check`                              | Lighter-weight pre-session verification sweep                              |
-| `/pipeline`                                         | Phase 3 (Hardware bringup) is owned by this skill                          |
-| `/vr-driver-interface`                              | Owns the `check_unity_bridge_tool` contract this skill calls in Phase 1    |
-| `/zaber-interface`                                  | Owns `get_zaber_devices_tool` and the per-device Zaber semantics           |
-| `video:camera-setup`                                | Canonical home for CTI configuration and runtime requirement deep-dives    |
-| `video:video-mcp-environment-setup`                 | Diagnoses an unreachable `axvs mcp` server                                 |
-| `communication:microcontroller-setup`               | Canonical home for microcontroller manifest and discovery deep-dives       |
-| `communication:communication-mcp-environment-setup` | Diagnoses an unreachable `axci mcp` server                                 |
-| `unity:unity-mcp-environment-setup`                 | Editor-side McpBridge listener diagnostic behind `check_unity_bridge_tool` |
+| Skill                                               | Relationship                                                                      |
+|-----------------------------------------------------|-----------------------------------------------------------------------------------|
+| `/cli-reference`                                    | Owns the `sle get` command surface and every option these workflows leave unnamed |
+| `assets:working-directory`                          | Owns bootstrap state (working dir, credentials, templates dir)                    |
+| `mesoscope:mesoscope-vr`                            | Owns the current worked example's configuration authoring and validation          |
+| `/library-extension`                                | Owns the seam catalog and the registration deliverables of a new system           |
+| `forging:server-configuration`                      | Owns `ServerConfiguration` authoring and validation                               |
+| `assets:project-hierarchy`                          | Owns project creation (`create_project_tool`)                                     |
+| `assets:task-templates`                             | Owns task template authoring                                                      |
+| `assets:experiment-configuration`                   | Owns per-project experiment configuration authoring                               |
+| `/system-health-check`                              | Lighter-weight pre-session verification sweep                                     |
+| `/pipeline`                                         | Phase 3 (Hardware bringup) is owned by this skill                                 |
+| `/vr-driver-interface`                              | Owns the `check_unity_bridge_tool` contract this skill calls in Phase 1           |
+| `/zaber-interface`                                  | Owns `get_zaber_devices_tool` and the per-device Zaber semantics                  |
+| `video:camera-setup`                                | Canonical home for CTI configuration and runtime requirement deep-dives           |
+| `video:video-mcp-environment-setup`                 | Diagnoses an unreachable `axvs mcp` server                                        |
+| `communication:microcontroller-setup`               | Canonical home for microcontroller manifest and discovery deep-dives              |
+| `communication:communication-mcp-environment-setup` | Diagnoses an unreachable `axci mcp` server                                        |
+| `unity:unity-mcp-environment-setup`                 | Editor-side McpBridge listener diagnostic behind `check_unity_bridge_tool`        |
 
 ---
 

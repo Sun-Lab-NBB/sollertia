@@ -8,9 +8,33 @@ documented in the `## Response contract` section of `/forging-mcp-environment-se
 
 Two reading rules govern every tree below. A per-item listing is projected, so a field whose value is `None`, `""`,
 `[]`, or `{}` is dropped from that row entirely while `0` and `False` survive. Every summary key is computed over the
-whole set and ignores every filter, so only `jobs`, `batches`, `rows`, and `matched_rows` respond to one. Where a tree
-names the paging group, it stands for `rows`, `matched_rows`, `start_row`, and `next_start_row`, merged at the top
-level of the response rather than nested under the listing.
+whole covered set and ignores every per-job filter, so only `jobs`, `rows`, and `matched_rows` respond to one.
+`batch_ids` on the remote status branch is the exception, since it narrows the covered batches themselves and therefore
+narrows `active`, `summary`, `breakdown`, and `outcomes` along with `batches`. Where a tree names the paging group, it
+stands for `rows`, `matched_rows`, `start_row`, and `next_start_row`, merged at the top level of the response rather
+than nested under the listing.
+
+---
+
+## Rendering a live batch status
+
+The template the `## Status formatting` section of `/batch-processing` renders, filled from a
+`get_processing_status_tool` call with `include_items=True` and `detailed=True`.
+
+```text
+**Batch processing status**
+
+Batch 4f2a9c1e77b30d58 | pipeline video | host local | status processing | active true | canceled false
+Summary: 8 total | 4 succeeded | 1 running | 3 scheduled | 0 failed | 2 blocked
+
+| Job id           | Job name                    | Specifier | Unit   | Status    | Elapsed |
+|------------------|-----------------------------|-----------|--------|-----------|---------|
+| 3f9c1a2b4d5e6f70 | camera_timestamp_extraction | 0         | unit_a | succeeded | 41.2 s  |
+| 8b1e0d7c6a5f4e32 | camera_timestamp_extraction | 1         | unit_a | running   | 12.8 s  |
+| c47a5e9b18d20f63 | camera_timestamp_rename     | --        | unit_a | scheduled | --      |
+| 5d3f8a0c2b71e4d9 | motion_energy               | 0         | unit_b | succeeded | 96.5 s  |
+```
+
 
 ---
 
