@@ -1,7 +1,7 @@
 {
   "name": "assets",
   "version": "2.0.0",
-  "description": "Agentic access to the sollertia-shared-assets library. Authors, validates, and manages the configuration and metadata backbone of the Sollertia ecosystem, owns the session-discovery, session-filtering, and forged-dataset workflows consumed by every downstream batch plugin, and owns the library's extension path, the registry system by which a new acquisition system, session type, trial class, trigger type, read asset, or credentials category is added. Backed by the sollertia-shared-assets MCP server (slsa).",
+  "description": "Provides the configuration, metadata, and session-discovery skills for sollertia-shared-assets, the asset backbone of the Sollertia platform. Authors and validates every shared asset, owns the library's registry-backed extension path, and serves the Unity Editor relay. Backed by the sollertia-shared-assets MCP server (slsa).",
   "repository": "https://github.com/Sun-Lab-NBB/sollertia",
   "license": "Apache-2.0",
   "skills": "./skills/",

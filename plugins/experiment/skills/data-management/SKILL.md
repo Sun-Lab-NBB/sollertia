@@ -35,7 +35,7 @@ only registered acquisition system, and `mesoscope:mesoscope-vr-runtime` owns it
 - Session creation and data acquisition (`/acquisition-system-runtime`)
 - System and hardware configuration, including the storage destinations a system declares (`mesoscope:mesoscope-vr`)
 - The current worked example's preprocessing, migration, and purge specifics (`mesoscope:mesoscope-vr-runtime`)
-- Behavior processing after the transfer (`forging:behavior-processing`) and dataset forging (`forging:dataset-forging`)
+- Processing the transferred session (`forging:batch-processing`) and dataset forging (`forging:dataset-forging`)
 
 ---
 
@@ -312,8 +312,8 @@ only if confirmed, and report before moving to the next.
 ## Downstream handoff
 
 Once the session's raw data reaches long-term storage, it is ready for the sollertia-forgery pipeline. Hand off to
-`forging:project-manifest` for the project manifest file and its tooling, then to `forging:behavior-processing` for
-batch behavior processing. `forging:server-configuration` owns the remote transfer and cloud compute configuration.
+`forging:project-state` for the project manifest file and its tooling, then to `forging:batch-processing` for the
+per-session pipelines. `forging:server-configuration` owns the remote compute server's access configuration.
 
 ---
 
@@ -344,8 +344,8 @@ batch behavior processing. `forging:server-configuration` owns the remote transf
 | `assets:session-discovery`          | Filters sessions and returns the paths these tools consume            |
 | `mesoscope:mesoscope-vr`            | Owns the worked example's storage-destination configuration           |
 | `mesoscope:mesoscope-vr-runtime`    | Owns the worked example's preprocessing and purge specifics           |
-| `forging:project-manifest`          | Owns the project manifest downstream processing reads                 |
-| `forging:behavior-processing`       | Consumes the transferred raw data                                     |
+| `forging:project-state`          | Owns the project manifest downstream processing reads                 |
+| `forging:batch-processing`       | Consumes the transferred raw data                                     |
 | `forging:server-configuration`      | Owns the remote transfer and cloud compute configuration              |
 
 ---

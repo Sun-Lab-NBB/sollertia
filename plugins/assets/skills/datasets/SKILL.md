@@ -43,8 +43,8 @@ live, and it treats the contents of those artifacts as opaque.
 - Composing or growing a dataset on disk, which applies an admission policy this skill's write tool does not (see
   `forging:dataset-definition`, `define_forging_dataset_tool`)
 - Forging job state and planning (see `forging:dataset-definition` and `forging:dataset-forging`)
-- What the described columns actually contain (see `forging:dataset-forging-results` and, for Mesoscope-VR,
-  `mesoscope:mesoscope-vr-dataset-assembly`)
+- What the described columns actually contain (see `forging:dataset-forging` for the column-description contract
+  and, for Mesoscope-VR, `mesoscope:mesoscope-vr-processing-schema`)
 - Session-level markers, descriptors, and hardware state (see `/session-data`, `/session-descriptors`,
   `/session-hardware-state`)
 - The project and animal hierarchy that holds datasets (see `/project-hierarchy`)
@@ -66,7 +66,7 @@ interpretable on its own.
     └── <animal>/
         ├── surgery_metadata.yaml              # forged copy of the animal's surgery record (/data-assets)
         └── <session>/
-            ├── data.feather                   # assembled per-session data (forging:dataset-forging-results)
+            ├── data.feather                   # assembled per-session data (forging:dataset-forging)
             ├── session_descriptor.yaml        # forged copy of the session descriptor (/session-descriptors)
             ├── vr_configuration.yaml          # forged copy, conditional on the dataset's session type
             └── experiment_configuration.yaml  # forged copy, conditional on the session's experiment
@@ -303,7 +303,7 @@ envelope from it when the companion is absent. A pass returns `summary` with `se
 Take the `sessions[*].artifacts[*].path` and `animals[*].surgery_metadata.path` values from an `inspect_datasets_tool`
 report, then hand the path to the skill that owns the file. `/session-descriptors` owns the descriptor and
 `/data-assets` owns the surgery record. `/experiment-configuration` owns the experiment snapshot, and `/task-templates`
-owns the VR configuration snapshot. Read the assembled `data.feather` itself through `forging:dataset-forging-results`.
+owns the VR configuration snapshot. Read the assembled `data.feather` itself through `forging:dataset-forging`.
 
 ---
 
@@ -351,8 +351,8 @@ so prefer `define_forging_dataset_tool` for any dataset a forging run will consu
 | `/library-extension` | Recipe for adding the `SessionTypes` and `AcquisitionSystems` members against which the marker validates |
 | `forging:dataset-definition`              | Composes and grows datasets under an admission policy, and reports their forging job state           |
 | `forging:dataset-forging`                 | Runs the per-session `data.feather` assembly whose output this container holds                       |
-| `forging:dataset-forging-results`         | Interprets the assembled feathers and the dataset-level forging trackers                             |
-| `mesoscope:mesoscope-vr-dataset-assembly` | Owns the Mesoscope-VR column meanings and the current `SESSION_TYPES_USING_VR_TASK` membership       |
+| `forging:processing-results`              | Owns the processed-data output layout and how a completed stage is verified                          |
+| `mesoscope:mesoscope-vr-processing-schema` | Owns the Mesoscope-VR column roster and the current `SESSION_TYPES_USING_VR_TASK` membership        |
 
 ---
 
@@ -371,6 +371,6 @@ so prefer `define_forging_dataset_tool` for any dataset a forging run will consu
 - [ ] A missing data_descriptions.feather was reported from validate_dataset_descriptions_tool's valid flag rather
       than from the reader's error envelope
 - [ ] A vr_configuration.yaml issue was checked against the dataset's session type before being reported as a defect
-- [ ] Questions about what an assembled column contains were handed off to forging:dataset-forging-results or
-      mesoscope:mesoscope-vr-dataset-assembly
+- [ ] Questions about what an assembled column contains were handed off to the acquisition system's schema skill,
+      which for Mesoscope-VR is mesoscope:mesoscope-vr-processing-schema
 ```

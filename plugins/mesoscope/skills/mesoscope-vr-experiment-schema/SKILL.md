@@ -11,10 +11,8 @@ user-invocable: false
 
 # Mesoscope-VR experiment configuration schema
 
-Documents `MesoscopeExperimentConfiguration` — Mesoscope-VR's concrete implementation of the
-per-system experiment-configuration contract — at the field level: its three contract fields, its
-two runtime trial classes, the trigger-type-to-trial mapping, the `REST`/`RUN` system-state codes,
-and the `from_task_template` builder defaults.
+Documents the field-level schema of `MesoscopeExperimentConfiguration`, Mesoscope-VR's concrete implementation of the
+per-system experiment-configuration contract.
 
 Hardware-state, experiment-configuration, and raw-data are a **universal per-system contract**. Each has a registry
 keyed by `AcquisitionSystems` (`HARDWARE_STATE_REGISTRY`, `EXPERIMENT_CONFIGURATION_REGISTRY`, and
@@ -23,7 +21,7 @@ descriptors are keyed per **session type** instead, because `DESCRIPTOR_REGISTRY
 system that needs its own descriptor mints a new `SessionTypes` member. The system-agnostic core (the
 create/write/validate/describe tools, the `EXPERIMENT_CONFIGURATION_REGISTRY` dispatch, and the platform `TriggerType`
 taxonomy) lives in the `assets` plugin. This skill owns only Mesoscope-VR's concrete instance of the
-experiment-configuration contract: the field-level schema and semantics defined in `sollertia-shared-assets`'s
+experiment-configuration contract, meaning the field-level schema and semantics defined in `sollertia-shared-assets`'s
 `mesoscope_vr/experiment_configuration.py`.
 
 An extender authoring a new system's `<system>/experiment_configuration.py` copies this skill's worked example,
@@ -44,44 +42,42 @@ following the procedure `assets:library-extension` owns.
 - The `from_task_template` classmethod signature, defaults, and seeding behavior
 
 **Does not cover:**
-- The generic `create_experiment_from_vr_template_tool` /
-  `write_experiment_configuration_tool` / `validate_experiment_configuration_tool` /
-  `describe_experiment_configuration_schema_tool` tool mechanics — owned by
+- The generic `create_experiment_from_vr_template_tool` / `write_experiment_configuration_tool` /
+  `validate_experiment_configuration_tool` / `describe_experiment_configuration_schema_tool` tool mechanics. Owned by
   `assets:experiment-configuration`
-- The `EXPERIMENT_CONFIGURATION_REGISTRY` dispatch, contract assertions, and the system-agnostic
-  five-member `TriggerType` taxonomy — owned by `assets:experiment-configuration`
-- Authoring the Unity VR task template that seeds the configuration — owned by
-  `assets:task-templates`
-- The system-agnostic `ExperimentState` field schema composed into this configuration, owned by
+- The `EXPERIMENT_CONFIGURATION_REGISTRY` dispatch, contract assertions, and the system-agnostic five-member
+  `TriggerType` taxonomy. Owned by `assets:experiment-configuration`
+- Authoring the Unity VR task template that seeds the configuration. Owned by `assets:task-templates`
+- The system-agnostic `ExperimentState` field schema composed into this configuration. Owned by
   `assets:experiment-configuration`
 - How the runtime loads and executes this configuration (state machine sequencing, guidance counters, trial
-  decomposition), and the `MesoscopeVRStates` enum with its state-machine semantics, owned by `/mesoscope-vr-runtime`
-- The Mesoscope-VR hardware composition (see `/mesoscope-vr`)
+  decomposition), and the `MesoscopeVRStates` enum with its state-machine semantics. Owned by `/mesoscope-vr-runtime`
+- The Mesoscope-VR hardware composition. Owned by `/mesoscope-vr`
 
 ---
 
 ## The contract fields
 
-`MesoscopeExperimentConfiguration` is a `YamlConfig` dataclass declaring exactly the three contract
-fields every `<System>ExperimentConfiguration` must declare. Mesoscope-VR adds no further fields —
-the contract is the whole schema for this system today.
+`MesoscopeExperimentConfiguration` is a `YamlConfig` dataclass declaring exactly the three contract fields every
+`<System>ExperimentConfiguration` must declare. Mesoscope-VR adds no further fields, so the contract is the whole schema
+for this system today.
 
 | Field               | Type                                                            | Required | Meaning                                                                                                    |
 |---------------------|-----------------------------------------------------------------|----------|------------------------------------------------------------------------------------------------------------|
-| `trial_structures`  | `dict[str, MesoscopeWaterRewardTrial \| MesoscopeGasPuffTrial]` | Yes      | The trials the experiment runs, keyed by trial name; values are Mesoscope-VR's trial classes               |
+| `trial_structures`  | `dict[str, MesoscopeWaterRewardTrial \| MesoscopeGasPuffTrial]` | Yes      | The trials the experiment runs, keyed by trial name, with Mesoscope-VR's trial classes as values           |
 | `experiment_states` | `dict[str, ExperimentState]`                                    | Yes      | The experiment state machine, keyed by state name                                                          |
-| `unity_scene_name`  | `str`                                                           | Yes      | The Unity scene (VR task) in the linear infinite corridor; identifies the paired template by filename stem |
+| `unity_scene_name`  | `str`                                                           | Yes      | The Unity scene (VR task) in the linear infinite corridor. Identifies the paired template by filename stem |
 
-`trial_structures` carries **only per-trial runtime parameters** — the matching spatial fields (cue
-sequence, zones, `trigger_type`, occupancy duration) live on the paired `TaskTemplate`'s
-`trial_structures[<same name>]` and are joined to this config by trial name at session init.
+`trial_structures` carries **only per-trial runtime parameters**. The matching spatial fields (cue sequence, zones,
+`trigger_type`, occupancy duration) live on the paired `TaskTemplate`'s `trial_structures[<same name>]`, and are joined
+to this config by trial name at session init.
 
 ---
 
 ## The trial classes
 
 Mesoscope-VR defines two frozen, slotted runtime trial dataclasses. Each carries the runtime stimulus parameters plus
-the `trial_kind` discriminator that identifies it on disk, and each raises `ValueError` at initialization when
+the `trial_kind` discriminator that identifies it on disk, and each raises `ValueError` from `__post_init__` when
 `trial_kind` holds any member other than its own. The behavioral success or avoidance condition is defined by the task
 template, not by these classes. Another acquisition system declares its own trial classes for whatever `TriggerType`
 subset it supports.
@@ -97,23 +93,20 @@ module, and it carries exactly two members. The field that stores them is named 
 | `TrialKind.WATER` | `"water"` | `MesoscopeWaterRewardTrial` |
 | `TrialKind.PUFF`  | `"puff"`  | `MesoscopeGasPuffTrial`     |
 
-`TrialKind` is public. It is exported from `sollertia_shared_assets.mesoscope_vr` and re-exported from the package
-root, so `from sollertia_shared_assets import TrialKind` is valid. The discriminator is what routes a stored trial back
-to the class that wrote it: deserialization tries the members of the trial union in order and skips an arm whose
-initialization raises, and each class rejects every member but its own.
+`TrialKind` is public. It is exported from `sollertia_shared_assets.mesoscope_vr` and re-exported from the package root,
+so `from sollertia_shared_assets import TrialKind` is valid. The discriminator is what routes a stored trial back to the
+class that wrote it. Deserialization tries the members of the trial union in order and skips an arm whose initialization
+raises.
 
 ### `MesoscopeWaterRewardTrial`
 
-A reinforcing trial that delivers a water reward when the animal meets the trial's success
-condition.
+A reinforcing trial that delivers a water reward when the animal meets the trial's success condition.
 
 | Field                     | Type        | Default           | Meaning                                                                    |
 |---------------------------|-------------|-------------------|----------------------------------------------------------------------------|
 | `reward_size_ul`          | `float`     | `5.0`             | Volume of water, in microliters, delivered on successful trial completion  |
 | `reward_tone_duration_ms` | `int`       | `300`             | Duration, in milliseconds, of the auditory tone sounded with the reward    |
 | `trial_kind`              | `TrialKind` | `TrialKind.WATER` | The discriminator that identifies the trial when it is read back from YAML |
-
-`__post_init__` raises `ValueError` when `trial_kind` holds any member other than `TrialKind.WATER`.
 
 ### `MesoscopeGasPuffTrial`
 
@@ -124,29 +117,25 @@ An aversive trial that delivers a gas puff when the animal fails the trial's avo
 | `puff_duration_ms` | `int`       | `100`            | Duration, in milliseconds, of the gas puff delivered when the animal fails |
 | `trial_kind`       | `TrialKind` | `TrialKind.PUFF` | The discriminator that identifies the trial when it is read back from YAML |
 
-`__post_init__` raises `ValueError` when `trial_kind` holds any member other than `TrialKind.PUFF`.
-
 ---
 
 ## The trigger-type-to-trial mapping
 
-Mesoscope-VR maps only the **subset** of the platform `TriggerType` taxonomy it supports. The
-template carries each trial's `trigger_type`; `from_task_template` pairs it with a runtime trial
-class as follows:
+Mesoscope-VR maps only the **subset** of the platform `TriggerType` taxonomy it supports. The template carries each
+trial's `trigger_type`, and `from_task_template` pairs it with a runtime trial class as follows:
 
-| Template `trigger_type` | Mesoscope-VR runtime trial class | Result                                           |
-|-------------------------|----------------------------------|--------------------------------------------------|
-| `interaction`           | `MesoscopeWaterRewardTrial`      | Mapped                                           |
-| `occupancy_disarm`      | `MesoscopeGasPuffTrial`          | Mapped                                           |
-| `collision`             | (none)                           | Raises `ValueError` — not mapped on Mesoscope-VR |
-| `occupancy_arm`         | (none)                           | Raises `ValueError` — not mapped on Mesoscope-VR |
-| `occupancy_trigger`     | (none)                           | Raises `ValueError` — not mapped on Mesoscope-VR |
+| Template `trigger_type` | Mesoscope-VR runtime trial class | Result                                          |
+|-------------------------|----------------------------------|-------------------------------------------------|
+| `interaction`           | `MesoscopeWaterRewardTrial`      | Mapped                                          |
+| `occupancy_disarm`      | `MesoscopeGasPuffTrial`          | Mapped                                          |
+| `collision`             | (none)                           | Raises `ValueError`, not mapped on Mesoscope-VR |
+| `occupancy_arm`         | (none)                           | Raises `ValueError`, not mapped on Mesoscope-VR |
+| `occupancy_trigger`     | (none)                           | Raises `ValueError`, not mapped on Mesoscope-VR |
 
-`from_task_template` iterates the template's `trial_structures`; any trial whose `trigger_type` is
-not `INTERACTION` or `OCCUPANCY_DISARM` raises a `ValueError` reporting that the trigger type "is not
-mapped to a runtime trial class". The full five-member `TriggerType` taxonomy and its system-agnostic
-semantics are owned by `assets:experiment-configuration`; this table records only Mesoscope-VR's
-mapped subset.
+`from_task_template` iterates the template's `trial_structures`. Any trial whose `trigger_type` is not `INTERACTION` or
+`OCCUPANCY_DISARM` raises a `ValueError` reporting that the trigger type "is not mapped to a runtime trial class". The
+full five-member `TriggerType` taxonomy and its system-agnostic semantics are owned by
+`assets:experiment-configuration`, and this table records only Mesoscope-VR's mapped subset.
 
 ---
 
@@ -198,35 +187,32 @@ def from_task_template(
 ) -> MesoscopeExperimentConfiguration: ...
 ```
 
-| Parameter                         | Type           | Default | Role                                                                                         |
-|-----------------------------------|----------------|---------|----------------------------------------------------------------------------------------------|
-| `template`                        | `TaskTemplate` | —       | The VR task template whose trial structures seed the configuration                           |
-| `unity_scene_name`                | `str`          | —       | Stored verbatim; should match the template filename (caller's responsibility, not validated) |
-| `state_count`                     | `int`          | `1`     | Number of default-valued runtime states to generate. Must be at least 1                      |
-| `default_reward_size_ul`          | `float`        | `5.0`   | `reward_size_ul` for every `interaction` (water-reward) trial                                |
-| `default_reward_tone_duration_ms` | `int`          | `300`   | `reward_tone_duration_ms` for every `interaction` trial                                      |
-| `default_puff_duration_ms`        | `int`          | `100`   | `puff_duration_ms` for every `occupancy_disarm` (gas-puff) trial                             |
+| Parameter                         | Type           | Default    | Role                                                                                         |
+|-----------------------------------|----------------|------------|----------------------------------------------------------------------------------------------|
+| `template`                        | `TaskTemplate` | (required) | The VR task template whose trial structures seed the configuration                           |
+| `unity_scene_name`                | `str`          | (required) | Stored verbatim. Should match the template filename (caller's responsibility, not validated) |
+| `state_count`                     | `int`          | `1`        | Number of default-valued runtime states to generate. Must be at least 1                      |
+| `default_reward_size_ul`          | `float`        | `5.0`      | `reward_size_ul` for every `interaction` (water-reward) trial                                |
+| `default_reward_tone_duration_ms` | `int`          | `300`      | `reward_tone_duration_ms` for every `interaction` trial                                      |
+| `default_puff_duration_ms`        | `int`          | `100`      | `puff_duration_ms` for every `occupancy_disarm` (gas-puff) trial                             |
 
 The generic creation tool always passes `template`, `unity_scene_name`, and `state_count` by keyword. The three
 `default_*` parameters carry defaults so the tool can omit the system-specific generation values, which is what the
 registry contract assertion checks.
 
-`from_task_template` raises `ValueError` when `state_count` is less than `1`, checked before any trial is mapped, and
-again when a template trial carries a `trigger_type` that is not mapped to a runtime trial class.
+`from_task_template` raises `ValueError` when `state_count` is less than `1`, checked before any trial is mapped.
 
 ### State-seeding behavior
 
-For each of the `state_count` states, the builder emits a `state_{n}` (1-indexed) `ExperimentState`
-with:
+For each of the `state_count` states, the builder emits a `state_{n}` (1-indexed) `ExperimentState` with:
 
 - `experiment_state_code = n` (the 1-indexed state number)
-- `system_state_code = 0` (`MesoscopeVRStates.IDLE`, which an experiment configuration rejects, so it must be set to
-  `1` or `2` before running)
+- `system_state_code = 0` (`MesoscopeVRStates.IDLE`)
 - `state_duration_s = 60` (the `_DEFAULT_STATE_DURATION_S` state-duration constant)
 - `supports_trials = True`
 
-The guidance counters are populated **only for the trial classes that exist** in the seeded
-`trial_structures`, mirroring the trial types present in the template:
+The guidance counters are populated **only for the trial classes that exist** in the seeded `trial_structures`,
+mirroring the trial types present in the template:
 
 | Guidance counter (reinforcing or aversive) | Seeded value when the matching trial type is present | Source constant                      |
 |--------------------------------------------|------------------------------------------------------|--------------------------------------|
@@ -234,10 +220,10 @@ The guidance counters are populated **only for the trial classes that exist** in
 | `*_recovery_failed_threshold`              | `9`                                                  | `_DEFAULT_RECOVERY_FAILED_THRESHOLD` |
 | `*_recovery_guided_trials`                 | `3`                                                  | `_DEFAULT_RECOVERY_GUIDED_TRIALS`    |
 
-The `reinforcing_*` counters take these values only when a `MesoscopeWaterRewardTrial` is present in
-`trial_structures` (otherwise `0`); the `aversive_*` counters only when a `MesoscopeGasPuffTrial` is
-present (otherwise `0`). These constants are private to `experiment_configuration.py` and are not
-overridable through the builder — only the per-trial `default_*` parameters above are.
+The `reinforcing_*` counters take these values only when a `MesoscopeWaterRewardTrial` is present in `trial_structures`,
+and otherwise hold `0`. The `aversive_*` counters take them only when a `MesoscopeGasPuffTrial` is present, and
+otherwise hold `0`. These constants are private to `experiment_configuration.py`. Only the per-trial `default_*`
+parameters above are overridable through the builder.
 
 ---
 
@@ -245,10 +231,11 @@ overridable through the builder — only the per-trial `default_*` parameters ab
 
 `MesoscopeExperimentConfiguration.restore_excluded_fields` is the deserialization hook `YamlConfig.from_yaml` calls on
 the loaded mapping before it becomes a dataclass. It returns the mapping unchanged unless `trial_structures` is a dict,
-in which case it delegates every stored trial to `_restore_trial_kind`. That helper is driven by `_TRIAL_CLASSES`,
-which pairs each `TrialKind` member with the runtime trial class that declares it as its default, and by
-`_unique_trial_fields`, which computes from `dataclasses.fields` the field names each class declares that its sibling
-does not (`reward_size_ul` and `reward_tone_duration_ms` for the water class, `puff_duration_ms` for the puff class).
+in which case it delegates every stored trial to `_restore_trial_kind`. That helper is driven by `_TRIAL_CLASSES` and
+`_unique_trial_fields`. `_TRIAL_CLASSES` pairs each `TrialKind` member with the runtime trial class that declares it as
+its default. `_unique_trial_fields` computes from `dataclasses.fields` the field names one class declares and its
+sibling does not, which are `reward_size_ul` and `reward_tone_duration_ms` for the water class and `puff_duration_ms`
+for the puff class.
 
 Four rules govern a hand-authored trial:
 
@@ -262,11 +249,11 @@ Four rules govern a hand-authored trial:
 A field belonging to neither class is ignored during resolution, matching how the loader treats a key it does not
 recognize.
 
-`MesoscopeExperimentConfiguration.__post_init__` runs after the mapping is converted. It raises `ValueError` listing,
-sorted, every trial in `trial_structures` that did not resolve to a `MesoscopeWaterRewardTrial` or a
-`MesoscopeGasPuffTrial`, because the loader runs with per-field type checking disabled and leaves an unmatched trial as
-a raw mapping that would fail in the acquisition runtime instead. It runs on every constructed instance, including
-every instance `from_task_template` returns.
+`MesoscopeExperimentConfiguration.__post_init__` runs after the mapping is converted, on every constructed instance,
+including every instance `from_task_template` returns. It raises `ValueError` listing, sorted, every trial in
+`trial_structures` that did not resolve to a `MesoscopeWaterRewardTrial` or a `MesoscopeGasPuffTrial`. The loader runs
+with per-field type checking disabled, so an unmatched trial would otherwise survive as a raw mapping and fail in the
+acquisition runtime instead.
 
 ---
 
@@ -274,7 +261,7 @@ every instance `from_task_template` returns.
 
 | Skill                             | Relationship                                                                                                                                                                                                                              |
 |-----------------------------------|-------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
-| `assets:experiment-configuration` | Owns the generic create/write/validate/describe tooling, `EXPERIMENT_CONFIGURATION_REGISTRY` dispatch, the system-agnostic `TriggerType` taxonomy, and the `ExperimentState` schema; this skill is its Mesoscope-VR field-level companion |
+| `assets:experiment-configuration` | Owns the generic create/write/validate/describe tooling, `EXPERIMENT_CONFIGURATION_REGISTRY` dispatch, the system-agnostic `TriggerType` taxonomy, and the `ExperimentState` schema. This skill is its Mesoscope-VR field-level companion |
 | `assets:task-templates`           | Owns the `TaskTemplate` (with per-trial `trigger_type` and spatial `TrialStructure`) that seeds `from_task_template`                                                                                                                      |
 | `assets:library-extension`        | Owns the procedure for adding a new acquisition system, for which this skill is the worked experiment-configuration example                                                                                                               |
 | `/mesoscope-vr-runtime`           | Owns how the runtime loads and executes this configuration (state sequencing, guidance, trial decomposition, `system_state_code` installation) and the `MesoscopeVRStates` enum                                                           |
@@ -288,15 +275,23 @@ You MUST verify any field, default, or enum cited from this skill against the `s
 relying on it.
 
 ```text
+Tool-settled (run `rg -n '.{121,}' <file>` and `wc -l <file>`):
+- [ ] All lines at or under 120 characters (tables and code blocks may exceed for clarity)
+- [ ] SKILL.md under 500 lines
+- [ ] Every code fence carries a language identifier
+- [ ] rg -n 'ataraxis@|cindra@' <file> finds nothing
+
+Experiment configuration schema:
 - [ ] Field names, types, and defaults match mesoscope_vr/experiment_configuration.py exactly
 - [ ] The three contract fields are reported as the whole schema (Mesoscope-VR adds no extra fields)
 - [ ] Trial-class fields cited as reward_size_ul=5.0, reward_tone_duration_ms=300, puff_duration_ms=100, and trial_kind
 - [ ] Trial-kind rules: two-class clash raises, omission falls back to water, unknown or contradicting kind raises
-- [ ] Only `interaction` and `occupancy_disarm` are described as mapped; the other three raise ValueError
+- [ ] Only `interaction` and `occupancy_disarm` are described as mapped, and the other three raise ValueError
 - [ ] system_state_code cited only as 1=REST and 2=RUN accepted (0 is IDLE, valid for the system, rejected here)
 - [ ] The ExperimentState field schema deferred to assets:experiment-configuration (not re-documented here)
 - [ ] from_task_template defaults cited as state_count=1, state_duration_s=60, guidance 3/9/3
 - [ ] Generic tool mechanics deferred to assets:experiment-configuration (not re-documented here)
 - [ ] Runtime load/execute behavior deferred to /mesoscope-vr-runtime (not re-documented here)
 - [ ] Template authoring deferred to assets:task-templates (not re-documented here)
+- [ ] Every cross-reference uses the bare /skill-name or plugin:skill-name form, with no marketplace prefix
 ```

@@ -11,16 +11,15 @@ user-invocable: false
 
 # Mesoscope-VR session schema
 
-Documents the field-level schema of Mesoscope-VR's session descriptors and hardware-state snapshot —
-Mesoscope-VR's concrete instance of the universal per-system session-record contract.
+Documents the field-level schema of Mesoscope-VR's session descriptors and hardware-state snapshot, Mesoscope-VR's
+concrete instance of the universal per-system session-record contract.
 
-Descriptors, hardware-state, trial-types, experiment-config, and raw-data are a **universal
-per-system contract**: every Sollertia acquisition system is expected to define its own concrete
-schema for each. They are not Mesoscope-VR quirks. The system-agnostic core — the generic
-create/write/validate/describe tools and the dispatch registries (`DESCRIPTOR_REGISTRY`,
-`HARDWARE_STATE_REGISTRY`, `SYSTEM_SESSION_TYPES`, `SESSION_TYPES_USING_VR_TASK`) — lives in the
-`assets` plugin. This skill owns only Mesoscope-VR's **concrete instance** of that contract: the
-actual fields, types, defaults, and enums the Mesoscope-VR system writes to disk.
+Descriptors, hardware-state, trial-types, experiment-config, and raw-data are a **universal per-system contract**, and
+every Sollertia acquisition system is expected to define its own concrete schema for each. The system-agnostic core,
+meaning the generic create/write/validate/describe tools and the dispatch registries (`DESCRIPTOR_REGISTRY`,
+`HARDWARE_STATE_REGISTRY`, `SYSTEM_SESSION_TYPES`, `SESSION_TYPES_USING_VR_TASK`), lives in the `assets` plugin. This
+skill owns only Mesoscope-VR's **concrete instance** of that contract, meaning the actual fields, types, defaults, and
+enums the Mesoscope-VR system writes to disk.
 
 The dataclasses documented here live in `sollertia-shared-assets` (`mesoscope_vr/runtime_data.py`), and are registered
 in `registries.py`. Both files are the authoritative source of truth. Read them if a field detail is in doubt, rather
@@ -34,24 +33,24 @@ than trusting a stale table here. Each class is importable as `from sollertia_sh
 **Covers:**
 - The four-descriptor roster for Mesoscope-VR and which `SessionTypes` value maps to each
 - The four per-session-type descriptor filenames the runtime writes into the animal's `persistent_data` cache
-- Per-descriptor field tables (names, types, defaults) for `LickTrainingDescriptor`,
-  `RunTrainingDescriptor`, `MesoscopeExperimentDescriptor`, `WindowCheckingDescriptor`
-- The shared `experimenter` / `animal_weight_g` / `incomplete` / `experimenter_notes` contract and
-  which descriptors carry which shared fields
-- `WindowCheckingDescriptor.surgery_quality` (integer `0`–`3`) and its omission of `animal_weight_g`
+- Per-descriptor field tables (names, types, defaults) for `LickTrainingDescriptor`, `RunTrainingDescriptor`,
+  `MesoscopeExperimentDescriptor`, `WindowCheckingDescriptor`
+- The shared `experimenter` / `animal_weight_g` / `incomplete` / `experimenter_notes` contract and which descriptors
+  carry which shared fields
+- `WindowCheckingDescriptor.surgery_quality` (integer `0`-`3`) and its omission of `animal_weight_g`
 - The `MesoscopeHardwareState` 11-field schema and the `None` = "module not used" convention
 - Per-session-type hardware-state field population (which fields are set vs. `None` per session type)
 - Per-session-type applicability (window-checking yields no `hardware_state.yaml`)
 - The `delivered_gas_puffs` derivation from `MesoscopeGasPuffTrial` in `trial_structures`
 
 **Does not cover:**
-- The generic read/write/validate/describe MCP tools and registry dispatch — owned by the `assets`
-  plugin (`assets:session-descriptors`, `assets:session-hardware-state`)
-- Runtime **behavior** that populates, seeds, or completes these records (state machine, descriptor
-  consumption, threshold seeding mechanics) — owned by `/mesoscope-vr-runtime`
-- The Zaber and mesoscope-objective position snapshots — owned by `/mesoscope-vr-snapshots`
+- The generic read/write/validate/describe MCP tools and registry dispatch. Owned by the `assets` plugin
+  (`assets:session-descriptors`, `assets:session-hardware-state`)
+- Runtime **behavior** that populates, seeds, or completes these records (state machine, descriptor consumption,
+  threshold seeding mechanics). Owned by `/mesoscope-vr-runtime`
+- The Zaber and mesoscope-objective position snapshots. Owned by `/mesoscope-vr-snapshots`
 - The experiment configuration (`MesoscopeExperimentConfiguration`, `trial_structures`, `experiment_states`) beyond the
-  `delivered_gas_puffs` derivation, owned by `/mesoscope-vr-experiment-schema`
+  `delivered_gas_puffs` derivation. Owned by `/mesoscope-vr-experiment-schema`
 - Path resolution (`assets:project-hierarchy`), session discovery (`assets:session-discovery`), and the `SessionData`
   marker file (`assets:session-data`)
 
@@ -69,9 +68,9 @@ the parsing dataclass changes.
 | Session descriptor | `DESCRIPTOR_REGISTRY`     | `SessionTypes`       | `LickTrainingDescriptor`, `RunTrainingDescriptor`, `MesoscopeExperimentDescriptor`, `WindowCheckingDescriptor` |
 | Hardware state     | `HARDWARE_STATE_REGISTRY` | `AcquisitionSystems` | `MesoscopeHardwareState`                                                                                       |
 
-`SYSTEM_SESSION_TYPES[MESOSCOPE_VR]` claims all four session types; `SESSION_TYPES_USING_VR_TASK` contains only
+`SYSTEM_SESSION_TYPES[MESOSCOPE_VR]` claims all four session types. `SESSION_TYPES_USING_VR_TASK` contains only
 `MESOSCOPE_EXPERIMENT`, so only experiment sessions also write a `vr_configuration.yaml` task-template snapshot.
-Registry dispatch mechanics are owned by the `assets` plugin — this skill documents only the resolved Mesoscope-VR
+Registry dispatch mechanics are owned by the `assets` plugin, and this skill documents only the resolved Mesoscope-VR
 classes.
 
 This skill is also the worked reference an extender copies when authoring a new acquisition system's
@@ -83,9 +82,6 @@ This skill is also the worked reference an extender copies when authoring a new 
 
 ### Descriptor roster
 
-Every descriptor file inside `raw_data` is named `session_descriptor.yaml` regardless of session type; the YAML
-parses into a session-type-specific dataclass via `DESCRIPTOR_REGISTRY`:
-
 | `SessionTypes` value   | Descriptor dataclass            | Persistent cache filename              |
 |------------------------|---------------------------------|----------------------------------------|
 | `lick training`        | `LickTrainingDescriptor`        | `lick_training_descriptor.yaml`        |
@@ -94,8 +90,8 @@ parses into a session-type-specific dataclass via `DESCRIPTOR_REGISTRY`:
 | `window checking`      | `WindowCheckingDescriptor`      | `window_checking_descriptor.yaml`      |
 
 The per-animal persistent cache at `<animal>/persistent_data/` keeps the most recent descriptor of each session type
-under the third column's filename, so the cached copy is named after the session type instead of carrying the flat
-`session_descriptor.yaml` name used inside `raw_data`. The Mesoscope-VR acquisition runtime hardcodes those four
+under the third column's filename. The cached copy is therefore named after the session type instead of carrying the
+flat `session_descriptor.yaml` name used inside `raw_data`. The Mesoscope-VR acquisition runtime hardcodes those four
 names, and it recovers the previous session's animal weight and water intake from the newest of the three
 non-window-checking caches. `assets:project-hierarchy` owns the `persistent_data` path property itself.
 
@@ -123,14 +119,13 @@ The three **non-window-checking** descriptors (`LickTrainingDescriptor`, `RunTra
 | `pause_dispensed_water_volume_ml`    | `float` | `0.0`                  | Total water, in mL, dispensed during the paused (idle) state.                                                                                                                 |
 | `experimenter_given_water_volume_ml` | `float` | `0.0`                  | Additional water, in mL, administered manually by the experimenter after the session.                                                                                         |
 
-`WindowCheckingDescriptor` carries **none** of these: no `animal_weight_g`, `maximum_unconsumed_rewards`, or water
-totals. Its only session-type-specific field is `surgery_quality`.
+`WindowCheckingDescriptor` carries **none** of these. Its only session-type-specific field is `surgery_quality`.
 
 ### Per-descriptor field tables
 
-The tables below cover only the **session-type-specific** fields beyond the shared sets above.
-Required fields (`experimenter`, and `animal_weight_g` for the non-window-checking types) come first
-in the dataclass; defaulted fields follow.
+The tables below cover only the **session-type-specific** fields beyond the shared sets above. Required fields
+(`experimenter`, and `animal_weight_g` for the non-window-checking types) come first in the dataclass, and defaulted
+fields follow.
 
 #### `LickTrainingDescriptor`
 
@@ -143,9 +138,8 @@ in the dataclass; defaulted fields follow.
 | `water_reward_size_ul`      | `float` | `5.0`   | Water volume, in microliters, dispensed on each reward of the training's pseudorandom reward-delay sequence. |
 | `reward_tone_duration_ms`   | `int`   | `300`   | Duration, in milliseconds, of the reward auditory tone.                                                      |
 
-Plus the shared non-window-checking fields (`animal_weight_g`, `maximum_unconsumed_rewards`, the
-three water-total floats) and the three universal fields (`experimenter`, `incomplete`,
-`experimenter_notes`).
+Plus the shared non-window-checking fields (`animal_weight_g`, `maximum_unconsumed_rewards`, the three water-total
+floats) and the three universal fields (`experimenter`, `incomplete`, `experimenter_notes`).
 
 #### `RunTrainingDescriptor`
 
@@ -169,21 +163,19 @@ Plus the shared non-window-checking fields and the three universal fields. Note 
 
 #### `MesoscopeExperimentDescriptor`
 
-Adds **no** session-type-specific fields beyond the shared non-window-checking set
-(`animal_weight_g`, `maximum_unconsumed_rewards`, the three water-total floats) and the three
-universal fields (`experimenter`, `incomplete`, `experimenter_notes`). Reward size and tone duration live on the
-experiment configuration's trial classes, owned by `/mesoscope-vr-experiment-schema`, and the trial zone geometry
-lives on the task template's `TrialStructure` in `vr_configuration.yaml`, owned by `assets:task-templates`. Neither
-is carried by the descriptor.
+Adds **no** session-type-specific fields beyond the shared non-window-checking set (`animal_weight_g`,
+`maximum_unconsumed_rewards`, the three water-total floats) and the three universal fields (`experimenter`,
+`incomplete`, `experimenter_notes`). Reward size and tone duration live on the experiment configuration's trial classes,
+owned by `/mesoscope-vr-experiment-schema`, and the trial zone geometry lives on the task template's `TrialStructure` in
+`vr_configuration.yaml`, owned by `assets:task-templates`.
 
 #### `WindowCheckingDescriptor`
 
 | Field             | Type  | Default | Meaning                                                                                                                                                                                                                                                                                                                           |
 |-------------------|-------|---------|-----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
-| `surgery_quality` | `int` | `0`     | Cranial window / surgery quality on a `0`-`3` inclusive scale: `0` non-usable to `3` publication-grade. The range is a convention, not a constraint. `WindowCheckingDescriptor` declares no `__post_init__`, so `write_session_descriptor_tool` accepts an out-of-range integer without error. Validate the value before writing. |
+| `surgery_quality` | `int` | `0`     | Cranial window / surgery quality on a `0`-`3` inclusive scale, `0` non-usable to `3` publication-grade. The range is a convention, not a constraint. `WindowCheckingDescriptor` declares no `__post_init__`, so `write_session_descriptor_tool` accepts an out-of-range integer without error. Validate the value before writing. |
 
-Carries only `experimenter`, `surgery_quality`, `incomplete`, and `experimenter_notes` — no
-`animal_weight_g`, no reward fields, no water totals.
+Carries only `experimenter`, `surgery_quality`, `incomplete`, and `experimenter_notes`.
 
 ---
 
@@ -192,13 +184,13 @@ Carries only `experimenter`, `surgery_quality`, `incomplete`, and `experimenter_
 ### `MesoscopeHardwareState` schema
 
 `MesoscopeHardwareState` is the Mesoscope-VR instance of the per-system hardware-state contract, registered in
-`HARDWARE_STATE_REGISTRY` keyed by `AcquisitionSystems.MESOSCOPE_VR`, whose string value is `mesoscope`, the value
-every `acquisition_system` tool argument expects. The member name is not accepted. The snapshot is written to
+`HARDWARE_STATE_REGISTRY` keyed by `AcquisitionSystems.MESOSCOPE_VR`, whose string value is `mesoscope`, the value every
+`acquisition_system` tool argument expects. The member name is not accepted. The snapshot is written to
 `hardware_state.yaml`. Every field defaults to `None`, and `None` means **"the corresponding hardware module was not
-used by the executed runtime"** rather than "missing data". That convention is load-bearing for downstream pipelines
-and MUST be preserved on any amendment. The convention is also unenforced: `MesoscopeHardwareState` declares no
-`__post_init__`, so `write_session_hardware_state_tool` performs a shape check only and accepts a value that
-contradicts it. Validate the snapshot against the population table below before writing.
+used by the executed runtime"** rather than "missing data". That convention is load-bearing for downstream pipelines and
+MUST be preserved on any amendment. The convention is also unenforced, because `MesoscopeHardwareState` declares no
+`__post_init__`, so `write_session_hardware_state_tool` performs a shape check only and accepts a value that contradicts
+it. Validate the snapshot against the population table below before writing.
 
 | Field                         | Type                     | Default | Meaning                                                                              |
 |-------------------------------|--------------------------|---------|--------------------------------------------------------------------------------------|
@@ -216,31 +208,28 @@ contradicts it. Validate the snapshot against the population table below before 
 
 ### Per-session-type applicability and field population
 
-The hardware-state file exists only for session types whose runtime **exercises hardware modules**.
-Window-checking sessions never produce a `hardware_state.yaml`; reading it for one fails with a
-missing-file error by design, not corruption. Which fields are populated versus left `None` is
-deterministic per session type (a runtime-side convention owned by `/mesoscope-vr-runtime`, the
-producer; this table documents the resulting schema state):
+The hardware-state file exists only for session types whose runtime **exercises hardware modules**. Window-checking
+sessions never produce a `hardware_state.yaml`, and reading it for one fails with a missing-file error by design rather
+than by corruption. Which fields are populated versus left `None` is deterministic per session type, a runtime-side
+convention owned by `/mesoscope-vr-runtime` as the producer. The table below records the resulting schema state.
 
-| Session type           | Populated fields                                                                                                                                                                      | Left as `None`                                                                                                               |
-|------------------------|---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|------------------------------------------------------------------------------------------------------------------------------|
-| `mesoscope experiment` | All 11 fields. `recorded_mesoscope_ttl=True`. `delivered_gas_puffs` is computed from whether any `MesoscopeGasPuffTrial` exists in the experiment configuration's `trial_structures`. | None — every field is set.                                                                                                   |
-| `lick training`        | `torque_per_adc_unit`, `lick_threshold`, `valve_scale_coefficient`, `valve_nonlinearity_exponent`, `delivered_gas_puffs=False`, `system_state_codes`.                                 | `cm_per_pulse`, `maximum_brake_strength`, `minimum_brake_strength`, `screens_initially_on`, `recorded_mesoscope_ttl`.        |
-| `run training`         | `cm_per_pulse`, `lick_threshold`, `valve_scale_coefficient`, `valve_nonlinearity_exponent`, `delivered_gas_puffs=False`, `system_state_codes`.                                        | `maximum_brake_strength`, `minimum_brake_strength`, `torque_per_adc_unit`, `screens_initially_on`, `recorded_mesoscope_ttl`. |
-| `window checking`      | (no file produced — see above)                                                                                                                                                        | n/a                                                                                                                          |
+| Session type           | Populated fields                                                                                                                                      | Left as `None`                                                                                                               |
+|------------------------|-------------------------------------------------------------------------------------------------------------------------------------------------------|------------------------------------------------------------------------------------------------------------------------------|
+| `mesoscope experiment` | All 11 fields. `recorded_mesoscope_ttl=True`, and `delivered_gas_puffs` is derived.                                                                   | None, every field is set.                                                                                                    |
+| `lick training`        | `torque_per_adc_unit`, `lick_threshold`, `valve_scale_coefficient`, `valve_nonlinearity_exponent`, `delivered_gas_puffs=False`, `system_state_codes`. | `cm_per_pulse`, `maximum_brake_strength`, `minimum_brake_strength`, `screens_initially_on`, `recorded_mesoscope_ttl`.        |
+| `run training`         | `cm_per_pulse`, `lick_threshold`, `valve_scale_coefficient`, `valve_nonlinearity_exponent`, `delivered_gas_puffs=False`, `system_state_codes`.        | `maximum_brake_strength`, `minimum_brake_strength`, `torque_per_adc_unit`, `screens_initially_on`, `recorded_mesoscope_ttl`. |
+| `window checking`      | (no file produced, see above)                                                                                                                         | n/a                                                                                                                          |
 
-When amending a snapshot, set fields that the matching session type leaves as `None` to `None`.
-A numeric value would imply a hardware module was used when it was not, misinforming the processing
-pipeline's eligibility checks.
+When amending a snapshot, set fields that the matching session type leaves as `None` to `None`. A numeric value would
+imply a hardware module was used when it was not, misinforming the processing pipeline's eligibility checks.
 
 ### The `delivered_gas_puffs` derivation
 
-`delivered_gas_puffs` is **not** a direct measurement. For `mesoscope experiment` sessions it is
-derived: `True` when at least one `MesoscopeGasPuffTrial` appears in the experiment configuration's
-`trial_structures`, `False` otherwise. For lick-training and run-training it is fixed `False`
-(those runtimes never deliver gas puffs). The `trial_structures` source and `MesoscopeGasPuffTrial`
-shape belong to the experiment configuration (see `/mesoscope-vr-experiment-schema`); this skill documents only
-the derived hardware-state value.
+`delivered_gas_puffs` is **not** a direct measurement. For `mesoscope experiment` sessions it is derived, holding `True`
+when at least one `MesoscopeGasPuffTrial` appears in the experiment configuration's `trial_structures` and `False`
+otherwise. For lick-training and run-training it is fixed `False`, because those runtimes never deliver gas puffs. The
+`trial_structures` source and `MesoscopeGasPuffTrial` shape belong to the experiment configuration (see
+`/mesoscope-vr-experiment-schema`), and this skill documents only the derived hardware-state value.
 
 ---
 
@@ -261,16 +250,14 @@ the derived hardware-state value.
 
 ## Verification checklist
 
-Tool-settled, run `rg -n '.{121,}' SKILL.md` and `wc -l SKILL.md`:
-
 ```text
-- [ ] Every line over 120 characters is a table row kept wide for column alignment
-- [ ] File under 500 lines
-```
+Tool-settled (run `rg -n '.{121,}' <file>` and `wc -l <file>`):
+- [ ] All lines at or under 120 characters (tables and code blocks may exceed for clarity)
+- [ ] SKILL.md under 500 lines
+- [ ] Every code fence carries a language identifier
+- [ ] rg -n 'ataraxis@|cindra@' <file> finds nothing
 
-Reader-judged:
-
-```text
+Session schema:
 - [ ] Field names, types, and defaults match sollertia-shared-assets/mesoscope_vr/runtime_data.py exactly
 - [ ] Descriptor to SessionTypes mapping matches DESCRIPTOR_REGISTRY in registries.py
 - [ ] Persistent-cache filenames listed for all four session types and marked as runtime-hardcoded
@@ -284,4 +271,5 @@ Reader-judged:
 - [ ] delivered_gas_puffs documented as derived from MesoscopeGasPuffTrial in trial_structures (experiment only)
 - [ ] Generic tool mechanics deferred to assets:session-descriptors and assets:session-hardware-state, not re-documented
 - [ ] Runtime behavior deferred to /mesoscope-vr-runtime, not duplicated
+- [ ] Every cross-reference uses the bare /skill-name or plugin:skill-name form, with no marketplace prefix
 ```

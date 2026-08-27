@@ -1,429 +1,480 @@
 ---
 name: data-processing-design
 description: >-
-  Documents the platform-general design pattern for sollertia-forgery data processing: agnostic cross_system
-  primitives versus per-system specialization that enters as data, feather as cross-stage interchange, the
-  prepare-then-execute batch model with trackers and budget-bounded concurrency, and the delegate-to-dependency
-  seam. Use when designing a processing or forging pipeline, adding a stage, auditing the cross_system versus
-  per-system split, or deciding whether a concern belongs in slf or an upstream dependency.
+  Documents the durable design pattern behind sollertia-forgery data processing. Covers the agnostic worker packages
+  and the per-system donations they dispatch through, the registry seam with its import-time coverage check, the
+  pipeline dispatch table, the plan, prepare, execute, close job model, and the resource admission rules. Use when
+  adding a processing stage or pipeline, auditing the agnostic versus per-system split, or deciding whether a concern
+  belongs in this library or in one of its upstream dependencies.
 user-invocable: false
 ---
 
 # Data processing design
 
-Documents the platform-general design pattern for sollertia-forgery (slf) data processing at the orchestration
-and primitive layer. A processing pipeline turns raw acquisition outputs into canonical interchange feathers,
-then forges those feathers into analysis-ready datasets. The pattern is the same for every acquisition system;
-what differs is the concrete schemas, module mappings, and session selectors — all of which enter the agnostic
-machinery purely as data, never as branching code.
+Documents the durable design pattern behind sollertia-forgery data processing, at the package, registry, and
+orchestration layer. A pipeline reads one class of acquired data, writes its outputs beside the session it processed,
+and records every job it ran on a per-unit tracker. That shape holds for every acquisition system, and what differs
+between systems arrives as registered data rather than as a branch inside a pipeline.
 
-This skill is a **pattern skill** — it documents the conventions and contracts that every slf processing
-pipeline shares, but does not document any single pipeline's concrete stage logic. For concrete pipelines, see
-the per-stage skills (`forging:behavior-processing`, `forging:dataset-forging`, `forging:checksum-verification`)
-and the per-system specialization skills (`mesoscope:mesoscope-vr-trial-decomposition` and siblings). It is the
-processing-side analog of `experiment:acquisition-system-design`.
+This skill is a **pattern skill**. It documents the contracts every pipeline in the library shares, and it documents
+no single acquisition system's donations. For the concrete instance those patterns dispatch to, see the
+[Worked example](#worked-example) section. It is the processing-side counterpart of
+`experiment:acquisition-system-design`.
 
 ---
 
 ## Scope
 
 **Covers:**
-- The two-layer split: system-agnostic `cross_system` primitives and orchestration versus per-acquisition-system
-  specialization modules
-- How system specificity enters as **data only** — manifest source names, the `required_session_type` selector,
-  and the `(controller_id, module_type, module_id)` per-module registry keyed off filenames
-- Feather (uncompressed Arrow IPC) as the canonical cross-stage interchange format and why it is memory-mappable
-- The prepare-then-execute batch model: prepare-tools align ProcessingTracker registries, execute-tools dispatch
-  via JobExecutionState and a ProcessPoolExecutor, status-tools read trackers from disk without locking execution
-- The PendingJob / ActiveJob / JobExecutionState contract and the `(tracker_path, job_id)` dispatch key
-- Three concurrency variants under one worker-budget doctrine (plain, per-job-overhead, saturating-allocation)
-- Cancellation semantics and the single-active-execution-session constraint per pipeline
-- A second agnostic stage shape: the one-shot tool-with-tracker model that runs synchronously and does NOT use
-  prepare-then-execute / JobExecutionState, contrasted against the batch model
-- Cross-stage seams: which stages slf owns end-to-end versus which it delegates to an upstream dependency agent
-- The standard tool surface every batch slf pipeline exposes, plus the agnostic feather-inspection helper
+- The layers of the library, and the one-way import rule between an agnostic worker package and a per-system package
+- The eleven registries, their key shapes, the resolver accessors that read them, and the two public donation
+  Protocols
+- The import-time coverage check, and how to read its `RuntimeError` as the remaining wiring checklist
+- The `PipelineDispatch` table, `BATCH_PIPELINES` membership, and the import-time check that holds the two in step
+- The plan, prepare, execute, close job model, job identity, per-unit trackers, and the four job statuses
+- The resource admission model: declared core allocations, hard ceilings, soft reservations, and the admission passes
+- Feather as the cross-stage interchange format
+- The seam between the stages this library implements and the stages it hands to an upstream library in-process
+- The agnostic event-stream merging primitive this library owns
 
-**Does not cover** (delegated):
-- The agnostic feather-parsing primitive API surface — see `forging:microcontroller-primitives`.
-- The agnostic manifest-driven camera-rename primitive — see `forging:camera-timestamp-extraction`.
-- The concrete behavior-processing, dataset-forging, and checksum orchestration workflows (and the checksum
-  saturating-allocation constants) — see `forging:behavior-processing`, `forging:dataset-forging`,
-  `forging:checksum-verification`.
-- Project-manifest generation specifics (columns, status-flag dependency chain, tool surface) — cited here only
-  to illustrate the one-shot stage shape; owned by `forging:project-manifest`.
-- Concrete Mesoscope-VR module schemas, trial decomposition, fluorescence alignment, and assembled-session
-  schemas — see `mesoscope:mesoscope-vr-module-parsing`, `mesoscope:mesoscope-vr-trial-decomposition`,
-  `mesoscope:mesoscope-vr-fluorescence-alignment`, `mesoscope:mesoscope-vr-dataset-assembly`.
-- Upstream log processing internals — see `ataraxis@video:log-processing` and
-  `ataraxis@communication:log-processing`.
-- Session discovery, layout, and metadata — owned by the assets plugin.
+**Does not cover:**
+- Preparing and executing a batch, and reading its status. Owned by `/batch-processing`.
+- Planning a unit, projecting a project plan, and inspecting job resources. Owned by `/job-planning`.
+- The step-by-step touch points for adding a system, a pipeline, a stage, or an MCP tool. Owned by `/library-extension`.
+- The `slf` command surface the rendered job argument vectors invoke. Owned by `/cli-reference`.
+- The scheduler backend, the submission ledger, and the transport settings. Owned by `/remote-execution` and
+  `/server-configuration`.
+- The on-disk schema of every artifact a stage writes. Owned by `/processing-results`.
+- The archives each pipeline's first stage consumes. Owned by `/processing-input-format`.
+- The project-level rollups of tracker state. Owned by `/project-state`.
+- Any one acquisition system's donated parsers, columns, locators, resolvers, and admission policy. Owned by
+  `mesoscope:mesoscope-vr-processing-schema`.
+- The upstream microcontroller extraction schema, event-code partitioning, and typed value readers. Owned by
+  `communication:log-processing-results`.
+- The `AcquisitionSystems` member and the per-system session records a new system registers upstream. Owned by
+  `assets:library-extension`.
+
+**Handoff rules:** Send a request that runs a job to `/batch-processing` or `/job-planning`, a request that reads an
+artifact to `/processing-results` or `/project-state`, and a request for the exact code touch points of an extension
+to `/library-extension`. A question about one acquisition system's donated values belongs to the mesoscope plugin,
+and this skill answers only what every system's donation must satisfy.
+
+The response envelope every tool on this server returns, and the staged-read contract its read tools follow, are
+documented in the `## Response contract` section of `/forging-mcp-environment-setup`.
 
 ---
 
-## Two-layer architecture: cross_system primitives versus per-system specialization
+## Two-layer architecture: agnostic pipelines versus per-system donations
 
-An slf processing pipeline is composed of two layers. The dependency direction is strictly one-way: a
-system-specific package may import from `cross_system`, but `cross_system` must never import from a
-system-specific package.
+The library is one agnostic stack plus one package per registered acquisition system, and the two meet in exactly one
+module.
 
-```text
-┌───────────────────────────────────────────────────────────────────────────────────┐
-│  Layer 1: cross_system — system-agnostic primitives and orchestration               │
-│  ──────────────────────────────────────────────────────────                        │
-│  orchestration.py  ── PendingJob / ActiveJob / JobExecutionState, prepare_tracker,  │
-│                       job_execution_manager, read/derive_tracker_status,            │
-│                       analyze_feather_file, RESERVED_CORES                           │
-│  microcontroller.py ── module-feather discovery + filename registry parsing         │
-│  video.py          ── manifest-driven camera-timestamp extraction pipeline          │
-│  dataset.py        ── resolve_dataset (the required_session_type selector)          │
-│  checksum.py       ── checksum resolution stage                                     │
-│  mcp_tools.py      ── cross-system batch tool surface + one-shot manifest tools     │
-└────────────────────────────┬──────────────────────────────────────────────────────┘
-                             │ composed and parameterized (data only) by
-┌────────────────────────────▼──────────────────────────────────────────────────────┐
-│  Layer 2: <system>_vr — per-acquisition-system specialization                       │
-│  ─────────────────────────────────────────────                                     │
-│  processing.py / microcontrollers.py / forging.py ── concrete stage logic           │
-│  processing_mcp_tools.py / forging_mcp_tools.py   ── per-system batch tool surface   │
-│      ├── concrete module schemas, conversions, trial decomposition                  │
-│      ├── the required_session_type value passed into resolve_dataset                │
-│      └── the per-module feather registry keyed off filenames                        │
-└───────────────────────────────────────────────────────────────────────────────────┘
-```
+| Layer               | Package                                                                           | What it owns                                                                                                      |
+|---------------------|-----------------------------------------------------------------------------------|-------------------------------------------------------------------------------------------------------------------|
+| Agent interface     | `interfaces/`                                                                     | The `slf` CLIs and the `slf mcp` server exposed by installing the library                                         |
+| Orchestration       | `orchestration/`                                                                  | Planning, preparation, dispatch, the execution hosts, the local engine, the scheduler backend, the batch registry |
+| Remote transport    | `server/`                                                                         | SSH and SLURM execution, non-interactive job assembly, remote project discovery, server configuration             |
+| Worker packages     | `managing/`, `runtime/`, `microcontrollers/`, `video/`, `two_photon/`, `forging/` | One pipeline each, running identically for every acquisition system                                               |
+| Donation seam       | `registries.py`                                                                   | The `AcquisitionSystems`-keyed dispatch registries and the import-time checks that guard them                     |
+| Per-system packages | one package per registered system                                                 | The parsers, locators, resolvers, workers, and policy data that system donates                                    |
+| Agnostic substrate  | `shared_assets/`                                                                  | Pipeline identity, tracker resolution, the OpenMP guard, and the shared frame and terminal utilities              |
 
-Layer 1 carries the durable doctrine documented here. Layer 2 supplies the concrete schemas and the data that
-parameterizes Layer 1. The same `cross_system` primitives back every system; only the per-system specialization
-modules differ between systems.
+Each worker package owns one pipeline and its job-name constants, with `managing/` holding the two management
+pipelines. A worker package resolves its own job universe from the acquisition data it reads, so a completed tracker
+already accounts for every source the unit recorded.
+
+**The one-way import rule.** A per-system package never imports a worker package. The arrows already run from a
+worker package to `registries.py` to every per-system package, because each worker pipeline does a top-level
+`from ..registries import resolve_*` and `registries.py` does a top-level import of each per-system package. An
+import in the reverse direction closes that loop, which Python resolves as a partially initialized module at import
+time, so the rule states a genuine cycle rather than a style preference.
+
+The one permitted upward import from a per-system package is `..shared_assets`. That import is safe because
+`shared_assets/` imports nothing from `sollertia_forgery` at all, reaching only the standard library and the
+third-party stack. Being a leaf is the structural reason the substrate exists as its own package rather than as a
+module inside a worker package.
+
+Every pipeline that dispatches a parallelized worker pool calls `shared_assets.verify_openmp_runtime()` as the first
+statement of its entry point, so a host that cannot run a parallelized kernel fails while it has done no work rather
+than partway through a unit. The manifest pipeline runs single-threaded and is the one pipeline that does not.
 
 ---
 
 ## How system specificity enters as data
 
-The agnostic layer never branches on the acquisition system. System specificity enters through three data
-channels, never through conditional code in `cross_system`:
+System specificity reaches a pipeline only through `registries.py`, and a pipeline reads it through a `resolve_*`
+accessor rather than by indexing a registry.
 
-| Channel                  | Mechanism                                                                                      | Source of truth                                              |
-|--------------------------|------------------------------------------------------------------------------------------------|-------------------------------------------------------------|
-| Camera output names      | The acquisition-time camera manifest maps each source ID to a colloquial name                   | `resolve_camera_output_names` in `cross_system/video.py`    |
-| Session-type selector    | The calling system passes `required_session_type` to restrict which sessions are forgeable      | `resolve_dataset` in `cross_system/dataset.py`              |
-| Per-module registry      | The `(controller_id, module_type, module_id)` tuple is parsed from each module feather filename  | `parse_module_feather_name` in `cross_system/microcontroller.py` |
+| Registry                                 | Key                                | What it dispatches                                                    |
+|------------------------------------------|------------------------------------|-----------------------------------------------------------------------|
+| `_MICROCONTROLLER_PARSER_REGISTRY`       | `(system, module_type, module_id)` | One parser per hardware module the system can parse                   |
+| `_MICROCONTROLLER_EVENT_CODE_REGISTRY`   | `AcquisitionSystems`               | An accessor returning the event codes each parseable module reads     |
+| `_MICROCONTROLLER_ELIGIBILITY_REGISTRY`  | `AcquisitionSystems`               | The modules one loaded session configured for use                     |
+| `_FORGING_ASSEMBLY_REGISTRY`             | `AcquisitionSystems`               | The per-session assembly worker, paired with its column descriptions  |
+| `_FORGING_ADMISSION_REGISTRY`            | `AcquisitionSystems`               | The pipelines each session type completes before it joins a dataset   |
+| `_CINDRA_CONFIGURATION_REGISTRY`         | `AcquisitionSystems`               | The single-recording and multi-recording configuration resolvers      |
+| `_MULTI_RECORDING_SESSION_TYPE_REGISTRY` | `AcquisitionSystems`               | The session types the system tracks across recordings                 |
+| `_RUNTIME_PARSER_REGISTRY`               | `AcquisitionSystems`               | The runtime log source identifier, paired with its parser             |
+| `_TWO_PHOTON_DATA_REGISTRY`              | `AcquisitionSystems`               | The locator of the raw two-photon imaging directory                   |
+| `_POSE_PREDICTION_REGISTRY`              | `AcquisitionSystems`               | The locator of the externally produced pose-prediction file           |
+| `_VIDEO_TRACKING_REGISTRY`               | `AcquisitionSystems`               | The pass that reads those predictions and writes the tracking outputs |
 
-`resolve_camera_output_names` reads the camera manifest that every VideoSystem writes alongside its log archives
-and projects each registered source into its canonical `{name}_timestamps.feather` output filename. The manifest
-is the sole source of camera output names, so the pipeline requires no acquisition-system-specific configuration:
-the colloquial source names recorded at acquisition time directly determine the output names.
+Ten registries key on `AcquisitionSystems` alone. `_MICROCONTROLLER_PARSER_REGISTRY` is the only one keyed on a
+three-part tuple, and `resolve_microcontroller_parsers` is what flattens it into the `(module_type, module_id)`
+mapping a pipeline consumes. Three donations carry no callable at all, since `_FORGING_ADMISSION_REGISTRY` holds a
+`dict[SessionTypes, frozenset[ProcessingPipelines]]`, `_MULTI_RECORDING_SESSION_TYPE_REGISTRY` holds a
+`frozenset[SessionTypes]`, and the column-description half of `_FORGING_ASSEMBLY_REGISTRY` is a `dict[str, str]`.
 
-`resolve_dataset` accepts a `required_session_type: SessionTypes | None` argument supplied by the calling
-acquisition system. When provided, dataset creation is restricted to that system's single forgeable session
-type and the first session's type must match it; when `None`, any session type is accepted (the cross-session
-consistency check still applies). The agnostic helper holds no hard-coded session type — the system passes it.
+### The accessors a pipeline calls
 
-`parse_module_feather_name` extracts three integers — controller ID, module type, and module ID — from a
-filename following the `controller_{controller_id}_module_{module_type}_{module_id}.feather` convention. The
-per-system parser maps each parsed tuple to its concrete handler; the agnostic layer only parses the tuple and
-raises a ValueError when the filename does not match. The concrete tuple-to-handler registry is owned by
-`forging:microcontroller-primitives` and the per-system parsing skills.
+| Accessor                                          | Returns                                                             |
+|---------------------------------------------------|---------------------------------------------------------------------|
+| `resolve_microcontroller_parsers`                 | `dict[tuple[int, int], MicrocontrollerParser]`, re-keyed per system |
+| `resolve_microcontroller_event_codes`             | `dict[tuple[int, int], tuple[int, ...]]`, by calling the donation   |
+| `resolve_eligible_microcontroller_modules`        | `set[tuple[int, int]]`, taking the loaded session as a second input |
+| `resolve_forging_assembly_worker`                 | `ForgingAssembler`                                                  |
+| `resolve_forging_column_descriptions`             | `dict[str, str]`                                                    |
+| `resolve_forging_admission_pipelines`             | `dict[SessionTypes, frozenset[ProcessingPipelines]]`                |
+| `resolve_single_recording_configuration_resolver` | `Callable[[SessionData], SingleRecordingConfiguration]`             |
+| `resolve_multi_recording_configuration_resolver`  | `Callable[[SessionData], MultiRecordingConfiguration \| None]`      |
+| `resolve_multi_recording_session_types`           | `frozenset[SessionTypes]`                                           |
+| `resolve_runtime_binding`                         | `tuple[str, _RuntimeParser]`, a source identifier and its parser    |
+| `resolve_two_photon_data_locator`                 | `_TwoPhotonDataLocator`                                             |
+| `resolve_pose_prediction_locator`                 | `_PosePredictionLocator`                                            |
+| `resolve_video_tracking`                          | `_VideoTracker`                                                     |
+
+Every accessor takes `system: str | AcquisitionSystems` as its first parameter and normalizes it through one gate, so a
+caller holding the enum member and a caller holding its string value resolve the identical asset. An unknown system
+raises a `ValueError` naming the supported members. The accessor is the API and the registry is an implementation
+detail. That split buys three things a raw lookup does not, namely the string-or-member normalization, a named
+`ValueError` in place of a bare `KeyError`, and the freedom to change a registry's internal shape without touching a
+pipeline. A locator or the video-tracking function is reached in two steps, as in
+`resolve_pose_prediction_locator(system=session.acquisition_system)(session=session)`.
+
+### The donation Protocols
+
+Every donation is a module-level, picklable callable, because the parallel stages dispatch several of them into
+spawned worker processes. `registries.py` exports two of the six Protocols, and the remaining four appear only as the
+return annotations of their accessors.
+
+```python
+class ForgingAssembler(Protocol):
+    def __call__(self, source_session_path: Path, output_path: Path, dataset_name: str) -> None: ...
+
+
+class MicrocontrollerParser(Protocol):
+    def __call__(
+        self, event_partition: dict[int, pl.DataFrame], output_directory: Path, session: SessionData
+    ) -> None: ...
+```
+
+Coverage is a check on wiring rather than on capability. A system that produces none of a data class still donates an
+entry, in the form of a no-op tracking function, a pose-prediction locator returning `None`, an empty
+`frozenset[SessionTypes]`, and a two-photon locator returning the path the system would use.
+
+---
+
+## The import-time coverage check
+
+`registries.py` ends with a bare call to `_assert_registry_coverage()`, so the checks run on the first import of the
+module, which every pipeline import transitively triggers.
+
+| Check | What it requires                                                                           |
+|-------|--------------------------------------------------------------------------------------------|
+| 1     | Every registered system appears in each of the eleven registries, tested in a fixed order  |
+| 2     | Every module registered for a parser also declares the event codes that parser reads       |
+| 3     | Every session type a system tracks across recordings is a session type that system records |
+| 4     | Every session type a system admits into a dataset is a session type that system records    |
+
+Checks 3 and 4 both subtract the per-system session types that `sollertia-shared-assets` declares, since the types a
+system records are that library's to define. Check 4 is deliberately asymmetric, so a declared type the system does
+not record fails, while a recorded type the admission mapping omits is the supported way to say that the type joins
+no dataset.
+
+Read the raised `RuntimeError` as the remaining wiring checklist. Every raise goes through `console.error` and stops
+the import, so one import reports one problem, an extender fixes it, imports again, and reads the next. Discovery
+order is check 1 over its eleven registries, then checks 2, 3, and 4. The first check names the offending systems by
+enum member name, and the last two name the offending session types by enum value.
+
+```text
+Unable to validate donor-registry coverage for {registry_name}. Every acquisition system must register its donated processing and forging assets in this module ('registries.py'), but entries are missing for {missing_names}.
+```
+
+Check 2 exists because the extraction stage filters each module by the codes the event-code registry resolves.
+Dropping a parseable module from that registry would remove it from its controller's extraction configuration, which
+would leave its parse job undiscovered rather than failing outright.
+
+---
+
+## The pipeline dispatch table
+
+`orchestration/dispatch.py` binds each batch pipeline to one frozen `PipelineDispatch` entry, and `resolve_dispatch`
+is the only lookup into that table.
+
+| Field           | What the entry supplies                                                                              |
+|-----------------|------------------------------------------------------------------------------------------------------|
+| `pipeline`      | The `ProcessingPipelines` member this entry dispatches                                               |
+| `load`          | Loads the unit from its root, reading its markers alone                                              |
+| `discover`      | The job resolver, returning the loaded unit, the job universe, and the possible subset               |
+| `worker`        | The picklable module-level worker the process pool invokes with one planned job                      |
+| `prerequisites` | Resolves each job's upstream jobs, taking the loaded unit because specifiers sit at differing scopes |
+| `tracker_path`  | Resolves the pipeline's tracker path from a loaded unit                                              |
+| `output_path`   | The directory the pipeline owns outright, or `None` when it writes beside the acquired data          |
+| `unit_name`     | The name by which every tool response reports the unit                                               |
+| `size_jobs`     | Sizes each job of the universe from its input, given the declared cores                              |
+| `command`       | Renders the argument vector that runs one job on a host holding the data                             |
+| `prime`         | Materializes state the unit needs before its jobs resolve, defaulting to `None`                      |
+
+`prime` is the only field carrying a default, and the two-photon pipeline is the one entry that supplies one, because
+`cindra` requires a single-threaded step that writes the shared configuration before any of its jobs reads it.
+
+`BATCH_PIPELINES` holds six members, namely `checksum`, `runtime`, `microcontroller`, `video`, `two_photon`, and
+`forging`. The `manifest` pipeline is a `ProcessingPipelines` member that operates on a project, and it carries no
+dispatch entry. `_assert_dispatch_coverage()` runs at the bottom of the module and compares the dispatch table's keys
+against `BATCH_PIPELINES` on their symmetric difference, so a pipeline named in one and absent from the other fails
+the import from either side. Adding a batch pipeline is therefore a single change that touches both.
+
+---
+
+## The plan, prepare, execute, close job model
+
+Work reaches a host as a job, and every pipeline models its jobs the same way.
+
+1. **Plan.** Per unit, `orchestration/planning.py` registers on the unit's tracker every job that unit is able to run
+   and records each job's cores, memory, and upstream job identifiers into a per-unit `job_plan.yaml`. A unit runs
+   only the jobs registered on its tracker. `generate_project_plan` projects every cache under a project into one
+   table for a host that holds none of the data.
+2. **Prepare.** `orchestration/preparation.prepare_batch` joins the plan rows to the recorded state rows into one
+   descriptor per job and returns a `BatchDocument`, which `orchestration/batches.record_prepared_batch` stores under
+   a batch identifier.
+3. **Execute.** Two backends run one prepared document. The local engine drives `job_execution_manager` over a
+   `JobExecutionState`, admitting jobs against a core and memory budget and dispatching them onto a shared
+   `ProcessPoolExecutor`. The remote engine submits one scheduler allocation per job, each sized from its own
+   estimate and sequenced through an `afterok` dependency.
+4. **Close.** `orchestration/closure.close_batch` snapshots what a finished batch's jobs recorded, retires the
+   prepared document, and drops its ledger entry.
+
+A job is reported **blocked** rather than dispatched when the run can neither queue its upstream stage nor confirm
+that the stage already succeeded. Blocking propagates to the dependents through a fixed-point pass, so a blocked job
+never reaches an execution backend and closure counts it toward the batch total without it ever running. A
+prerequisite that already succeeded satisfies its dependents even though it is absent from the batch.
+
+---
+
+## Job identity, trackers, and the four statuses
+
+A job identifier is derived from the job name and the specifier alone, through `ProcessingTracker.generate_job_id`,
+so the same stage of two different units shares one identifier. `PendingJob.dispatch_key` pairs that identifier with
+the unit path, and the pairing is what keeps one unit's completed stage from satisfying every unit's.
+
+Each unit records its jobs in a per-unit tracker YAML written under a file lock, so a unit's state travels with the
+unit's data rather than with the host that processed it. `shared_assets.resolve_session_tracker_path` resolves the
+tracker of each per-session pipeline and raises for a pipeline outside `SESSION_PIPELINES`, since the manifest
+pipeline tracks a project and the forging pipeline tracks a dataset.
+
+| Status      | Meaning                                                  |
+|-------------|----------------------------------------------------------|
+| `SCHEDULED` | The job is registered on the tracker and has not started |
+| `RUNNING`   | The job is executing, and the record names its executor  |
+| `SUCCEEDED` | The job completed and its output is on disk              |
+| `FAILED`    | The job raised, and a reset returns it to `SCHEDULED`    |
+
+Every artifact stores the status as the enum member name, so those four uppercase strings are the literal values a
+status column carries. Discovery aligns a requested subset against the full universe, through the tracker's
+`align_jobs` call, so a partial invocation never retires a sibling job the unit can still run. The tracker is the
+authority on whether a stage ran and the files are the authority on what it produced, and the library never
+re-derives success from the presence of an output file.
+
+---
+
+## The resource admission model
+
+Three tables in `orchestration/dispatch.py` describe a job type, and all three key on the tracker job name.
+
+| Table                           | Holds                                                   | Absence means                            |
+|---------------------------------|---------------------------------------------------------|------------------------------------------|
+| `_JOB_CORE_ALLOCATIONS`         | The cores one job of the type occupies                  | A refusal, described below               |
+| `_JOB_CONCURRENCY_LIMITS`       | A hard ceiling on how many jobs of the type run at once | The type is bounded by the budgets alone |
+| `_JOB_CONCURRENCY_RESERVATIONS` | A soft reservation the first admission pass honors      | The type takes whatever a pass leaves    |
+
+Every stage this library owns dispatches at its declared width, because each holds one shape whatever data it reads. A
+stage a dependency owns is sized whole by that dependency, which answers with the width it picked for the job's own
+input. The entry here therefore restates the dependency's figure rather than deciding it, so a retune upstream reaches
+the table without an edit.
+
+A job type declaring no core figure is refused at two layers. `resolve_job_cores` raises a `ValueError` during
+planning, so the unit's plan fails before any batch is prepared, and `resolve_core_allocations` raises at local
+execution and lists every unregistered name. There is no matching error for a missing ceiling or reservation, since
+absence there is the ordinary case.
+
+Admission recomputes the committed cores and memory from the running set on every pass, and orders the candidates by
+descending dispatch priority with ties broken on the larger memory footprint. Dispatch priority is the summed core
+weight of a job's transitive dependents, so the root of a long chain outranks a crowd of leaves that would otherwise
+hold the budget while the host idles behind them. A ceiling stands in every pass however much capacity is idle. A
+reservation binds only in the first of two passes, so the reserved room is offered to every other runnable job before
+the reservation is released over whatever remains. The scan continues past a job that does not fit, letting smaller
+jobs backfill spare capacity, and a job larger than the whole budget is admitted only when nothing is running and the
+pass has admitted nothing. That floor is applied after the prerequisite and ceiling checks, so it never dispatches a
+job whose input does not exist and never breaches a ceiling.
 
 ---
 
 ## Feather as the cross-stage interchange format
 
-Every stage hands off to the next through **feather files** — uncompressed Apache Arrow IPC files written with
-`compression="uncompressed"`. Uncompressed Arrow IPC is memory-mappable, so a downstream stage can read large
-arrays without decompressing or copying them into process memory. `process_camera_log` in `cross_system/video.py`
-writes its output via `frame.write_ipc(file=output_path, compression="uncompressed")` specifically so the
-downstream forging pipeline can memory-map it.
+Every stage that hands data to another stage writes an uncompressed Arrow IPC feather. Polars defaults `write_ipc` to
+`compression="uncompressed"`, and each writer in the library either passes that value or accepts the default, so
+every feather it produces is memory-mappable and a downstream stage memory-maps it on read rather than paying a
+decompression pass. The project-level rollups use the same format, so a submitting host that holds none of the data
+reads a project's plan, manifest, jobs, and dataset-state tables exactly as a worker reads a stage output.
 
-Two feather schema conventions recur across the stack, both recognized by the agnostic inspection helper:
-
-- **The axci five-column module feather schema**: `timestamp_us, command, event, dtype, data`, produced by
-  ataraxis-communication-interface log processing and partitioned by `partition_events` (see
-  `forging:microcontroller-primitives`).
-- **Camera timestamp feathers**: a single `frame_time_us` column holding per-frame acquisition timestamps in
-  microseconds since the UTC epoch, written by `process_camera_log`.
-
-`analyze_feather_file` in `cross_system/orchestration.py` reads any feather via `pl.read_ipc` and computes
-generic summary statistics — row count, column list, inter-row timing, and sample rows. It recognizes the
-canonical time axis by probing, in priority order, the `_TIME_COLUMN_CANDIDATES` tuple
-`("timestamp_us", "time_us", "frame_time_us")`, which covers raw axci module feathers (`timestamp_us`), forgery
-runtime and microcontroller outputs (`time_us`), and axvs camera timestamp feathers (`frame_time_us`). It needs
-at least `_MINIMUM_ROWS_FOR_INTERVALS` (2) rows to compute intervals, and replaces `polars.Binary` columns in
-sample rows with a boolean `<column>_has_data` flag to keep the payload JSON-serializable.
+The pipeline owns the interchange path and the schema of every table it writes itself, while the acquisition system's
+donations name the tables their parsers and assembly worker produce. A stage therefore stays readable by a tool that
+knows the format without knowing the system, which is what lets one status and one verification surface serve every
+pipeline.
 
 ---
 
-## The prepare-then-execute batch model
+## Cross-stage seams: implemented here versus delegated in-process
 
-Every batch slf pipeline splits orchestration into three tool roles operating on disk-backed ProcessingTracker
-state. This decoupling lets status tools read progress without contending with the running execution session.
+| Stage                                                       | Implemented by                                              | Job-name constant                          |
+|-------------------------------------------------------------|-------------------------------------------------------------|--------------------------------------------|
+| `checksum_resolution`                                       | This library, hashing through `ataraxis-data-structures`    | `managing.checksum.CHECKSUM_JOB_NAME`      |
+| `runtime_processing`                                        | This library decodes, the donated runtime parser interprets | `runtime.pipeline.RUNTIME_JOB_NAME`        |
+| `microcontroller_data_extraction`                           | `ataraxis-communication-interface`, called in-process       | Its `CONTROLLER_EXTRACTION_JOB_NAME`       |
+| `module_parsing`                                            | This library partitions, the donated module parser writes   | `microcontrollers.pipeline.PARSE_JOB_NAME` |
+| `camera_timestamp_extraction`                               | `ataraxis-video-system`, called in-process                  | Its `CAMERA_EXTRACTION_JOB_NAME`           |
+| `camera_timestamp_rename`                                   | This library                                                | `video.pipeline.RENAME_JOB_NAME`           |
+| `pose_tracking`                                             | The donated video-tracking function                         | `video.pipeline.TRACKING_JOB_NAME`         |
+| `motion_energy`                                             | This library                                                | `video.pipeline.ENERGY_JOB_NAME`           |
+| `binarization`, `registration`, `processing`, `combination` | `cindra`'s single-recording binding, called in-process      | Its `SingleRecordingJobNames` enum         |
+| `multiday_discovery`, `multiday_extraction`                 | `cindra`'s multi-recording binding, called in-process       | This library's own two job names           |
+| `session_data_assembly`                                     | The donated forging assembly worker                         | `forging.pipeline.FORGING_JOB_NAME`        |
+| `manifest_generation`                                       | This library                                                | `managing.manifest.MANIFEST_JOB_NAME`      |
 
-1. **Prepare** — resolves the work set (sessions, datasets), then aligns each ProcessingTracker's job registry
-   to the expected job set via `prepare_tracker`, and returns enriched job descriptors. It does not start
-   execution. It is idempotent.
-2. **Execute** — takes the prepared descriptors, builds the package-specific PendingJob subclasses, constructs a
-   JobExecutionState, and starts a single background `job_execution_manager` thread that owns one
-   ProcessPoolExecutor. Returns immediately with a `started` flag.
-3. **Status / timing / overview** — read ProcessingTracker YAML files from disk via `read_tracker_status` and
-   `derive_tracker_status` without touching the execution state lock, so they can be polled at any time.
+A delegated stage resolves its inputs here, calls the upstream library's job binding in-process, and records its work
+under that library's own exported job-name constant, so a tracker identifier stays aligned with the library that
+produced the work. The cross-recording pair is the deliberate exception, since those two stages are also
+dependency-owned yet are recorded under `MULTIDAY_DISCOVERY_JOB_NAME` and `MULTIDAY_EXTRACTION_JOB_NAME` through
+`forging/pipeline.py::_MULTIDAY_JOB_NAMES`. That mapping is the only place the two vocabularies meet, so composing
+another upstream stage into the forging graph is a matter of naming it there.
 
-`prepare_tracker(tracker, jobs)` aligns a tracker to a list of `(job_name, specifier)` tuples. If the file does
-not exist, it initializes from scratch. If the file contains foreign IDs (entries not in the expected set), it
-warns about architectural drift, resets, and reinitializes. If the file holds a strict subset, it additively
-registers the missing entries without clobbering existing state. If it already matches exactly, it is a no-op.
-This regeneration strategy is the single point where stale job registries are detected and repaired.
-
----
-
-## Job identity, trackers, and JobExecutionState
-
-The orchestration primitives in `cross_system/orchestration.py` are generic over a `PendingJob` subclass and
-carry no domain logic:
-
-| Type                | Role                                                                                                    |
-|---------------------|--------------------------------------------------------------------------------------------------------|
-| `PendingJob`        | Base dataclass: `tracker_path` + `job_id`, with a `dispatch_key` property returning `(tracker_path, job_id)` |
-| `ActiveJob`         | Pairs a pending job with its in-flight `Future` on the shared process pool                              |
-| `JobExecutionState` | Holds the `worker` callable, `all_jobs`, `pending_queue`, `active_jobs`, `worker_budget`, `max_parallel_jobs`, `lock`, `manager_thread`, and `canceled` flag |
-
-Job identity is the `(job_name, specifier)` tuple. ProcessingTracker derives a stable hexadecimal job ID from it
-via `generate_job_id(job_name=..., specifier=...)`, and the dispatch key `(tracker_path, job_id)` uniquely
-identifies a job across the entire batch. Each package subclasses `PendingJob` with the extra fields its worker
-needs (session path, output name, resolved worker count). The `worker` callable MUST be a picklable
-module-level function accepting a single pending-job argument, because `job_execution_manager` dispatches it via
-`ProcessPoolExecutor.submit`.
-
-The worker is responsible for transitioning its job through the tracker's `start_job` → `complete_job` /
-`fail_job` lifecycle. The manager drains each completed future's result under `contextlib.suppress(Exception)`
-so a worker exception never silently crashes the daemon thread; the tracker remains the authoritative record of
-each job's terminal outcome.
+The same seam governs the job-model helpers. This library reuses each dependency's job resolvers, output-path
+resolvers, priming entry points, and the shared `ProcessingTracker` rather than reimplementing any of them, and it
+composes an output path deterministically instead of discovering one by glob.
 
 ---
 
-## Worker budget and concurrency contract
+## The agnostic microcontroller primitive
 
-All concurrency derives from one shared doctrine: a CPU budget resolved from the machine's core count minus
-`RESERVED_CORES` (2, in `cross_system/orchestration.py`), via
-`ataraxis_base_utilities.resolve_worker_count(requested_workers=..., reserved_cores=RESERVED_CORES)`. The manager
-resolves its concurrency cap as `worker_budget` when `max_parallel_jobs <= 0`, otherwise
-`min(worker_budget, max_parallel_jobs)`, and sizes a single ProcessPoolExecutor to that cap for the session.
+`shared_assets/microcontroller.py` holds one public asset, and a donated module parser calls it whenever one output
+column draws on two event codes.
 
-Pipelines pick one of three variants depending on each job's internal CPU footprint:
+```python
+def merge_event_streams[ScalarT: np.generic](
+    timestamps_a: NDArray[np.uint64],
+    values_a: NDArray[ScalarT],
+    timestamps_b: NDArray[np.uint64],
+    values_b: NDArray[ScalarT],
+) -> tuple[NDArray[np.uint64], NDArray[ScalarT]]:
+```
 
-| Variant               | Where each job's parallelism lives                    | How concurrency is bounded                                                  | Worked example                       |
-|-----------------------|-------------------------------------------------------|-----------------------------------------------------------------------------|--------------------------------------|
-| Plain budget          | One core per job (job is a single subprocess)         | `worker_budget` alone caps concurrent jobs; `max_parallel_jobs` left at -1  | behavior processing                  |
-| Per-job overhead      | Each job spawns a small internal pool                 | `max_parallel_jobs` floored by `worker_budget // _CORES_PER_JOB`            | forging                              |
-| Saturating allocation | Each job internally parallelizes over many cores      | Budget split across jobs at a preferred per-job worker count, with min/max  | checksum                             |
+It concatenates both pairs and reorders them on a stable `argsort` of the `uint64` timestamps, which NumPy maps to a
+linear-time radix sort for that key type, returning the sorted timestamps and the values reordered to match.
 
-**Plain budget** (behavior processing): the execute tool resolves a single `worker_budget` and leaves
-`max_parallel_jobs` at its default; the budget simultaneously caps the pool size and the maximum number of
-concurrent jobs, since each job is one subprocess.
-
-**Per-job overhead** (forging): a module-level `_CORES_PER_JOB` constant (3, in the forging tool: one subprocess
-plus a two-thread assembly pool) divides the resolved budget to yield a core-bounded ceiling
-`max(1, resolved_budget // _CORES_PER_JOB)`, and the effective parallelism is `min(requested_parallel, that
-ceiling)`. This bounds per-session memory peaks independently of CPU allocation.
-
-**Saturating allocation** (checksum): when both worker count and parallelism are automatic, the allocator
-maximizes the number of concurrent jobs at a preferred per-job worker count, then reduces parallelism until each
-job clears a minimum-worker floor, rounding worker counts down to a clean multiple and capping each job at a hard
-ceiling. The concrete preferred / minimum / maximum constants belong to the checksum stage and are documented in
-`forging:checksum-verification`; the inspection point in source is
-`_resolve_checksum_saturating_allocation` in `cross_system/mcp_tools.py`.
+The remaining microcontroller primitives belong to `ataraxis-communication-interface`. That library owns the extracted
+message schema, the event-code partitioning a parse job runs before dispatching to its donated parser, the typed
+timestamp and value readers a parser calls, and the module output path this library composes. Read
+`communication:log-processing-results` for that surface and cite it there rather than restating it here.
 
 ---
 
-## The one-shot tool-with-tracker stage shape
+## Worked example
 
-Not every agnostic stage uses the batch model. A second shape exists for operations that run synchronously to
-completion in a single call and produce one artifact: the **one-shot tool-with-tracker** stage. Project-manifest
-generation is the canonical instance.
-
-| Aspect            | Batch model                                                   | One-shot model                                              |
-|-------------------|--------------------------------------------------------------|------------------------------------------------------------|
-| Tools             | prepare → execute → status / timing / cancel / reset / clean  | generate → status → clean                                  |
-| Execution         | Background daemon thread + ProcessPoolExecutor                | Synchronous, in the calling process                        |
-| State object      | JobExecutionState with a pending/active queue                 | None — no JobExecutionState                                |
-| Tracker           | Per-session/per-dataset tracker, one job per unit             | One project-level tracker recording a single outcome       |
-| Cancellation      | Supported (clear pending queue)                               | Not applicable                                             |
-
-The generate tool delegates to the pipeline function (`generate_project_manifest`), which owns its own
-ProcessingTracker lifecycle and writes a single `{project_name}_manifest.feather`; the status tool reads that
-tracker via `read_tracker_status`; the clean tool deletes the tracker, the feather, and their companion `.lock`
-files. There is no prepare step and no execute/dispatch step. Use this shape when the work is a single
-synchronous scan rather than a fan-out of independent per-unit jobs. The concrete manifest columns and status
-chain are owned by `forging:project-manifest`.
-
----
-
-## Cancellation and the single-active-execution-session constraint
-
-Each batch pipeline keeps a single module-level execution-state variable, so only **one** execution session can
-be active per pipeline at a time. The execute tool refuses to start a new session while the previous manager
-thread is still alive, returning an error directing the caller to cancel first.
-
-Cancellation is cooperative and atomic. The cancel tool acquires `state.lock`, sets `state.canceled = True`,
-snapshots and clears `state.pending_queue` under the lock, and records the count of still-active jobs.
-`job_execution_manager` consults the `canceled` flag each poll cycle: once set, it dispatches no new jobs but
-lets already-running futures finish naturally. The tool then reads tracker files to tally terminal outcomes for
-its final-state report. In-flight work is never killed mid-execution — only the pending queue is drained.
-
----
-
-## Cross-stage seams: slf-owned stages versus delegated dependency stages
-
-slf does not own every stage end-to-end. The pipeline crosses two seams where it consumes the feather outputs of
-an upstream dependency agent instead of computing them itself:
-
-| Stage                          | Owner                                            | slf's role                                                   |
-|--------------------------------|--------------------------------------------------|-------------------------------------------------------------|
-| Camera log → frame timestamps  | ataraxis-video-system (axvs)                      | Calls the binding in-process, renames output to a feather   |
-| Microcontroller log → module feather | ataraxis-communication-interface (axci)     | Consumes the five-column module feathers                    |
-| Camera-timestamp pipeline      | slf (`cross_system/video.py`)                     | Owns discovery, manifest resolution, tracker, feather write |
-| Behavior processing / forging  | slf (per-system specialization)                   | Owns end-to-end                                             |
-| Checksum / project manifest    | slf (`cross_system`)                              | Owns end-to-end                                             |
-
-The camera-timestamp stage is illustrative of the seam: `process_camera_log` defers the
-`ataraxis_video_system` import to call time and invokes `extract_logged_camera_timestamps` in-process — slf does
-not reimplement timestamp extraction, it calls the dependency binding and owns only the discovery, manifest-driven
-renaming, tracker, and feather write around it. When a concern is already solved by an upstream dependency
-pipeline, delegate to it and consume its feathers; reserve slf ownership for the discovery, orchestration,
-renaming, and cross-stage assembly that the dependency does not provide. The upstream internals are owned by
-`ataraxis@video:log-processing` and `ataraxis@communication:log-processing`.
-
----
-
-## The standard batch pipeline tool surface
-
-Every batch slf pipeline exposes the same tool roles, named per pipeline. Implemented across
-`cross_system/mcp_tools.py` (checksum, project manifest) and the per-system `*_mcp_tools.py` modules:
-
-| Role             | Purpose                                                                                          |
-|------------------|------------------------------------------------------------------------------------------------|
-| `prepare_*`      | Resolve the work set and align trackers via `prepare_tracker`; return enriched job descriptors  |
-| `execute_*`      | Build PendingJobs, start the JobExecutionState manager thread; return a `started` flag           |
-| `*_status`       | Read trackers from disk for per-job progress of the active session                              |
-| `*_timing`       | Report per-job and aggregate timing from tracker state                                          |
-| `cancel_*`       | Clear the pending queue under the state lock; let in-flight jobs finish                         |
-| `reset_*_jobs`   | Reset selected or all tracker jobs to scheduled for re-runs                                     |
-| `*_batch_status_overview` | Summarize tracker status across every session/dataset under a root directory           |
-| `clean_*`        | Delete a named output subtree (and/or trackers and lock files)                                  |
-
-In addition, the agnostic `analyze_feather_file` helper backs the per-pipeline inspection tools (the
-`verify_*_output` and `query_*_data` tools), giving every pipeline a uniform way to summarize and sample its
-feather outputs without bespoke parsing.
-
----
-
-## Mesoscope-VR as a worked example
-
-The Mesoscope-VR system is the current consumer of every pattern in this skill. It appears here only to make the
-abstractions concrete; all of its specific schemas are deferred to the mesoscope plugin.
-
-- **Plain-budget batch pipeline**: behavior processing in `mesoscope_vr/processing_mcp_tools.py`. The execute
-  tool resolves a single `worker_budget` against `RESERVED_CORES` and leaves `max_parallel_jobs` at -1.
-- **Per-job-overhead batch pipeline**: dataset forging in `mesoscope_vr/forging_mcp_tools.py`, with
-  `_CORES_PER_JOB = 3` flooring concurrency at `worker_budget // _CORES_PER_JOB`. Its prepare tool passes
-  `required_session_type=SessionTypes.MESOSCOPE_EXPERIMENT` into `resolve_dataset` — the concrete value of the
-  agnostic session selector. The forging job name is `session_data_assembly`.
-- **Saturating-allocation + one-shot pipelines**: checksum and project-manifest generation in
-  `cross_system/mcp_tools.py`. Checksum uses `_resolve_checksum_saturating_allocation`; manifest generation is
-  the one-shot generate / status / clean shape.
-- **System specificity as data**: the camera manifest names, `SessionTypes.MESOSCOPE_EXPERIMENT`, and the parsed
-  `(controller_id, module_type, module_id)` tuples are the only system-specific inputs the agnostic layer sees.
-
-For the Mesoscope-VR-specific surface — concrete module schemas, trial decomposition, fluorescence alignment, and
-assembled-session schemas — see `mesoscope:mesoscope-vr-module-parsing`,
-`mesoscope:mesoscope-vr-trial-decomposition`, `mesoscope:mesoscope-vr-fluorescence-alignment`, and
-`mesoscope:mesoscope-vr-dataset-assembly`.
+`AcquisitionSystems` holds one member today, so a single acquisition system is the only registered donor and the only
+concrete consumer of every pattern above. Its donations are documented by the mesoscope companion plugin.
+`mesoscope:mesoscope-vr-processing-schema` carries the roster of processed feathers its parsers write and the columns
+its assembly worker emits, `mesoscope:mesoscope-vr-module-parsing` carries its module parsers and their eligibility
+rules, and `mesoscope:mesoscope-vr-dataset-assembly` carries the assembly stage its forging worker performs. Read
+`registries.py` itself for the donation table, which names every donated symbol of every registered system in one
+place.
 
 ---
 
 ## Maintenance contract
 
-This skill documents durable design patterns. It is updated when:
+This skill is updated when:
 
-- A new orchestration primitive or stage shape is added to `cross_system` (e.g., a third batch contract beyond
-  prepare-then-execute and one-shot).
-- A new concurrency variant is adopted across the platform.
-- The PendingJob / JobExecutionState contract, the tracker-alignment doctrine, or the dispatch-key identity
-  changes.
-- A new cross-stage seam (owned versus delegated) is established or moved.
+- A registry is added to or removed from `registries.py`, or a donation Protocol changes its call signature.
+- A check is added to `_assert_registry_coverage` or `_assert_dispatch_coverage`, or an existing check changes what
+  it requires.
+- A `PipelineDispatch` field is added, removed, or given a new meaning.
+- A pipeline joins or leaves `BATCH_PIPELINES`, or the plan, prepare, execute, close model gains a step.
+- A resource table changes its meaning, such as a reservation binding in every admission pass rather than the first.
+- The interchange format changes, or a stage moves across the implemented-versus-delegated seam.
 
 This skill is NOT updated when:
 
-- A specific pipeline gains a new job type, column, or schema — that's the per-stage or per-system skill's domain.
-- A specific worker's internal computation changes — the *pattern* it follows is what's documented here.
+- An acquisition system donates a new parser, column, locator, or admission entry. That belongs to the per-system
+  instance skill.
+- A worker package changes the internals of one stage. This skill documents the pattern that stage follows.
+- A job type is retuned in a resource table. The figures live in the source, and a dependency's retune reaches the
+  table without an edit.
+- A tool is added to the MCP surface. That belongs to the skill that owns the tool and to `/library-extension`.
 
-When unsure whether a change belongs here or in a per-stage/per-system skill, ask: "Does this apply to every slf
-processing pipeline, or only this one?" The pattern skill answers "every"; per-stage and per-system skills answer
-"only this one."
+When you are unsure whether a change belongs here or in a per-system skill, ask whether it applies to every Sollertia
+acquisition system or only to one. The pattern skill answers "every", and a per-system skill answers "only this one".
 
 ---
 
 ## Related skills
 
-| Skill                                          | Relationship                                                                                  |
-|------------------------------------------------|----------------------------------------------------------------------------------------------|
-| `forging:microcontroller-primitives`           | The agnostic module-feather parsing primitives and the filename-tuple registry contract.       |
-| `forging:camera-timestamp-extraction`          | The agnostic manifest-driven camera-rename stage; worked example of the delegate-to-axvs seam.  |
-| `forging:behavior-processing`                  | Concrete plain-budget batch pipeline that applies this doctrine.                               |
-| `forging:dataset-forging`                      | Concrete per-job-overhead batch pipeline that applies this doctrine.                           |
-| `forging:checksum-verification`                | Concrete saturating-allocation pipeline; owns its allocation constants.                        |
-| `forging:project-manifest`                     | Concrete one-shot tool-with-tracker stage; owns the manifest columns and status chain.          |
-| `mesoscope:mesoscope-vr-module-parsing`        | Concrete Mesoscope-VR module schemas and conversions.                                          |
-| `mesoscope:mesoscope-vr-trial-decomposition`   | Concrete Mesoscope-VR runtime decoding and trial decomposition.                                |
-| `mesoscope:mesoscope-vr-fluorescence-alignment`| Concrete Mesoscope-VR fluorescence / ScanImage alignment.                                      |
-| `mesoscope:mesoscope-vr-dataset-assembly`      | Concrete Mesoscope-VR assembled-session schemas.                                               |
-| `ataraxis@video:log-processing`                | Upstream dependency stage producing camera timestamp feathers consumed here.                   |
-| `ataraxis@communication:log-processing`        | Upstream dependency stage producing microcontroller module feathers consumed here.             |
-| `experiment:acquisition-system-design`         | The acquisition-side pattern skill this one mirrors; processing is its static-composition analog. |
+The `communication:` and `cindra:` entries below resolve through the ataraxis and cindra marketplaces. Every other
+entry resolves inside the sollertia marketplace.
+
+| Skill                                      | Relationship                                                               |
+|--------------------------------------------|----------------------------------------------------------------------------|
+| `/pipeline`                                | Context: where each pattern here sits in the end-to-end route              |
+| `/batch-processing`                        | Downstream: the tools that drive the prepare and execute steps             |
+| `/job-planning`                            | Downstream: the tools that drive the plan step and read the resource model |
+| `/library-extension`                       | The exact code touch points for each extension scenario                    |
+| `/dataset-definition`                      | Consumer: the admission policy applied when a dataset is defined           |
+| `/dataset-forging`                         | Consumer: the dataset pipeline's own three-stage shape                     |
+| `/processing-input-format`                 | The archives each pipeline's first stage consumes                          |
+| `/processing-results`                      | The on-disk schema of every artifact a stage writes                        |
+| `/project-state`                           | The project-level rollups of tracker state                                 |
+| `/remote-execution`                        | The scheduler backend behind the remote execute step                       |
+| `/server-configuration`                    | The transport settings the remote backend reads                            |
+| `/cli-reference`                           | The `slf` commands a rendered job argument vector invokes                  |
+| `/forging-mcp-environment-setup`           | Owner: the response contract and the server-health diagnostics             |
+| `assets:library-extension`                 | The upstream enum and session-record side of registering a system          |
+| `experiment:acquisition-system-design`     | Peer: the acquisition-side counterpart of this pattern skill               |
+| `mesoscope:mesoscope-vr-processing-schema` | The worked instance of the donations this pattern dispatches               |
+| `communication:log-processing-results`     | The upstream microcontroller primitives and extracted-message schema       |
+| `cindra:single-recording-processing`       | The dependency whose job bindings the imaging stages call in-process       |
 
 ---
 
 ## Verification checklist
 
 ```text
-When designing a new processing pipeline or auditing an existing one:
+Tool-settled (run `rg -n '.{121,}' <file>` and `wc -l <file>`):
+- [ ] All lines at or under 120 characters (tables and code blocks may exceed for clarity)
+- [ ] SKILL.md under 500 lines
+- [ ] Every code fence carries a language identifier
+- [ ] No cross-marketplace reference uses the superseded marketplace-prefix spelling with an at sign
 
-Two-layer split:
-- [ ] Agnostic primitives and orchestration live in cross_system; concrete logic lives in the per-system package
-- [ ] cross_system never imports from a system-specific package (dependency direction is one-way)
-- [ ] System specificity enters as data only (manifest names, required_session_type, filename-parsed registry),
-      never as a branch on the acquisition system inside cross_system
+Agnosticism:
+- [ ] No acquisition-system-specific file name, column, or session type appears in this skill
+- [ ] Every concrete donation is deferred to a mesoscope skill by name rather than carrying its value
 
-Interchange format:
-- [ ] Cross-stage handoffs are uncompressed Arrow IPC feathers (compression="uncompressed") for memory-mapping
-- [ ] The time axis column matches a recognized candidate (timestamp_us / time_us / frame_time_us)
-
-Batch model:
-- [ ] prepare aligns the tracker via prepare_tracker and does NOT start execution; it is idempotent
-- [ ] execute builds a PendingJob subclass, constructs JobExecutionState, starts one job_execution_manager thread
-- [ ] The worker callable is a picklable module-level function taking a single pending-job argument
-- [ ] The worker drives its tracker through start_job -> complete_job / fail_job
-- [ ] status / timing / overview read trackers from disk without touching the execution-state lock
-- [ ] Job identity is (job_name, specifier); the dispatch key is (tracker_path, job_id)
-
-Concurrency:
-- [ ] Budget is resolved from cores minus RESERVED_CORES via resolve_worker_count
-- [ ] One concurrency variant is chosen deliberately (plain / per-job-overhead / saturating-allocation)
-- [ ] Per-job-overhead pipelines floor parallelism by worker_budget // <cores-per-job>
-- [ ] Saturating-allocation constants (preferred/minimum/maximum) live in the owning stage, not this pattern
-
-Cancellation and sessions:
-- [ ] A single module-level execution state enforces one active session per pipeline
-- [ ] execute refuses to start while the prior manager thread is alive
-- [ ] cancel clears the pending queue under state.lock and lets in-flight jobs finish
-
-One-shot stages:
-- [ ] One-shot stages run synchronously, use a single project-level tracker, and have NO JobExecutionState
-- [ ] One-shot stages expose generate / status / clean, not prepare / execute
-
-Cross-stage seams:
-- [ ] Stages already owned by an upstream dependency are delegated (binding called in-process), not reimplemented
-- [ ] slf owns only the discovery, manifest resolution, tracker, renaming, and assembly around delegated stages
-
-Tool surface:
-- [ ] Batch pipeline exposes prepare / execute / status / timing / cancel / reset / batch-overview / clean
-- [ ] Feather inspection reuses analyze_feather_file rather than bespoke parsing
+Design review of a change to the library:
+- [ ] The new or changed pipeline lives in its own agnostic worker package, with no per-system branch inside it
+- [ ] Every per-system value the pipeline needs is reached through a registries.py resolver, never a registry index
+- [ ] No per-system package imports a worker package, and its only upward import is shared_assets
+- [ ] A new registry is added to the import-time coverage check and its accessor is exported from registries.py
+- [ ] A new batch pipeline is added to BATCH_PIPELINES and given a PipelineDispatch entry in the same change
+- [ ] Every new job type declares its cores in _JOB_CORE_ALLOCATIONS before any unit is planned
+- [ ] A stage delegated to a dependency records its work under that dependency's exported job-name constant
+- [ ] A stage handing data to another stage writes uncompressed Arrow IPC
+- [ ] The import-time RuntimeError was read as the remaining wiring checklist, one problem per import
 ```

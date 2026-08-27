@@ -1,527 +1,301 @@
 ---
 name: dataset-forging
 description: >-
-  Orchestrates batch dataset forging (per-session `data.feather` assembly) via the
-  sollertia-forgery MCP server (dataset resolution, batch prep, execution, progress, cancel,
-  retry, cleanup). Use when assembling analysis-ready feathers from processed behavior and
-  cindra outputs or managing forging jobs across a dataset.
+  Documents what the forging batch pipeline does differently from the five per-session pipelines. Covers the dataset
+  processing unit, the three job types its tracker records, the cross-recording stages it dispatches in process, and
+  the assembly concurrency ceiling. Use when forging a dataset, when preparing or executing a forging batch, or when a
+  forging job reports blocked or fails to assemble.
 user-invocable: false
 ---
 
 # Dataset forging
 
-Orchestrates the batch dataset-forging workflow: resolve the dataset hierarchy, prepare
-execution manifests, dispatch jobs for background execution, monitor progress, and hand
-off to downstream skills for output verification and querying.
+Runs the `forging` batch pipeline, whose processing unit is a dataset rather than a session and whose tracker records
+three job types rather than one. This skill owns no MCP tools of its own. Preparation, execution, monitoring,
+cancellation, reset, and cleaning are owned by `/batch-processing`, which drives `forging` through the same generic
+tools the other five pipelines use, so this skill states only what `forging` does differently.
 
 ---
 
 ## Scope
 
 **Covers:**
-- Dataset resolution semantics (create / load / recreate) and `force_recreate` handling
-- Batch preparation, background job execution, and the worker-budget model
-- Progress monitoring, cancellation, cleanup, failed-job reset, and cross-dataset overview
+- The dataset processing unit and the tool parameters that carry it
+- The three forging job types, their job-name constants, their scopes, and their specifiers
+- How the job universe is built from the animals and sessions the dataset hierarchy holds
+- The cross-recording stages the pipeline dispatches in process and records under its own job names
+- The prerequisite chain that orders the three job types, and what a blocked forging job means
+- The concurrency ceiling the assembly job type carries
+- The per-session assembly output and the two gates that guard it
+- What cleaning the `forging` pipeline destroys
 
 **Does not cover:**
-- Session discovery and filtering (see `assets:session-discovery`)
-- Upstream input file formats and cross-library handoff (see `/dataset-forging-input-format`)
-- Output verification, schemas, or interpretation (see `/dataset-forging-results`)
-- MCP server connectivity (see `/forging-mcp-environment-setup`)
-- Upstream behavior processing (see `/behavior-processing`)
-- Upstream cindra processing (see `cindra@cindra:single-recording-processing` and
-  `cindra@cindra:multi-recording-processing`)
+- Batch preparation, execution, monitoring, cancellation, reset, and the cleaning mechanic. Owned by
+  `/batch-processing`.
+- Dataset composition, animal and session membership, and the dataset state artifact. Owned by `/dataset-definition`.
+- Core and memory estimates, the resource model, and per-unit planning. Owned by `/job-planning`.
+- The project manifest and the project job artifact. Owned by `/project-state`.
+- Remote submission, scheduler reporting, and remote project discovery. Owned by `/remote-execution`.
+- What a session must already carry before it joins a dataset. Owned by `/processing-input-format`.
+- Output discovery, the dataset hierarchy on disk, and result interpretation. Owned by `/processing-results`.
+- The meaning of each assembled column. Owned by `mesoscope:mesoscope-vr-processing-schema` for Mesoscope-VR.
 
-**Handoff rules:** If MCP tools are unavailable, invoke `/forging-mcp-environment-setup`.
-If the user has not yet run session discovery, invoke `assets:session-discovery` first. After
-all jobs complete successfully, hand off to `/dataset-forging-results` to verify and
-query outputs.
-
-**Note:** `cindra@cindra:*` refers to the **cindra** plugin from the
-[cindra marketplace](https://github.com/Sun-Lab-NBB/cindra).
+**Handoff rules:** A request to build, extend, rebuild, or inspect the membership of a dataset goes to
+`/dataset-definition`, which owns every mutation of the hierarchy this pipeline reads. A request that names any
+prepare, execute, monitor, cancel, reset, or clean mechanic goes to `/batch-processing` with `pipeline="forging"`, and
+this skill supplies only the forging-specific arguments and readings that call needs.
 
 ---
 
 ## Agent requirements
 
-You MUST use the sollertia-forgery MCP tools for all forging operations. Do not import
-`sollertia_forgery.forging.pipeline` directly or invoke the `sl-forge` CLI — those
-bypass the background execution manager and the progress/timing monitoring surface.
+You MUST drive this pipeline through the sollertia-forgery MCP tools `/batch-processing` owns, passing
+`pipeline="forging"`. Do not import `sollertia_forgery.forging` functions and do not run `slf` commands. The `slf` CLI
+is the human path and `/cli-reference` owns it. Where the MCP tools are unavailable, invoke
+`/forging-mcp-environment-setup`.
 
-You MUST have confirmed session names and a project root from `assets:session-discovery`
-before calling `prepare_forging_batch_tool`. Do not guess, infer, or discover paths from
-within this skill.
+You MUST confirm the dataset has been defined before preparing a forging batch. Preparation resolves jobs from the
+hierarchy `define_forging_dataset_tool` built and never builds it, so a dataset that does not exist yet is an error
+rather than an empty batch.
 
-You MUST use only `MESOSCOPE_EXPERIMENT` sessions. Forging refuses any dataset whose
-first resolved session has a different session type. Lick-training and run-training
-sessions cannot be forged even though they produce behavior feathers. Eligibility is
-enforced by `_create_dataset` inside the pipeline.
+You MUST pass dataset roots wherever a forging batch names units, never session paths. A dataset root is the one
+`define_forging_dataset_tool` reported or one `list_project_datasets_tool` lists, both owned by `/dataset-definition`.
+`assets:session-discovery` is the exclusive producer of the session lists that compose a dataset, and the session paths
+it returns are the units the five session pipelines take, never the unit a forging batch takes.
 
-You MUST respect the single-execution-session constraint: only one batch may run at a
-time per `slf mcp` server process. Cancel any active session before starting a new batch.
-
-Per-session forged output is written to `{session_root}/data.feather` — directly under
-the session's own directory, NOT under `processed_data/`. The session's
-`session_descriptor.yaml` is also copied from `raw_data/` into the session root
-alongside the feather so the forged session carries experimenter context without
-reaching back into the raw data. The dataset-level metadata (`dataset.yaml`) and
-tracker (`forging_tracker.yaml`) live at `{project_root}/{dataset_name}/`, and each
-animal's `surgery_metadata.yaml` is copied once to `{project_root}/{dataset_name}/{animal}/`.
+The response envelope every tool on this server returns, and the staged-read contract its read tools follow, are
+documented in the `## Response contract` section of `/forging-mcp-environment-setup`.
 
 ---
 
-## Available tools
+## The dataset processing unit
 
-### Preparation and execution
+`forging` is the only batch pipeline whose processing unit is a dataset. `orchestration/preparation.py::prepare_batch`
+selects `DATASET_UNIT` for `ProcessingPipelines.FORGING` and `SESSION_UNIT` for every other member of
+`BATCH_PIPELINES`. `orchestration/preparation.py::_UNIT_DEPTHS` records that a dataset root sits one level under its
+project root, where a session root sits two. Every unit named in one batch must still belong to a single project,
+because the plan and state artifacts that resolve a batch are written per project.
 
-| Tool                          | Purpose                                                                   |
-|-------------------------------|---------------------------------------------------------------------------|
-| `prepare_forging_batch_tool`  | Resolves datasets, initializes trackers, returns a job manifest (idempotent) |
-| `execute_forging_jobs_tool`   | Dispatches prepared jobs for background execution                          |
+The parameter that carries the unit list changes name from tool to tool, and a forging batch fills every one of them
+with dataset roots. Execution is the exception, because it names prepared batch identifiers rather than any path.
 
-**`prepare_forging_batch_tool` parameters:**
+| Tool                           | Parameter       | What a forging batch passes                                |
+|--------------------------------|-----------------|------------------------------------------------------------|
+| `prepare_batch_tool`           | `session_paths` | Dataset root directories                                   |
+| `inspect_job_resources_tool`   | `session_paths` | Dataset root directories                                   |
+| `reset_processing_jobs_tool`   | `unit_paths`    | Dataset root directories                                   |
+| `clean_processing_output_tool` | `session_paths` | Dataset root directories                                   |
+| `get_processing_status_tool`   | `session_paths` | Dataset root directories, matched against each job's unit  |
+| `execute_jobs_tool`            | `batch_ids`     | Identifiers a forging preparation returned, never any path |
 
-| Parameter  | Type              | Default    | Description                               |
-|------------|-------------------|------------|-------------------------------------------|
-| `datasets` | `list[dict[str, Any]]` | (required) | Dataset specifications (schema below) |
+A local status read reports the dataset root under each job's `session_path` key, because that key carries the job's
+unit path whatever the unit kind is.
 
-Each dataset specification dictionary has these keys:
-
-| Key              | Type        | Required | Description                                                                           |
-|------------------|-------------|----------|---------------------------------------------------------------------------------------|
-| `name`           | `str`       | yes      | The unique dataset name. Becomes the directory name under `project_root`.             |
-| `project_root`   | `str`       | yes      | Absolute path to the project root containing animal and session data directories.     |
-| `session_names`  | `list[str]` | no       | Session names to include. Omit or pass an empty list to work with an existing dataset.|
-| `force_recreate` | `bool`      | no       | Defaults to False. Set True to delete and rebuild the dataset when session sets diverge. |
-
-The tool is idempotent: if the dataset already exists and the provided session set
-matches (or is empty), the tracker is reused without reinitialization. A mismatched
-session set without `force_recreate=True` is reported as an `invalid_datasets` entry.
-
-Return shape:
-
-```text
-success:            Always True (per-dataset errors are reported in invalid_datasets)
-datasets:           Map keyed by dataset name. Each value has:
-  dataset_path:     Absolute path to {project_root}/{dataset_name}/
-  tracker_path:     Absolute path to {dataset_path}/forging_tracker.yaml
-  dataset_name:     Echo of the input name
-  project_root:     Echo of the input project_root
-  jobs[]:           Enriched job descriptors (fields: job_id, job_name, specifier,
-                    status, session_name, dataset_name, project_root, tracker_path,
-                    optional error_message)
-  summary:          Counts for total / succeeded / failed / running / scheduled
-total_datasets:     Count of successfully resolved datasets
-total_jobs:         Flattened job count across all datasets
-invalid_datasets[]: Present only when one or more dataset specs failed to resolve
-```
-
-**`execute_forging_jobs_tool` parameters:**
-
-| Parameter       | Type               | Default    | Description                                                                                         |
-|-----------------|--------------------|------------|-----------------------------------------------------------------------------------------------------|
-| `jobs`          | `list[dict[str,str]]` | (required) | Flattened job descriptors from the prepare manifest.                                               |
-| `worker_budget` | `int`              | `-1`       | Total CPU cores for the session; `-1` auto-resolves via `resolve_worker_count` (`RESERVED_CORES=2`). |
-
-Each job descriptor must contain `tracker_path`, `job_id`, `dataset_name`,
-`project_root`, and `session_name`. These keys come directly from the prepare manifest
-— do not modify them. The worker resolves the per-session output path
-(`{session_root}/data.feather`) internally from the dataset metadata.
-
-Return shape:
-
-```text
-started:        True if the background manager was started
-total_jobs:     Number of pending jobs actually dispatched
-worker_budget:  The resolved worker budget (after -1 auto-resolution)
-invalid_jobs:   Present only when one or more descriptors were rejected
-error:          Present only when no session could start
-                  - "An execution session is already active..." → cancel or wait
-                  - "No valid jobs to execute." → every descriptor was invalid
-```
-
-### Monitoring
-
-| Tool                       | Purpose                                                |
-|----------------------------|--------------------------------------------------------|
-| `get_forging_status_tool`  | Per-job status of the active execution session         |
-| `get_forging_timing_tool`  | Per-job timing and session-level throughput            |
-
-Neither tool takes parameters. Both read in-memory execution state plus the on-disk
-trackers. When no session has ever been started, they return `{active: False, message: ...}`.
-
-`get_forging_timing_tool` reports `started_at` / `completed_at` microsecond timestamps,
-live `elapsed_seconds` for running jobs, and `duration_seconds` for completed jobs.
-When at least one job has finished, `session.throughput_jobs_per_hour` is populated
-from the earliest start time.
-
-### Lifecycle
-
-| Tool                                     | Purpose                                                                     |
-|------------------------------------------|-----------------------------------------------------------------------------|
-| `cancel_forging_tool`                    | Clears the pending queue; active jobs complete naturally                    |
-| `reset_forging_jobs_tool`                | Resets specific or all jobs in a tracker to SCHEDULED for retry             |
-| `clean_forging_output_tool`              | Deletes dataset hierarchies (tracker, metadata, per-session feathers)       |
-| `get_forging_batch_status_overview_tool` | Aggregate status across every dataset discovered under a project root       |
-
-**`reset_forging_jobs_tool` parameters:**
-
-| Parameter      | Type               | Default    | Description                                                            |
-|----------------|--------------------|------------|------------------------------------------------------------------------|
-| `tracker_path` | `str`              | (required) | Absolute path to the dataset's `forging_tracker.yaml`                  |
-| `job_ids`      | `list[str] \| None` | `None`     | Hexadecimal job IDs to reset; if omitted, every job in the tracker is reset |
-
-Returns `{reset: True, jobs_reset: N, jobs: [...], summary: {...}}` on success or
-`{error: "..."}` when the tracker path is missing or unreadable.
-
-**`clean_forging_output_tool` parameters:**
-
-| Parameter       | Type        | Default    | Description                                                               |
-|-----------------|-------------|------------|---------------------------------------------------------------------------|
-| `dataset_paths` | `list[str]` | (required) | Absolute paths to `{project_root}/{dataset_name}/` directories to delete |
-
-Refuses to run while an execution session is active — cancel first. Deletes the full
-dataset directory tree (tracker + dataset metadata + per-animal `surgery_metadata.yaml`
-copies). Per-session `data.feather` and the copied `session_descriptor.yaml` are
-NOT removed, because those files live under the session root, not the dataset
-directory. After cleanup, pass the same dataset specs back to
-`prepare_forging_batch_tool` to reinitialize from scratch.
-
-**`get_forging_batch_status_overview_tool` parameters:**
-
-| Parameter        | Type  | Default    | Description                                                   |
-|------------------|-------|------------|---------------------------------------------------------------|
-| `root_directory` | `str` | (required) | Absolute path to search recursively for `forging_tracker.yaml` files |
-
-Walks the root with `rglob("forging_tracker.yaml")`. Each tracker's parent directory
-is the dataset root and its name is the dataset name. Returns per-dataset summaries
-plus cross-dataset aggregates.
-
-**Cancellation behavior:** `cancel_forging_tool` drains the pending queue atomically
-and marks the state canceled. Active workers complete their current session normally.
-The call is idempotent. The payload reports `cleared_count` (pending jobs removed) and
-`active_jobs_at_cancel` (workers still running at cancel time). Use
-`get_forging_status_tool` afterward to watch the last active jobs finish.
+The tracker is one per dataset rather than one per session. `forging/pipeline.py::forging_tracker_path` places
+`ProcessingTrackers.FORGING`, the file `forging_tracker.yaml`, beside the dataset's own marker at the dataset root.
+`shared_assets/pipelines.py::resolve_session_tracker_path` refuses the forging pipeline outright, since
+`SESSION_PIPELINES` lists only the pipelines that record a per-session tracker.
 
 ---
 
-## Pipeline architecture
+## The three job types
 
-```text
-project_root/
-├── animal_A/
-│   ├── session_1/
-│   │   ├── raw_data/
-│   │   │   ├── hardware_state.yaml
-│   │   │   ├── experiment_configuration.yaml
-│   │   │   ├── session_descriptor.yaml
-│   │   │   ├── surgery_metadata.yaml
-│   │   │   └── ...
-│   │   ├── processed_data/
-│   │   │   ├── behavior_data/          ← from /behavior-processing
-│   │   │   └── mesoscope_data/
-│   │   │       ├── <single-recording>/ ← from cindra@cindra:single-recording-processing
-│   │   │       └── multiday/{dataset_name}/  ← from cindra@cindra:multi-recording-processing
-│   │   ├── data.feather                ← FORGED OUTPUT (this pipeline)
-│   │   └── session_descriptor.yaml  ← FORGED COPY (this pipeline)
-│   └── session_2/...
-└── {dataset_name}/                     ← FORGED DATASET HIERARCHY (this pipeline)
-    ├── dataset.yaml
-    ├── forging_tracker.yaml
-    └── animal_A/
-        └── surgery_metadata.yaml           ← FORGED COPY (one per animal)
-```
+All three job names are declared in `forging/pipeline.py` and re-exported by `forging/__init__.py`. Their scopes are
+the ones `forging/state.py::_DATASET_JOB_SCOPES` records, and a dataset state read reports each job under that scope.
 
-Key architectural facts:
+| Job name                | Constant                       | Scope     | Specifier             | Exists for                                                                    |
+|-------------------------|--------------------------------|-----------|-----------------------|-------------------------------------------------------------------------------|
+| `multiday_discovery`    | `MULTIDAY_DISCOVERY_JOB_NAME`  | `animal`  | The animal identifier | Each animal whose acquisition system resolves a multi-recording configuration |
+| `multiday_extraction`   | `MULTIDAY_EXTRACTION_JOB_NAME` | `session` | The session name      | Each session of such an animal                                                |
+| `session_data_assembly` | `FORGING_JOB_NAME`             | `session` | The session name      | Every session the dataset holds                                               |
 
-- **Job name:** `session_data_assembly`. Exactly one job per session in the dataset.
-- **Job specifier:** the session name.
-- **Tracker filename:** `forging_tracker.yaml`, written to
-  `{project_root}/{dataset_name}/`.
-- **ProcessingTracker lifecycle:** `SCHEDULED` → `RUNNING` → `SUCCEEDED` / `FAILED`,
-  persisted as YAML.
-- **Single execution session constraint:** one batch per `slf mcp` server process.
-  Cancel before starting another.
-- **Remote execution mode:** each worker subprocess runs
-  `run_forging_pipeline(name=..., session_names=(), project_root=..., job_id=...)` so
-  that only the single session identified by `job_id` is assembled.
-- **Output layout:** per-session `{session_root}/data.feather` plus a copy of
-  `session_descriptor.yaml` from `raw_data/`; the dataset hierarchy at
-  `{project_root}/{dataset_name}/` stores `dataset.yaml`, `forging_tracker.yaml`,
-  and one `{animal}/surgery_metadata.yaml` copy per animal (taken from each animal's
-  most recent session at dataset creation time).
-- **Reserved cores:** two cores are reserved system-wide (`RESERVED_CORES = 2`); the
-  worker budget applies to the remaining cores. Each worker is a separate process.
-- **Session eligibility:** only `MESOSCOPE_EXPERIMENT` sessions — the pipeline raises
-  at dataset creation time if the first resolved session has a different type. Every
-  subsequent session in the batch must share the first session's `session_type` and
-  `acquisition_system`; a mismatch raises during dataset creation.
-- **Surgery data requirement:** every animal represented in the dataset must carry a
-  `surgery_metadata.yaml` under the most recent session's `raw_data/`. The file is copied
-  once per animal into the dataset hierarchy; a missing file raises during dataset
-  creation.
-- **Experiment descriptor requirement:** every session must carry an
-  `session_descriptor.yaml` under `raw_data/`. The file is copied alongside
-  `data.feather` at the end of each session assembly; a missing file raises at
-  assembly time before any computation is performed.
+`forging/pipeline.py::_build_forging_universe` composes the universe in that order, one discovery job per tracked
+animal, one extraction job per that animal's session, then one assembly job per session in the dataset. An animal is
+tracked across recordings exactly when `MULTI_RECORDING_CONFIGURATION_FILENAME` sits in its dataset directory, and
+`define_forging_dataset` is the only writer of that file, so a dataset whose sessions carry no cross-recording imaging
+carries assembly jobs alone.
+
+Discovery reads nothing outside the dataset hierarchy. `discover_forging_jobs` loads the dataset marker and each
+animal's configuration, never a session marker, so a dataset whose source sessions have moved off the machine still
+resolves its jobs. Its possible subset equals its universe, because a session is admitted into the hierarchy only once
+it carries the single-day outputs the forging stages consume.
+
+An assembly job produces exactly one `data.feather` for its session and re-exports the source session's shared raw
+assets beside it. What each of its columns means is recorded once per dataset, in the `data_descriptions.feather`
+companion at the dataset root, because the column universe is donated per acquisition system. `/processing-results`
+owns where those files sit on disk.
 
 ---
 
-## Dataset resolution semantics
+## Where the cross-recording stages run
 
-`prepare_forging_batch_tool` delegates to `resolve_dataset` under the hood. The
-resolution rules are:
+Both cross-recording stages are jobs of the forging pipeline itself, dispatched in process by
+`forging/pipeline.py::_run_multiday_job`, which calls the cindra imaging library's `prime_dataset` and
+`execute_multi_recording_job` against the animal's materialized configuration. That library records the job's state
+directly on the forging tracker under the identifier the forging universe issued, so one tracker holds all three job
+types for the dataset.
 
-| Directory state                  | `session_names` provided | `force_recreate` | Outcome                                               |
-|----------------------------------|--------------------------|------------------|-------------------------------------------------------|
-| Dataset does not exist           | non-empty                | any              | Creates a fresh dataset from the provided sessions    |
-| Dataset does not exist           | empty / omitted          | any              | `invalid_datasets` entry (nothing to create from)     |
-| Dataset exists                   | omitted / empty          | any              | Loads existing dataset; no verification               |
-| Dataset exists, sessions match   | non-empty, matches       | any              | Loads existing dataset; tracker reused                |
-| Dataset exists, sessions differ  | non-empty, diverges      | `False`          | `invalid_datasets` entry — caller must decide         |
-| Dataset exists, sessions differ  | non-empty, diverges      | `True`           | Deletes the hierarchy, recreates from provided sessions |
+The opposite assumption costs a whole batch. The two stages are owned by an upstream library that also exposes them
+under its own pipeline. An agent reading only the stage names therefore concludes that a separate run has to finish
+first, prepares a batch naming the assembly jobs alone, and then cannot explain why every one of them reports blocked.
 
-Use `force_recreate=True` whenever you extend, shrink, or modify the session set of an
-existing dataset. The existing tracker, dataset metadata, and per-animal surgery
-copies are discarded, but the per-session `{session_root}/data.feather` and
-`{session_root}/session_descriptor.yaml` files already on disk are not touched
-(only the dataset hierarchy under `{project_root}/{dataset_name}/` is removed). To
-also wipe per-session output, overwrite it naturally on the next run or remove each
-`data.feather` manually.
+The vocabularies differ on purpose. `forging/pipeline.py::_MULTIDAY_JOB_NAMES` maps cindra's own two multi-recording
+job names onto this library's `multiday_discovery` and `multiday_extraction`, and its docstring calls that table the
+only place the two vocabularies meet. Every tracker entry, every status reading, and every `job_names` filter therefore
+uses this library's names, and cindra's own two names appear nowhere on a forging tracker.
+
+Priming is carried by the first stage of each animal alone. `_resolve_multiday_stages` sets a stage's prime flag from
+whether cindra reports it as having no prerequisite, so the animal's discovery job writes the shared bootstrap before
+its own tracked work starts. A bootstrap that cannot be written therefore leaves the job unstarted rather than recorded
+as failed, and a later stage still runs correctly on a run that skips the stage which primed it.
+
+---
+
+## Prerequisite ordering
+
+`forging/pipeline.py::forging_job_prerequisites` returns one chain per session of a tracked animal.
+
+```text
+multiday_discovery(animal) -> multiday_extraction(session) -> session_data_assembly(session)
+```
+
+An assembly job whose session has no tracked extraction job carries an empty prerequisite tuple, so the assembly jobs
+of a dataset with no cross-recording tracking are unordered among themselves. A job whose animal is no longer in the
+dataset also keeps an empty tuple, so every job in the universe carries an entry.
+
+The chain is three deep and blocking propagates through it. An animal whose discovery job is neither queued in the
+batch nor already succeeded therefore blocks that animal's extraction jobs, and through them the assembly jobs of the
+same sessions. Preparing the whole dataset in one batch queues every stage of the chain, which is why a forging batch
+is prepared per dataset rather than per session. `/batch-processing` owns the blocked-job reporting and the general
+rule that produces it.
 
 ---
 
 ## Processing workflow
 
-The workflow is **prepare-then-execute**: `prepare_forging_batch_tool` resolves dataset
-hierarchies and builds job descriptors without running any computation (idempotent on
-repeat calls with the same session set); `execute_forging_jobs_tool` spawns a background
-manager that dispatches jobs into a `ProcessPoolExecutor` bounded by the worker budget.
-Only one execution session can be active at a time.
+1. **Confirm the dataset exists.** Ask `/dataset-definition` for the project's datasets before preparing anything. A
+   name that no hierarchy backs fails preparation with the dataset marker's own `FileNotFoundError` wrapped in the
+   preparation error, and composing the dataset is that skill's work rather than an argument to this pipeline.
 
-### Pre-processing checklist
+2. **Read the recorded job state first.** `/dataset-definition` owns the dataset state artifact, which reports every
+   tracked job with its scope, animal, session, and status. Read it whenever the dataset may already have been forged,
+   so a resumed run knows which animals and which sessions are outstanding before anything is prepared.
 
-```text
-- [ ] Confirmed session names and project_root from assets:session-discovery
-- [ ] Every session in the batch is MESOSCOPE_EXPERIMENT
-- [ ] /behavior-processing has completed for every session (behavior feathers present)
-- [ ] cindra@cindra:single-recording-processing has completed for every session
-- [ ] cindra@cindra:multi-recording-processing has completed with the SAME dataset name
-- [ ] hardware_state.yaml and experiment_configuration.yaml present under raw_data/
-- [ ] Worker budget decision made with user (default -1 for auto-resolution)
-- [ ] No other forging execution session currently active
-```
+3. **Prepare with dataset roots.** Call the preparation tool with `pipeline="forging"` and the dataset roots as its
+   unit list. Pass no `options`, since `forging` reads none. The one key `options` carries anywhere in this library
+   belongs to a different pipeline.
 
-**STOP**: If any checkbox is incomplete, do not proceed. Complete the missing steps
-first. See `/dataset-forging-input-format` for per-file details on upstream prerequisites.
+4. **Account for the blocked list before executing.** Read the preparation's blocked entries and confirm each one names
+   a prerequisite the same batch queues. A blocked assembly job whose extraction prerequisite is absent from the batch
+   means the batch named a subset of the dataset rather than the dataset.
 
-### Workflow steps
+5. **Execute the prepared batch.** `/batch-processing` owns the dispatch, the budgets, and the identifier recovery path
+   for a lost batch identifier.
 
-1. **Receive confirmed inputs** — Get session names, project root, and the target
-   dataset name(s) from the user. Session names come from `assets:session-discovery`.
+6. **Monitor by job name.** Filter a status read on `job_names` to separate the three types, and report the
+   cross-recording jobs by animal and the assembly jobs by session, matching the scope each job type declares. A
+   dataset of many sessions produces far more assembly jobs than cross-recording jobs, so an unfiltered listing buries
+   the stages that gate everything else.
 
-2. **Prepare batch** — Call `prepare_forging_batch_tool` with the list of dataset
-   specifications. Inspect the result:
-   - Top-level `success: true` and a populated `datasets` map → continue.
-   - `invalid_datasets[].error == "Missing required 'name' or 'project_root' key."`
-     → spec is malformed; fix and retry.
-   - `invalid_datasets[].error` starting with `"Unable to use the existing ... dataset."`
-     → session set diverges; ask the user whether to set `force_recreate=True`.
-   - `invalid_datasets[].error` mentioning session-type → session is not
-     `MESOSCOPE_EXPERIMENT`; remove it from the batch.
-   - `invalid_datasets[].error` starting with `"Unable to resolve the directory for session"`
-     → session name does not resolve under `project_root`; cross-check with
-     `assets:session-discovery`.
+7. **Verify through the state reads.** There is no output-verification tool and no feather-query tool on this server.
+   Confirm a forged dataset from the dataset state read and the job breakdowns `/batch-processing` and `/project-state`
+   expose, then hand off to `/processing-results` for the outputs themselves.
 
-3. **Present discovered jobs** — For each dataset in the manifest, show the session
-   count and any pre-existing SUCCEEDED / FAILED counts. Format suggestion:
-
-   ```text
-   **Batch Preparation** — 2 datasets, 14 jobs
-
-   | Dataset               | Sessions | Succeeded | Failed | Scheduled |
-   |-----------------------|----------|-----------|--------|-----------|
-   | animal_001_week1       | 7        | 0         | 0      | 7         |
-   | animal_002_week1       | 7        | 2         | 1      | 4         |
-   ```
-
-4. **Confirm resource allocation** — Present the default worker budget (`-1` =
-   auto-resolve using `resolve_worker_count` with `reserved_cores=2`). Explain that the
-   budget bounds:
-   - Total memory footprint (each worker is a separate process)
-   - Maximum number of concurrent jobs
-   Ask whether the user wants to override the default. Reduce to limit memory footprint
-   — assembly loads fluorescence arrays and behavior feathers fully in memory per
-   worker.
-
-5. **Flatten jobs** — Collect every descriptor from `datasets[*].jobs` into a single
-   flat `list[dict]`. Each descriptor already contains `tracker_path`, `job_id`,
-   `dataset_name`, `project_root`, and `session_name` — do not modify or add keys.
-
-6. **Execute jobs** — Call `execute_forging_jobs_tool` with the flat job list and the
-   confirmed `worker_budget`. Inspect the result:
-   - `started: true` → continue to monitoring.
-   - `error: "An execution session is already active..."` → previous run is still
-     running; either wait or cancel.
-   - `invalid_jobs` list populated → job descriptors with missing keys or missing
-     tracker files; surface to user.
-
-7. **Monitor progress** — Call `get_forging_status_tool` periodically until the session
-   completes. Optionally call `get_forging_timing_tool` for elapsed time and throughput.
-   Present status as a formatted table (see "Status formatting" below).
-
-8. **Handle completion** — When `active: false` and all jobs are in terminal states:
-   - All `SUCCEEDED` → hand off to `/dataset-forging-results`.
-   - Some `FAILED` → see "Error routing" and offer reset/retry.
-   - Mix of `SUCCEEDED` and `UNKNOWN` → tracker corruption; recommend clean +
-     re-prepare.
+8. **Route a failure by its stage.** A failed cross-recording job and a failed assembly job have different causes and
+   different remedies, listed in the next section. Reset and re-execute rather than clean, since cleaning this pipeline
+   discards the whole dataset.
 
 ---
 
 ## Resource management
 
-The execution tool uses budget-based worker allocation via a single `worker_budget`
-parameter. Forging jobs are moderately memory-heavy — each worker memory-maps cindra
-fluorescence arrays plus the session's behavior feathers, concatenates them, and writes
-one `data.feather`. The budget therefore controls both concurrency and memory footprint.
+`session_data_assembly` is the one forging job type that declares a concurrency ceiling.
+`forging/pipeline.py::FORGING_JOB_CONCURRENCY_LIMITS` sets it to `4`, and `orchestration/dispatch.py` folds that
+mapping into `_JOB_CONCURRENCY_LIMITS`, so at most four sessions assemble at once no matter how wide the host is. An
+assembly job holds one core, so the ceiling rather than the core budget sets the width of the pool the stage opens.
 
-- `worker_budget=-1` → `resolve_worker_count` picks available cores minus
-  `RESERVED_CORES=2`.
-- Jobs dispatch in the order `prepare_forging_batch_tool` returns them (per-dataset,
-  then per-session within the dataset).
-- Reduce the budget for large multi-day datasets (many ROIs or frames). A budget of `1`
-  runs the batch sequentially.
-
-Each job executes one `(session_data_assembly, session)` pair in a fresh subprocess, so
-workers share no state.
+The two cross-recording job types declare no ceiling. Each takes a wide core allocation of its own, read at import from
+the installed cindra distribution, so the core budget already bounds how many run at once. Never quote those widths
+from memory. Read the live figures through `read_resource_model_tool`, which `/job-planning` owns.
 
 ---
 
-## Status formatting
+## Assembly failure modes
 
-When presenting per-session status:
+Every row below is specific to this pipeline. `/batch-processing` owns the generic dispatch and tracker failures.
 
-```text
-**Forging Status** — dataset `animal_001_week1`
+| Condition                                                         | Where it surfaces                                                      | Remedy                                                                                                 |
+|-------------------------------------------------------------------|------------------------------------------------------------------------|--------------------------------------------------------------------------------------------------------|
+| The named dataset has no marker under the project root            | Preparation, as a wrapped `FileNotFoundError`                          | Define the dataset through `/dataset-definition`                                                       |
+| The dataset carries no `data_descriptions.feather` companion      | Pipeline initialization, before any job runs                           | Recreate the dataset, which writes the companion at creation                                           |
+| The assembler wrote a column the dataset does not describe        | One assembly job, as `ValueError` naming every undescribed column      | The acquisition system's description donation is incomplete, so extend it through `/library-extension` |
+| A source session lacks a shared asset it is required to re-export | One assembly job, as `FileNotFoundError` naming the asset and its path | Restore the source session, since the check runs before any expensive work                             |
+| A dispatched job identifier matches no job of this dataset        | The job, as `ValueError` listing every valid identifier                | Re-read the identifiers from a freshly prepared batch                                                  |
 
-Summary: 5/7 jobs complete | 1 running | 1 queued | 0 failed
-
-| Session                       | Status    | Duration |
-|-------------------------------|-----------|----------|
-| animal_001_2026-03-04_exp_01   | SUCCEEDED | 42.7s    |
-| animal_001_2026-03-05_exp_01   | SUCCEEDED | 39.1s    |
-| animal_001_2026-03-06_exp_01   | RUNNING   | 12.4s    |
-| animal_001_2026-03-07_exp_01   | SCHEDULED | --       |
-```
-
-For multi-dataset overview via `get_forging_batch_status_overview_tool`:
-
-```text
-**Forging Overview** — /data/projects/my_project
-
-| Dataset          | Status    | Succeeded | Failed | Running | Scheduled |
-|------------------|-----------|-----------|--------|---------|-----------|
-| animal_001_week1  | completed | 7         | 0      | 0       | 0         |
-| animal_002_week1  | running   | 3         | 1      | 2       | 1         |
-| animal_003_week1  | scheduled | 0         | 0      | 0       | 7         |
-```
+The column gate is the one failure worth understanding rather than merely recognizing.
+`forging/pipeline.py::_forge_session` reads the assembled file's schema after the donated assembler writes it and
+refuses any column the description companion does not describe. That companion is filled at dataset creation from
+`registries.py::resolve_forging_column_descriptions` while the assembler comes from
+`registries.py::resolve_forging_assembly_worker`, so a column that one donation emits and the other omits marks a gap in
+the acquisition system's registration rather than a data fault.
 
 ---
 
-## Re-running failed jobs
+## Cleaning a forged dataset
 
-1. Identify failed jobs from `get_forging_status_tool` output (inspect `error_message`).
-2. Call `reset_forging_jobs_tool` with the dataset's `tracker_path` and the failed
-   `job_ids` list.
-3. Re-prepare the batch (idempotent) to pick up the reset jobs.
-4. Call `execute_forging_jobs_tool` again with the refreshed job descriptors.
+Cleaning this pipeline is the most destructive operation on the batch surface. The forging pipeline's output path is
+the dataset root itself, so a clean removes the entire dataset hierarchy, every assembled per-session feather included,
+alongside the tracker. The dataset then has to be defined again before anything can be forged into it.
 
-To rebuild a dataset from scratch (for example after changing the session set):
-1. Call `clean_forging_output_tool` with `[{project_root}/{dataset_name}]` to delete
-   the dataset hierarchy.
-2. Call `prepare_forging_batch_tool` with the new session list. Because the directory
-   no longer exists, the dataset is created fresh.
-
-To rebuild only the session set of an existing dataset without deleting first:
-1. Call `prepare_forging_batch_tool` with the new `session_names` and
-   `force_recreate=True`. The hierarchy is deleted and recreated in-place.
-
----
-
-## Error routing
-
-### Preparation errors (`invalid_datasets[].error`)
-
-| Error pattern                                                            | Resolution                                                   |
-|--------------------------------------------------------------------------|--------------------------------------------------------------|
-| `Missing required 'name' or 'project_root' key.`                         | Fix the dataset spec                                         |
-| Validation error from `validate_directory`                               | `project_root` does not exist or is not a directory          |
-| `Unable to use the existing '{name}' dataset. The provided session list does not match...` | Set `force_recreate=True` or submit the matching list        |
-| `Unable to define dataset '{name}'. The dataset does not exist under '{project_root}' and no sessions were provided...` | Provide `session_names`                                      |
-| `Unable to resolve the directory for session '{s}' under '{project_root}'.` | Session name not unique or absent under the project          |
-| `Unable to define dataset '{name}'. Dataset creation is currently supported only for mesoscope experiment sessions...` | Remove the non-mesoscope session or split the batch          |
-| `Unable to define dataset '{name}'. All sessions in a dataset must share the same session type...` | Split the batch by session type                              |
-| `Unable to define dataset '{name}'. All sessions in a dataset must be acquired by the same acquisition system...` | Split the batch by acquisition system                        |
-| `Unable to define dataset '{name}'. The latest session '{s}' for animal '{a}' does not contain a 'surgery_metadata.yaml' file...` | Add the missing surgery file to the animal's latest session  |
-
-### Execution errors (`execute_forging_jobs_tool` top-level `error` or `invalid_jobs[]`)
-
-| Error pattern                              | Resolution                                                         |
-|--------------------------------------------|--------------------------------------------------------------------|
-| `An execution session is already active.`  | Wait for the current session or `cancel_forging_tool` first        |
-| `No valid jobs to execute.`                | Every descriptor was rejected; check `invalid_jobs`                |
-| `Missing required keys: [...]`             | Use the descriptor from `prepare_forging_batch_tool` verbatim      |
-| `Tracker file not found: ...`              | Re-prepare the batch to regenerate the tracker                     |
-
-### Per-job failure routing
-
-| Error pattern                                                   | Action                                                                |
-|-----------------------------------------------------------------|-----------------------------------------------------------------------|
-| Behavior tracker not found / ambiguous                          | Rerun `/behavior-processing` for the session                          |
-| Cindra single-recording tracker not found / ambiguous           | Rerun `cindra@cindra:single-recording-processing` for the session           |
-| Cindra multi-day file missing (`cell_fluorescence.npy`, etc.)   | Rerun `cindra@cindra:multi-recording-processing` with the same dataset name |
-| Hardware state YAML missing / missing required field            | See `/dataset-forging-input-format` and the assets plugin             |
-| Experiment configuration YAML missing                           | See `/dataset-forging-input-format`                                   |
-| Experiment descriptor YAML missing                              | See `/dataset-forging-input-format`; add the file under `raw_data/`   |
-| Polars / Arrow read errors on a behavior feather                | Rerun `/behavior-processing` — the upstream feather is corrupt        |
-| MCP tools unavailable                                           | Invoke `/forging-mcp-environment-setup`                               |
-| Out of memory                                                   | Reduce `worker_budget`                                                |
-| Corrupt tracker                                                 | `clean_forging_output_tool` → re-prepare                              |
+Reset the tracked jobs instead whenever the failure cause was external and the hierarchy is still sound. Reset takes
+dataset roots in `unit_paths` and returns each named dataset's jobs to the scheduled state without touching a single
+assembled file, and `/batch-processing` owns its arguments and its return tree.
 
 ---
 
 ## Related skills
 
-| Skill                                           | Relationship                                                                  |
-|-------------------------------------------------|-------------------------------------------------------------------------------|
-| `/forging-mcp-environment-setup`                | Prerequisite: MCP server connectivity                                         |
-| `assets:session-discovery`              | Upstream: session discovery and filtering                                     |
-| `/dataset-forging-input-format`                 | Reference: upstream artifacts and session / dataset layout                    |
-| `/dataset-forging-results`                      | Downstream: output verification, schemas, and querying                        |
-| `/behavior-processing`                          | Upstream: produces behavior feathers consumed by forging                      |
-| `/behavior-results`                             | Upstream reference: schema of the behavior feathers consumed here             |
-| `cindra@cindra:single-recording-processing`           | Upstream: produces single-recording cindra outputs consumed here              |
-| `cindra@cindra:multi-recording-processing`            | Upstream: produces multi-day cindra outputs (dataset name must match)         |
-| `cindra@cindra:single-recording-results`              | Upstream reference: schemas of the cindra single-recording outputs            |
-| `cindra@cindra:multi-recording-results`               | Upstream reference: schemas of the cindra multi-day outputs                   |
+The `cindra:` entry below resolves through the cindra marketplace. Every other entry resolves inside the sollertia
+marketplace.
+
+| Skill                                      | Relationship                                                              |
+|--------------------------------------------|---------------------------------------------------------------------------|
+| `/batch-processing`                        | Owner: every prepare, execute, monitor, cancel, reset, and clean mechanic |
+| `/dataset-definition`                      | Prerequisite: builds the hierarchy this pipeline resolves its jobs from   |
+| `/job-planning`                            | Upstream: per-dataset planning and the live resource model                |
+| `/processing-input-format`                 | Reference: what a session carries before it joins a dataset               |
+| `/processing-results`                      | Downstream: the assembled outputs and how to read them                    |
+| `/project-state`                           | Reference: project-wide job and manifest artifacts                        |
+| `/remote-execution`                        | Variant: forging a dataset that lives on the compute server               |
+| `/library-extension`                       | Extension: donating an assembler and its column descriptions              |
+| `/pipeline`                                | Context: where dataset forging sits in the end-to-end pipeline            |
+| `assets:session-discovery`                 | Upstream: the session lists a dataset is composed from                    |
+| `mesoscope:mesoscope-vr-processing-schema` | Reference: the Mesoscope-VR columns and their meanings                    |
+| `cindra:multi-recording-processing`        | Reference: the upstream stages this pipeline dispatches in process        |
 
 ---
 
 ## Verification checklist
 
 ```text
-Dataset Forging Workflow:
-- [ ] Verified MCP server connectivity (invoked /forging-mcp-environment-setup if unavailable)
-- [ ] Received confirmed session names and project_root from assets:session-discovery
-- [ ] Confirmed every session is MESOSCOPE_EXPERIMENT
-- [ ] Confirmed upstream /behavior-processing and cindra@cindra:* outputs exist
-- [ ] Prepared batch via prepare_forging_batch_tool
-- [ ] Resolved any invalid_datasets with the user (force_recreate as needed)
-- [ ] Presented discovered job counts per dataset
-- [ ] Confirmed worker budget with user
-- [ ] Verified no active execution session before dispatch
-- [ ] Executed jobs via execute_forging_jobs_tool
-- [ ] Monitored status until all jobs reached terminal state
-- [ ] Investigated and retried failed jobs if needed (reset or clean + re-prepare)
-- [ ] Handed off successful output to /dataset-forging-results
+Tool-settled (run `rg -n '.{121,}' <file>` and `wc -l <file>`):
+- [ ] All lines at or under 120 characters (tables and code blocks may exceed for clarity)
+- [ ] SKILL.md under 500 lines
+- [ ] Every code fence carries a language identifier
+- [ ] rg -n 'ataraxis@|cindra@' <file> finds nothing
+
+Dataset forging run, tool-settled (read the dataset state through /dataset-definition):
+- [ ] sollertia-forgery MCP server is connected
+- [ ] The dataset was defined before any batch was prepared
+- [ ] The prepared batch named dataset roots, and named every dataset the run covers
+- [ ] Every blocked entry the preparation reported names a prerequisite the same batch queues
+- [ ] Every tracked job reads succeeded, or reads failed with an error message that was routed by its stage
+
+Dataset forging run, agent-judged:
+- [ ] The three job types were reported under their own names, never under the upstream library's names
+- [ ] Cross-recording jobs were reported by animal and assembly jobs by session
+- [ ] Resource figures for the cross-recording stages were read from the live resource model, never quoted from memory
+- [ ] A failure was retried by reset rather than by cleaning, unless the hierarchy itself had to be rebuilt
+- [ ] The user was told that cleaning this pipeline destroys the whole dataset before any clean was called
+- [ ] No acquisition-system-specific file name, column, or session type appears in this skill
 ```

@@ -12,8 +12,8 @@ user-invocable: false
 # Sollertia session discovery
 
 Discovers and filters Sollertia sessions via the sollertia-shared-assets MCP tools. This skill is domain-agnostic,
-providing the raw discover and filter surface from which any downstream batch skill can chain. For behavior-processing
-eligibility rules, see the forging plugin's `forging:behavior-input-format`.
+providing the raw discover and filter surface from which any downstream batch skill can chain. For the artifacts each
+processing pipeline requires on disk, see the forging plugin's `forging:processing-input-format`.
 
 ---
 
@@ -30,9 +30,9 @@ eligibility rules, see the forging plugin's `forging:behavior-input-format`.
 - Walking the full project tree (projects, animals, experiments) as a primary workflow, see `/project-hierarchy`, which
   owns `get_data_root_overview_tool`
 - Reading individual `SessionData` markers or full session health reports, see `/session-data`
-- Reading or generating project manifest files, see the forging plugin's `forging:project-manifest`
-- Checksum verification or regeneration, see the forging plugin's `forging:checksum-verification`
-- Behavior-processing eligibility rules, see the forging plugin's `forging:behavior-input-format`
+- Reading or generating project manifest files, see the forging plugin's `forging:project-state`
+- Checksum verification or regeneration, see the forging plugin's `forging:batch-processing`
+- The artifacts each processing pipeline requires on disk, see the forging plugin's `forging:processing-input-format`
 - MCP server connectivity issues, see `/assets-mcp-environment-setup`
 
 ---
@@ -179,9 +179,9 @@ the `sessions` list from step 2, or the client-side-narrowed list from step 3, a
 ### Step 5: Confirm and hand off
 
 Present the final `session_paths` list to the user. Once confirmed, hand off to the appropriate downstream skill:
-- The forging plugin's `forging:checksum-verification` for data integrity operations
-- The forging plugin's `forging:project-manifest` for manifest generation
-- The forging plugin's `forging:behavior-processing` for behavior extraction, filtering by eligible session types first
+- The forging plugin's `forging:batch-processing` for data integrity operations
+- The forging plugin's `forging:project-state` for manifest generation
+- The forging plugin's `forging:batch-processing` for every processing pipeline, filtering by session type first
 - The forging plugin's `forging:dataset-definition` for dataset composition, taking session names rather than paths
 - The forging plugin's `forging:dataset-forging` for dataset assembly
 - The experiment plugin's `experiment:data-management` for preprocessing, migration, and deletion. That skill owns no
@@ -261,12 +261,12 @@ that does not exist or is not a directory. Its message string is surfaced verbat
 | `/session-data`                 | Reference: SessionData marker and `inspect_sessions_tool` for per-session health                 |
 | `/session-descriptors`          | Reference: per-session descriptor repair                                                         |
 | `/datasets`                     | Downstream: reads and audits the dataset container once `forging:dataset-definition` composes it |
-| `forging:project-manifest`      | Downstream: manifest reading and generation                                                      |
-| `forging:checksum-verification` | Downstream: consumes confirmed session_paths                                                     |
-| `forging:behavior-processing`   | Downstream: consumes confirmed session_paths                                                     |
+| `forging:project-state`      | Downstream: manifest reading and generation                                                      |
+| `forging:batch-processing` | Downstream: consumes confirmed session_paths                                                     |
+| `forging:batch-processing`   | Downstream: consumes confirmed session_paths                                                     |
 | `forging:dataset-definition`    | Downstream: composes a dataset from the confirmed session names                                  |
 | `forging:dataset-forging`       | Downstream: consumes confirmed session names                                                     |
-| `forging:behavior-input-format` | Reference: behavior-processing eligibility rules                                                 |
+| `forging:processing-input-format` | Reference: the artifacts each processing pipeline requires on disk                               |
 | `experiment:data-management`    | Downstream: consumes confirmed session paths inside the data root                                |
 
 ---
