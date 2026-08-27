@@ -1,11 +1,11 @@
 ---
 name: mesoscope-vr-module-parsing
 description: >-
-  Documents Mesoscope-VR's concrete instance of the per-system module-parser contract: the eight-entry
-  module registry keyed by (module_type, module_id), each parser's output feather filename, event codes,
-  MesoscopeHardwareState eligibility fields and usage flags, output column schema, and unit conversions. Use
-  when interpreting or modifying a Mesoscope-VR microcontroller feather output, adding a new module parser, or
-  mapping a hardware module to its calibrated processed output.
+  Documents Mesoscope-VR's concrete instance of the per-system module-parser contract: the eight-entry module registry
+  keyed by (module_type, module_id), each parser's output feather filename, event codes, MesoscopeHardwareState
+  eligibility fields and usage flags, output column schema, and unit conversions. Use when interpreting or modifying a
+  Mesoscope-VR microcontroller feather output, adding a new module parser, or mapping a hardware module to its
+  calibrated processed output.
 user-invocable: false
 ---
 
@@ -48,13 +48,12 @@ registries in `sollertia_forgery.registries`. The batch orchestration that invok
 - The extracted-message schema, the event-code partitioning, and the typed timestamp and value readers a parser
   calls. Owned by `communication:log-processing-results`.
 - The hardware-state YAML schema and authoring. Owned by `assets:session-hardware-state` and
-  `mesoscope:mesoscope-vr-session-schema`.
+  `/mesoscope-vr-session-schema`.
 - The per-pipeline input roots and the readiness rules that decide whether a session resolves a parse job. Owned by
   `forging:processing-input-format`.
 - The `BehaviorDataFiles` filename roster and the producer-to-directory mapping for processed outputs. Owned by
-  `mesoscope:mesoscope-vr-processing-schema`.
-- Assembly of these per-module outputs into the session `data.feather`. Owned by
-  `mesoscope:mesoscope-vr-dataset-assembly`.
+  `/mesoscope-vr-processing-schema`.
+- Assembly of these per-module outputs into the session `data.feather`. Owned by `/mesoscope-vr-dataset-assembly`.
 - The batch orchestration that runs microcontroller jobs. Owned by `forging:batch-processing`.
 
 ---
@@ -72,15 +71,15 @@ Every entry point then runs the same three steps:
 
 1. Resolve the session's `MesoscopeHardwareState` through `_resolve_hardware_state`, which reads
    `session.raw_data.hardware_state_path` (the session's `raw_data/hardware_state.yaml`, parsed by the
-   `MesoscopeHardwareState` class this donation imports directly from the shared assets) and raises
-   `FileNotFoundError` when no file is present at that path.
+   `MesoscopeHardwareState` class this donation imports directly from the shared assets) and raises `FileNotFoundError`
+   when no file is present at that path.
 2. Return early, writing nothing, when `_is_module_eligible` reports the module ineligible for the session.
 3. Delegate to the module's private `_parse_<module>_data` function, passing the event partition, the resolved output
    file path (`output_directory / BehaviorDataFiles.<MEMBER>`), and the hardware state. The TTL parser receives the
    session in place of the hardware state, which it uses only to name the session in its error message.
 
 `output_directory` is the session's `processed_data/microcontroller_data` directory. The producer-to-directory mapping
-for every Mesoscope-VR processed output is owned by `mesoscope:mesoscope-vr-processing-schema`.
+for every Mesoscope-VR processed output is owned by `/mesoscope-vr-processing-schema`.
 
 Every parser reads its events out of the partition with the agnostic `get_event_timestamps` (state-only events) or
 `get_event_data` (payload-carrying events) primitives, merges paired streams with `merge_event_streams`, and writes its
@@ -149,19 +148,18 @@ are documented below.
 ## Encoder, TTL, brake, screen state parsers
 
 **Encoder `(2, 1)` -> `encoder_data.feather`.** Reads CCW rotation (event `51`) and CW rotation (event `52`)
-displacement payloads as `float64`. CCW is positive displacement, CW is negative (the CW stream is negated
-before merging). If one direction is entirely absent, a single synthetic zero-displacement entry is inserted
-one microsecond after the first opposite-direction timestamp so both streams are non-empty. The merged
-displacements are scaled by `cm_per_pulse` and integrated with `np.cumsum` into cumulative traveled distance. Results
-are rounded to 8 decimals and negative-zero entries are normalized to `0.0`. Columns: `time_us`,
-`traveled_distance_cm`.
+displacement payloads as `float64`. CCW is positive displacement, CW is negative (the CW stream is negated before
+merging). If one direction is entirely absent, a single synthetic zero-displacement entry is inserted one microsecond
+after the first opposite-direction timestamp so both streams are non-empty. The merged displacements are scaled by
+`cm_per_pulse` and integrated with `np.cumsum` into cumulative traveled distance. Results are rounded to 8 decimals and
+negative-zero entries are normalized to `0.0`. Columns: `time_us`, `traveled_distance_cm`.
 
 **TTL `(1, 1)` -> `mesoscope_frame_data.feather`.** Reads ON (event `51`) and OFF (event `52`) transitions as
 state-only events. Both edge polarities are required, and the parser raises `ValueError` naming the session and the
 output file when either set of timestamps is empty, because the downstream fluorescence assembly pairs every rising
 edge with its falling edge. ON maps to `1` and OFF to `0` (`uint8`), and a terminal OFF (`0`) is appended one
 microsecond after the last sample if the final value is not already `0`. Columns: `time_us`, `ttl_state`. These pulses
-are the alignment reference consumed by `mesoscope:mesoscope-vr-fluorescence-alignment`.
+are the alignment reference consumed by `/mesoscope-vr-fluorescence-alignment`.
 
 **Brake `(3, 1)` -> `brake_data.feather`.** Engaged (event `51`) applies `maximum_brake_strength` and disengaged
 (event `52`) applies `minimum_brake_strength` (the residual torque from mechanical coupling). Both values are read off
@@ -192,9 +190,9 @@ shared union of their timestamps via discrete interpolation. Columns: `time_us`,
 The valve specification therefore lists `51`, `52`, `54`, and `55`. Code `53` (`kCalibrated`) stays out of that tuple
 because the firmware emits it only from its calibration command, never during a normal runtime.
 
-**Gas puff `(5, 2)` -> `gas_puff_data.feather`.** Open (event `51`) and close (event `52`) transitions are merged into
-a `1`/`0` `puff_state` stream. The cumulative puff count is the running sum of falling edges (open-to-closed `1 -> 0`
-transitions) as `uint32`, and the edge difference is taken over a signed width, because an unsigned difference wraps a
+**Gas puff `(5, 2)` -> `gas_puff_data.feather`.** Open (event `51`) and close (event `52`) transitions are merged into a
+`1`/`0` `puff_state` stream. The cumulative puff count is the running sum of falling edges (open-to-closed `1 -> 0`
+transitions) as `uint32`. The edge difference is taken over a signed width, because an unsigned difference wraps a
 falling edge to `255` and never equals `-1`. The hardware state is unused but required for uniform dispatch. If no gas
 puffs were delivered, the parser writes a single zero-state, zero-count row at the first close timestamp. Columns:
 `time_us`, `puff_state` (`uint8`), `cumulative_puff_count` (`uint32`).
@@ -237,7 +235,7 @@ last value is not `0`, and negative-zero entries are normalized to `0.0`. Column
 | Screen   | `screens_initially_on`                                   |                                      | Initial screen state before the first toggle            |
 
 The schema, semantics, and authoring of these `MesoscopeHardwareState` fields are owned by
-`assets:session-hardware-state` and `mesoscope:mesoscope-vr-session-schema`. This skill documents only which fields
+`assets:session-hardware-state` and `/mesoscope-vr-session-schema`. This skill documents only which fields
 gate each parser and how the parser uses them.
 
 ---
@@ -252,19 +250,18 @@ module:
    is ineligible, and delegates to a private `_parse_<module>_data` helper. Read events only through the upstream
    `get_event_timestamps` and `get_event_data` readers and the shared `merge_event_streams` primitive, and do not
    re-scan the partitioned DataFrame directly.
-2. Write the output with `write_ipc(file=output_file, compression="uncompressed")` so the result is
-   memory-mappable downstream, and lead the schema with a `time_us` uint64 column.
-3. Add the output filename as a new `BehaviorDataFiles` member (owned by
-   `mesoscope:mesoscope-vr-processing-schema`) and build the output path from that member inside the entry point,
-   never hardcoding the filename string.
-4. Register a new `_ModuleSpecification` under the module's `(module_type, module_id)` key in `_MODULE_REGISTRY`,
-   listing every `MesoscopeHardwareState` field the parser reads in `required_fields`, every boolean recording whether
-   the module was used at all in `usage_flags`, and every event code the parser reads in `event_codes`. Then register
-   the entry point under its `(acquisition system, module_type, module_id)` triplet in `sollertia_forgery.registries`.
-   If the parser reads a field, that field MUST appear in `required_fields`, and the lick parser's `ValueError` guard
+2. Write the output with `write_ipc(file=output_file, compression="uncompressed")` so the result is memory-mappable
+   downstream, and lead the schema with a `time_us` uint64 column.
+3. Add the output filename as a new `BehaviorDataFiles` member (owned by `/mesoscope-vr-processing-schema`) and
+   build the output path from that member inside the entry point, never hardcoding the filename string.
+4. Register a new `_ModuleSpecification` under the module's `(module_type, module_id)` key in `_MODULE_REGISTRY`. List
+   every `MesoscopeHardwareState` field the parser reads in `required_fields`, every boolean recording whether the
+   module was used at all in `usage_flags`, and every event code the parser reads in `event_codes`. Then register the
+   entry point under its `(acquisition system, module_type, module_id)` triplet in `sollertia_forgery.registries`. If
+   the parser reads a field, that field MUST appear in `required_fields`, and the lick parser's `ValueError` guard
    exists precisely to catch a parser/registry skew.
-5. If the new column must reach the assembled session feather, coordinate with
-   `mesoscope:mesoscope-vr-dataset-assembly`, because assembly is out of scope here.
+5. If the new column must reach the assembled session feather, coordinate with `/mesoscope-vr-dataset-assembly`, because
+   assembly is out of scope here.
 
 ---
 
@@ -273,22 +270,22 @@ module:
 The `communication:` entry below resolves through the ataraxis marketplace. Every other entry resolves inside the
 sollertia marketplace.
 
-| Skill                                      | Relationship                                                                    |
-|--------------------------------------------|---------------------------------------------------------------------------------|
-| `forging:data-processing-design`           | Owns the registry seams, the donation Protocols, and `merge_event_streams`      |
-| `communication:log-processing-results`     | Owns the extraction schema, the event partitioning, and the typed value readers |
-| `forging:batch-processing`                 | Runs the microcontroller batch that dispatches these parsers                    |
-| `forging:processing-results`               | Output-discovery and verification reference, defers conversion detail here      |
-| `forging:processing-input-format`          | Owns the per-pipeline inputs a parse job requires                               |
-| `mesoscope:mesoscope-vr-session-schema`    | Owns the `MesoscopeHardwareState` calibration-field schema and authoring        |
-| `mesoscope:mesoscope-vr-processing-schema` | Owns the `BehaviorDataFiles` roster and the producer-to-directory mapping       |
+| Skill                                  | Relationship                                                                    |
+|----------------------------------------|---------------------------------------------------------------------------------|
+| `forging:data-processing-design`       | Owns the registry seams, the donation Protocols, and `merge_event_streams`      |
+| `communication:log-processing-results` | Owns the extraction schema, the event partitioning, and the typed value readers |
+| `forging:batch-processing`             | Runs the microcontroller batch that dispatches these parsers                    |
+| `forging:processing-results`           | Output-discovery and verification reference, defers conversion detail here      |
+| `forging:processing-input-format`      | Owns the per-pipeline inputs a parse job requires                               |
+| `/mesoscope-vr-session-schema`         | Owns the `MesoscopeHardwareState` calibration-field schema and authoring        |
+| `/mesoscope-vr-processing-schema`      | Owns the `BehaviorDataFiles` roster and the producer-to-directory mapping       |
 
 ---
 
 ## Verification checklist
 
 ```text
-Tool-settled (run `rg -n '.{121,}' SKILL.md` and `wc -l SKILL.md`):
+Tool-settled (run `rg -n '.{121,}' <file>` and `wc -l <file>`):
 - [ ] All lines at or under 120 characters (tables and code blocks may exceed for clarity)
 - [ ] SKILL.md under 500 lines
 - [ ] Every code fence carries a language identifier

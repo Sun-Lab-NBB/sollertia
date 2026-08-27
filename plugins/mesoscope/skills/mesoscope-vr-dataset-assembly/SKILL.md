@@ -12,14 +12,13 @@ user-invocable: false
 # Mesoscope-VR dataset assembly
 
 Concretizes the agnostic dataset-forging output stage for the Mesoscope-VR acquisition system. This skill owns the two
-forging registry seams the system fills, `_FORGING_ASSEMBLY_REGISTRY` and `_FORGING_ADMISSION_REGISTRY`, together with
-the whole assembly algorithm behind them: the dispatcher `assemble_mesoscope_session` in `mesoscope_vr/forging.py`,
-the experiment and training assembly paths it routes to, the behavior and runtime sub-datasets, the sentinel masking,
-and the session-bounds clip.
+forging registry seams the system fills, `_FORGING_ASSEMBLY_REGISTRY` and `_FORGING_ADMISSION_REGISTRY`. The assembly
+algorithm behind them is owned here too: the dispatcher `assemble_mesoscope_session` in `mesoscope_vr/forging.py`, the
+experiment and training assembly paths it routes to, the behavior and runtime sub-datasets, the sentinel masking, and
+the session-bounds clip.
 
 The column-roster enum definitions themselves (`DatasetColumn`, `BehaviorDataFiles`) are declared in
-`mesoscope_vr/metadata.py` and documented by `mesoscope:mesoscope-vr-processing-schema`. This skill instantiates the
-`DatasetColumn` roster as the output schema of the assembly stage but does not own the enum definition.
+`mesoscope_vr/metadata.py` and documented by `/mesoscope-vr-processing-schema`.
 
 ---
 
@@ -43,16 +42,15 @@ The column-roster enum definitions themselves (`DatasetColumn`, `BehaviorDataFil
 
 **Does not cover:**
 - The fluorescence sub-dataset and the experiment path's reference clock. Owned by
-  `mesoscope:mesoscope-vr-fluorescence-alignment`.
+  `/mesoscope-vr-fluorescence-alignment`.
 - The video sub-dataset, the camera clock resolver, and the pupil-tracking pass that feeds them. Owned by
-  `mesoscope:mesoscope-vr-video-tracking`.
+  `/mesoscope-vr-video-tracking`.
 - Runtime cue-to-trial decomposition that produces the trial, cue, and trigger-zone inputs. Owned by
-  `mesoscope:mesoscope-vr-trial-decomposition`.
-- Module parser outputs consumed as behavior inputs. Owned by `mesoscope:mesoscope-vr-module-parsing`.
+  `/mesoscope-vr-trial-decomposition`.
+- Module parser outputs consumed as behavior inputs. Owned by `/mesoscope-vr-module-parsing`.
 - The `DatasetColumn`, `BehaviorDataFiles`, and `VideoDataFiles` roster enums, the per-session-type column-presence
-  matrix, and `MESOSCOPE_COLUMN_DESCRIPTIONS`. Owned by `mesoscope:mesoscope-vr-processing-schema`.
-- The agnostic forged-dataset layout on disk and the per-stage tracker artifacts. Owned by
-  `forging:processing-results`.
+  matrix, and `MESOSCOPE_COLUMN_DESCRIPTIONS`. Owned by `/mesoscope-vr-processing-schema`.
+- The agnostic forged-dataset layout on disk and the per-stage tracker artifacts. Owned by `forging:processing-results`.
 - The batch orchestration that dispatches this assembler, and the agnostic two-layer design. Owned by
   `forging:data-processing-design`.
 - Composing a dataset from filtered sessions, and the admission gate that reads the pipeline mapping. Owned by
@@ -67,14 +65,14 @@ The column-roster enum definitions themselves (`DatasetColumn`, `BehaviorDataFil
 Mesoscope-VR fills two of the eleven `sollertia_forgery.registries` seams from `mesoscope_vr/forging.py`, both keyed on
 `AcquisitionSystems.MESOSCOPE_VR`.
 
-| Registry                      | Donated value                                                                                            | Public resolver                                                       |
-|-------------------------------|----------------------------------------------------------------------------------------------------------|-----------------------------------------------------------------------|
+| Registry                      | Donated value                                                                                                    | Public resolver                                                          |
+|-------------------------------|------------------------------------------------------------------------------------------------------------------|--------------------------------------------------------------------------|
 | `_FORGING_ASSEMBLY_REGISTRY`  | `_ForgingAssemblyAsset(assembler=assemble_mesoscope_session, column_descriptions=MESOSCOPE_COLUMN_DESCRIPTIONS)` | `resolve_forging_assembly_worker`, `resolve_forging_column_descriptions` |
-| `_FORGING_ADMISSION_REGISTRY` | `MESOSCOPE_ADMISSION_PIPELINES`                                                                            | `resolve_forging_admission_pipelines`                                 |
+| `_FORGING_ADMISSION_REGISTRY` | `MESOSCOPE_ADMISSION_PIPELINES`                                                                                  | `resolve_forging_admission_pipelines`                                    |
 
-`assemble_mesoscope_session` satisfies the public `ForgingAssembler` protocol,
-`__call__(source_session_path, output_path, dataset_name) -> None`. It is a picklable module-level function because the
-agnostic forging pipeline resolves it once and invokes it in a worker process, once per admitted session.
+`assemble_mesoscope_session` satisfies the public `ForgingAssembler` protocol, whose call signature is
+`__call__(source_session_path, output_path, dataset_name) -> None`. It is a picklable module-level function because
+the agnostic forging pipeline resolves it once and invokes it in a worker process, once per admitted session.
 
 ---
 
@@ -83,12 +81,12 @@ agnostic forging pipeline resolves it once and invokes it in a worker process, o
 `MESOSCOPE_ADMISSION_PIPELINES` maps each admissible session type to the frozen set of `ProcessingPipelines` members
 that must have completed before a session of that type may join a forged dataset.
 
-| `SessionTypes` member | Value                   | Required pipelines                                          |
-|-----------------------|-------------------------|-------------------------------------------------------------|
+| `SessionTypes` member  | Value                    | Required pipelines                                              |
+|------------------------|--------------------------|-----------------------------------------------------------------|
 | `MESOSCOPE_EXPERIMENT` | `"mesoscope experiment"` | `CHECKSUM`, `RUNTIME`, `MICROCONTROLLER`, `VIDEO`, `TWO_PHOTON` |
-| `RUN_TRAINING`        | `"run training"`        | `CHECKSUM`, `RUNTIME`, `MICROCONTROLLER`, `VIDEO`            |
-| `LICK_TRAINING`       | `"lick training"`       | `CHECKSUM`, `RUNTIME`, `MICROCONTROLLER`, `VIDEO`            |
-| `WINDOW_CHECKING`     | `"window checking"`     | absent from the mapping, so the session type joins no dataset |
+| `RUN_TRAINING`         | `"run training"`         | `CHECKSUM`, `RUNTIME`, `MICROCONTROLLER`, `VIDEO`               |
+| `LICK_TRAINING`        | `"lick training"`        | `CHECKSUM`, `RUNTIME`, `MICROCONTROLLER`, `VIDEO`               |
+| `WINDOW_CHECKING`      | `"window checking"`      | absent from the mapping, so the session type joins no dataset   |
 
 A training session records no imaging, so the two-photon pipeline is absent from its requirement. The mapping declares
 pipelines rather than source counts because every pipeline resolves its own job universe from the acquisition
@@ -105,15 +103,15 @@ and for outstanding pipelines, are owned by `forging:dataset-definition`.
 `assemble_mesoscope_session(source_session_path, output_path, dataset_name)` loads the session with `SessionData.load`
 and routes on `session.session_type`.
 
-| Session type                                                          | Routed to                                              | `dataset_name` forwarded                            |
-|-----------------------------------------------------------------------|--------------------------------------------------------|------------------------------------------------------|
-| `SessionTypes.MESOSCOPE_EXPERIMENT`                                    | `assemble_experiment_dataset` (`experiment_dataset.py`) | yes, it resolves the cindra multi-recording directory |
-| `SessionTypes.RUN_TRAINING`, `SessionTypes.LICK_TRAINING`              | `assemble_training_dataset` (`training_dataset.py`)     | no                                                   |
-| any other session type                                                 | nothing, a `ValueError` is raised                       | not applicable                                       |
+| Session type                                              | Routed to                                               | `dataset_name` forwarded                              |
+|-----------------------------------------------------------|---------------------------------------------------------|-------------------------------------------------------|
+| `SessionTypes.MESOSCOPE_EXPERIMENT`                       | `assemble_experiment_dataset` (`experiment_dataset.py`) | yes, it resolves the cindra multi-recording directory |
+| `SessionTypes.RUN_TRAINING`, `SessionTypes.LICK_TRAINING` | `assemble_training_dataset` (`training_dataset.py`)     | no                                                    |
+| any other session type                                    | nothing, a `ValueError` is raised                       | not applicable                                        |
 
 The two training types are held in `_TRAINING_SESSION_TYPES`. The rejection message names the session directory, the
-rejected type, and the supported set, which is built by sorting the three routed values into
-`"lick training, mesoscope experiment, run training"`.
+rejected type, and the supported set `"lick training, mesoscope experiment, run training"`, which is built by sorting
+the three routed values.
 
 ---
 
@@ -143,8 +141,6 @@ steps in order:
 7. **Mask, clip, write.** `mask_non_run_experiment_data`, then `clip_to_session_bounds`, then
    `result.write_ipc(file=output_path)`.
 
-This path is the only one that concatenates four sub-datasets, and the only one that masks.
-
 ---
 
 ## The training assembly path
@@ -170,10 +166,10 @@ produces none of the runtime columns that masking rewrites.
 
 ## Reference clock and interpolation
 
-| Session type                  | Reference clock                                                            | Produced by                              |
-|-------------------------------|----------------------------------------------------------------------------|------------------------------------------|
-| mesoscope experiment          | the fluorescence sub-dataset's `time_us`, one sample per acquired mesoscope frame | `mesoscope_vr/two_photon_dataset.py`     |
-| run training, lick training   | the slowest camera's frame timestamps, verbatim                             | `video_dataset.resolve_slowest_camera_clock` |
+| Session type                | Reference clock                                                                   | Produced by                                  |
+|-----------------------------|-----------------------------------------------------------------------------------|----------------------------------------------|
+| mesoscope experiment        | the fluorescence sub-dataset's `time_us`, one sample per acquired mesoscope frame | `mesoscope_vr/two_photon_dataset.py`         |
+| run training, lick training | the slowest camera's frame timestamps, verbatim                                   | `video_dataset.resolve_slowest_camera_clock` |
 
 Both clocks are `uint64` NumPy arrays of microsecond timestamps, and every sub-dataset a path assembles is aligned onto
 the clock that path resolved. The slowest camera is chosen for training sessions because every other source
@@ -183,20 +179,20 @@ All alignment is performed by `interpolate_data` from `ataraxis-data-structures`
 `source_coordinates` onto `target_coordinates`. The `is_discrete` flag selects nearest-previous (step) interpolation
 for `True` and linear interpolation for `False`.
 
-Producing either clock is out of scope here. See `mesoscope:mesoscope-vr-fluorescence-alignment` for the fluorescence
-clock and `mesoscope:mesoscope-vr-video-tracking` for the camera clock and the video sub-dataset.
+See `/mesoscope-vr-fluorescence-alignment` for the fluorescence clock and `/mesoscope-vr-video-tracking` for the
+camera clock and the video sub-dataset.
 
 ---
 
 ## Behavior-dataset interpolation rules and special cases
 
 `assemble_behavior_dataset(microcontroller_data_path, runtime_data_path, raw_data_path, reference_time, *,
-drop_time_columns=False)` reads its sources from two processed-data directories: the module-parsed feathers (encoder,
+drop_time_columns=False)` reads its sources from two processed-data directories. The module-parsed feathers (encoder,
 lick, valve, brake, torque, screen) come from the session's `processed_data/microcontroller_data` directory, and the
 runtime system-state feather comes from `processed_data/runtime_data`, both addressed by their `BehaviorDataFiles`
 names. The session's `MesoscopeHardwareState` is read from `raw_data/hardware_state.yaml`. Each source is then
 interpolated onto `reference_time`. `drop_time_columns` is keyword-only and defaults to `False`. The full
-feather-to-directory mapping is owned by `mesoscope:mesoscope-vr-processing-schema`.
+feather-to-directory mapping is owned by `/mesoscope-vr-processing-schema`.
 
 ### Always-present sources
 
@@ -224,7 +220,7 @@ Each of these is included only when its feather exists in the microcontroller-da
 `speed_cm_s` is computed by the numba-accelerated `_calculate_running_speed`, which uses a 100 ms sliding window
 (`_RUNNING_SPEED_WINDOW_US = 100_000` microseconds) over the **original** encoder samples (not the downsampled
 reference grid). For each sample it advances a monotonic window-start index to the first sample within the window,
-divides the distance delta by the time delta in seconds, clamps the result to a non-negative `Float32`, and writes
+divides the distance delta by the time delta in seconds, and clamps the result to a non-negative `Float32`. It writes
 zero whenever the window holds no distinct earlier sample. The resulting speed series is then interpolated
 (`is_discrete=False`) onto `reference_time`.
 
@@ -256,10 +252,9 @@ missing `system_state_codes`, assembly raises a `ValueError`.
   outside the run state. The initial idle distance (before the system has ever left idle) is forced to `0.0`,
   distance updates only while `system_state` is `run`, intermediate non-run samples forward-fill the last run value,
   and any remaining nulls fill to `0.0`. The running speed is simultaneously set to `0.0` outside the run state.
-- **Brake binary threshold:** the brake torque is interpolated (`is_discrete=True`) and converted to a binary
-  `uint8` `brake` column by comparing it against the hardware state's `minimum_brake_strength`
-  (`brake = brake_torque > minimum_brake_strength`). If the hardware state is missing `minimum_brake_strength`,
-  assembly raises a `ValueError`.
+- **Brake binary threshold:** the brake torque is interpolated (`is_discrete=True`) and converted to a binary `uint8`
+  `brake` column, computed as `brake = brake_torque > minimum_brake_strength` against the hardware state's
+  `minimum_brake_strength`. If the hardware state is missing that field, assembly raises a `ValueError`.
 
 ---
 
@@ -310,15 +305,14 @@ columns are indexed by **traveled distance** rather than by time:
 
 3. `runtime_state` is interpolated against `reference_time` (`is_discrete=True`) from `runtime_state_data.feather`.
 
-The trial sources are produced upstream by runtime cue-to-trial decomposition. See
-`mesoscope:mesoscope-vr-trial-decomposition`.
+The trial sources are produced upstream by runtime cue-to-trial decomposition. See `/mesoscope-vr-trial-decomposition`.
 
 ### Trigger-zone membership
 
 `in_trigger_zone` is computed by the numba-accelerated `_check_trigger_zones`, which marks each `reference_distance`
 point `1` (inside) or `0` (outside) by walking the per-trial trigger-zone start/end boundaries from
 `vr_trigger_zone_data.feather`. It relies on both the distance series and the trigger-zone boundaries being sorted
-and monotonically increasing, walks a zone index forward as distance increases (and backward to absorb slight
+and monotonically increasing. It walks a zone index forward as distance increases (and backward to absorb slight
 non-monotonicity), and returns an all-zero array when no trigger zones are defined.
 
 ### Enum mappings
@@ -365,7 +359,7 @@ pairing the column with it element-wise. The masking is then applied column-by-c
 `pl.when(is_non_run).then(<sentinel>).otherwise(<column>)`, preserving each column's dtype.
 
 Which columns an assembled feather carries at all depends on its session type. The complete per-session-type
-column-presence matrix is owned by `mesoscope:mesoscope-vr-processing-schema`.
+column-presence matrix is owned by `/mesoscope-vr-processing-schema`.
 
 ---
 
@@ -390,17 +384,17 @@ setup, so the first row of an assembled feather carries an `elapsed_minutes` val
 
 ## Error surface
 
-| Raise                    | Origin                                          | Condition                                                                              |
-|--------------------------|-------------------------------------------------|-----------------------------------------------------------------------------------------|
-| `ValueError`             | `forging.py`                                    | The session type is neither the experiment type nor a member of `_TRAINING_SESSION_TYPES` |
-| `FileNotFoundError`      | `experiment_dataset.py`, `training_dataset.py`  | The processed microcontroller-data or runtime-data directory does not exist              |
-| `FileNotFoundError`      | `experiment_dataset.py`                         | The single-recording cindra output directory does not exist                              |
-| `FileNotFoundError`      | `training_dataset.py`                           | No camera clock qualifies as the training reference clock                                 |
-| `FileNotFoundError`      | `behavior_dataset.py`                           | The hardware state YAML, or the valve, lick, or system-state feather, is missing          |
-| `ValueError`             | `behavior_dataset.py`                           | The hardware state is missing `system_state_codes`, or `minimum_brake_strength` when brake data is present |
-| `InvalidOperationError`  | `behavior_dataset.py`                           | The system-state feather carries a code absent from the `system_state_codes` mapping      |
-| `FileNotFoundError`      | `runtime_dataset.py`                            | Any of the five required encoder, VR cue, trigger zone, trial, or runtime state feathers is missing |
-| `InvalidOperationError`  | `runtime_dataset.py`                            | A recorded trial type index or runtime state code has no entry in the experiment configuration's mappings |
+| Raise                   | Origin                                         | Condition                                                                                                  |
+|-------------------------|------------------------------------------------|------------------------------------------------------------------------------------------------------------|
+| `ValueError`            | `forging.py`                                   | The session type is neither the experiment type nor a member of `_TRAINING_SESSION_TYPES`                  |
+| `FileNotFoundError`     | `experiment_dataset.py`, `training_dataset.py` | The processed microcontroller-data or runtime-data directory does not exist                                |
+| `FileNotFoundError`     | `experiment_dataset.py`                        | The single-recording cindra output directory does not exist                                                |
+| `FileNotFoundError`     | `training_dataset.py`                          | No camera clock qualifies as the training reference clock                                                  |
+| `FileNotFoundError`     | `behavior_dataset.py`                          | The hardware state YAML, or the valve, lick, or system-state feather, is missing                           |
+| `ValueError`            | `behavior_dataset.py`                          | The hardware state is missing `system_state_codes`, or `minimum_brake_strength` when brake data is present |
+| `InvalidOperationError` | `behavior_dataset.py`                          | The system-state feather carries a code absent from the `system_state_codes` mapping                       |
+| `FileNotFoundError`     | `runtime_dataset.py`                           | Any of the five required encoder, VR cue, trigger zone, trial, or runtime state feathers is missing        |
+| `InvalidOperationError` | `runtime_dataset.py`                           | A recorded trial type index or runtime state code has no entry in the experiment configuration's mappings  |
 
 `InvalidOperationError` is the Polars exception `replace_strict` raises on an unmapped value, so it surfaces as an
 unmapped code rather than as a missing file. Every other raise here is routed through
@@ -412,10 +406,10 @@ unmapped code rather than as a missing file. Every other raise here is routed th
 
 A forged dataset re-exports each session's `vr_configuration.yaml` next to the assembled `data.feather`, and dataset
 inspection treats that copy as required only when the dataset's own `session_type` belongs to
-`SESSION_TYPES_USING_VR_TASK`. That frozen set holds exactly one member today, `SessionTypes.MESOSCOPE_EXPERIMENT`,
-so `vr_configuration.yaml` is a required dataset artifact only for datasets whose `session_type` is
-`"mesoscope experiment"`. In a dataset of lick-training, run-training, or window-checking sessions, a missing
-`vr_configuration.yaml` describes the source sessions rather than a defective dataset.
+`SESSION_TYPES_USING_VR_TASK`. That frozen set holds exactly one member today, `SessionTypes.MESOSCOPE_EXPERIMENT`, so
+the copy is a required dataset artifact only for datasets whose `session_type` is `"mesoscope experiment"`. In a
+dataset of lick-training, run-training, or window-checking sessions, a missing `vr_configuration.yaml` describes the
+source sessions rather than a defective dataset.
 
 The registry-dispatched mechanism behind that rule, the `DatasetData` marker it is read from, and the inspection
 report that applies it belong to `assets:datasets`.
@@ -424,18 +418,18 @@ report that applies it belong to `assets:datasets`.
 
 ## Related skills
 
-| Skill                                           | Relationship                                                                                  |
-|-------------------------------------------------|-------------------------------------------------------------------------------------------------|
-| `forging:dataset-forging`                       | Runs the forging pipeline that dispatches this assembler once per admitted session             |
-| `forging:data-processing-design`                | Owns the agnostic two-layer design and the registry seams this skill fills                     |
-| `forging:processing-results`                    | Owns the agnostic forged-dataset layout and the tracker artifacts around this stage            |
-| `forging:dataset-definition`                    | Composes a dataset from filtered sessions and owns the gate that reads the admission mapping   |
-| `assets:datasets`                               | Owns the `DatasetData` marker, the dataset layout, and the seven slsa dataset tools            |
-| `mesoscope:mesoscope-vr-fluorescence-alignment` | Produces the fluorescence sub-dataset and the experiment path's reference clock                |
-| `mesoscope:mesoscope-vr-video-tracking`         | Owns the video sub-dataset, the camera clock resolver, and the pupil columns                   |
-| `mesoscope:mesoscope-vr-trial-decomposition`    | Produces the `trial` / `cue` / `vr_trigger_zone` feathers consumed by the runtime assembly     |
-| `mesoscope:mesoscope-vr-module-parsing`         | Produces the per-module behavior feathers consumed by the behavior assembly                    |
-| `mesoscope:mesoscope-vr-processing-schema`      | Owns the roster enums, the column-presence matrix, and `MESOSCOPE_COLUMN_DESCRIPTIONS`         |
+| Skill                                  | Relationship                                                                                 |
+|----------------------------------------|----------------------------------------------------------------------------------------------|
+| `forging:dataset-forging`              | Runs the forging pipeline that dispatches this assembler once per admitted session           |
+| `forging:data-processing-design`       | Owns the agnostic two-layer design and the registry seams this skill fills                   |
+| `forging:processing-results`           | Owns the agnostic forged-dataset layout and the tracker artifacts around this stage          |
+| `forging:dataset-definition`           | Composes a dataset from filtered sessions and owns the gate that reads the admission mapping |
+| `assets:datasets`                      | Owns the `DatasetData` marker, the dataset layout, and the seven slsa dataset tools          |
+| `/mesoscope-vr-fluorescence-alignment` | Produces the fluorescence sub-dataset and the experiment path's reference clock              |
+| `/mesoscope-vr-video-tracking`         | Owns the video sub-dataset, the camera clock resolver, and the pupil columns                 |
+| `/mesoscope-vr-trial-decomposition`    | Produces the `trial` / `cue` / `vr_trigger_zone` feathers consumed by the runtime assembly   |
+| `/mesoscope-vr-module-parsing`         | Produces the per-module behavior feathers consumed by the behavior assembly                  |
+| `/mesoscope-vr-processing-schema`      | Owns the roster enums, the column-presence matrix, and `MESOSCOPE_COLUMN_DESCRIPTIONS`       |
 
 ---
 
@@ -473,8 +467,8 @@ Assembly claims:
       the sole SESSION_TYPES_USING_VR_TASK member
 - [ ] No invented symbols, filenames, tolerances, or event codes, every one derived from the cited source files
 - [ ] Did not redefine the DatasetColumn / BehaviorDataFiles enums or the column-presence matrix, handed off to
-      mesoscope:mesoscope-vr-processing-schema
+      /mesoscope-vr-processing-schema
 - [ ] Did not restate the video sub-dataset or the camera clock internals, handed off to
-      mesoscope:mesoscope-vr-video-tracking
+      /mesoscope-vr-video-tracking
 - [ ] Did not restate the DatasetData marker, the dataset layout, or the dataset tools, handed off to assets:datasets
 ```

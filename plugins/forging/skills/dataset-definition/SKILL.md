@@ -477,7 +477,7 @@ Tool-settled (run `rg -n '.{121,}' <file>` and `wc -l <file>`):
 - [ ] All lines at or under 120 characters (tables and code blocks may exceed for clarity)
 - [ ] SKILL.md under 500 lines
 - [ ] Every code fence carries a language identifier
-- [ ] rg -n 'ataraxis@|cindra@' SKILL.md finds nothing
+- [ ] rg -n 'ataraxis@|cindra@' <file> finds nothing
 
 Dataset definition:
 - [ ] sollertia-forgery MCP server is connected (invoked /forging-mcp-environment-setup if unavailable)

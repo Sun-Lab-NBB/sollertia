@@ -11,9 +11,8 @@ user-invocable: false
 # Mesoscope-VR system
 
 Knowledge repository for the Mesoscope-VR data acquisition system, currently the only system the Sollertia platform
-supports. This skill documents the system's hardware composition, configuration surface, and binding-class layer.
-Mesoscope-VR is also the worked example an agent copies when building a new acquisition system, so every section below
-names the platform-general seam that its Mesoscope-VR choice fills. The seam catalog itself belongs to
+supports. Mesoscope-VR is also the worked example an agent copies when building a new acquisition system, so every
+section below names the platform-general seam that its Mesoscope-VR choice fills. The seam catalog itself belongs to
 `experiment:library-extension`, the platform-general design pattern to `experiment:acquisition-system-design`, and the
 runtime behavior (state machine, training modes, CLI) to `/mesoscope-vr-runtime`.
 
@@ -29,15 +28,14 @@ runtime behavior (state machine, training modes, CLI) to `/mesoscope-vr-runtime`
 - `MesoscopeData`, the class that resolves the `filesystem` section into per-session paths
 - Per-subsystem binding classes (`MicroControllerInterfaces`, `VideoSystems`, `ZaberMotors`) and the
   `MesoscopeDriver` MQTT interface, covering composition and lifecycle wiring
-- MCP tools for reading, writing, and validating the configuration YAML, plus
-  `read_session_system_configuration_tool` for the frozen per-session snapshot
+- MCP tools for reading, writing, and validating the configuration YAML, plus `read_session_system_configuration_tool`
+  for the frozen per-session snapshot
 - The `video_tracking` section that binds the acquisition stack to the sollertia-video-tracking (slvt) inference tool
 - Configuration authoring and modification workflows
 
 **Does not cover** (delegated):
 - The platform-general design pattern this system implements. See `experiment:acquisition-system-design`
-- The extension seams a new acquisition system touches across the four repositories. See
-  `experiment:library-extension`
+- The extension seams a new acquisition system touches across the four repositories. See `experiment:library-extension`
 - Mesoscope-VR runtime behavior (state machine, training modes, visualizers, `sle mesoscope` CLI commands) and the
   session descriptors it populates. See `/mesoscope-vr-runtime` and `/mesoscope-vr-session-schema`
 - Per-firmware-module Python wrappers and slmc firmware Modules. See `experiment:microcontroller-interface`
@@ -53,10 +51,10 @@ runtime behavior (state machine, training modes, CLI) to `/mesoscope-vr-runtime`
 
 Mesoscope-VR is a head-fixed 2-Photon Random Access Mesoscope (2P-RAM) imaging system with a Virtual Reality
 environment. It spans two machines. The VRPC runs the acquisition runtime and owns every subsystem in the table below.
-The ScanImagePC runs the ScanImage software and the `runAcquisition` MATLAB command loop that drives the microscope,
-and it exports its data-output directory as a local mount that the VRPC reads through
-`filesystem.mesoscope_directory`. That field is therefore the ScanImagePC data share as seen from the VRPC, and
-`MesoscopeData` raises `ValueError` when it is left unset (`mesoscope_vr/system.py`).
+The ScanImagePC runs the ScanImage software and the `runAcquisition` MATLAB command loop that drives the microscope, and
+it exports its data-output directory as a local mount that the VRPC reads through `filesystem.mesoscope_directory`. That
+field is therefore the ScanImagePC data share as seen from the VRPC, and `MesoscopeData` raises `ValueError` when it is
+left unset (`mesoscope_vr/system.py`).
 
 | Subsystem             | Devices                                                            | Binding class                       |
 |-----------------------|--------------------------------------------------------------------|-------------------------------------|
@@ -146,9 +144,8 @@ the file resolves to `<working_directory>/configuration/mesoscope_system_configu
 `experiment:acquisition-system-design`:
 
 - **`__post_init__`** normalizes the valve calibration table from its YAML-natural `dict` shape to the in-memory
-  `tuple[tuple[int | float, int | float], ...]` shape that `WaterValveInterface` consumes. It also validates that
-  every entry is a 2-tuple of numeric values, and a malformed entry raises `TypeError`
-  (`mesoscope_vr/system.py`).
+  `tuple[tuple[int | float, int | float], ...]` shape that `WaterValveInterface` consumes. It also validates that every
+  entry is a 2-tuple of numeric values, and a malformed entry raises `TypeError` (`mesoscope_vr/system.py`).
 - **`save()`** override temporarily converts the valve calibration table back to a `dict` before writing to YAML so
   existing files retain the mapping layout, then restores the tuple form in a `finally` block
   (`mesoscope_vr/system.py`).
@@ -197,7 +194,7 @@ configuration first, mutate the returned dictionary, then write the whole thing 
 
 ---
 
-## Hardware subsystem: Microcontrollers
+## Hardware subsystem: microcontrollers
 
 The Mesoscope-VR system uses **three Teensy 4.1 microcontrollers** in dedicated roles:
 
@@ -219,8 +216,8 @@ recorder relative to mesoscope acquisition is owned by `/mesoscope-vr-runtime`.
 
 ### MicroControllerInterfaces binding class
 
-`MicroControllerInterfaces` (in `mesoscope_vr/binding_classes.py`) composes the three
-`MicroControllerInterface` instances and the eight Python wrappers from `cross_system/module_interfaces.py`.
+`MicroControllerInterfaces` (in `mesoscope_vr/binding_classes.py`) composes the three `MicroControllerInterface`
+instances and the eight Python wrappers from `cross_system/module_interfaces.py`.
 
 Construction signature: `MicroControllerInterfaces(data_logger: DataLogger, microcontroller_configuration:
 MesoscopeMicroControllers)`.
@@ -235,11 +232,11 @@ fields, then wraps each block in a `MicroControllerInterface` with the correspon
 
 `start()` sets `_started = True` **before** bringing the controllers up, so a failure partway through still routes
 through `stop()` and tears down whichever controllers already started (`mesoscope_vr/binding_classes.py`). It then
-starts the three controllers in order (actor, sensor, encoder), calls `initialize_local_assets()` on the five wrappers
-backed by a SharedMemoryArray (`wheel_encoder`, `valve`, `gas_puff_valve`, `mesoscope_frame`, `lick`), and pushes
-runtime parameters via `set_parameters()` to the five wrappers that accept them: `wheel_encoder`, `screens`, `lick`,
-`torque`, and `mesoscope_frame`. `brake` and `valve` are parameterized at construction instead, and `gas_puff_valve`
-takes no configuration at all.
+starts the three controllers in order (actor, sensor, encoder) and calls `initialize_local_assets()` on the five
+wrappers backed by a SharedMemoryArray (`wheel_encoder`, `valve`, `gas_puff_valve`, `mesoscope_frame`, `lick`). Finally,
+it pushes runtime parameters via `set_parameters()` to the five wrappers that accept them: `wheel_encoder`, `screens`,
+`lick`, `torque`, and `mesoscope_frame`. `brake` and `valve` are parameterized at construction instead, and
+`gas_puff_valve` takes no configuration at all.
 
 `stop()` returns immediately when the interfaces never started, then tears the three controllers down in the same
 forward order, each call wrapped in `run_shutdown_step` so a failing teardown cannot strand the controllers that
@@ -251,7 +248,7 @@ For per-wrapper mechanics, the cross-side contract with the firmware, and the sl
 
 ---
 
-## Hardware subsystem: Cameras
+## Hardware subsystem: cameras
 
 The Mesoscope-VR system uses **two GenICam scientific cameras** (Harvester-managed) for animal behavior recording:
 
@@ -362,20 +359,20 @@ mesoscope-frame TTL rather than over MQTT.
 
 ### MesoscopeAcquisition dataclass
 
-`MesoscopeAcquisition` (in `mesoscope_vr/system.py`) is the `acquisition` field of
-`MesoscopeSystemConfiguration`. It parameterizes the reference motion estimator and the high-definition reference
-z-stack that the ScanImagePC generates at the start of each runtime.
+`MesoscopeAcquisition` (in `mesoscope_vr/system.py`) is the `acquisition` field of `MesoscopeSystemConfiguration`. It
+parameterizes the reference motion estimator and the high-definition reference z-stack that the ScanImagePC generates at
+the start of each runtime.
 
 For the full per-field documentation (types, defaults, units, and `__post_init__` validation), see
 [`references/configuration-fields.md`](references/configuration-fields.md) under the "MesoscopeAcquisition" section.
 
 ### MesoscopeDriver interface class
 
-`MesoscopeDriver` (in `mesoscope_vr/mesoscope_driver.py`) encapsulates all MQTT communication with the
-`runAcquisition` MATLAB function on the ScanImagePC. Its construction signature, method surface,
-command-acknowledgement semantics, MQTT topic namespace, status states, per-command payload contents, the
-`runAcquisition` MATLAB counterpart, and the pre-flight bridge check that confirms that counterpart is running are
-documented in [`references/mesoscope-driver.md`](references/mesoscope-driver.md).
+`MesoscopeDriver` (in `mesoscope_vr/mesoscope_driver.py`) encapsulates all MQTT communication with the `runAcquisition`
+MATLAB function on the ScanImagePC. Its construction signature, method surface, command-acknowledgement semantics, MQTT
+topic namespace, status states, per-command payload contents, the `runAcquisition` MATLAB counterpart, and the
+pre-flight bridge check that confirms that counterpart is running are documented in
+[`references/mesoscope-driver.md`](references/mesoscope-driver.md).
 
 For when the orchestrator invokes these methods within the runtime state machine, see `/mesoscope-vr-runtime`.
 
@@ -396,9 +393,10 @@ mesoscope, valve, or motor hardware yourself. Direct the experimenter to the mai
 of `MesoscopeVRAssets`, and `MesoscopeVideoTracking` are documented field by field in
 [`references/configuration-fields.md`](references/configuration-fields.md).
 
-Authoring a configuration on a new host, verifying a camera's GenICam configuration, reindexing or re-porting hardware,
+[`references/modification-workflows.md`](references/modification-workflows.md) documents authoring a configuration on a
+new host, verifying a camera's GenICam configuration, and reindexing or re-porting hardware. It also documents
 recalibrating a module, adding a module to an existing or to a new microcontroller board, adding a camera, and adding a
-Zaber motor group are documented in [`references/modification-workflows.md`](references/modification-workflows.md).
+Zaber motor group.
 
 ---
 
@@ -436,6 +434,9 @@ YAML that either fails schema validation or validates and parameterizes the syst
 
 ## Related skills
 
+The `video:` and `communication:` entries below resolve through the ataraxis marketplace. Every other entry resolves
+inside the sollertia marketplace.
+
 | Skill                                     | Relationship                                                                                    |
 |-------------------------------------------|-------------------------------------------------------------------------------------------------|
 | `experiment:acquisition-system-design`    | The platform-general pattern this system implements. Required reading.                          |
@@ -457,9 +458,6 @@ YAML that either fails schema validation or validates and parameterizes the syst
 | `experiment:data-management`              | Transfer and removal workflows that consume the resolved storage destinations.                  |
 | `forging:server-configuration`            | Sibling configuration file for remote storage transfer.                                         |
 
-`video:camera-interface` and `communication:microcontroller-interface` resolve through the ataraxis marketplace. Every
-other entry resolves inside this repository.
-
 ---
 
 ## Verification checklist
@@ -468,6 +466,8 @@ other entry resolves inside this repository.
 Tool-settled (run `rg -n '.{121,}' <file>` and `wc -l <file>`):
 - [ ] All lines at or under 120 characters (tables and code blocks may exceed for clarity)
 - [ ] SKILL.md under 500 lines
+- [ ] Every code fence carries a language identifier
+- [ ] rg -n 'ataraxis@|cindra@' <file> finds nothing
 
 Prerequisites:
 - [ ] assets:working-directory has been run on this host and the sle mcp server is connected

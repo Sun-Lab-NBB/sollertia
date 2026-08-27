@@ -1,15 +1,15 @@
 ---
 name: mesoscope-vr-snapshots
 description: >-
-  Reads and writes the Mesoscope-VR per-session frozen position snapshots (ZaberPositions, MesoscopePositions) via
-  the `sle mcp` server, and documents the Mesoscope-VR raw-data layout contract (MesoscopeRawDataFiles,
+  Reads and writes the Mesoscope-VR per-session frozen position snapshots (ZaberPositions, MesoscopePositions) via the
+  `sle mcp` server, and documents the Mesoscope-VR raw-data layout contract (MesoscopeRawDataFiles,
   MesoscopeDirectories, MesoscopeRawData.build). Owns the position snapshot write tools. Use when inspecting motor
-  positions recorded during a session, patching positions after a manual adjustment, recovering a corrupted
-  snapshot, or resolving a Mesoscope-VR raw-data path.
+  positions recorded during a session, patching positions after a manual adjustment, recovering a corrupted snapshot, or
+  resolving a Mesoscope-VR raw-data path.
 user-invocable: false
 ---
 
-# Sollertia Mesoscope-VR position snapshots
+# Mesoscope-VR position snapshots
 
 Reads and writes the per-session frozen position snapshot YAML files written by the runtime during a `sle mesoscope run
 <session-type>` session. Every session type writes `zaber_positions.yaml`, and the `experiment` and `window-checking`
@@ -26,7 +26,7 @@ the *frozen per-session records* alone.
 The third per-session snapshot, `MesoscopeHardwareState`, is **not** covered by this skill. It lives on the slsa MCP
 server, because the dataclass is shared between the acquisition runtime and the processing pipeline. Hand off to
 `assets:session-hardware-state` for the generic read, write, and describe tooling over `hardware_state.yaml`, and to
-`mesoscope:mesoscope-vr-session-schema` for the field-level Mesoscope-VR schema those tools operate on.
+`/mesoscope-vr-session-schema` for the field-level Mesoscope-VR schema those tools operate on.
 
 ---
 
@@ -40,18 +40,17 @@ server, because the dataclass is shared between the acquisition runtime and the 
 
 **Does not cover:**
 - Reading or writing `MesoscopeHardwareState` (`hardware_state.yaml`), which `assets:session-hardware-state` owns,
-  and its field-level schema, which `mesoscope:mesoscope-vr-session-schema` owns
+  and its field-level schema, which `/mesoscope-vr-session-schema` owns
 - Reading the `SessionData` marker file (see `assets:session-data`)
 - Reading or writing session descriptors (see `assets:session-descriptors`)
-- Reading the frozen system or experiment configuration files at session start (those are read via
-  `mesoscope:mesoscope-vr`'s `read_session_system_configuration_tool` and the assets plugin's
-  `assets:experiment-configuration` `read_experiment_configuration_tool`)
+- Reading the frozen system or experiment configuration files at session start (those are read via `/mesoscope-vr`'s
+  `read_session_system_configuration_tool` and the assets plugin's `assets:experiment-configuration`
+  `read_experiment_configuration_tool`)
 - Reading subject metadata (see `assets:data-assets`)
 - Live Zaber motor configuration during runtime (see `experiment:zaber-interface`)
 - The slsa registration contract a new system's `<system>/raw_data.py` satisfies (see `assets:library-extension`)
 - The sollertia-experiment seams a new system's snapshot tools plug into (see `experiment:library-extension`)
-- The runtime that writes these snapshots, and the `sle mesoscope` CLI that starts it (see
-  `mesoscope:mesoscope-vr-runtime`)
+- The runtime that writes these snapshots, and the `sle mesoscope` CLI that starts it (see `/mesoscope-vr-runtime`)
 
 ---
 
@@ -104,10 +103,9 @@ when a snapshot file is corrupted or out of sync with reality.
 Both write tools, `write_session_zaber_positions_tool` and `write_session_mesoscope_positions_tool`
 (`interfaces/mesoscope_vr_tools.py`), take the snapshot payload as the `positions_payload` argument and accept a
 keyword-only `overwrite` flag that defaults to `True`. That default replaces an existing snapshot silently. The system
-configuration writer that `mesoscope:mesoscope-vr` owns, `write_system_configuration_tool`
-(`interfaces/mesoscope_vr_tools.py`), defaults the same flag to `False`, so the safer default does not carry over to
-these two tools. You MUST pass `overwrite=False` on any write you did not intend as a deliberate rewrite of a recorded
-history.
+configuration writer that `/mesoscope-vr` owns, `write_system_configuration_tool` (`interfaces/mesoscope_vr_tools.py`),
+defaults the same flag to `False`, so the safer default does not carry over to these two tools. You MUST pass
+`overwrite=False` on any write you did not intend as a deliberate rewrite of a recorded history.
 
 Every tool here takes `session_path`, which `_resolve_session_root` accepts as either a session root holding a
 `raw_data` subdirectory or the `raw_data` directory itself, returning the parent in the second case
@@ -177,7 +175,7 @@ stay consistent with the runtime-written records.
 
 For the `MesoscopeHardwareState` read/write/describe trio (`read_session_hardware_state_tool`,
 `write_session_hardware_state_tool`, `describe_session_hardware_state_schema_tool`), hand off to
-`assets:session-hardware-state`. For the fields those tools carry, hand off to `mesoscope:mesoscope-vr-session-schema`.
+`assets:session-hardware-state`. For the fields those tools carry, hand off to `/mesoscope-vr-session-schema`.
 
 ---
 
@@ -267,8 +265,8 @@ platform-general seam it fills, and the skill that owns that seam.
 
 ### Inspecting position snapshots for a session
 
-1. **Verify prerequisites:** `sle mcp` (sollertia-experiment) is connected. If not, hand
-   off to `experiment:experiment-mcp-environment-setup`.
+1. **Verify prerequisites:** `sle mcp` (sollertia-experiment) is connected. If not, hand off to
+   `experiment:experiment-mcp-environment-setup`.
 2. **Read the snapshots:**
    ```text
    read_session_zaber_positions_tool(session_path="<absolute>")
@@ -277,11 +275,11 @@ platform-general seam it fills, and the skill that owns that seam.
    Only the `experiment` and `window-checking` session types write `mesoscope_positions.yaml`. For a
    `lick-training` or `run-training` session, read the Zaber snapshot alone, because the mesoscope read returns a
    file-not-found error that reflects the expected layout.
-3. **Report to the user.** Optionally cross-reference with the live system configuration via
-   `mesoscope:mesoscope-vr` to identify drift, or hand off to `assets:session-hardware-state` to also pull the hardware
-   state snapshot. Only the `MesoscopeVRSystem` controller writes `hardware_state.yaml`, so that handoff applies to
-   `lick-training`, `run-training`, and `experiment` sessions. A `window-checking` session runs its own sequence and
-   carries no `hardware_state.yaml` at all.
+3. **Report to the user.** Optionally cross-reference with the live system configuration via `/mesoscope-vr` to
+   identify drift, or hand off to `assets:session-hardware-state` to also pull the hardware state snapshot. Only the
+   `MesoscopeVRSystem` controller writes `hardware_state.yaml`, so that handoff applies to `lick-training`,
+   `run-training`, and `experiment` sessions. A `window-checking` session runs its own sequence and carries no
+   `hardware_state.yaml` at all.
 
 ### Rescuing a bad auto-generated `ZaberPositions` snapshot
 
@@ -299,10 +297,9 @@ The per-animal `persistent_data` copy that seeds the next runtime is a separate 
    ```text
    read_session_zaber_positions_tool(session_path="<absolute>")
    ```
-3. **Build the corrected dictionary** with the positions the session should have recorded, which is typically
-   the same animal's last good snapshot (see [Recovering a corrupted
-   snapshot](#recovering-a-corrupted-snapshot) for sourcing it from an adjacent session or the
-   `persistent_data` copy). Carry all seven `ZaberPositions` fields listed under
+3. **Build the corrected dictionary** with the positions the session should have recorded, which is typically the same
+   animal's last good snapshot (see [Recovering a corrupted snapshot](#recovering-a-corrupted-snapshot) for sourcing it
+   from an adjacent session or the `persistent_data` copy). Carry all seven `ZaberPositions` fields listed under
    [MCP tool surface](#mcp-tool-surface), since an omitted key silently writes its default.
 4. **Confirm with the user before writing.**
 5. **Write the corrected positions:**
@@ -329,13 +326,13 @@ runtime from it, so the same animal's positions drift little between sessions.
    window-checking session seeds that file with all-zero defaults at session start for an animal it has never imaged,
    so an animal whose first window-checking session never reached teardown carries defaults rather than a recorded
    pose.
-2. **Pull rig context to validate a candidate** (not to recover positions). Hand off to
-   `assets:session-hardware-state` for `MesoscopeHardwareState`, and read the frozen system configuration via
-   `mesoscope:mesoscope-vr` (`read_session_system_configuration_tool`) for the three Zaber USB port strings it carries:
-   `headbar_port`, `lickport_port`, and `wheel_port`. The frozen configuration holds no per-motor calibration. The
-   park, maintenance, and mount positions, the motion limits, and the device labels live in the motors' non-volatile
-   memory and are read through `experiment:zaber-interface` and its `get_zaber_device_settings_tool`. Use both sources
-   to confirm a candidate snapshot matches the rig that ran the session.
+2. **Pull rig context to validate a candidate** (not to recover positions). Hand off to `assets:session-hardware-state`
+   for `MesoscopeHardwareState`, and read the frozen system configuration via `/mesoscope-vr`
+   (`read_session_system_configuration_tool`) for the three Zaber USB port strings it carries: `headbar_port`,
+   `lickport_port`, and `wheel_port`. The frozen configuration holds no per-motor calibration. The park, maintenance,
+   and mount positions, the motion limits, and the device labels live in the motors' non-volatile memory and are read
+   through `experiment:zaber-interface` and its `get_zaber_device_settings_tool`. Use both sources to confirm a
+   candidate snapshot matches the rig that ran the session.
 3. Hand the recovery proposal to the user before writing a replacement snapshot.
 
 ### The per-animal persistent-data layout
@@ -351,7 +348,7 @@ the animal's persistent directory, which is `AnimalData.persistent_data_path` an
 | `window_screenshot.png`          | Session start, after the screenshot moves into the session's `raw_data` |
 | `<session-type>_descriptor.yaml` | Session end, copied from the session's finalized descriptor             |
 
-The descriptor filename varies with the session type, and `mesoscope:mesoscope-vr-session-schema` carries the four exact
+The descriptor filename varies with the session type, and `/mesoscope-vr-session-schema` carries the four exact
 names. **No MCP tool reaches any of these files.** The snapshot tools resolve their targets under a session's `raw_data`
 directory, and neither server exposes a tool that takes a persistent-directory path. You MUST read a persistent copy
 with a plain filesystem read.
@@ -370,12 +367,12 @@ hardware state write. `assets:session-hardware-state` owns `write_session_hardwa
 |-----------------------------------------------|-------------------------------------------------------------------|
 | `experiment:experiment-mcp-environment-setup` | Run first if `sle mcp` is not connected                           |
 | `assets:session-hardware-state`               | Sibling that owns `MesoscopeHardwareState`, the third snapshot    |
-| `mesoscope:mesoscope-vr-session-schema`       | Owns the field-level descriptor and hardware-state schema         |
-| `mesoscope:mesoscope-vr-runtime`              | Owns the runtime that writes these snapshots and the CLI it runs  |
+| `/mesoscope-vr-session-schema`                | Owns the field-level descriptor and hardware-state schema         |
+| `/mesoscope-vr-runtime`                       | Owns the runtime that writes these snapshots and the CLI it runs  |
 | `assets:session-data`                         | Owns the `SessionData` marker file and the raw-data dispatch      |
 | `assets:session-descriptors`                  | Owns the per-session descriptor files                             |
 | `assets:project-hierarchy`                    | Owns `AnimalData.persistent_data_path`, the snapshot cache        |
-| `mesoscope:mesoscope-vr`                      | Provides `read_session_system_configuration_tool` to cross-check  |
+| `/mesoscope-vr`                               | Provides `read_session_system_configuration_tool` to cross-check  |
 | `assets:experiment-configuration`             | Provides `read_experiment_configuration_tool` to cross-check      |
 | `experiment:zaber-interface`                  | Owns live motor configuration and per-motor calibration           |
 | `assets:library-extension`                    | Owns the slsa registration contract the raw-data layout satisfies |
@@ -390,6 +387,8 @@ hardware state write. `assets:session-hardware-state` owns `write_session_hardwa
 Tool-settled (run `rg -n '.{121,}' <file>` and `wc -l <file>`):
 - [ ] All lines at or under 120 characters (tables and code blocks may exceed for clarity)
 - [ ] SKILL.md under 500 lines
+- [ ] Every code fence carries a language identifier
+- [ ] rg -n 'ataraxis@|cindra@' <file> finds nothing
 
 Prerequisites:
 - [ ] sle mcp (sollertia-experiment) is connected

@@ -46,7 +46,7 @@ demand:
 - The registry model, the donation protocols, and the import-time donor-coverage check over every seam. Owned by
   `forging:data-processing-design`.
 - Alignment of the cindra fluorescence outputs onto the mesoscope-frame TTL pulses. Owned by
-  `mesoscope:mesoscope-vr-fluorescence-alignment`.
+  `/mesoscope-vr-fluorescence-alignment`.
 - The `SurgeryData` model and the tools that read it. Owned by `assets:data-assets`.
 
 ---
@@ -58,9 +58,9 @@ demand:
 
 | Registry                                 | Mesoscope-VR donation                                             | Agnostic accessor                                                                                   |
 |------------------------------------------|-------------------------------------------------------------------|-----------------------------------------------------------------------------------------------------|
-| `_TWO_PHOTON_DATA_REGISTRY`              | `locate_two_photon_data`                                          | `resolve_two_photon_data_locator`                                                                    |
-| `_CINDRA_CONFIGURATION_REGISTRY`         | `_CindraConfigurationAsset` bundling both configuration resolvers | `resolve_single_recording_configuration_resolver`, `resolve_multi_recording_configuration_resolver`  |
-| `_MULTI_RECORDING_SESSION_TYPE_REGISTRY` | `MESOSCOPE_MULTI_RECORDING_SESSION_TYPES`                         | `resolve_multi_recording_session_types`                                                              |
+| `_TWO_PHOTON_DATA_REGISTRY`              | `locate_two_photon_data`                                          | `resolve_two_photon_data_locator`                                                                   |
+| `_CINDRA_CONFIGURATION_REGISTRY`         | `_CindraConfigurationAsset` bundling both configuration resolvers | `resolve_single_recording_configuration_resolver`, `resolve_multi_recording_configuration_resolver` |
+| `_MULTI_RECORDING_SESSION_TYPE_REGISTRY` | `MESOSCOPE_MULTI_RECORDING_SESSION_TYPES`                         | `resolve_multi_recording_session_types`                                                             |
 
 The agnostic pipelines never import this module. Each resolves the donation registered for the acquisition system its
 session or dataset records, then calls it.
@@ -94,26 +94,26 @@ part of its source data lives elsewhere.
 
 `_CalciumIndicator` enumerates the two indicators for which the Mesoscope-VR cindra configurations are tuned:
 
-| Member      | Value       | Transgenic line                                                                                                                                    |
-|-------------|-------------|-----------------------------------------------------------------------------------------------------------------------------------------------------|
-| `GCAMP6F`   | `GCaMP6f`   | The Thy1-GCaMP6f transgenic line (GP5.17)                                                                                                          |
-| `JGCAMP8S`  | `jGCaMP8s`  | The in-house cross of a jGCaMP8s reporter line and a CaMKII-Cre driver line (GCaMP8s x CamKIICre), the slow-decay member of the jGCaMP8 family      |
+| Member     | Value      | Transgenic line                                                                                                                                |
+|------------|------------|------------------------------------------------------------------------------------------------------------------------------------------------|
+| `GCAMP6F`  | `GCaMP6f`  | The Thy1-GCaMP6f transgenic line (GP5.17)                                                                                                      |
+| `JGCAMP8S` | `jGCaMP8s` | The in-house cross of a jGCaMP8s reporter line and a CaMKII-Cre driver line (GCaMP8s x CamKIICre), the slow-decay member of the jGCaMP8 family |
 
 `_IndicatorParameters` is a frozen, slotted dataclass carrying the three values that depend on the indicator. Each
 field names the cindra field it fills:
 
-| Field                  | cindra field                                | Read by                                                     |
-|------------------------|---------------------------------------------|-------------------------------------------------------------|
-| `tau`                  | `main.tau`                                  | The single-recording builder. The OASIS AR(1) decay constant |
-| `neuropil_coefficient` | `spike_deconvolution.neuropil_coefficient`  | Both builders                                                |
-| `probability_threshold`| `roi_selection.probability_threshold`       | The multi-recording builder                                  |
+| Field                   | cindra field                               | Read by                                                      |
+|-------------------------|--------------------------------------------|--------------------------------------------------------------|
+| `tau`                   | `main.tau`                                 | The single-recording builder. The OASIS AR(1) decay constant |
+| `neuropil_coefficient`  | `spike_deconvolution.neuropil_coefficient` | Both builders                                                |
+| `probability_threshold` | `roi_selection.probability_threshold`      | The multi-recording builder                                  |
 
 `_INDICATOR_PARAMETERS` maps each indicator to its bundle:
 
-| Indicator   | `tau` | `neuropil_coefficient` | `probability_threshold` |
-|-------------|-------|------------------------|-------------------------|
-| `GCAMP6F`   | `0.4` | `0.7`                  | `0.85`                  |
-| `JGCAMP8S`  | `0.7` | `0.8`                  | `0.80`                  |
+| Indicator  | `tau` | `neuropil_coefficient` | `probability_threshold` |
+|------------|-------|------------------------|-------------------------|
+| `GCAMP6F`  | `0.4` | `0.7`                  | `0.85`                  |
+| `JGCAMP8S` | `0.7` | `0.8`                  | `0.80`                  |
 
 `tau` is in seconds. Every parameter outside this table is a fixed literal, identical for both indicators.
 
@@ -123,11 +123,11 @@ field names the cindra field it fills:
 
 `_GENOTYPE_INDICATOR_REGISTRY` maps three normalized genotype strings to their indicator:
 
-| Normalized key       | Indicator   |
-|----------------------|-------------|
-| `gp5.17`             | `GCAMP6F`   |
-| `gp5.17 (hemi)`      | `GCAMP6F`   |
-| `gcamp8s x camkiicre`| `JGCAMP8S`  |
+| Normalized key        | Indicator  |
+|-----------------------|------------|
+| `gp5.17`              | `GCAMP6F`  |
+| `gp5.17 (hemi)`       | `GCAMP6F`  |
+| `gcamp8s x camkiicre` | `JGCAMP8S` |
 
 `_resolve_calcium_indicator(genotype)` normalizes before matching, with
 `re.sub(pattern=r"\s+", repl=" ", string=genotype.strip().casefold())`. Normalization casefolds the string, strips
@@ -184,26 +184,26 @@ Both builders write every cindra parameter of every section they construct expli
 decoupled from cindra's evolving defaults. A cindra release that changes a default therefore changes nothing about how
 a Mesoscope-VR session is processed.
 
-| Builder                                    | cindra sections written                                                                                                                  |
-|--------------------------------------------|-------------------------------------------------------------------------------------------------------------------------------------------|
-| `_build_single_recording_configuration`    | `main`, `file_io`, `registration`, `one_photon_registration`, `nonrigid_registration`, `roi_detection`, `signal_extraction`, `spike_deconvolution` |
-| `_build_multi_recording_configuration`     | `recording_io`, `roi_selection`, `diffeomorphic_registration`, `roi_tracking`, `signal_extraction`, `spike_deconvolution`                 |
+| Builder                                 | cindra sections written                                                                                                                            |
+|-----------------------------------------|----------------------------------------------------------------------------------------------------------------------------------------------------|
+| `_build_single_recording_configuration` | `main`, `file_io`, `registration`, `one_photon_registration`, `nonrigid_registration`, `roi_detection`, `signal_extraction`, `spike_deconvolution` |
+| `_build_multi_recording_configuration`  | `recording_io`, `roi_selection`, `diffeomorphic_registration`, `roi_tracking`, `signal_extraction`, `spike_deconvolution`                          |
 
-Only two fields per configuration depend on the indicator. `main.tau` and
-`spike_deconvolution.neuropil_coefficient` for single-recording, `roi_selection.probability_threshold` and
-`spike_deconvolution.neuropil_coefficient` for multi-recording. Every value both builders write is listed in
+Only two fields per configuration depend on the indicator. `main.tau` and `spike_deconvolution.neuropil_coefficient` for
+single-recording, `roi_selection.probability_threshold` and `spike_deconvolution.neuropil_coefficient` for
+multi-recording. Every value both builders write is listed in
 [references/cindra-parameters.md](references/cindra-parameters.md).
 
 The deploy-time fields are the deliberate exception. They stay at their cindra defaults, because the pipeline that
 runs the configuration overrides them with the locations it resolved:
 
-| Configuration    | Field left at its cindra default      | Overridden by                                                                          |
-|------------------|---------------------------------------|-----------------------------------------------------------------------------------------|
-| Single-recording | `file_io.data_path`                   | The two-photon pipeline, with the path `locate_two_photon_data` resolved                |
-| Single-recording | `file_io.output_path`                 | The two-photon pipeline, with `session.processed_data_path`                             |
-| Multi-recording  | `recording_io.recording_directories`  | The forging pipeline, with each dataset session's `processed_data.cindra_data_path`     |
-| Multi-recording  | `recording_io.dataset_name`           | The forging pipeline, with `multi_recording_dataset_name(animal_id=..., dataset_name=...)` |
-| Both             | The `runtime` settings                | The running pipeline, which sets `runtime.display_progress_bars` from its own preference |
+| Configuration    | Field left at its cindra default     | Overridden by                                                                              |
+|------------------|--------------------------------------|--------------------------------------------------------------------------------------------|
+| Single-recording | `file_io.data_path`                  | The two-photon pipeline, with the path `locate_two_photon_data` resolved                   |
+| Single-recording | `file_io.output_path`                | The two-photon pipeline, with `session.processed_data_path`                                |
+| Multi-recording  | `recording_io.recording_directories` | The forging pipeline, with each dataset session's `processed_data.cindra_data_path`        |
+| Multi-recording  | `recording_io.dataset_name`          | The forging pipeline, with `multi_recording_dataset_name(animal_id=..., dataset_name=...)` |
+| Both             | The `runtime` settings               | The running pipeline, which sets `runtime.display_progress_bars` from its own preference   |
 
 cindra takes the worker count as a call argument, so no configuration field carries it. Look for a worker setting in
 the call that runs a stage, never in the materialized configuration file.
@@ -234,17 +234,17 @@ and `ValueError` for a genotype that no registry key matches. Both surface throu
 The `cindra:` entries below resolve through the cindra marketplace. Every other entry resolves inside the sollertia
 marketplace.
 
-| Skill                                          | Relationship                                                                          |
-|------------------------------------------------|-----------------------------------------------------------------------------------------|
-| `cindra:single-recording-configuration`        | Owns the `SingleRecordingConfiguration` sections and parameter semantics these values fill |
-| `cindra:multi-recording-configuration`         | Owns the `MultiRecordingConfiguration` sections and parameter semantics these values fill |
-| `forging:batch-processing`                     | Runs the two-photon pipeline that materializes the single-recording configuration      |
-| `forging:dataset-forging`                      | Runs the multi-recording stage that materializes the per-animal configuration          |
-| `forging:data-processing-design`               | Owns the registry model these three seams plug into                                    |
-| `forging:processing-input-format`              | Owns the raw-data prerequisites a session meets before the two-photon pipeline runs    |
-| `mesoscope:mesoscope-vr-fluorescence-alignment`| Consumes the cindra outputs these configurations produce                               |
-| `mesoscope:mesoscope-vr-dataset-assembly`      | Owns the admission policy that gates a session into the dataset forging tracks         |
-| `assets:data-assets`                           | Owns the `SurgeryData` record whose `subject.genotype` field selects the indicator     |
+| Skill                                   | Relationship                                                                               |
+|-----------------------------------------|--------------------------------------------------------------------------------------------|
+| `cindra:single-recording-configuration` | Owns the `SingleRecordingConfiguration` sections and parameter semantics these values fill |
+| `cindra:multi-recording-configuration`  | Owns the `MultiRecordingConfiguration` sections and parameter semantics these values fill  |
+| `forging:batch-processing`              | Runs the two-photon pipeline that materializes the single-recording configuration          |
+| `forging:dataset-forging`               | Runs the multi-recording stage that materializes the per-animal configuration              |
+| `forging:data-processing-design`        | Owns the registry model these three seams plug into                                        |
+| `forging:processing-input-format`       | Owns the raw-data prerequisites a session meets before the two-photon pipeline runs        |
+| `/mesoscope-vr-fluorescence-alignment`  | Consumes the cindra outputs these configurations produce                                   |
+| `/mesoscope-vr-dataset-assembly`        | Owns the admission policy that gates a session into the dataset forging tracks             |
+| `assets:data-assets`                    | Owns the `SurgeryData` record whose `subject.genotype` field selects the indicator         |
 
 ---
 
@@ -255,7 +255,7 @@ Tool-settled (run `rg -n '.{121,}' <file>` and `wc -l <file>`):
 - [ ] All lines at or under 120 characters (tables and code blocks may exceed for clarity)
 - [ ] SKILL.md under 500 lines
 - [ ] Every code fence carries a language identifier
-- [ ] Every cross-marketplace reference uses the bare plugin:skill form with no marketplace prefix
+- [ ] rg -n 'ataraxis@|cindra@' <file> finds nothing
 
 Registry seams:
 - [ ] locate_two_photon_data resolves raw_data/mesoscope_data and reaches callers through _TWO_PHOTON_DATA_REGISTRY

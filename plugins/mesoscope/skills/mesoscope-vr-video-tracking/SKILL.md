@@ -19,10 +19,10 @@ clock. This skill is the single source for the Mesoscope-VR bodypart roster, the
 column schema, and the per-camera dataset column naming.
 
 The token `video_tracking` names two different things on the two sides of the platform. On the acquisition side it is
-the `MesoscopeVideoTracking` configuration section that runs `slvt infer` during preprocessing and writes the
-DeepLabCut `.h5` beside the face-camera video, documented by `mesoscope:mesoscope-vr`. On the forgery side, covered
-here, it is the module that reads that `.h5` back and never runs inference. The acquisition section is the producer,
-this module is the consumer, and the two live in different libraries.
+the `MesoscopeVideoTracking` configuration section that runs `slvt infer` during preprocessing and writes the DeepLabCut
+`.h5` beside the face-camera video, documented by `/mesoscope-vr`. On the forgery side, covered here, it is the module
+that reads that `.h5` back and never runs inference. The acquisition section is the producer, this module is the
+consumer, and the two live in different libraries.
 
 ---
 
@@ -45,7 +45,7 @@ this module is the consumer, and the two live in different libraries.
 
 **Does not cover:**
 - The acquisition-side `video_tracking` configuration section, `MesoscopeVideoTracking`, and the `slvt infer` call
-  that produces the DeepLabCut `.h5`. Owned by `mesoscope:mesoscope-vr`.
+  that produces the DeepLabCut `.h5`. Owned by `/mesoscope-vr`.
 - The agnostic video pipeline, its four job names, and the prepare-then-execute batch mechanics that run the
   tracking job. Owned by `forging:batch-processing`.
 - The processed-data directory layout and the per-stage output locations on disk. Owned by
@@ -53,18 +53,18 @@ this module is the consumer, and the two live in different libraries.
 - The raw camera log archives and the upstream frame-timestamp extraction that writes the timestamp feathers.
   Owned by `video:log-processing` and `forging:processing-input-format`.
 - The `VideoDataFiles` filename roster, the `DatasetColumn` roster, and `MESOSCOPE_COLUMN_DESCRIPTIONS`. Owned by
-  `mesoscope:mesoscope-vr-processing-schema`.
+  `/mesoscope-vr-processing-schema`.
 - The per-session-type assembly dispatch that chooses the reference clock and concatenates the sub-datasets. Owned
-  by `mesoscope:mesoscope-vr-dataset-assembly`.
+  by `/mesoscope-vr-dataset-assembly`.
 - The mesoscope fluorescence clock that serves as the experiment-session reference time. Owned by
-  `mesoscope:mesoscope-vr-fluorescence-alignment`.
+  `/mesoscope-vr-fluorescence-alignment`.
 - The donation protocols and the import-time coverage check that bind these functions to their registries. Owned by
   `forging:data-processing-design`.
 
-**Handoff rules:** a question about how the `.h5` is produced, about the DeepLabCut environment, or about the
-project path goes to `mesoscope:mesoscope-vr`. A question about running, re-running, or sizing the tracking job goes
-to `forging:batch-processing`. A question about which columns reach `data.feather` for a given session type goes to
-`mesoscope:mesoscope-vr-dataset-assembly`.
+**Handoff rules:** a question about how the `.h5` is produced, about the DeepLabCut environment, or about the project
+path goes to `/mesoscope-vr`. A question about running, re-running, or sizing the tracking job goes to
+`forging:batch-processing`. A question about which columns reach `data.feather` for a given session type goes to
+`/mesoscope-vr-dataset-assembly`.
 
 ---
 
@@ -84,7 +84,7 @@ Job discovery calls the locator to decide whether a session supports a tracking 
 covering both would force discovery to load and parse the predictions merely to decide whether to schedule work.
 
 `video_dataset.py` fills no registry of its own. Both of its functions are reached through the Mesoscope-VR assembly
-worker registered in `_FORGING_ASSEMBLY_REGISTRY`, which `mesoscope:mesoscope-vr-dataset-assembly` owns.
+worker registered in `_FORGING_ASSEMBLY_REGISTRY`, which `/mesoscope-vr-dataset-assembly` owns.
 
 ---
 
@@ -178,9 +178,8 @@ sit. Angles are `2 * pi * i / len(names)`, evenly spaced and starting at zero.
 
 Frames that lost the same points share a design matrix, and therefore share a conditioning verdict. Each frame's
 confidence mask is packed into one integer code, `confident.astype(np.int64) @ (1 << np.arange(len(names)))`, and
-`np.unique` groups the codes with a one-dimensional pass rather than the void-row lexsort that
-`np.unique(..., axis=0)` would run over the whole mask. Each distinct occlusion pattern is solved once for every
-frame carrying it.
+`np.unique` groups the codes with a one-dimensional pass rather than the void-row lexsort that `np.unique(..., axis=0)`
+would run over the whole mask. Each distinct occlusion pattern is solved once for every frame carrying it.
 
 Per pattern, in order:
 
@@ -369,18 +368,18 @@ reference clock.
 The `video:log-processing` entry below resolves through the ataraxis marketplace. Every other entry resolves inside
 the sollertia marketplace.
 
-| Skill                                           | Relationship                                                                                |
-|-------------------------------------------------|---------------------------------------------------------------------------------------------|
-| `mesoscope:mesoscope-vr`                        | Producer: owns the acquisition-side `video_tracking` section and the `slvt infer` call      |
-| `mesoscope:mesoscope-vr-processing-schema`      | Owns the `VideoDataFiles` filename roster and the `DatasetColumn` rows these columns become |
-| `mesoscope:mesoscope-vr-dataset-assembly`       | Downstream: calls both `video_dataset.py` functions and chooses the reference clock         |
-| `mesoscope:mesoscope-vr-fluorescence-alignment` | Owns the mesoscope fluorescence clock used as the experiment-session reference time         |
-| `forging:batch-processing`                      | Owns the video pipeline jobs, including the tracking job that invokes this donation         |
-| `forging:processing-results`                    | Owns the processed-data layout in which these feathers are located                          |
-| `forging:processing-input-format`               | Owns the raw-data prerequisites, including the camera_data directory this pass reads        |
-| `forging:data-processing-design`                | Owns the registry model and the donation protocols these two seams satisfy                  |
-| `forging:library-extension`                     | Reference: how a new acquisition system donates its own locator and tracking pass           |
-| `video:log-processing`                          | Upstream: owns the camera log archives behind the per-camera timestamp feathers             |
+| Skill                                  | Relationship                                                                                |
+|----------------------------------------|---------------------------------------------------------------------------------------------|
+| `/mesoscope-vr`                        | Producer: owns the acquisition-side `video_tracking` section and the `slvt infer` call      |
+| `/mesoscope-vr-processing-schema`      | Owns the `VideoDataFiles` filename roster and the `DatasetColumn` rows these columns become |
+| `/mesoscope-vr-dataset-assembly`       | Downstream: calls both `video_dataset.py` functions and chooses the reference clock         |
+| `/mesoscope-vr-fluorescence-alignment` | Owns the mesoscope fluorescence clock used as the experiment-session reference time         |
+| `forging:batch-processing`             | Owns the video pipeline jobs, including the tracking job that invokes this donation         |
+| `forging:processing-results`           | Owns the processed-data layout in which these feathers are located                          |
+| `forging:processing-input-format`      | Owns the raw-data prerequisites, including the camera_data directory this pass reads        |
+| `forging:data-processing-design`       | Owns the registry model and the donation protocols these two seams satisfy                  |
+| `forging:library-extension`            | Reference: how a new acquisition system donates its own locator and tracking pass           |
+| `video:log-processing`                 | Upstream: owns the camera log archives behind the per-camera timestamp feathers             |
 
 ---
 
@@ -395,9 +394,8 @@ Tool-settled (run `rg -n '.{121,}' <file>` and `wc -l <file>`):
 
 Naming and ownership:
 - [ ] Every use of the token video_tracking states which side it means, acquisition or forgery
-- [ ] The acquisition-side configuration section was routed to mesoscope:mesoscope-vr rather than described here
+- [ ] The acquisition-side configuration section was routed to /mesoscope-vr rather than described here
 - [ ] Both registry seams are named, _POSE_PREDICTION_REGISTRY and _VIDEO_TRACKING_REGISTRY
-- [ ] Cross-references use the bare plugin:skill syntax
 
 Tracking pass:
 - [ ] Bodypart names, thresholds, and filenames were read from the video_tracking.py constants, never hardcoded

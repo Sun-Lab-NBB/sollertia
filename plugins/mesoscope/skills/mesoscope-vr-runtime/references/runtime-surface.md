@@ -10,21 +10,21 @@ orchestrator, the session data lifecycle, and the workflow for adding a new runt
 
 Each runtime mode has a top-level function in `mesoscope_vr/data_acquisition.py` that:
 
-1. Resolves the system configuration through `get_system_configuration()`, verifies the project and the animal's
-   project membership through `_verify_project_configured()` and `_verify_animal_project_membership()`, reads the
-   version data through `get_version_data()`, and mints the session through
+1. Resolves the system configuration through `get_system_configuration()`, verifies the project and the animal's project
+   membership through `_verify_project_configured()` and `_verify_animal_project_membership()`, reads the version data
+   through `get_version_data()`, and mints the session through
    `SessionData.create(..., acquisition_system=AcquisitionSystems.MESOSCOPE_VR)`.
-2. Builds the session-specific descriptor from default values, then the previous same-type session's parameters when
-   one exists, then the per-flag CLI overrides, in that order. `experiment_logic` additionally loads the
+2. Builds the session-specific descriptor from default values, then the previous same-type session's parameters when one
+   exists, then the per-flag CLI overrides, in that order. `experiment_logic` additionally loads the
    `MesoscopeExperimentConfiguration` from `raw_data.experiment_configuration_path` through its `from_yaml()` builder.
 3. Builds the hardware assets the mode needs. `lick_training_logic`, `run_training_logic`, and `experiment_logic`
    construct `MesoscopeVRSystem`, which owns and starts its own `DataLogger`. `window_checking_logic` and
    `maintenance_logic` construct their own `DataLogger` and hardware assets directly, with no orchestrator.
 4. Marks the session as initialized. Every session-running function, once its hardware assets are up and the session is
    ready to acquire, calls `session_data.mark_runtime_initialized()`, which removes the `nk.bin` marker from the
-   session's `raw_data` directory. This is a different signal from the descriptor's `incomplete` flag, which the
-   runtime sets at session end. See `assets:session-data` for the marker's semantics. `maintenance_logic` runs no
-   session and never performs this step.
+   session's `raw_data` directory. This is a different signal from the descriptor's `incomplete` flag, which the runtime
+   sets at session end. See `assets:session-data` for the marker's semantics. `maintenance_logic` runs no session and
+   never performs this step.
 5. Runs the session's control loop. The three `MesoscopeVRSystem` modes drive state transitions and call
    `runtime_cycle()` each iteration, folding `system.paused_time` into the mode's own timing budget.
    `lick_training_logic` subtracts it from each reward delay and zeroes it after every delay cycle, while
@@ -96,8 +96,8 @@ which is itself attached to the top-level `sle` group by `_register_subcommands(
 | `sle mesoscope migrate`              | `migrate_animal_between_projects`      | Session data lifecycle, see `../SKILL.md`                |
 
 `sle mesoscope check-bridge` wraps `check_mesoscope_bridge()` in a `try/except`, echoing a WARNING when the call itself
-raises and otherwise echoing the returned status at SUCCESS when reachable and at WARNING when not (the
-`check_bridge` command in `interfaces/mesoscope_vr.py`).
+raises and otherwise echoing the returned status at SUCCESS when reachable and at WARNING when not (the `check_bridge`
+command in `interfaces/mesoscope_vr.py`).
 
 ### `configure experiment` options
 
@@ -113,15 +113,15 @@ raises and otherwise echoing the returned status at SUCCESS when reachable and a
 | `--force`                | `-f`  | flag    | `False`  | no       |
 
 `--template` is the template filename stem without the `.yaml` suffix. `--force` maps to the library's `overwrite`
-argument, so it is the only way to replace an existing experiment configuration file (the `configure_experiment`
-command in `interfaces/mesoscope_vr.py`). See `assets:experiment-configuration` for the configuration contract itself.
+argument, so it is the only way to replace an existing experiment configuration file (the `configure_experiment` command
+in `interfaces/mesoscope_vr.py`). See `assets:experiment-configuration` for the configuration contract itself.
 
 ### `run` group options
 
 The `run` group parses the four session identifiers and stores them on `context.obj` as a frozen
-`_SharedSessionParameters`, so **every one of them must be given before the subcommand name** (the `run` group
-callback in `interfaces/mesoscope_vr.py`). Each `require_*` accessor on `_SharedSessionParameters` raises a
-`click.UsageError` when the subcommand needs a value the operator omitted.
+`_SharedSessionParameters`, so **every one of them must be given before the subcommand name** (the `run` group callback
+in `interfaces/mesoscope_vr.py`). Each `require_*` accessor on `_SharedSessionParameters` raises a `click.UsageError`
+when the subcommand needs a value the operator omitted.
 
 | Option            | Short | Type    | Click default | Enforced by                                                        |
 |-------------------|-------|---------|---------------|--------------------------------------------------------------------|
@@ -166,12 +166,13 @@ The same no-Click-default rule applies to every option below (the `run_training`
 
 ### Session data commands
 
-`preprocess` and `delete` share one `-sp/--session-path` option, typed `click.Path(exists=True, file_okay=False,
-dir_okay=True, path_type=Path)`, required, and carrying a `prompt=`. Both resolve `get_data_root()` and the supplied
-path before the containment check, which defeats a `..` segment or a symlink, and both raise `FileNotFoundError` through
-`console.error` when the session sits outside the data root (the `preprocess` and `delete` commands in
-`interfaces/mesoscope_vr.py`). `migrate` takes the required `-s/--source`, `-d/--destination`, and `-a/--animal`, and
-forwards `destination` as the library's `target_project` keyword (the `migrate` command in the same module).
+`preprocess` and `delete` share one `-sp/--session-path` option, typed
+`click.Path(exists=True, file_okay=False, dir_okay=True, path_type=Path)`, required, and carrying a `prompt=`. Both
+resolve `get_data_root()` and the supplied path before the containment check, which defeats a `..` segment or a symlink,
+and both raise `FileNotFoundError` through `console.error` when the session sits outside the data root (the `preprocess`
+and `delete` commands in `interfaces/mesoscope_vr.py`). `migrate` takes the required `-s/--source`, `-d/--destination`,
+and `-a/--animal`, and forwards `destination` as the library's `target_project` keyword (the `migrate` command in the
+same module).
 
 ---
 
@@ -179,9 +180,9 @@ forwards `destination` as the library's `target_project` keyword (the `migrate` 
 
 `RuntimeControlUI` (`mesoscope_vr/runtime_ui.py`) owns one `SharedMemoryArray` named `"runtime_control_ui"`, shaped
 `(20,)` and typed `np.int32`, built in its `__init__`. It also holds two read-only trackers it does **not** own, the
-`WaterValveInterface` valve tracker and the `GasPuffValveInterface` puff tracker, so `shutdown()` destroys its own
-array and deliberately leaves the trackers connected. The window runs in a daemon `multiprocessing.Process` that
-`start()` spawns, and costs one CPU core.
+`WaterValveInterface` valve tracker and the `GasPuffValveInterface` puff tracker, so `shutdown()` destroys its own array
+and deliberately leaves the trackers connected. The window runs in a daemon `multiprocessing.Process` that `start()`
+spawns, and costs one CPU core.
 
 | Index | Member                         | Index | Member                       |
 |-------|--------------------------------|-------|------------------------------|
@@ -211,8 +212,7 @@ A signal-style slot is cleared by the property that reads it, under the array lo
 
 `start(mode=VisualizerMode.EXPERIMENT, *, has_reinforcing_trials=True, has_aversive_trials=True, has_mesoscope=False)`
 spawns the window and rolls the spawned process back when the connect fails. `_ControlUIWindow.__init__` titles the
-window `"Mesoscope-VR Control Panel"` and fixes it at 450 pixels wide, with its height grown per enabled control
-group.
+window `"Mesoscope-VR Control Panel"` and fixes it at 450 pixels wide, with its height grown per enabled control group.
 
 | Control                                                                                       | Visible when                      | Writes                                     |
 |-----------------------------------------------------------------------------------------------|-----------------------------------|--------------------------------------------|
@@ -233,9 +233,9 @@ group.
 The water-valve and gas-valve `🔓 Open` and `🔒 Close` buttons are all permanently disabled once the runtime calls
 `set_setup_complete()` at the end of the pre-start checkpoint, which reaches the buttons through
 `_ControlUIWindow._disable_valve_open_close_buttons()`. A 100 ms `QTimer` runs `_check_external_state`, which honors
-`TERMINATION`, mirrors external pause, guidance, setup-complete, and reference-enabled changes, re-syncs both
-run-training spinboxes through `_sync_run_training_spinbox` unless the spinbox has focus, and clears the reward and
-puff status labels by watching the **cumulative** tracker totals rather than the live open state.
+`TERMINATION` and mirrors external pause, guidance, setup-complete, and reference-enabled changes. It also re-syncs both
+run-training spinboxes through `_sync_run_training_spinbox` unless the spinbox has focus, and clears the reward and puff
+status labels by watching the **cumulative** tracker totals rather than the live open state.
 
 `runtime_ui.py` also exports the three terminal prompt helpers the teardown path uses, `collect_experimenter_notes`,
 `collect_surgery_quality`, and `collect_experimenter_given_water_volume`.
@@ -244,9 +244,9 @@ puff status labels by watching the **cumulative** tracker totals rather than the
 
 ## Maintenance control GUI surface
 
-`MaintenanceControlUI` (`mesoscope_vr/maintenance_ui.py`) owns one `SharedMemoryArray` named
-`"maintenance_control_ui"`, shaped `(14,)` and typed `np.uint32`, plus the same two externally owned trackers, all
-built in its `__init__`. It runs in a daemon process and costs one CPU core.
+`MaintenanceControlUI` (`mesoscope_vr/maintenance_ui.py`) owns one `SharedMemoryArray` named `"maintenance_control_ui"`,
+shaped `(14,)` and typed `np.uint32`, plus the same two externally owned trackers, all built in its `__init__`. It runs
+in a daemon process and costs one CPU core.
 
 | Index | Member            | Index | Member                       |
 |-------|-------------------|-------|------------------------------|
@@ -259,7 +259,7 @@ built in its `__init__`. It runs in a daemon process and costs one CPU core.
 | 6     | `BRAKE_LOCK`      | 13    | `GAS_VALVE_PULSE_DURATION`   |
 
 Spinbox ranges and defaults are 1 to 20 µL default 5 for the reward volume, 1 to 200 ms default 30 for the calibration
-pulse, and 10 to 350 ms default 100 for the gas puff, and the monitor `QTimer` runs every 100 ms. Those come from the
+pulse, and 10 to 350 ms default 100 for the gas puff. The monitor `QTimer` runs every 100 ms. Those come from the
 `_REWARD_VOLUME_RANGE`, `_DEFAULT_REWARD_VOLUME`, `_CALIBRATION_PULSE_DURATION_RANGE`,
 `_DEFAULT_CALIBRATION_PULSE_DURATION`, `_GAS_PUFF_DURATION_RANGE`, `_DEFAULT_GAS_PUFF_DURATION`, and
 `_STATE_MONITOR_INTERVAL` module constants. The valve tracker carries the `_ValveTrackerIndex` members
@@ -268,12 +268,11 @@ calibrated.
 
 The seventeen-member API is `start()`, `shutdown()`, `is_alive`, the non-clearing `exit_signal`, the clearing signals
 `valve_open_signal`, `valve_close_signal`, `valve_reward_signal`, `valve_reference_signal`, `valve_calibrate_signal`,
-`brake_lock_signal`, `brake_unlock_signal`, `gas_valve_open_signal`, `gas_valve_close_signal`,
-`gas_valve_pulse_signal`, and the value properties `reward_volume`, `calibration_pulse_duration`, and
-`gas_valve_pulse_duration`.
+`brake_lock_signal`, `brake_unlock_signal`, `gas_valve_open_signal`, `gas_valve_close_signal`, `gas_valve_pulse_signal`,
+and the value properties `reward_volume`, `calibration_pulse_duration`, and `gas_valve_pulse_duration`.
 
-`_MaintenanceUIWindow.__init__` titles the window `"Mesoscope-VR Maintenance Panel"` and fixes it at 550 by 750
-pixels. Its `_setup_ui()` groups Reward Valve Control, Valve Calibration with a `🔄 Reference (200 x 5 μL)` button and a
+`_MaintenanceUIWindow.__init__` titles the window `"Mesoscope-VR Maintenance Panel"` and fixes it at 550 by 750 pixels.
+Its `_setup_ui()` groups Reward Valve Control, Valve Calibration with a `🔄 Reference (200 x 5 μL)` button and a
 `📊 Calibrate` button, Brake Control, Gas Puff Valve Control, and `✖ Terminate Maintenance`. `_check_external_state`
 detects reward completion from the cumulative dispensed volume, calibration and referencing completion from a
 seen-active-then-idle transition on `CALIBRATION_STATE`, and puff completion from the cumulative puff count.
@@ -287,8 +286,8 @@ referencing, brake actuation, or motor positioning on the operator's behalf.
 
 `BehaviorVisualizer` (`mesoscope_vr/visualizer.py`) runs in the **main thread** of the runtime control process, with no
 IPC, and is driven by direct calls from `runtime_cycle()`. The module forces the matplotlib backend to `QtAgg` with a
-top-level `mpl.use("QtAgg")` call, the `__init__` sliding window spans 10 seconds at a 16 ms step, and `update()`
-routes redraws through a `_BlitManager` that repaints only the data lines.
+top-level `mpl.use("QtAgg")` call, the `__init__` sliding window spans 10 seconds at a 16 ms step, and `update()` routes
+redraws through a `_BlitManager` that repaints only the data lines.
 
 | Mode            | Value | Panels                                                                       |
 |-----------------|-------|------------------------------------------------------------------------------|

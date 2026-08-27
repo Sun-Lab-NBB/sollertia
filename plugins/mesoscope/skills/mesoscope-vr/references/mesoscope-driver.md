@@ -8,10 +8,8 @@ ScanImagePC, and for the pre-flight check that confirms the ScanImagePC side is 
 
 ## Construction and composition
 
-`MesoscopeDriver` (in `mesoscope_vr/mesoscope_driver.py`) encapsulates all MQTT communication with the
-`runAcquisition` MATLAB function on the ScanImagePC.
-
-Construction signature: `MesoscopeDriver(configuration: VRTaskConfiguration, acquisition: MesoscopeAcquisition)`.
+The driver is defined in `mesoscope_vr/mesoscope_driver.py`. Construction signature:
+`MesoscopeDriver(configuration: VRTaskConfiguration, acquisition: MesoscopeAcquisition)`.
 
 Mesoscope control shares the broker with the Virtual Reality task, so the driver reuses the `ip` and `port` fields of
 `assets.vr_task` as its own broker discovery rather than defining a second pair (`MesoscopeDriver.__init__` in
