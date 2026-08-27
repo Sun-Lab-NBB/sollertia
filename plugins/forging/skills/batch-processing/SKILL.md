@@ -42,8 +42,8 @@ and `forget_prepared_batches_tool`. No other skill in the marketplace may docume
 - Output schemas and how to interpret them. Owned by `/processing-results`.
 - MCP server connectivity and the `slf omp` runtime diagnostic. Owned by `/forging-mcp-environment-setup`.
 
-**Handoff rules:** this skill drives the batch. Invoke the owning skill for anything the unit roots, the plan, the
-dataset hierarchy, or the output schema decides, then return here to prepare and execute.
+**Handoff rules:** this skill drives the batch. Invoke the owning skill for anything decided by the unit roots, the
+plan, the dataset hierarchy, or the output schema, then return here to prepare and execute.
 
 ---
 
@@ -56,9 +56,9 @@ functions directly and do not shell out to `slf`. Where the tools are unavailabl
 The response envelope every tool on this server returns, and the staged-read contract its read tools follow, are
 documented in the `## Response contract` section of `/forging-mcp-environment-setup`.
 
-`assets:session-discovery` is the exclusive producer of the `session_paths` lists every forging batch consumes. You
-MUST obtain unit roots from it, never assemble one yourself, and confirm both the selection and its single owning
-project with the user.
+`assets:session-discovery` is the exclusive producer of the `session_paths` lists every batch consumes. You MUST obtain
+unit roots from it, never assemble one yourself, and confirm both the selection and its single owning project with the
+user.
 
 You MUST treat `prepare_batch_tool` as an expensive write. It plans each unit, creates and aligns that unit's
 processing trackers, and rewrites the project's plan and state artifacts before it registers anything, so call it once
@@ -89,13 +89,13 @@ prepare_batch_tool(
 ```
 
 | Parameter                 | Type                     | Default    | Description                                                                                  |
-|---------------------------|--------------------------|------------|-----------------------------------------------------------------------------------------------|
-| `pipeline`                | `str`                    | (required) | One of the six batch pipelines. `manifest` is a processing pipeline but not a batch pipeline  |
-| `session_paths`           | `list[str]`              | (required) | Unit roots. Session roots for five pipelines, dataset roots for `forging`. One project only   |
-| `options`                 | `dict[str, Any] \| None` | `None`     | Stamped onto every descriptor. `regenerate_checksum` is the only key any pipeline reads       |
-| `host`                    | `str`                    | `"local"`  | `"local"` or `"remote"`. Under `"remote"` every path names a location on the server            |
-| `replan`                  | `bool`                   | `False`    | Re-estimates the cores and memory the units' plan caches already hold                         |
-| `include_job_descriptors` | `bool`                   | `False`    | Adds the raw `jobs` list. Dispatch reads descriptors from the record, not from the response   |
+|---------------------------|--------------------------|------------|----------------------------------------------------------------------------------------------|
+| `pipeline`                | `str`                    | (required) | One of the six batch pipelines. `manifest` is a processing pipeline but not a batch pipeline |
+| `session_paths`           | `list[str]`              | (required) | Unit roots. Session roots for five pipelines, dataset roots for `forging`. One project only  |
+| `options`                 | `dict[str, Any] \| None` | `None`     | Stamped onto every descriptor. `regenerate_checksum` is the only key any pipeline reads      |
+| `host`                    | `str`                    | `"local"`  | `"local"` or `"remote"`. Under `"remote"` every path names a location on the server          |
+| `replan`                  | `bool`                   | `False`    | Re-estimates the cores and memory the units' plan caches already hold                        |
+| `include_job_descriptors` | `bool`                   | `False`    | Adds the raw `jobs` list. Dispatch reads descriptors from the record, not from the response  |
 
 Every call issues a new identifier and writes a new document, so two preparations of overlapping work leave two batches
 and executing both dispatches the same jobs twice. Succeeded jobs are omitted, so re-preparing after a partial run
@@ -131,9 +131,9 @@ the run, and a repeated identifier is not de-duplicated, so it contributes its j
 
 **Note:** `started: true` proves dispatch and nothing about outcomes. Locally it means a daemon manager thread began,
 remotely it means the scheduler accepted the allocations, so never report a run as finished from this response. The
-local branch also runs unguarded, so a failure to resolve the core allocations or the host memory surfaces as a raw
-tool error rather than an error payload, and tracker records are cleared before that point, so a batch failing there
-has already lost the records it was about to rerun.
+local branch also runs unguarded, so a failure to resolve the core allocations or the host memory surfaces as a raw tool
+error rather than an error payload. Tracker records are cleared before that point, so a batch failing there has already
+lost the records it was about to rerun.
 
 ### Monitoring and management tools
 
@@ -187,7 +187,7 @@ and lets the scheduler cascade the cancellation onto their dependents.
 cancel_processing_tool(host: str = "local", batch_ids: list[str] | None = None) -> dict[str, Any]
 ```
 
-| Parameter   | Type                | Default   | Description                                                                        |
+| Parameter   | Type                | Default   | Description                                                                          |
 |-------------|---------------------|-----------|--------------------------------------------------------------------------------------|
 | `host`      | `str`               | `"local"` | `"local"` for this process's pool, `"remote"` for the scheduler                      |
 | `batch_ids` | `list[str] \| None` | `None`    | Outstanding remote batches to cancel, omit for all. Silently ignored under `"local"` |
@@ -206,11 +206,11 @@ reset_processing_jobs_tool(
 ```
 
 | Parameter    | Type                | Default    | Description                                                                        |
-|--------------|---------------------|------------|--------------------------------------------------------------------------------------|
-| `pipeline`   | `str`               | (required) | One of the six batch pipelines. A mismatched pipeline resolves a different tracker   |
-| `unit_paths` | `list[str]`         | (required) | Unit roots. This is the only tool in the set naming the parameter `unit_paths`       |
-| `job_ids`    | `list[str] \| None` | `None`     | Tracker job identifiers from any listing. Omit to reset every job each unit tracks   |
-| `host`       | `str`               | `"local"`  | `"local"` or `"remote"`                                                              |
+|--------------|---------------------|------------|------------------------------------------------------------------------------------|
+| `pipeline`   | `str`               | (required) | One of the six batch pipelines. A mismatched pipeline resolves a different tracker |
+| `unit_paths` | `list[str]`         | (required) | Unit roots. This is the only tool in the set naming the parameter `unit_paths`     |
+| `job_ids`    | `list[str] \| None` | `None`     | Tracker job identifiers from any listing. Omit to reset every job each unit tracks |
+| `host`       | `str`               | `"local"`  | `"local"` or `"remote"`                                                            |
 
 Every named unit receives the same identifier set and silently drops an identifier it does not track, so one call
 safely covers a whole batch. An empty `job_ids` list reads as omitted and therefore resets everything, the larger
@@ -223,16 +223,16 @@ reads `null` when every job was reset, so `success: true` proves the call comple
 clean_processing_output_tool(pipeline: str, session_paths: list[str], host: str = "local") -> dict[str, Any]
 ```
 
-| Parameter       | Type        | Default    | Description                                                         |
-|-----------------|-------------|------------|-----------------------------------------------------------------------|
+| Parameter       | Type        | Default    | Description                                                          |
+|-----------------|-------------|------------|----------------------------------------------------------------------|
 | `pipeline`      | `str`       | (required) | One of the six batch pipelines                                       |
 | `session_paths` | `list[str]` | (required) | Unit roots, dataset roots for `forging`. Server paths under `remote` |
 | `host`          | `str`       | `"local"`  | `"local"` or `"remote"`                                              |
 
-Cleaning discards work irreversibly, so prefer `reset_processing_jobs_tool` where the failure cause was external. The
-running-batch guard covers the local pool alone, so a remote clean is accepted while allocations are in flight and will
-fail the jobs reading those paths. A unit that cannot be loaded is skipped and the rest are cleaned, with the skip
-echoed to the console, so `total_paths: 0` covers both an empty removal and a batch of unloadable units.
+Cleaning discards work irreversibly. The running-batch guard covers the local pool alone, so a remote clean is accepted
+while allocations are in flight and will fail the jobs reading those paths. A unit that cannot be loaded is skipped and
+the rest are cleaned, with the skip echoed to the console, so `total_paths: 0` covers both an empty removal and a batch
+of unloadable units.
 
 ### Registry tools
 
@@ -272,8 +272,8 @@ forget_prepared_batches_tool(batch_ids: list[str]) -> dict[str, Any]
 ```
 
 | Parameter   | Type        | Default    | Description                                                         |
-|-------------|-------------|------------|-----------------------------------------------------------------------|
-| `batch_ids` | `list[str]` | (required) | The batches to remove, as `list_prepared_batches_tool` reports them   |
+|-------------|-------------|------------|---------------------------------------------------------------------|
+| `batch_ids` | `list[str]` | (required) | The batches to remove, as `list_prepared_batches_tool` reports them |
 
 An empty list is an error rather than a wildcard, since the call removes what the registry records for each named
 batch. Forgetting an unrun batch destroys its descriptors, and forgetting a settled batch destroys the only durable
@@ -323,8 +323,8 @@ identifier and every per-unit operation is scoped by the unit path paired with t
 1. **Orient before starting.** Where the project may already have been processed, call `list_prepared_batches_tool`
    first. Its `breakdown` names the pipelines and hosts the registry holds, and `outcome_recorded` marks settled work.
 
-2. **Resolve the unit roots.** Obtain session roots, or dataset roots for `forging`, through
-   `assets:session-discovery`, then confirm the selection and the single owning project with the user.
+2. **Resolve the unit roots.** Obtain session roots, or dataset roots for `forging`, through `assets:session-discovery`,
+   then confirm the selection and the single owning project with the user.
 
 3. **Confirm the host.** A local batch reads this filesystem and a remote batch reads paths on the compute server, so
    confirm the server configuration through `/server-configuration` before a remote run.
@@ -333,8 +333,8 @@ identifier and every per-unit operation is scoped by the unit path paired with t
    caches already hold unless `replan=True` deliberately re-estimates them.
 
 5. **Prepare the batch.** Call `prepare_batch_tool` with the confirmed pipeline, unit roots, and host. Record the
-   returned `batch_id`, reconcile `total_units` against `units[*].error` and `total_jobs` against
-   `total_blocked_jobs`, then report every unresolved unit and every blocked job before executing.
+   returned `batch_id`, reconcile `total_units` against `units[*].error` and `total_jobs` against `total_blocked_jobs`,
+   then report every unresolved unit and every blocked job before executing.
 
 6. **Confirm the budgets.** Present the default local budgets, which resolve to the logical cores minus two and to 85
    percent of host memory, and the default remote wall time of 480 minutes. Never estimate a figure yourself.
@@ -379,11 +379,11 @@ exclusive descriptions of the batch.
 
 | Label         | Condition                                                                                  |
 |---------------|--------------------------------------------------------------------------------------------|
-| `failed`      | At least one job failed. Outranks every other label, so the batch may still hold successes  |
-| `completed`   | The batch holds jobs and every one of them succeeded                                        |
-| `processing`  | At least one job is running                                                                 |
-| `not_started` | The batch holds jobs and every one of them is still scheduled                               |
-| `in_progress` | Everything else, including a batch holding no job at all                                    |
+| `failed`      | At least one job failed. Outranks every other label, so the batch may still hold successes |
+| `completed`   | The batch holds jobs and every one of them succeeded                                       |
+| `processing`  | At least one job is running                                                                |
+| `not_started` | The batch holds jobs and every one of them is still scheduled                              |
+| `in_progress` | Everything else, including a batch holding no job at all                                   |
 
 Render a dash where a key is absent, since a listing drops any empty field and `specifier`, `error_message`,
 `executor_id`, and the timing fields vanish from a row rather than reading as null. Never report `failed` as a failed
@@ -394,8 +394,8 @@ values are uppercase scheduler states, and its unit column is `unit_path`.
 
 ## Re-running failed jobs
 
-`execute_jobs_tool` already clears the tracker record of every job it dispatches, so the straightforward retry is to
-prepare the pipeline again and execute the new batch, which queues only the work that is still outstanding.
+The straightforward retry is to prepare the pipeline again and execute the new batch, which queues only the work that is
+still outstanding.
 
 1. **Identify the failures.** Call `get_processing_status_tool` with `status_filter="failed"`, `include_items=True`,
    and `detailed=True`, then read each row's `error_message`. For a remote batch, follow the `output_log` and
@@ -454,20 +454,20 @@ Unsupported host '{host}'. Available: local, remote.
 ## Related skills
 
 | Skill                                      | Relationship                                                                      |
-|--------------------------------------------|-------------------------------------------------------------------------------------|
-| `/forging-mcp-environment-setup`           | Prerequisite: server connectivity, the response contract, and the `slf omp` check   |
-| `assets:session-discovery`                 | Upstream: the exclusive producer of the `session_paths` lists                       |
-| `/job-planning`                            | Upstream: unit plans, job estimates, and the declared resource model                |
-| `/dataset-definition`                      | Upstream: the dataset hierarchy a `forging` batch consumes                          |
-| `/server-configuration`                    | Upstream: the compute server credentials a remote batch needs                       |
-| `/processing-input-format`                 | Reference: what each pipeline requires on disk before a job can run                 |
-| `/dataset-forging`                         | Reference: the `forging` pipeline's own prerequisites and dataset semantics         |
-| `/remote-execution`                        | Adjacent: remote project discovery and scheduler job reads                          |
-| `/processing-results`                      | Downstream: output layouts and how to interpret them                                |
-| `/project-state`                           | Downstream: the project manifest and job artifacts a batch refreshes                |
-| `/cli-reference`                           | Reference: the human-facing `slf` command surface                                   |
-| `/pipeline`                                | Context: where batch processing sits in the end-to-end workflow                     |
-| `mesoscope:mesoscope-vr-processing-schema` | Reference: the acquisition-system donations that fill the registry seams            |
+|--------------------------------------------|-----------------------------------------------------------------------------------|
+| `/forging-mcp-environment-setup`           | Prerequisite: server connectivity, the response contract, and the `slf omp` check |
+| `assets:session-discovery`                 | Upstream: the exclusive producer of the `session_paths` lists                     |
+| `/job-planning`                            | Upstream: unit plans, job estimates, and the declared resource model              |
+| `/dataset-definition`                      | Upstream: the dataset hierarchy a `forging` batch consumes                        |
+| `/server-configuration`                    | Upstream: the compute server credentials a remote batch needs                     |
+| `/processing-input-format`                 | Reference: what each pipeline requires on disk before a job can run               |
+| `/dataset-forging`                         | Reference: the `forging` pipeline's own prerequisites and dataset semantics       |
+| `/remote-execution`                        | Adjacent: remote project discovery and scheduler job reads                        |
+| `/processing-results`                      | Downstream: output layouts and how to interpret them                              |
+| `/project-state`                           | Downstream: the project manifest and job artifacts a batch refreshes              |
+| `/cli-reference`                           | Reference: the human-facing `slf` command surface                                 |
+| `/pipeline`                                | Context: where batch processing sits in the end-to-end workflow                   |
+| `mesoscope:mesoscope-vr-processing-schema` | Reference: the acquisition-system donations that fill the registry seams          |
 
 ---
 

@@ -82,11 +82,11 @@ plan_dataset_jobs_tool(dataset_paths: list[str], host: str = "local", *, regener
 
 Both delegate to one private helper and differ only in the parameter name and the unit kind they pass.
 
-| Parameter                       | Type        | Default    | Description                                                       |
-|---------------------------------|-------------|------------|-------------------------------------------------------------------|
-| `session_paths` / `dataset_paths` | `list[str]` | (required) | Unit root directories. Paths ON THE SERVER when `host="remote"`.  |
-| `host`                          | `str`       | `"local"`  | `"local"` or `"remote"`.                                           |
-| `regenerate_plan`               | `bool`      | `False`    | Keyword-only. Re-estimates figures a cache already holds.          |
+| Parameter                         | Type        | Default    | Description                                                      |
+|-----------------------------------|-------------|------------|------------------------------------------------------------------|
+| `session_paths` / `dataset_paths` | `list[str]` | (required) | Unit root directories. Paths ON THE SERVER when `host="remote"`. |
+| `host`                            | `str`       | `"local"`  | `"local"` or `"remote"`.                                         |
+| `regenerate_plan`                 | `bool`      | `False`    | Keyword-only. Re-estimates figures a cache already holds.        |
 
 A response reports `host`, `total_units`, `total_jobs`, `elapsed_seconds`, and a `units` list whose entries carry
 each unit's `unit_path`, `unit_name`, `job_count`, and `summed_memory_mb`, or its `unit_path` and the `error` that
@@ -194,7 +194,7 @@ A response reports this machine's `total_cores`, `reserved_cores`, and `total_me
 **Note:** This is the one genuinely read-only tool of the six. Nothing on disk is touched and no tracker is written,
 so reading it costs nothing and answers what a stage declares without planning a unit.
 
-**Note:** An absent `concurrency_limit` means "bounded by the two budgets alone", and an absent
+**Note:** An absent `concurrency_limit` means "bounded by the core and memory budgets alone", and an absent
 `concurrency_reservation` means "competes at full width". An absent key is not a value of `0` and not a `null`.
 
 **Note:** `total_cores`, `reserved_cores`, and `total_memory_mb` always describe THIS machine, since the tool takes no
@@ -238,20 +238,20 @@ written at that root. Pull that file to size a submission without reading the da
 
 `planning.PROJECT_PLAN_SCHEMA` fixes one row per planned job:
 
-| Column             | Polars dtype     | Meaning                                                                        |
-|--------------------|------------------|---------------------------------------------------------------------------------|
-| `unit_kind`        | `String`         | `"session"` or `"dataset"`                                                       |
-| `animal`           | `String`         | Null on a dataset row                                                            |
-| `session`          | `String`         | Null on a dataset row                                                            |
-| `dataset`          | `String`         | Null on a session row                                                            |
-| `pipeline`         | `String`         | The pipeline that dispatches the job                                             |
-| `job_id`           | `String`         | The tracked identifier, which joins the project job artifact directly            |
-| `job_name`         | `String`         | The tracker job name, which is the stage                                         |
-| `specifier`        | `String`         | The differentiator within the unit                                               |
-| `cores`            | `UInt16`         | The cores this job occupies                                                      |
-| `memory_mb`        | `UInt32`         | The memory the sizing pass modeled                                               |
-| `memory_modeled`   | `Boolean`        | Whether a model of the job's own input produced the figure                       |
-| `prerequisite_ids` | `List(String)`   | The jobs that must succeed first, from the pipeline's own ordering                |
+| Column             | Polars dtype   | Meaning                                                               |
+|--------------------|----------------|-----------------------------------------------------------------------|
+| `unit_kind`        | `String`       | `"session"` or `"dataset"`                                            |
+| `animal`           | `String`       | Null on a dataset row                                                 |
+| `session`          | `String`       | Null on a dataset row                                                 |
+| `dataset`          | `String`       | Null on a session row                                                 |
+| `pipeline`         | `String`       | The pipeline that dispatches the job                                  |
+| `job_id`           | `String`       | The tracked identifier, which joins the project job artifact directly |
+| `job_name`         | `String`       | The tracker job name, which is the stage                              |
+| `specifier`        | `String`       | The differentiator within the unit                                    |
+| `cores`            | `UInt16`       | The cores this job occupies                                           |
+| `memory_mb`        | `UInt32`       | The memory the sizing pass modeled                                    |
+| `memory_modeled`   | `Boolean`      | Whether a model of the job's own input produced the figure            |
+| `prerequisite_ids` | `List(String)` | The jobs that must succeed first, from the pipeline's own ordering    |
 
 Rows are natural-sorted by `unit_kind`, `animal`, `session`, `dataset`, `pipeline`, `job_name`, and `specifier`, with
 nulls last. `animal` is a `String` column here as it is in every other project artifact, so the plan joins the
@@ -275,12 +275,12 @@ zero disk cost, so quote its response rather than any number written down elsewh
 at **import time** from the installed dependency that owns the stage, which means they change with a dependency bump
 and no edit in `orchestration/dispatch.py`. A figure copied into a report is stale the moment a dependency moves.
 
-| Term                      | Declared in                             | Behavior                                                             |
-|---------------------------|-----------------------------------------|-----------------------------------------------------------------------|
-| Core allocation           | `dispatch._JOB_CORE_ALLOCATIONS`        | The cores one job of the type occupies. Read via `resolve_job_cores`  |
-| Hard ceiling              | `dispatch._JOB_CONCURRENCY_LIMITS`      | Jobs of the type that may run at once, whatever capacity is idle      |
-| Soft reservation          | `dispatch._JOB_CONCURRENCY_RESERVATIONS`| Capacity offered to other work first, then released over the rest     |
-| Host reserve              | `local.RESERVED_CORES`                  | Cores withheld from an auto-resolved core budget                      |
+| Term             | Declared in                              | Behavior                                                             |
+|------------------|------------------------------------------|----------------------------------------------------------------------|
+| Core allocation  | `dispatch._JOB_CORE_ALLOCATIONS`         | The cores one job of the type occupies. Read via `resolve_job_cores` |
+| Hard ceiling     | `dispatch._JOB_CONCURRENCY_LIMITS`       | Jobs of the type that may run at once, whatever capacity is idle     |
+| Soft reservation | `dispatch._JOB_CONCURRENCY_RESERVATIONS` | Capacity offered to other work first, then released over the rest    |
+| Host reserve     | `local.RESERVED_CORES`                   | Cores withheld from an auto-resolved core budget                     |
 
 A **ceiling stands however much capacity is idle**. Spare cores and spare memory never lift it, because a type holding
 one is waiting on something capacity does not supply, such as storage bandwidth or decoder throughput.
@@ -298,12 +298,12 @@ as `reserved_cores` and reports what remains as `total_cores`.
 **A job type declaring neither a core allocation nor a sizing model is a hard error, never a job admitted at a default
 size.** Four assets raise it, at two points in the lifecycle:
 
-| Asset                            | When it fires                       | What it means                                                  |
-|----------------------------------|-------------------------------------|-----------------------------------------------------------------|
-| `dispatch.resolve_job_cores`     | Planning, per unit                  | The type declares no entry in the core allocation table          |
-| `footprints.size_session_jobs`   | Planning, per session job           | The type routes to no sizing model                               |
-| `footprints.size_dataset_jobs`   | Planning, per dataset job           | The type routes to no sizing model                               |
-| `local.resolve_core_allocations` | Local execution, over the whole set | Names every unregistered type at once, sorted                    |
+| Asset                            | When it fires                       | What it means                                           |
+|----------------------------------|-------------------------------------|---------------------------------------------------------|
+| `dispatch.resolve_job_cores`     | Planning, per unit                  | The type declares no entry in the core allocation table |
+| `footprints.size_session_jobs`   | Planning, per session job           | The type routes to no sizing model                      |
+| `footprints.size_dataset_jobs`   | Planning, per dataset job           | The type routes to no sizing model                      |
+| `local.resolve_core_allocations` | Local execution, over the whole set | Names every unregistered type at once, sorted           |
 
 The refusal text is the same claim each time: a job whose resources nothing resolves cannot be admitted to a batch.
 Adding a stage is therefore an edit to the allocation table and the sizing router together, and `/library-extension`
@@ -408,23 +408,22 @@ pipeline and the job, and the value is the reason the pass gave.
 | `<pipeline>/<job_name>`          | The same, for a stage whose specifier is empty, so the key carries no parentheses   |
 | `<pipeline>/all jobs`            | The one-pass sizing for the whole pipeline raised, so each job was then sized alone |
 
-| Symptom                                                  | Cause                                    | Resolution                            |
-|----------------------------------------------------------|------------------------------------------|----------------------------------------|
-| A unit entry carries `error` and `job_count: 0`           | No pipeline planned any job for it       | Check the unit carries readable inputs |
-| `unsized_jobs` names a job whose input file is missing    | The stage's input was never produced     | Run the upstream pipeline first        |
-| A prepared batch reports a unit as carrying unplanned jobs | The projection has no row for those ids  | Plan that unit, then prepare again     |
-| `read_project_plan_tool` reports no projection            | No unit under the root has been planned  | Plan the units, which reprojects       |
-| A cache is re-estimated despite `regenerate_plan=False`   | The stamped model version no longer matches | Expected. Adopt the new figures     |
+| Symptom                                                    | Cause                                       | Resolution                             |
+|------------------------------------------------------------|---------------------------------------------|----------------------------------------|
+| A unit entry carries `error` and `job_count: 0`            | No pipeline planned any job for it          | Check the unit carries readable inputs |
+| `unsized_jobs` names a job whose input file is missing     | The stage's input was never produced        | Run the upstream pipeline first        |
+| A prepared batch reports a unit as carrying unplanned jobs | The projection has no row for those ids     | Plan that unit, then prepare again     |
+| `read_project_plan_tool` reports no projection             | No unit under the root has been planned     | Plan the units, which reprojects       |
+| A cache is re-estimated despite `regenerate_plan=False`    | The stamped model version no longer matches | Expected. Adopt the new figures        |
 
 A unit that no pipeline could plan is refused with a message naming what each pipeline reported and what each sizing
 pass refused. Read both halves: the first says the unit carries none of the data a pipeline consumes, and the second
 says it carries the data in a state no model could read.
 
 **Why planning must precede a remote submission.** The plan table is the only source of the cores and memory each
-allocation requests. Preparation refuses a project whose host holds no plan table, and a job present in the state
-artifact but absent from the plan makes its whole unit unresolved, on the ground that every outstanding job must be
-planned before it can be sized for a host or a scheduler. Because the projection ships as one file, a scheduler is
-sized from it without reading the data root it was planned against.
+allocation requests. Preparation refuses a project whose host holds no plan table. A job present in the state artifact
+but absent from the plan makes its whole unit unresolved, on the ground that every outstanding job must be planned
+before it can be sized for a host or a scheduler.
 
 ---
 
@@ -433,23 +432,23 @@ sized from it without reading the data root it was planned against.
 The `video:`, `communication:`, and `cindra:` entries below resolve through the ataraxis and cindra marketplaces.
 Every other entry resolves inside the sollertia marketplace.
 
-| Skill                                    | Relationship                                                              |
-|------------------------------------------|----------------------------------------------------------------------------|
-| `/forging-mcp-environment-setup`         | Prerequisite: MCP server connectivity and the plugin-wide response contract |
-| `/batch-processing`                      | Downstream: prepares and executes the batch these figures size              |
-| `/remote-execution`                      | Downstream: submits a batch whose allocations come from the plan table      |
-| `/dataset-definition`                    | Upstream: builds the dataset hierarchy whose forging jobs are planned here  |
-| `/project-state`                         | Peer: records what each planned job has since done                          |
-| `/processing-input-format`               | Reference: what a unit must carry before a stage can be sized at all        |
-| `/data-processing-design`                | Context: the durable admission and tracker doctrine these figures feed      |
-| `/library-extension`                     | Reference: the allocation table and sizing router a new stage must declare  |
-| `/cli-reference`                         | Reference: the human-facing `slf plan` command surface                      |
-| `/pipeline`                              | Context: where planning sits in the end-to-end pipeline                     |
-| `assets:session-discovery`               | Upstream: the exclusive producer of the session paths a plan call consumes  |
-| `mesoscope:mesoscope-vr-processing-schema` | Reference: the per-system stage schemas the sizing models read            |
-| `video:log-processing`                   | Reference: the library whose own sizing pass answers for camera extraction  |
-| `communication:log-processing`           | Reference: the library whose own sizing pass answers for archive extraction |
-| `cindra:single-recording-processing`     | Reference: the library whose resource classes supply several declared terms |
+| Skill                                      | Relationship                                                                |
+|--------------------------------------------|-----------------------------------------------------------------------------|
+| `/forging-mcp-environment-setup`           | Prerequisite: MCP server connectivity and the plugin-wide response contract |
+| `/batch-processing`                        | Downstream: prepares and executes the batch these figures size              |
+| `/remote-execution`                        | Downstream: submits a batch whose allocations come from the plan table      |
+| `/dataset-definition`                      | Upstream: builds the dataset hierarchy whose forging jobs are planned here  |
+| `/project-state`                           | Peer: records what each planned job has since done                          |
+| `/processing-input-format`                 | Reference: what a unit must carry before a stage can be sized at all        |
+| `/data-processing-design`                  | Context: the durable admission and tracker doctrine these figures feed      |
+| `/library-extension`                       | Reference: the allocation table and sizing router a new stage must declare  |
+| `/cli-reference`                           | Reference: the human-facing `slf plan` command surface                      |
+| `/pipeline`                                | Context: where planning sits in the end-to-end pipeline                     |
+| `assets:session-discovery`                 | Upstream: the exclusive producer of the session paths a plan call consumes  |
+| `mesoscope:mesoscope-vr-processing-schema` | Reference: the per-system stage schemas the sizing models read              |
+| `video:log-processing`                     | Reference: the library whose own sizing pass answers for camera extraction  |
+| `communication:log-processing`             | Reference: the library whose own sizing pass answers for archive extraction |
+| `cindra:single-recording-processing`       | Reference: the library whose resource classes supply several declared terms |
 
 ---
 

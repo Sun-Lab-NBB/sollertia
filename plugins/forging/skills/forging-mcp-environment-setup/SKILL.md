@@ -1,18 +1,17 @@
 ---
 name: forging-mcp-environment-setup
 description: >-
-  Diagnoses and resolves sollertia-forgery MCP server connectivity issues (environment, `slf`
-  command availability, Python version, dependencies, the macOS OpenMP runtime). Owns the
-  plugin-wide response envelope, staged-read contract, and paging keys. Use when the forging MCP
-  tools are unavailable, when the server fails to start, when every job fails on a macOS host, or
-  when a skill needs the response contract every forging tool returns.
+  Diagnoses and resolves sollertia-forgery MCP server connectivity issues (environment, `slf` command availability,
+  Python version, dependencies, the macOS OpenMP runtime). Owns the plugin-wide response envelope, staged-read contract,
+  and paging keys. Use when the forging MCP tools are unavailable, when the server fails to start, when every job fails
+  on a macOS host, or when a skill needs the response contract every forging tool returns.
 user-invocable: false
 ---
 
 # Sollertia forging MCP environment setup
 
-Diagnoses and resolves sollertia-forgery MCP server connectivity and environment configuration issues, and owns the two
-plugin-wide contracts every other forging skill points at, the response envelope the `slf mcp` tools return and the
+Diagnoses and resolves sollertia-forgery MCP server connectivity and environment configuration issues. It also owns the
+two plugin-wide contracts every other forging skill references, the response envelope the `slf mcp` tools return and the
 macOS OpenMP runtime prerequisite every parallel pipeline enforces. This skill owns no MCP tool of its own. It calls
 `read_resource_model_tool` as a reachability probe alone, and `/job-planning` owns that tool and the model it reports.
 
@@ -139,15 +138,14 @@ inside the installed Python distributions, and it links the first candidate that
 because a package manager runtime outlives the Python distributions installed beside it while a vendored one ties the
 threading layer to the lifecycle of the distribution carrying it. `-s/--source` names a runtime explicitly and
 `-t/--target` names the link destination. `resolve_openmp_runtime` raises on any platform other than macOS, so run the
-command on macOS alone. A `linked` outcome whose summary reports that the runtime still does not load asks the operator
-to set `DYLD_LIBRARY_PATH` to include the directory holding the runtime instead.
+command on macOS alone. Whenever a `linked` summary reports that the runtime still does not load, tell the operator to
+set `DYLD_LIBRARY_PATH` to include the directory holding the runtime instead.
 
 ---
 
 ## Response contract
 
-This section is the plugin-wide contract for every `slf mcp` tool. Every other forging skill references it by pointer
-and MUST NOT restate it.
+Every other forging skill references this plugin-wide contract by pointer and MUST NOT restate it.
 
 ### Response envelope
 
@@ -158,14 +156,14 @@ Every one of the 26 tools returns a plain `dict[str, Any]` built by one of the t
 no error code, no error type, and no partial data, so branch on `success` before reading any other key and then match
 the human-readable `error` string, which is stable per tool.
 
-Three departures are documented. `execute_jobs_tool` appends `invalid_jobs` to its `No valid jobs to execute.` error.
-`read_server_configuration_tool` and `write_server_configuration_tool` nest their payload under a `data` key, which no
-other tool does. `read_server_configuration_tool` catches only `OSError` and `ValueError`, so a malformed YAML document
-or a dataclass construction failure propagates out of that tool rather than returning an envelope.
+Three tools depart from the envelope. `execute_jobs_tool` appends `invalid_jobs` to its `No valid jobs to execute.`
+error. `read_server_configuration_tool` and `write_server_configuration_tool` nest their payload under a `data` key,
+which no other tool does. `read_server_configuration_tool` catches only `OSError` and `ValueError`, so a malformed YAML
+document or a dataclass construction failure propagates out of that tool rather than returning an envelope.
 
 ### The three widening read stages
 
-Every read tool answers at one of three widths, and a caller pays only for the width it asks for.
+Every read tool answers at one of three widths, and a caller pays only for the width it requests.
 
 1. A bare call reports the totals and a `breakdown` over the axes the tool accepts as filters, and lists no items.
 2. Naming any filter, or passing `include_items=True`, adds a page of items alongside the totals and the breakdown.
@@ -174,7 +172,7 @@ Every read tool answers at one of three widths, and a caller pays only for the w
 The stage-three fields differ per tool, the executor and the timestamps and the error text on the job readers, `notes`
 on the manifest reader, and `job_id` and `memory_modeled` and `prerequisite_ids` on the plan reader. The scheduler
 reader adds the requested figures against the occupied ones on its accounting view, and the allocation's shape and its
-remaining walltime on its queue view. Three tools depart from the pattern. `discover_remote_project_tool` carries no
+remaining walltime on its queue view. Three tools depart from the staged read. `discover_remote_project_tool` carries no
 `detailed` parameter and stops at stage two. `list_project_datasets_tool`, `list_prepared_batches_tool`, and
 `read_resource_model_tool` carry no `include_items` parameter, because their listing is always present, and
 `read_resource_model_tool` carries no `detailed` parameter either.
@@ -201,10 +199,10 @@ empty page whose `next_start_row` is `null`.
 ### Breakdown axes and sparse items
 
 `count_values` renders one axis as `{str(value): count}` sorted by key, counting a `None` under the literal key `none`.
-`bounded_counts` wraps it with the `_BREAKDOWN_AXIS_LIMIT` of 50. An axis holding more than 50 distinct values reports
-a `distinct_values` count and an `elided` note in place of the counts, and that note tells the caller to filter on the
-axis to read the items carrying one of its values. `frame_breakdown` omits an axis the stored table does not carry
-rather than reporting it empty.
+`bounded_counts` wraps it with the `_BREAKDOWN_AXIS_LIMIT` of 50. An axis holding more than 50 distinct values reports a
+`distinct_values` count and an `elided` note in place of the counts. That note tells the caller to filter on the axis to
+read the items carrying one of its values. `frame_breakdown` omits an axis the stored table does not carry rather than
+reporting it empty.
 
 Every listed item passes through `project_item` with `drop_empty=True`, which keeps only the fields the tool declares,
 in the order it declares them, and drops a value that is `None`, an empty string, an empty list, or an empty dict. A

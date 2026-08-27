@@ -1,11 +1,11 @@
 ---
 name: data-processing-design
 description: >-
-  Documents the durable design pattern behind sollertia-forgery data processing: the agnostic worker packages and the
-  per-system donations they dispatch through, the registry seam with its import-time coverage check, the pipeline
-  dispatch table, the plan, prepare, execute, close job model, and the resource admission rules. Use when adding a
-  processing stage or pipeline, auditing the agnostic versus per-system split, or deciding whether a concern belongs
-  in this library or in one of its upstream dependencies.
+  Documents the durable design pattern behind sollertia-forgery data processing. Covers the agnostic worker packages
+  and the per-system donations they dispatch through, the registry seam with its import-time coverage check, the
+  pipeline dispatch table, the plan, prepare, execute, close job model, and the resource admission rules. Use when
+  adding a processing stage or pipeline, auditing the agnostic versus per-system split, or deciding whether a concern
+  belongs in this library or in one of its upstream dependencies.
 user-invocable: false
 ---
 
@@ -40,8 +40,7 @@ no single acquisition system's donations. For the concrete instance those patter
 **Does not cover:**
 - Preparing and executing a batch, and reading its status. Owned by `/batch-processing`.
 - Planning a unit, projecting a project plan, and inspecting job resources. Owned by `/job-planning`.
-- The step-by-step touch points for adding a system, a pipeline, a stage, or an MCP tool. Owned by
-  `/library-extension`.
+- The step-by-step touch points for adding a system, a pipeline, a stage, or an MCP tool. Owned by `/library-extension`.
 - The `slf` command surface the rendered job argument vectors invoke. Owned by `/cli-reference`.
 - The scheduler backend, the submission ledger, and the transport settings. Owned by `/remote-execution` and
   `/server-configuration`.
@@ -144,12 +143,12 @@ mapping a pipeline consumes. Three donations carry no callable at all, since `_F
 | `resolve_pose_prediction_locator`                 | `_PosePredictionLocator`                                            |
 | `resolve_video_tracking`                          | `_VideoTracker`                                                     |
 
-Every accessor takes `system: str | AcquisitionSystems` as its first parameter and normalizes it through one gate, so
-a caller holding the enum member and a caller holding its string value resolve the identical asset. An unknown system
+Every accessor takes `system: str | AcquisitionSystems` as its first parameter and normalizes it through one gate, so a
+caller holding the enum member and a caller holding its string value resolve the identical asset. An unknown system
 raises a `ValueError` naming the supported members. The accessor is the API and the registry is an implementation
-detail, which buys three things a raw lookup does not, namely the string-or-member normalization, a named `ValueError`
-in place of a bare `KeyError`, and the freedom to change a registry's internal shape without touching a pipeline. A
-locator or the video-tracking function is reached in two steps, as in
+detail. That split buys three things a raw lookup does not, namely the string-or-member normalization, a named
+`ValueError` in place of a bare `KeyError`, and the freedom to change a registry's internal shape without touching a
+pipeline. A locator or the video-tracking function is reached in two steps, as in
 `resolve_pose_prediction_locator(system=session.acquisition_system)(session=session)`.
 
 ### The donation Protocols
@@ -298,10 +297,10 @@ Three tables in `orchestration/dispatch.py` describe a job type, and all three k
 | `_JOB_CONCURRENCY_LIMITS`       | A hard ceiling on how many jobs of the type run at once | The type is bounded by the budgets alone |
 | `_JOB_CONCURRENCY_RESERVATIONS` | A soft reservation the first admission pass honors      | The type takes whatever a pass leaves    |
 
-Every stage this library owns dispatches at its declared width, because each holds one shape whatever data it reads.
-A stage a dependency owns is sized whole by that dependency, which answers with the width it picked for the job's own
-input, so the entry here restates the dependency's figure rather than deciding it and a retune upstream reaches the
-table without an edit.
+Every stage this library owns dispatches at its declared width, because each holds one shape whatever data it reads. A
+stage a dependency owns is sized whole by that dependency, which answers with the width it picked for the job's own
+input. The entry here therefore restates the dependency's figure rather than deciding it, so a retune upstream reaches
+the table without an edit.
 
 A job type declaring no core figure is refused at two layers. `resolve_job_cores` raises a `ValueError` during
 planning, so the unit's plan fails before any batch is prepared, and `resolve_core_allocations` raises at local
@@ -382,7 +381,7 @@ def merge_event_streams[ScalarT: np.generic](
 It concatenates both pairs and reorders them on a stable `argsort` of the `uint64` timestamps, which NumPy maps to a
 linear-time radix sort for that key type, returning the sorted timestamps and the values reordered to match.
 
-The remaining microcontroller primitives belong to `ataraxis-communication-interface`, which owns the extracted
+The remaining microcontroller primitives belong to `ataraxis-communication-interface`. That library owns the extracted
 message schema, the event-code partitioning a parse job runs before dispatching to its donated parser, the typed
 timestamp and value readers a parser calls, and the module output path this library composes. Read
 `communication:log-processing-results` for that surface and cite it there rather than restating it here.
@@ -403,7 +402,7 @@ place.
 
 ## Maintenance contract
 
-This skill documents durable design patterns. It is updated when:
+This skill is updated when:
 
 - A registry is added to or removed from `registries.py`, or a donation Protocol changes its call signature.
 - A check is added to `_assert_registry_coverage` or `_assert_dispatch_coverage`, or an existing check changes what

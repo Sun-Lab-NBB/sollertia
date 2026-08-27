@@ -60,20 +60,20 @@ no read can supply it and no complete payload can be assembled without asking.
 each defaulting to the empty string. There is no nesting, no SSH key path, no port, no per-project mapping, and no
 transfer setting. `to_yaml` writes the fields in declaration order, so the stored document reads in the order below.
 
-| Field         | Meaning                                                                                                |
-|---------------|--------------------------------------------------------------------------------------------------------|
-| `username`    | The username used for server authentication                                                            |
-| `password`    | The password used for server authentication                                                            |
-| `host`        | The hostname or IP address used to reach the server                                                    |
-| `root`        | The absolute path, on the server, to the single root directory that stores all Sollertia data          |
-| `environment` | The name of the shared conda environment, on the server, that every remote job activates before `slf`  |
+| Field         | Meaning                                                                                               |
+|---------------|-------------------------------------------------------------------------------------------------------|
+| `username`    | The username used for server authentication                                                           |
+| `password`    | The password used for server authentication                                                           |
+| `host`        | The hostname or IP address used to reach the server                                                   |
+| `root`        | The absolute path, on the server, to the single root directory that stores all Sollertia data         |
+| `environment` | The name of the shared conda environment, on the server, that every remote job activates before `slf` |
 
 `root` and `environment` are the two fields a misconfiguration usually lands in, because neither one fails at
 connection time.
 
-**`root`** is the base every remote path resolves against. `Server.root` returns it as a `Path`, a project resolves as
-`root` joined with the project name, and that is where `discover_remote_project_tool` looks and how every absolute
-server-side path a remote tool reports is composed. A wrong root authenticates cleanly and then reports that the server
+**`root`** is the base every remote path resolves against. `Server.root` returns it as a `Path`, and a project resolves
+as `root` joined with the project name. That join is where `discover_remote_project_tool` looks, and it composes every
+absolute server-side path a remote tool reports. A wrong root authenticates cleanly and then reports that the server
 holds no directory for the project. Point it at the data root itself, never at a project, an animal, or a session.
 
 **`environment`** is the one shared conda environment on the server that every remote job activates before invoking the
@@ -95,20 +95,20 @@ protection the platform provides for it.
 
 ## MCP tool surface
 
-| Tool                              | Purpose                                                                              |
-|-----------------------------------|--------------------------------------------------------------------------------------|
-| `read_server_configuration_tool`  | Loads the stored configuration and reports its five fields with the password masked  |
-| `write_server_configuration_tool` | Validates a complete payload by round trip, then persists it as the configuration    |
+| Tool                              | Purpose                                                                             |
+|-----------------------------------|-------------------------------------------------------------------------------------|
+| `read_server_configuration_tool`  | Loads the stored configuration and reports its five fields with the password masked |
+| `write_server_configuration_tool` | Validates a complete payload by round trip, then persists it as the configuration   |
 
 `read_server_configuration_tool` takes no parameters. Neither tool accepts a `host` argument and neither opens a
 connection, so both run entirely against the local working directory.
 
 ### Write parameters
 
-| Parameter               | Type             | Default    | Meaning                                                                                |
-|-------------------------|------------------|------------|----------------------------------------------------------------------------------------|
-| `configuration_payload` | `dict[str, Any]` | required   | The complete flat payload, keyed `username`, `password`, `host`, `root`, `environment` |
-| `overwrite`             | `bool`           | `False`    | Keyword-only. Whether to replace an existing configuration file                        |
+| Parameter               | Type             | Default  | Meaning                                                                                |
+|-------------------------|------------------|----------|----------------------------------------------------------------------------------------|
+| `configuration_payload` | `dict[str, Any]` | required | The complete flat payload, keyed `username`, `password`, `host`, `root`, `environment` |
+| `overwrite`             | `bool`           | `False`  | Keyword-only. Whether to replace an existing configuration file                        |
 
 `overwrite` guards the existing file alone. Left at its default with a file already present, the write returns
 `Unable to write the server configuration. A file already exists at '<path>'. Pass overwrite=True to replace it.` Every
@@ -124,8 +124,6 @@ The response envelope every tool on this server returns, and the staged-read con
 documented in the `## Response contract` section of `/forging-mcp-environment-setup`.
 
 ### Failure modes
-
-Four behaviors account for nearly every failed configuration edit.
 
 **The password is never readable.** `read_server_configuration_tool` always substitutes the literal `<masked>`, and
 `write_server_configuration_tool` refuses a payload whose `password` equals that literal, reporting that persisting it
@@ -247,14 +245,14 @@ persists the whole document and refuses the masked placeholder.
 
 ## Related skills
 
-| Skill                             | Relationship                                                                               |
-|-----------------------------------|--------------------------------------------------------------------------------------------|
-| `/forging-mcp-environment-setup`  | Run first if the `slf mcp` server is not connected. Owns the plugin-wide response contract |
-| `assets:working-directory`        | Prerequisite that owns the working directory this configuration resolves against           |
-| `/remote-execution`               | Consumer that discovers projects under `root` and reads the scheduler for submitted jobs   |
-| `/batch-processing`               | Consumer that prepares and executes every `host='remote'` batch through this configuration |
-| `/cli-reference`                  | Owns the human-facing `slf server configure` path and its options                          |
-| `/pipeline`                       | Context: where remote authorization sits in the end-to-end processing flow                 |
+| Skill                            | Relationship                                                                               |
+|----------------------------------|--------------------------------------------------------------------------------------------|
+| `/forging-mcp-environment-setup` | Run first if the `slf mcp` server is not connected. Owns the plugin-wide response contract |
+| `assets:working-directory`       | Prerequisite that owns the working directory this configuration resolves against           |
+| `/remote-execution`              | Consumer that discovers projects under `root` and reads the scheduler for submitted jobs   |
+| `/batch-processing`              | Consumer that prepares and executes every `host='remote'` batch through this configuration |
+| `/cli-reference`                 | Owns the human-facing `slf server configure` path and its options                          |
+| `/pipeline`                      | Context: where remote authorization sits in the end-to-end processing flow                 |
 
 ---
 

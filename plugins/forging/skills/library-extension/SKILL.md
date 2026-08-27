@@ -13,7 +13,7 @@ user-invocable: false
 
 Extends `sollertia-forgery` along the seams by which an acquisition system, a session type, a processing stage, a
 processing pipeline, and an MCP tool enter it. Every system-specific behavior enters this library through
-`registries.py` alone, so extending it is a wiring exercise whose remaining work an import error states out loud.
+`registries.py` alone, so extending it is a wiring exercise, and an import error names the work that remains.
 
 You MUST read this entire skill before extending the library, then read
 [references/extension-recipes.md](references/extension-recipes.md) for the scenario you are applying and
@@ -36,8 +36,7 @@ checklist before reporting an extension complete.
 - The documentation, coverage, and test obligations each scenario carries
 
 **Does not cover:**
-- What a donated worker computes, and how a per-system processing stage is designed. Owned by
-  `/data-processing-design`.
+- What a donated worker computes, and how a per-system processing stage is designed. Owned by `/data-processing-design`.
 - Operating the admission policy and the column descriptions once they are wired. Owned by `/dataset-definition`.
 - The upstream `AcquisitionSystems` and `SessionTypes` members and the `SYSTEM_SESSION_TYPES` pairing. Owned by
   `assets:library-extension`.
@@ -87,8 +86,8 @@ declared in total, and two registries hold no callable at all.
 | `_FORGING_ADMISSION_REGISTRY`            | `dict[SessionTypes, frozenset[ProcessingPipelines]]`, data rather than a callable                       |
 | `_MULTI_RECORDING_SESSION_TYPE_REGISTRY` | `frozenset[SessionTypes]`, data rather than a callable                                                  |
 
-The key shape of each registry, and the thirteen `resolve_*` accessors a pipeline reads them through, are documented
-by `/data-processing-design`.
+The key shape of each registry, and the thirteen `resolve_*` accessors through which a pipeline reads them, are
+documented by `/data-processing-design`.
 
 Three rules govern every entry in that table.
 
@@ -115,11 +114,11 @@ column descriptions sit in `mesoscope:mesoscope-vr-processing-schema` and the su
 
 ## No command takes a system selector
 
-Nothing under `orchestration/` or `interfaces/` changes when an acquisition system is added. Every consumer resolves
-the system from `SessionData.acquisition_system` or `DatasetData.acquisition_system` at the call site, which the
-`slf_cli` docstring in `interfaces/entry_points.py` states as a property of the whole command surface. A new system
-therefore adds no CLI option, no MCP parameter, no dispatch entry, and no sizing branch, and every skill in this
-plugin stays acquisition-system-agnostic across the change.
+Nothing under `orchestration/` or `interfaces/` changes when an acquisition system is added. Every consumer resolves the
+system from `SessionData.acquisition_system` or `DatasetData.acquisition_system` at the call site, and the `slf_cli`
+docstring in `interfaces/entry_points.py` states that as a property of the whole command surface. A new system therefore
+adds no CLI option, no MCP parameter, no dispatch entry, and no sizing branch, and every skill in this plugin stays
+acquisition-system-agnostic across the change.
 
 ---
 
@@ -128,11 +127,11 @@ plugin stays acquisition-system-agnostic across the change.
 Three module-scope checks guard this library, and each raises a `RuntimeError` through
 `ataraxis_base_utilities.console.error`, which stops the import at the first offender.
 
-| Check                              | Module                      | Import that runs it                                | What it guards |
-|------------------------------------|-----------------------------|----------------------------------------------------|----------------|
+| Check                              | Module                      | Import that runs it                                        | What it guards                                                                                                                                            |
+|------------------------------------|-----------------------------|------------------------------------------------------------|-----------------------------------------------------------------------------------------------------------------------------------------------------------|
 | `_assert_registry_coverage()`      | `registries.py`             | `sollertia_forgery.registries`, and everything reaching it | Every system's entry in each of the eleven registries, every parseable module's event codes, and every declared session type against the upstream pairing |
-| `_assert_dispatch_coverage()`      | `orchestration/dispatch.py` | `sollertia_forgery.orchestration`                  | The dispatch table against `BATCH_PIPELINES`, symmetrically |
-| `_assert_status_column_coverage()` | `managing/manifest.py`      | `sollertia_forgery.managing`                       | `_PIPELINE_STATUS_COLUMNS` against `SESSION_PIPELINES`, symmetrically |
+| `_assert_dispatch_coverage()`      | `orchestration/dispatch.py` | `sollertia_forgery.orchestration`                          | The dispatch table against `BATCH_PIPELINES`, symmetrically                                                                                               |
+| `_assert_status_column_coverage()` | `managing/manifest.py`      | `sollertia_forgery.managing`                               | `_PIPELINE_STATUS_COLUMNS` against `SESSION_PIPELINES`, symmetrically                                                                                     |
 
 `import sollertia_forgery` alone runs none of them, because the top-level `__init__.py` re-exports no library symbol
 and its `__all__` is empty. `slf --help` runs all three, since `interfaces/entry_points.py` imports
@@ -152,9 +151,8 @@ Unable to validate the pipeline dispatch table. Every pipeline named in BATCH_PI
 Unable to validate the manifest's pipeline status columns. Every pipeline in SESSION_PIPELINES must declare ...
 ```
 
-A message reporting a system interpolates the enum member name, and a message reporting a session type
-interpolates the enum value, so a search for the offending entry uses the spelling the message that fired
-actually carries.
+A message reporting a system interpolates the enum member name, and a message reporting a session type interpolates the
+enum value, so a search for the offending entry uses the spelling carried by the message that fired.
 
 ### What the checks do not catch
 
@@ -171,19 +169,19 @@ scenario each belongs to, how it surfaces, and where to cover it.
 Pick exactly one row and apply its recipe. A change spanning several scenarios applies their recipes sequentially
 rather than interleaved, because the coverage check reports one structure at a time.
 
-| Scenario                | Blocking upstream half                                       | Recipe |
-|-------------------------|---------------------------------------------------------------|--------|
-| New acquisition system  | `AcquisitionSystems` member, per-system record classes, `SYSTEM_SESSION_TYPES` claim | [Acquisition system](references/extension-recipes.md#adding-a-new-acquisition-system) |
-| New session type        | `SessionTypes` member, its descriptor, its `SYSTEM_SESSION_TYPES` pairing | [Session type](references/extension-recipes.md#adding-a-new-session-type) |
-| New processing stage    | None                                                          | [Processing stage](references/extension-recipes.md#adding-a-new-processing-stage) |
-| New processing pipeline | `ProcessingTrackers` member, `ProcessedData` field pair, `Directories` member | [Processing pipeline](references/extension-recipes.md#adding-a-new-processing-pipeline) |
-| New MCP tool            | None                                                          | [MCP tool](references/extension-recipes.md#adding-an-mcp-tool) |
+| Scenario                | Blocking upstream half                                                               | Recipe                                                                                  |
+|-------------------------|--------------------------------------------------------------------------------------|-----------------------------------------------------------------------------------------|
+| New acquisition system  | `AcquisitionSystems` member, per-system record classes, `SYSTEM_SESSION_TYPES` claim | [Acquisition system](references/extension-recipes.md#adding-a-new-acquisition-system)   |
+| New session type        | `SessionTypes` member, its descriptor, its `SYSTEM_SESSION_TYPES` pairing            | [Session type](references/extension-recipes.md#adding-a-new-session-type)               |
+| New processing stage    | None                                                                                 | [Processing stage](references/extension-recipes.md#adding-a-new-processing-stage)       |
+| New processing pipeline | `ProcessingTrackers` member, `ProcessedData` field pair, `Directories` member        | [Processing pipeline](references/extension-recipes.md#adding-a-new-processing-pipeline) |
+| New MCP tool            | None                                                                                 | [MCP tool](references/extension-recipes.md#adding-an-mcp-tool)                          |
 
 A new MCP tool module registers itself, since `_register_tool_modules()` in `interfaces/mcp_server.py` globs
 `*_tools.py` inside its own directory and imports every match.
 
-> The response envelope every tool on this server returns, and the staged-read contract its read tools follow, are
-> documented in the `## Response contract` section of `/forging-mcp-environment-setup`.
+The response envelope every tool on this server returns, and the staged-read contract its read tools follow, are
+documented in the `## Response contract` section of `/forging-mcp-environment-setup`.
 
 ---
 
@@ -220,25 +218,25 @@ prints, which is what runs all three of this library's checks.
 Each recipe names the handoffs its scenario carries. This table is the inverse view, and a review of a finished
 extension checks against it.
 
-| Skill                                      | Touched by                                | What changes |
-|--------------------------------------------|-------------------------------------------|--------------|
-| `/data-processing-design`                  | New system, new stage                     | The per-system donation design behind a registry entry, and the design of what a new stage computes |
-| `/dataset-definition`                      | New system, new session type              | The admission policy a session satisfies before it joins a dataset, and the column descriptions a dataset records |
-| `/dataset-forging`                         | New system, new session type              | The reach of the forging pipeline over a system's session types |
-| `/batch-processing`                        | New pipeline, new stage                   | The per-pipeline table, and the stages a pipeline dispatches |
-| `/job-planning`                            | New pipeline, new stage                   | The resource model, since a job type reaches the report only through `_PIPELINE_JOB_NAMES` |
-| `/project-state`                           | New per-session pipeline                  | The manifest status column and the schema column that pipeline adds |
-| `/processing-input-format`                 | New pipeline, new system                  | The acquired artifacts a pipeline requires before it runs |
-| `/processing-results`                      | New pipeline, new stage                   | The outputs a stage writes and the directory that owns them |
-| `/cli-reference`                           | New pipeline, new stage flag              | The `slf` command surface and its option roster |
-| `/pipeline`                                | New pipeline                              | The phase map and the routing into the new pipeline |
-| `/forging-mcp-environment-setup`           | New MCP tool                              | Nothing structural. The new module joins the server that skill documents |
-| `assets:library-extension`                 | Every blocking scenario                   | The upstream `AcquisitionSystems` or `SessionTypes` member and its `SYSTEM_SESSION_TYPES` pairing |
-| `assets:session-data`                      | New pipeline                              | The `ProcessingTrackers` filename, the `Directories` member, and the `ProcessedData` fields |
-| `experiment:library-extension`             | New system, new session type, some pipelines | The acquisition runtime that writes what a donation reads |
-| `mesoscope:mesoscope-vr-processing-schema` | A change to the registered system's donations | The concrete donations that system makes |
-| `mesoscope:mesoscope-vr-dataset-assembly`  | A new session type on the registered system | The assembly routing and the sub-dataset it produces |
-| The new system's companion plugin          | New acquisition system                    | The per-system schema skills, which `assets:library-extension` and `experiment:library-extension` own |
+| Skill                                      | Touched by                                    | What changes                                                                                                      |
+|--------------------------------------------|-----------------------------------------------|-------------------------------------------------------------------------------------------------------------------|
+| `/data-processing-design`                  | New system, new stage                         | The per-system donation design behind a registry entry, and the design of what a new stage computes               |
+| `/dataset-definition`                      | New system, new session type                  | The admission policy a session satisfies before it joins a dataset, and the column descriptions a dataset records |
+| `/dataset-forging`                         | New system, new session type                  | The reach of the forging pipeline over a system's session types                                                   |
+| `/batch-processing`                        | New pipeline, new stage                       | The per-pipeline table, and the stages a pipeline dispatches                                                      |
+| `/job-planning`                            | New pipeline, new stage                       | The resource model, since a job type reaches the report only through `_PIPELINE_JOB_NAMES`                        |
+| `/project-state`                           | New per-session pipeline                      | The manifest status column and the schema column that pipeline adds                                               |
+| `/processing-input-format`                 | New pipeline, new system                      | The acquired artifacts a pipeline requires before it runs                                                         |
+| `/processing-results`                      | New pipeline, new stage                       | The outputs a stage writes and the directory that owns them                                                       |
+| `/cli-reference`                           | New pipeline, new stage flag                  | The `slf` command surface and its option roster                                                                   |
+| `/pipeline`                                | New pipeline                                  | The phase map and the routing into the new pipeline                                                               |
+| `/forging-mcp-environment-setup`           | New MCP tool                                  | Nothing structural. The new module joins the server that skill documents                                          |
+| `assets:library-extension`                 | Every blocking scenario                       | The upstream `AcquisitionSystems` or `SessionTypes` member and its `SYSTEM_SESSION_TYPES` pairing                 |
+| `assets:session-data`                      | New pipeline                                  | The `ProcessingTrackers` filename, the `Directories` member, and the `ProcessedData` fields                       |
+| `experiment:library-extension`             | New system, new session type, some pipelines  | The acquisition runtime that writes what a donation reads                                                         |
+| `mesoscope:mesoscope-vr-processing-schema` | A change to the registered system's donations | The concrete donations that system makes                                                                          |
+| `mesoscope:mesoscope-vr-dataset-assembly`  | A new session type on the registered system   | The assembly routing and the sub-dataset it produces                                                              |
+| The new system's companion plugin          | New acquisition system                        | The per-system schema skills, which `assets:library-extension` and `experiment:library-extension` own             |
 
 ---
 
@@ -270,8 +268,8 @@ which is acquisition-system-agnostic by contract.
 
 ### Step 5: Verify
 
-Run the verification checklist below. The import gates are the safety net for registry membership, the dispatch
-table, and the manifest columns, and the manual items cover everything neither reaches.
+Run the verification checklist below. The import gates are the safety net for registry membership, the dispatch table,
+and the manifest columns, and the manual items cover everything the gates do not reach.
 
 ### Citing source in a skill edit
 
@@ -281,10 +279,10 @@ reading as authoritative. Naming the asset means naming the module plus one of t
 a class, a method, a function, a dataclass field, an enum, an enum member, or a constant. The module path alone
 suffices when the whole module is the subject.
 
-| Rejected                  | Correct                                                            |
-|---------------------------|--------------------------------------------------------------------|
-| `registries.py:530-560`   | `_assert_registry_coverage()` in `registries.py`                   |
-| `dispatch.py:90`          | the `_JOB_CORE_ALLOCATIONS` mapping in `orchestration/dispatch.py` |
+| Rejected                | Correct                                                            |
+|-------------------------|--------------------------------------------------------------------|
+| `registries.py:530-560` | `_assert_registry_coverage()` in `registries.py`                   |
+| `dispatch.py:90`        | the `_JOB_CORE_ALLOCATIONS` mapping in `orchestration/dispatch.py` |
 
 Cross-document references follow the same rule. Cite a README or a CLAUDE.md by its section heading, never by a line.
 
@@ -292,16 +290,16 @@ Cross-document references follow the same rule. Cite a README or a CLAUDE.md by 
 
 ## Pitfalls
 
-| Pitfall                                                       | Why it bites |
-|---------------------------------------------------------------|--------------|
-| Starting the forgery half before the upstream member lands    | The coverage check measures against `frozenset(AcquisitionSystems)`, so there is nothing to wire against and no error to work from |
-| Reading a clean import as a finished extension                | Only registry membership, the dispatch table, and the manifest columns are checked. Fifteen further touch points fail at runtime or silently |
-| Treating a system that produces no data of a class as exempt  | Every system donates an entry to all eleven registries. The null donation is a no-op function, a `None`-returning locator, or an empty frozenset |
-| Adding a stage and stopping at the pipeline                   | A stage also needs a core allocation, a sizing model with its routing branch, and a `_PIPELINE_JOB_NAMES` entry, none of which any check reaches |
-| Adding a per-session pipeline without its manifest column     | `_PIPELINE_STATUS_COLUMNS` and the matching `pl.UInt8` column in `_PROJECT_MANIFEST_SCHEMA` are two separate touches, and only the first is checked |
-| Minting a local job-name string for a dependency's stage      | The dependency exports the constant and its resource figures, and a local copy drifts the moment either is retuned |
-| Registering a closure or a bound method as a donated worker   | The forging assemblers and the module parsers cross a process boundary, so a donation that is not a picklable module-level function fails at dispatch |
-| Adding a per-system section to a skill in this plugin         | Every forging skill is acquisition-system-agnostic. Concrete per-system material belongs in that system's own companion plugin |
+| Pitfall                                                      | Why it bites                                                                                                                                          |
+|--------------------------------------------------------------|-------------------------------------------------------------------------------------------------------------------------------------------------------|
+| Starting the forgery half before the upstream member lands   | The coverage check measures against `frozenset(AcquisitionSystems)`, so there is nothing to wire against and no error to work from                    |
+| Reading a clean import as a finished extension               | Only registry membership, the dispatch table, and the manifest columns are checked. Fifteen further touch points fail at runtime or silently          |
+| Treating a system that produces no data of a class as exempt | Every system donates an entry to all eleven registries. The null donation is a no-op function, a `None`-returning locator, or an empty frozenset      |
+| Adding a stage and stopping at the pipeline                  | A stage also needs a core allocation, a sizing model with its routing branch, and a `_PIPELINE_JOB_NAMES` entry, none of which any check reaches      |
+| Adding a per-session pipeline without its manifest column    | `_PIPELINE_STATUS_COLUMNS` and the matching `pl.UInt8` column in `_PROJECT_MANIFEST_SCHEMA` are two separate touches, and only the first is checked   |
+| Minting a local job-name string for a dependency's stage     | The dependency exports the constant and its resource figures, and a local copy drifts the moment either is retuned                                    |
+| Registering a closure or a bound method as a donated worker  | The forging assemblers and the module parsers cross a process boundary, so a donation that is not a picklable module-level function fails at dispatch |
+| Adding a per-system section to a skill in this plugin        | Every forging skill is acquisition-system-agnostic. Concrete per-system material belongs in that system's own companion plugin                        |
 
 ---
 
@@ -310,33 +308,33 @@ Cross-document references follow the same rule. Cite a README or a CLAUDE.md by 
 The `video:`, `communication:`, `cindra:`, and `automation:` entries below resolve through the ataraxis and cindra
 marketplaces. Every other entry resolves inside the sollertia marketplace.
 
-| Skill                                      | Relationship |
-|--------------------------------------------|--------------|
-| `/forging-mcp-environment-setup`           | Owns the `slf mcp` server a new tool module joins, and the response contract that module returns |
-| `/data-processing-design`                  | Owns the per-system donation design behind a registry entry, and the doctrine a new stage follows |
-| `/dataset-definition`                      | Owns the admission policy and the column descriptions a new session type or system changes |
-| `/dataset-forging`                         | Owns the forging pipeline whose reach a new admission entry widens |
-| `/batch-processing`                        | Owns running the pipelines and stages an extension adds |
-| `/job-planning`                            | Owns the resource model a new job type joins through `_PIPELINE_JOB_NAMES` |
-| `/project-state`                           | Owns the project manifest a new per-session pipeline adds a status column to |
-| `/processing-input-format`                 | Owns the acquired artifacts a new donation or pipeline reads |
-| `/processing-results`                      | Owns the outputs a new stage or pipeline writes |
-| `/cli-reference`                           | Owns the `slf` surface a new subcommand or stage flag joins |
-| `/pipeline`                                | Routes an operator to the right skill once the extension lands |
-| `assets:library-extension`                 | Owns the blocking upstream half of every scenario, and gates it on its own import check |
+| Skill                                      | Relationship                                                                                            |
+|--------------------------------------------|---------------------------------------------------------------------------------------------------------|
+| `/forging-mcp-environment-setup`           | Owns the `slf mcp` server a new tool module joins, and the response contract that module returns        |
+| `/data-processing-design`                  | Owns the per-system donation design behind a registry entry, and the doctrine a new stage follows       |
+| `/dataset-definition`                      | Owns the admission policy and the column descriptions a new session type or system changes              |
+| `/dataset-forging`                         | Owns the forging pipeline whose reach a new admission entry widens                                      |
+| `/batch-processing`                        | Owns running the pipelines and stages an extension adds                                                 |
+| `/job-planning`                            | Owns the resource model a new job type joins through `_PIPELINE_JOB_NAMES`                              |
+| `/project-state`                           | Owns the project manifest a new per-session pipeline adds a status column to                            |
+| `/processing-input-format`                 | Owns the acquired artifacts a new donation or pipeline reads                                            |
+| `/processing-results`                      | Owns the outputs a new stage or pipeline writes                                                         |
+| `/cli-reference`                           | Owns the `slf` surface a new subcommand or stage flag joins                                             |
+| `/pipeline`                                | Routes an operator to the right skill once the extension lands                                          |
+| `assets:library-extension`                 | Owns the blocking upstream half of every scenario, and gates it on its own import check                 |
 | `assets:session-data`                      | Documents the `ProcessingTrackers` filenames, the `Directories` members, and the `ProcessedData` fields |
-| `assets:session-discovery`                 | Produces the session path lists a batch consumes once the new pipeline runs |
-| `assets:datasets`                          | Owns the dataset records a new acquisition system's forged datasets join |
-| `experiment:library-extension`             | Owns the acquisition runtime that records the artifacts a donation reads |
-| `experiment:pipeline`                      | Owns the acquisition run that produces the first processable session of a new shape |
-| `mesoscope:mesoscope-vr-processing-schema` | Documents the donations of the one registered acquisition system |
-| `mesoscope:mesoscope-vr-dataset-assembly`  | Documents that system's assembly routing and its sub-datasets |
-| `video:log-processing`                     | Owns the camera stage this library delegates in-process and the job-name constant it reuses |
-| `communication:log-processing`             | Owns the microcontroller extraction stage and the job-name constant it reuses |
-| `cindra:single-recording-processing`       | Owns the two-photon stages, their job-name enums, and the resource figures a wrapper reuses |
-| `automation:api-docs`                      | Owns the `docs/source/api.rst` conventions a new section or directive follows |
-| `automation:pyproject-style`               | Owns the `pyproject.toml` conventions the coverage omit list follows |
-| `automation:commit`                        | Should be invoked once the cross-repository changes land |
+| `assets:session-discovery`                 | Produces the session path lists a batch consumes once the new pipeline runs                             |
+| `assets:datasets`                          | Owns the dataset records a new acquisition system's forged datasets join                                |
+| `experiment:library-extension`             | Owns the acquisition runtime that records the artifacts a donation reads                                |
+| `experiment:pipeline`                      | Owns the acquisition run that produces the first processable session of a new shape                     |
+| `mesoscope:mesoscope-vr-processing-schema` | Documents the donations of the one registered acquisition system                                        |
+| `mesoscope:mesoscope-vr-dataset-assembly`  | Documents that system's assembly routing and its sub-datasets                                           |
+| `video:log-processing`                     | Owns the camera stage this library delegates in-process and the job-name constant it reuses             |
+| `communication:log-processing`             | Owns the microcontroller extraction stage and the job-name constant it reuses                           |
+| `cindra:single-recording-processing`       | Owns the two-photon stages, their job-name enums, and the resource figures a wrapper reuses             |
+| `automation:api-docs`                      | Owns the `docs/source/api.rst` conventions a new section or directive follows                           |
+| `automation:pyproject-style`               | Owns the `pyproject.toml` conventions the coverage omit list follows                                    |
+| `automation:commit`                        | Should be invoked once the cross-repository changes land                                                |
 
 ---
 

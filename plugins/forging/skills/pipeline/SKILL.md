@@ -1,20 +1,17 @@
 ---
 name: pipeline
 description: >-
-  End-to-end orchestration guide for the sollertia-forgery processing lifecycle: phase ordering, handoff
-  conditions, and the local versus remote split from working-directory setup through planning, batch
-  execution, dataset definition, forging, and project state. Use when planning a full processing run, when
-  deciding which forging skill to invoke next, or when a batch is already mid-flight and its next step is
-  unclear.
+  Orchestrates the sollertia-forgery processing lifecycle end to end. Covers phase ordering, handoff conditions, and the
+  local versus remote split, from working-directory setup through planning, batch execution, dataset definition,
+  forging, and project state. Use when planning a full processing run, when deciding which forging skill to invoke next,
+  or when a batch is already mid-flight and its next step is unclear.
 user-invocable: false
 ---
 
 # Sollertia forging pipeline
 
-Entry point and router for the forging plugin. Covers the canonical phase order of a sollertia-forgery run, the
-condition that ends each phase, the split between the local execution path and the remote scheduler path, and the
-decision tree that resolves a request to the skill it should enter at. This skill owns none of the 26 `slf mcp` tools.
-Every tool named below is invoked through the skill that owns it.
+Entry point and router for the forging plugin. This skill owns none of the 26 `slf mcp` tools, and every tool named
+below is invoked through the skill that owns it.
 
 ---
 
@@ -22,7 +19,7 @@ Every tool named below is invoked through the skill that owns it.
 
 **Covers:**
 - Canonical phase ordering for a sollertia-forgery processing run, with the handoff condition that ends each phase
-- The decision tree that resolves a request to the skill it should be entered at
+- The decision tree that routes a request to its starting skill
 - The local execution path and the remote scheduler path, and the phases remote work inserts
 - Which phases the agent drives and which the scheduler drives
 - The cross-plugin handoffs into the assets, experiment, mesoscope, ataraxis, and cindra skill systems
@@ -46,8 +43,8 @@ Every tool named below is invoked through the skill that owns it.
 **Handoff rules:** This skill dispatches to phase-specific skills at each stage. Always invoke the relevant skill for
 detailed tool usage, parameter reference, and troubleshooting.
 
-> The response envelope every tool on this server returns, and the staged-read contract its read tools follow, are
-> documented in the `## Response contract` section of `/forging-mcp-environment-setup`.
+The response envelope every tool on this server returns, and the staged-read contract its read tools follow, are
+documented in the `## Response contract` section of `/forging-mcp-environment-setup`.
 
 ---
 
@@ -96,12 +93,12 @@ carried through them in several passes before a dataset is defined.
 ### Phase 1: Working directory and credentials
 
 - **Plugin / Skill:** assets plugin, `assets:working-directory`
-- **Actions:** Set the local Sollertia working directory. Every durable forging record resolves under it, including
-  the prepared-batch registry at `remote_state/prepared_batches`, the submission ledger at
+- **Actions:** Set the local Sollertia working directory. Every durable forging record resolves under it, including the
+  prepared-batch registry at `remote_state/prepared_batches`, the submission ledger at
   `remote_state/submission_ledger.yaml`, each project's remote mirror at `remote_state/<project>`, and the server
   configuration at `configuration/server_configuration.yaml`. On a macOS host, also confirm that the OpenMP runtime
-  the Numba threading layer loads has been linked, since a host that has not linked it fails every parallel job while
-  the MCP server still reports healthy. That diagnostic is owned by `/forging-mcp-environment-setup`.
+  loaded by the Numba threading layer has been linked, since a host that has not linked it fails every parallel job
+  while the MCP server still reports healthy. That diagnostic is owned by `/forging-mcp-environment-setup`.
 - **Handoff condition:** `list_prepared_batches_tool` answers with a `batch_directory` path, which proves the working
   directory resolves for this process.
 - **Skip condition:** The host already carries a configured working directory for this account.
@@ -176,8 +173,8 @@ carried through them in several passes before a dataset is defined.
 - **Plugin / Skill:** `/batch-processing`, and `/remote-execution` for the scheduler path
 - **Actions:** Call `execute_jobs_tool` with the recorded identifiers. It takes no host argument, because a batch runs
   where it was prepared. A local run dispatches onto one process pool the MCP server process owns and honors a core
-  budget and a memory budget. A remote run submits one scheduler allocation per job, chains each dependent onto the
-  allocations it waits for, and honors a wall-time request instead.
+  budget and a memory budget. A remote run submits one scheduler allocation per job, chains each dependent onto its
+  prerequisite allocations, and honors a wall-time request instead.
 - **Handoff condition:** The response reports that dispatch started. That proves the pool was launched or the
   scheduler accepted the allocations, and it says nothing about job outcomes.
 - **Skip condition:** None.
@@ -201,8 +198,8 @@ carried through them in several passes before a dataset is defined.
 
 - **Plugin / Skill:** none. Closure carries no tool of its own.
 - **Actions:** Nothing to invoke. A local batch closes itself through `orchestration/closure.py`'s `close_batch` once
-  its pool drains. A remote batch closes through `close_settled_batches`, which a remote status read, a remote
-  cancellation, and a further remote submission each trigger as a side effect.
+  its pool drains. A remote batch closes through `close_settled_batches`, triggered as a side effect by a remote
+  status read, a remote cancellation, and a further remote submission.
 - **Handoff condition:** `list_prepared_batches_tool` reports the batch with its outcome recorded.
 - **Skip condition:** None. Closure is what makes a finished batch answerable, because it writes the outcome record
   that survives the process and retires the prepared document behind it.
@@ -336,18 +333,18 @@ Every other entry resolves inside the sollertia marketplace.
 
 ## Related skills
 
-| Skill                            | Relationship                                                                    |
-|----------------------------------|---------------------------------------------------------------------------------|
-| `/batch-processing`              | Runs Phases 4 through 6 and owns the eight batch and orchestration tools        |
-| `/job-planning`                  | Runs Phase 3 and owns the six planning and resource tools                       |
-| `/remote-execution`              | Runs Phase R2 and the scheduler half of Phases 5 and 6                          |
-| `/server-configuration`          | Runs Phase R1, the precondition of every remote call                            |
-| `/dataset-definition`            | Runs Phase 9 and owns the four dataset tools                                    |
-| `/dataset-forging`               | Runs Phase 10 by routing the forging pipeline through `/batch-processing`       |
-| `/project-state`                 | Runs Phase 11 and owns the four project management tools                        |
-| `/processing-results`            | Runs Phase 8 by reading the breakdowns the tool-owning skills expose            |
-| `/forging-mcp-environment-setup` | Restores the server this whole pipeline runs on, and owns the response contract |
-| `experiment:pipeline`            | The acquisition lifecycle that hands preprocessed sessions to Phase 2           |
+| Skill                            | Relationship                                                                   |
+|----------------------------------|--------------------------------------------------------------------------------|
+| `/batch-processing`              | Runs Phases 4 through 6 and owns the eight batch and orchestration tools       |
+| `/job-planning`                  | Runs Phase 3 and owns the six planning and resource tools                      |
+| `/remote-execution`              | Runs Phase R2 and the scheduler half of Phases 5 and 6                         |
+| `/server-configuration`          | Runs Phase R1, the precondition of every remote call                           |
+| `/dataset-definition`            | Runs Phase 9 and owns the four dataset tools                                   |
+| `/dataset-forging`               | Runs Phase 10 by routing the forging pipeline through `/batch-processing`      |
+| `/project-state`                 | Runs Phase 11 and owns the four project management tools                       |
+| `/processing-results`            | Runs Phase 8 by reading the breakdowns the tool-owning skills expose           |
+| `/forging-mcp-environment-setup` | Restores the server behind this whole pipeline, and owns the response contract |
+| `experiment:pipeline`            | The acquisition lifecycle that hands preprocessed sessions to Phase 2          |
 
 ---
 

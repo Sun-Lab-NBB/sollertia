@@ -77,14 +77,14 @@ allocation per job and the scheduler owns the graph the moment the last job is q
 Unsupported host '{host}'. Available: local, remote.
 ```
 
-| Tool group                                                                  | `host` parameter      | Why it takes that form                                            |
-|-----------------------------------------------------------------------------|-----------------------|-------------------------------------------------------------------|
-| The eighteen tools naming a project, a unit, a dataset, or a running batch  | `str = "local"`       | The caller names which machine holds the data                     |
-| `list_prepared_batches_tool`                                                | `str \| None = None`  | A filter over this machine's registry, never a target             |
-| `execute_jobs_tool`                                                         | none                  | A batch runs where it was prepared                                |
-| `forget_prepared_batches_tool`, `read_resource_model_tool`                  | none                  | The batch registry and the resource model describe this machine   |
-| `read_server_configuration_tool`, `write_server_configuration_tool`         | none, always local    | The configuration file lives in this machine's working directory  |
-| `discover_remote_project_tool`, `read_scheduler_jobs_tool`                  | none, always remote   | Nothing on this machine can answer either question                |
+| Tool group                                                                 | `host` parameter     | Why it takes that form                                           |
+|----------------------------------------------------------------------------|----------------------|------------------------------------------------------------------|
+| The eighteen tools naming a project, a unit, a dataset, or a running batch | `str = "local"`      | The caller names which machine holds the data                    |
+| `list_prepared_batches_tool`                                               | `str \| None = None` | A filter over this machine's registry, never a target            |
+| `execute_jobs_tool`                                                        | none                 | A batch runs where it was prepared                               |
+| `forget_prepared_batches_tool`, `read_resource_model_tool`                 | none                 | The batch registry and the resource model describe this machine  |
+| `read_server_configuration_tool`, `write_server_configuration_tool`        | none, always local   | The configuration file lives in this machine's working directory |
+| `discover_remote_project_tool`, `read_scheduler_jobs_tool`                 | none, always remote  | Nothing on this machine can answer either question               |
 
 `execute_jobs_tool` reads the host off the recorded batch document, so a set of batch identifiers spanning both hosts
 is refused rather than split. `orchestration/batches.py::resolve_batch_host` is where that refusal is raised.
@@ -113,17 +113,17 @@ discover_remote_project_tool(
 ) -> dict[str, Any]
 ```
 
-| Parameter          | Type                 | Default    | Meaning                                                                        |
-|--------------------|----------------------|------------|--------------------------------------------------------------------------------|
-| `project`          | `str`                | (required) | Only the final path component names the project, resolved under the data root  |
-| `unit_kind`        | `str \| None`        | `None`     | `"session"` or `"dataset"`                                                     |
-| `animals`          | `list[str] \| None`  | `None`     | Restricts the listing to these animals' sessions                               |
-| `sessions`         | `list[str] \| None`  | `None`     | Restricts the listing to these session names                                   |
-| `datasets`         | `list[str] \| None`  | `None`     | Restricts the listing to these forged datasets                                 |
-| `limit`            | `int \| None`        | `None`     | Units to list, paged as the response contract describes                        |
-| `start_row`        | `int`                | `0`        | Match index at which the listing begins                                        |
-| `include_items`    | `bool`               | `False`    | Lists units when no filter is named                                            |
-| `include_sessions` | `bool`               | `True`     | Covers acquired sessions alongside datasets                                    |
+| Parameter          | Type                | Default    | Meaning                                                                       |
+|--------------------|---------------------|------------|-------------------------------------------------------------------------------|
+| `project`          | `str`               | (required) | Only the final path component names the project, resolved under the data root |
+| `unit_kind`        | `str \| None`       | `None`     | `"session"` or `"dataset"`                                                    |
+| `animals`          | `list[str] \| None` | `None`     | Restricts the listing to these animals' sessions                              |
+| `sessions`         | `list[str] \| None` | `None`     | Restricts the listing to these session names                                  |
+| `datasets`         | `list[str] \| None` | `None`     | Restricts the listing to these forged datasets                                |
+| `limit`            | `int \| None`       | `None`     | Units to list, paged as the response contract describes                       |
+| `start_row`        | `int`               | `0`        | Match index at which the listing begins                                       |
+| `include_items`    | `bool`              | `False`    | Lists units when no filter is named                                           |
+| `include_sessions` | `bool`              | `True`     | Covers acquired sessions alongside datasets                                   |
 
 **The project argument uses its final component alone.** Passing a full server path works because the tool takes
 `Path(project).name` and joins it onto the configured data root. A value whose final component is empty is rejected,
@@ -144,7 +144,7 @@ call's `breakdown` before trusting an empty result.
 
 The whole tree is read in one server-side search, so the cost is one round trip rather than one query per directory.
 `server/discovery.py::discover_project_markers` matches a dataset marker at depth two and an acquired session's marker
-at depth four, then drops any session whose first component names a dataset directory, since a directory carrying a
+at depth four. It then drops any session whose first component names a dataset directory, since a directory carrying a
 dataset marker is a forged dataset rather than an animal. Pass `include_sessions=False` to hold the search to the
 dataset depth, which reads fewer directories and therefore still succeeds on a project whose session directories
 another account owns.
@@ -172,19 +172,19 @@ read_scheduler_jobs_tool(
 ) -> dict[str, Any]
 ```
 
-| Parameter       | Type                 | Default        | Meaning                                                                       |
-|-----------------|----------------------|----------------|-------------------------------------------------------------------------------|
-| `view`          | `str`                | `"accounting"` | `"accounting"` or `"queue"`                                                   |
-| `user`          | `str \| None`        | `None`         | The account to cover. `None` takes the configured account, `"all"` covers all |
-| `job_ids`       | `list[str] \| None`  | `None`         | Allocation identifiers, pushed into the scheduler command itself              |
-| `job_names`     | `list[str] \| None`  | `None`         | Scheduler job names, applied in memory                                        |
-| `states`        | `list[str] \| None`  | `None`         | Scheduler states, applied in memory                                           |
-| `start_time`    | `str \| None`        | `None`         | `YYYY-MM-DD` or `YYYY-MM-DD HH:MM:SS`. Accounting view only                   |
-| `end_time`      | `str \| None`        | `None`         | Same formats. Accounting view only                                            |
-| `limit`         | `int \| None`        | `None`         | Allocations to list, paged as the response contract describes                 |
-| `start_row`     | `int`                | `0`            | Match index at which the listing begins                                       |
-| `include_items` | `bool`               | `False`        | Lists allocations when no filter is named                                     |
-| `detailed`      | `bool`               | `False`        | Adds each allocation's resource figures                                       |
+| Parameter       | Type                | Default        | Meaning                                                                       |
+|-----------------|---------------------|----------------|-------------------------------------------------------------------------------|
+| `view`          | `str`               | `"accounting"` | `"accounting"` or `"queue"`                                                   |
+| `user`          | `str \| None`       | `None`         | The account to cover. `None` takes the configured account, `"all"` covers all |
+| `job_ids`       | `list[str] \| None` | `None`         | Allocation identifiers, pushed into the scheduler command itself              |
+| `job_names`     | `list[str] \| None` | `None`         | Scheduler job names, applied in memory                                        |
+| `states`        | `list[str] \| None` | `None`         | Scheduler states, applied in memory                                           |
+| `start_time`    | `str \| None`       | `None`         | `YYYY-MM-DD` or `YYYY-MM-DD HH:MM:SS`. Accounting view only                   |
+| `end_time`      | `str \| None`       | `None`         | Same formats. Accounting view only                                            |
+| `limit`         | `int \| None`       | `None`         | Allocations to list, paged as the response contract describes                 |
+| `start_row`     | `int`               | `0`            | Match index at which the listing begins                                       |
+| `include_items` | `bool`              | `False`        | Lists allocations when no filter is named                                     |
+| `detailed`      | `bool`              | `False`        | Adds each allocation's resource figures                                       |
 
 **The two views cover different populations.** `accounting` covers every allocation for which the scheduler still holds
 a record, finished ones included, and its detail carries what each one truly occupied. `queue` covers the allocations
@@ -199,8 +199,8 @@ configuration names when the caller passes none.
 | `queue`      | `job_id`, `partition`, `job_name`, `user`, `state`, `cores` | `nodes`, `requested_memory`, `elapsed`, `time_limit`, `time_left`                                                          |
 
 **Naming `job_ids` alone produces a listing.** Every other read tool on this server stays at its bare stage until a
-filter is named or items are requested, and this one treats the identifiers as an explicit request for items even
-though they never act as an in-memory filter.
+filter is named or items are requested. This one treats the identifiers as an explicit request for items, even though
+they never act as an in-memory filter.
 
 **Naming `job_ids` also bypasses the account and the date restrictions.** The identifiers scope the scheduler command
 itself, so the account flag and both date bounds are left off entirely. That is the sanctioned way to read an
@@ -224,16 +224,16 @@ local host would call in process, chains the vectors with `&&`, and ships them t
 `orchestration/hosts.py::environment_commands`, which activates the configured conda environment first. Both hosts
 therefore write identical artifacts from identical code.
 
-| Tool with `host='remote'`         | Server-side command                                                     |
-|-----------------------------------|-------------------------------------------------------------------------|
-| `plan_session_jobs_tool`          | `slf plan session -sp <unit> …` then `slf plan project -pp <root>`      |
-| `plan_dataset_jobs_tool`          | `slf plan dataset -dp <unit> …` then `slf plan project -pp <root>`      |
-| `generate_project_plan_tool`      | `slf plan project -pp <root>` alone                                     |
-| `generate_project_manifest_tool`  | `slf manifest -pp <root> create`                                        |
-| `generate_dataset_state_tool`     | `slf dataset-state -dp <dataset>`, one invocation per named dataset     |
-| `define_forging_dataset_tool`     | `python -c` calling the dataset definition entry point                  |
-| `reset_processing_jobs_tool`      | `slf reset -p <pipeline> -up <unit> [-id <job_id> …]`, one per unit     |
-| `clean_processing_output_tool`    | `slf clean -p <pipeline> -up <unit> …`                                  |
+| Tool with `host='remote'`        | Server-side command                                                 |
+|----------------------------------|---------------------------------------------------------------------|
+| `plan_session_jobs_tool`         | `slf plan session -sp <unit> …` then `slf plan project -pp <root>`  |
+| `plan_dataset_jobs_tool`         | `slf plan dataset -dp <unit> …` then `slf plan project -pp <root>`  |
+| `generate_project_plan_tool`     | `slf plan project -pp <root>` alone                                 |
+| `generate_project_manifest_tool` | `slf manifest -pp <root> create`                                    |
+| `generate_dataset_state_tool`    | `slf dataset-state -dp <dataset>`, one invocation per named dataset |
+| `define_forging_dataset_tool`    | `python -c` calling the dataset definition entry point              |
+| `reset_processing_jobs_tool`     | `slf reset -p <pipeline> -up <unit> [-id <job_id> …]`, one per unit |
+| `clean_processing_output_tool`   | `slf clean -p <pipeline> -up <unit> …`                              |
 
 A non-zero exit raises, and the wrapped message names the exact rendered invocation and the server's own stderr.
 
@@ -254,8 +254,7 @@ whenever the state must be fresh, then read.
 **A remote read reports the local mirror path.** `read_project_manifest_tool`, `read_project_jobs_tool`,
 `read_project_plan_tool`, and `get_manifest_status_tool` all report the mirror directory as their `project_path`, and
 `read_dataset_state_tool` and `list_project_datasets_tool` echo the caller's own argument while reporting mirror paths
-inside their entries. Feeding any of those values back into a tool with `host='remote'` names a directory the server
-does not hold. Take server paths from `discover_remote_project_tool` or from a generate or plan response instead.
+inside their entries.
 
 ---
 
@@ -336,10 +335,10 @@ asks the scheduler for their states. A job whose claimed allocation is not termi
 seeds the dependency map so a dependent waits on the allocation already running the work. Every other job is
 dispatched with its recorded state cleared first.
 
-| Claim source                       | Covers                                                            | Blind spot                                      |
-|------------------------------------|-------------------------------------------------------------------|-------------------------------------------------|
-| The submission ledger              | Allocations this machine submitted, queued ones included          | A batch submitted from another machine          |
-| The job's own recorded executor    | Every submitter, because the record travels with the data         | Appears only once the allocation starts running |
+| Claim source                    | Covers                                                    | Blind spot                                      |
+|---------------------------------|-----------------------------------------------------------|-------------------------------------------------|
+| The submission ledger           | Allocations this machine submitted, queued ones included  | A batch submitted from another machine          |
+| The job's own recorded executor | Every submitter, because the record travels with the data | Appears only once the allocation starts running |
 
 The executor wins where both name an allocation, because it describes a later moment than the record of submitting.
 Only the `slurm` executor scheme is honored, and a record naming any other scheme is dispatched with its state cleared.
@@ -372,8 +371,8 @@ set -eo pipefail
 ```
 
 The two conditional directives appear together whenever the job names a prerequisite. Every upstream allocation
-identifier joins one `afterok:` prefix separated by colons, and the kill directive turns a dependency that can never be
-satisfied into a terminal state a status query can report rather than a queue entry that waits forever. No other
+identifier joins one `afterok:` prefix separated by colons. The kill directive turns a dependency that can never be
+satisfied into a terminal state a status query can report, rather than a queue entry that waits forever. No other
 directive is ever emitted, so a partition, an account, a QOS, a node count, and a GPU request are all outside what this
 library expresses.
 
@@ -390,49 +389,49 @@ the status of the work it ran and the scheduler sequences dependents on the trut
 **Each script runs the same `slf` command a local run would.** The command renderer is the dispatch table both backends
 share, so a job runs the same stage at the same width whichever way it is executed. That is why a pipeline is proven on
 one session locally before a project-wide remote batch. A defect in the stage reproduces on this machine in one job,
-where the tracker, the error message, and the output are all directly readable, rather than as a wave of failed
+where the tracker, the error message, and the output are all directly readable. The alternative is a wave of failed
 allocations whose only diagnostics are log files on the server.
 
 ---
 
 ## Remote versus local divergences
 
-| Concern                            | `host='local'`                                        | `host='remote'`                                                     |
-|------------------------------------|-------------------------------------------------------|---------------------------------------------------------------------|
-| Where a run's state lives          | A process-global that dies with the server            | The ledger plus the scheduler, both surviving a restart             |
-| Concurrent batches                 | Exactly one, a second dispatch is refused             | Unbounded, the ledger tracks many at once                           |
-| Budget arguments on execute        | `core_budget_override` and `memory_budget_mb` honored | Both ignored, each job requests its own allocation                  |
-| Wall time on execute               | Ignored                                               | `walltime_minutes`, at the job script's own default                 |
-| Concurrency ceilings               | Enforced by the admission engine                      | Never expressed to the scheduler                                    |
-| A job already recorded as running  | Rerun, since the record describes a dead pool         | Adopted, with dependents wired to the live allocation               |
-| Progress source                    | The processing trackers                               | The scheduler alone, no tracker is opened from this machine         |
-| Tracker paths on job descriptors   | Real paths                                            | Empty, by design                                                    |
-| Status vocabulary                  | Lowercase tracker labels                              | Uppercase scheduler states                                          |
-| Per-job unit key                   | `session_path`                                        | `unit_path`                                                         |
-| Cancellation                       | Cooperative, in-flight jobs finish                    | Queued and running killed alike, dependents cascade                 |
-| Cleaning guard                     | Refused while a batch runs on this machine            | Never refused, even with allocations in flight                      |
-| Cleaning figures                   | Measured directly                                     | Parsed from the server command's output, unparsable lines dropped   |
-| Reset failures                     | Warn per unit and continue                            | A non-zero server exit raises                                       |
+| Concern                           | `host='local'`                                        | `host='remote'`                                                   |
+|-----------------------------------|-------------------------------------------------------|-------------------------------------------------------------------|
+| Where a run's state lives         | A process-global that dies with the server            | The ledger plus the scheduler, both surviving a restart           |
+| Concurrent batches                | Exactly one, a second dispatch is refused             | Unbounded, the ledger tracks many at once                         |
+| Budget arguments on execute       | `core_budget_override` and `memory_budget_mb` honored | Both ignored, each job requests its own allocation                |
+| Wall time on execute              | Ignored                                               | `walltime_minutes`, at the job script's own default               |
+| Concurrency ceilings              | Enforced by the admission engine                      | Never expressed to the scheduler                                  |
+| A job already recorded as running | Rerun, since the record describes a dead pool         | Adopted, with dependents wired to the live allocation             |
+| Progress source                   | The processing trackers                               | The scheduler alone, no tracker is opened from this machine       |
+| Tracker paths on job descriptors  | Real paths                                            | Empty, by design                                                  |
+| Status vocabulary                 | Lowercase tracker labels                              | Uppercase scheduler states                                        |
+| Per-job unit key                  | `session_path`                                        | `unit_path`                                                       |
+| Cancellation                      | Cooperative, in-flight jobs finish                    | Queued and running killed alike, dependents cascade               |
+| Cleaning guard                    | Refused while a batch runs on this machine            | Never refused, even with allocations in flight                    |
+| Cleaning figures                  | Measured directly                                     | Parsed from the server command's output, unparsable lines dropped |
+| Reset failures                    | Warn per unit and continue                            | A non-zero server exit raises                                     |
 
 **The cleaning divergence is the dangerous one.** The running-batch guard covers this machine's pool alone, so a remote
-clean is accepted while allocations are in flight and will remove the output and the tracker a running allocation is
-writing into, with no warning from the tool. Read `get_processing_status_tool` with `host='remote'` and confirm that
-nothing is outstanding before cleaning anything on the server.
+clean is accepted while allocations are in flight and will remove the output and the tracker of an allocation still
+running, with no warning from the tool. Read `get_processing_status_tool` with `host='remote'` and confirm that nothing
+is outstanding before cleaning anything on the server.
 
 ---
 
 ## Error routing
 
-| Message                                                                                               | Raised by                       | Remedy                                                                       |
-|-------------------------------------------------------------------------------------------------------|---------------------------------|------------------------------------------------------------------------------|
-| `Unknown unit kind '{unit_kind}'. Available: ['dataset', 'session'].`                                 | `discover_remote_project_tool`  | Name one of the two kinds, or omit the parameter                             |
-| `Unable to discover the '{project}' project on the compute server. Only the final component …`        | `discover_remote_project_tool`  | Pass a value whose final path component names the project                    |
-| `Unable to discover the '{project}' project on the compute server. The server holds no directory …`   | `discover_remote_project_tool`  | Confirm the data root through `/server-configuration`, then the name         |
-| `Unable to search {path} on the remote compute server. The search reached only part of the tree …`    | `discover_remote_project_tool`  | Retry with `include_sessions=False`, which holds the search to dataset depth |
-| `Unknown scheduler view '{view}'. Available: ['accounting', 'queue'].`                                | `read_scheduler_jobs_tool`      | Name `accounting` or `queue`                                                 |
-| `Unable to reach the compute server's scheduler. {exception}`                                         | `read_scheduler_jobs_tool`      | Read the wrapped exception, which names the connection or the command        |
-| `Unable to read the scheduler's {view} records. The command '{command}' exited with the status …`     | `read_scheduler_jobs_tool`      | The message carries the exact command, which is safe to show the user        |
-| `No scheduler record has '{field}' in {unknown}. Available: {sorted}.`                                | `read_scheduler_jobs_tool`      | Correct the `job_names` or `states` value against the listed set             |
+| Message                                                                                             | Raised by                      | Remedy                                                                       |
+|-----------------------------------------------------------------------------------------------------|--------------------------------|------------------------------------------------------------------------------|
+| `Unknown unit kind '{unit_kind}'. Available: ['dataset', 'session'].`                               | `discover_remote_project_tool` | Name one of the two kinds, or omit the parameter                             |
+| `Unable to discover the '{project}' project on the compute server. Only the final component …`      | `discover_remote_project_tool` | Pass a value whose final path component names the project                    |
+| `Unable to discover the '{project}' project on the compute server. The server holds no directory …` | `discover_remote_project_tool` | Confirm the data root through `/server-configuration`, then the name         |
+| `Unable to search {path} on the remote compute server. The search reached only part of the tree …`  | `discover_remote_project_tool` | Retry with `include_sessions=False`, which holds the search to dataset depth |
+| `Unknown scheduler view '{view}'. Available: ['accounting', 'queue'].`                              | `read_scheduler_jobs_tool`     | Name `accounting` or `queue`                                                 |
+| `Unable to reach the compute server's scheduler. {exception}`                                       | `read_scheduler_jobs_tool`     | Read the wrapped exception, which names the connection or the command        |
+| `Unable to read the scheduler's {view} records. The command '{command}' exited with the status …`   | `read_scheduler_jobs_tool`     | The message carries the exact command, which is safe to show the user        |
+| `No scheduler record has '{field}' in {unknown}. Available: {sorted}.`                              | `read_scheduler_jobs_tool`     | Correct the `job_names` or `states` value against the listed set             |
 
 An authentication failure is fatal on the first attempt, while any other connection failure retries thirty times at two
 second intervals before the transport reports the server unreachable. Both surface through whichever tool opened the
@@ -445,21 +444,21 @@ connection.
 The `video:` and `communication:` entries below resolve through the ataraxis marketplace. Every other entry resolves
 inside the sollertia marketplace.
 
-| Skill                            | Relationship                                                                      |
-|----------------------------------|-----------------------------------------------------------------------------------|
-| `/server-configuration`          | Prerequisite: the access record every remote connection is built from             |
-| `/batch-processing`              | Peer: prepares, dispatches, monitors, and cleans, on either host                  |
-| `/job-planning`                  | Upstream: the estimates that size every allocation this skill submits             |
-| `/project-state`                 | Downstream: the manifest and job artifact a remote read mirrors                   |
-| `/dataset-definition`            | Downstream: dataset state, generated on the server and mirrored back              |
-| `/dataset-forging`               | Consumer: the forging pipeline's own prerequisites, on either host                |
-| `/cli-reference`                 | Reference: the `slf` command surface each generated job script invokes            |
-| `/pipeline`                      | Context: where a remote run sits in the end-to-end workflow                       |
-| `/forging-mcp-environment-setup` | Prerequisite: MCP connectivity and the response contract                          |
-| `assets:working-directory`       | Upstream: the working directory holding the ledger, the mirror, and the registry  |
-| `assets:session-discovery`       | Upstream: unit roots on this machine, where a local batch takes its paths         |
-| `video:log-processing`           | Reference: the upstream archive format a video job reads                          |
-| `communication:log-processing`   | Reference: the upstream archive format a microcontroller job reads                |
+| Skill                            | Relationship                                                                     |
+|----------------------------------|----------------------------------------------------------------------------------|
+| `/server-configuration`          | Prerequisite: the access record every remote connection is built from            |
+| `/batch-processing`              | Peer: prepares, dispatches, monitors, and cleans, on either host                 |
+| `/job-planning`                  | Upstream: the estimates that size every allocation this skill submits            |
+| `/project-state`                 | Downstream: the manifest and job artifact a remote read mirrors                  |
+| `/dataset-definition`            | Downstream: dataset state, generated on the server and mirrored back             |
+| `/dataset-forging`               | Consumer: the forging pipeline's own prerequisites, on either host               |
+| `/cli-reference`                 | Reference: the `slf` command surface each generated job script invokes           |
+| `/pipeline`                      | Context: where a remote run sits in the end-to-end workflow                      |
+| `/forging-mcp-environment-setup` | Prerequisite: MCP connectivity and the response contract                         |
+| `assets:working-directory`       | Upstream: the working directory holding the ledger, the mirror, and the registry |
+| `assets:session-discovery`       | Upstream: unit roots on this machine, where a local batch takes its paths        |
+| `video:log-processing`           | Reference: the upstream archive format a video job reads                         |
+| `communication:log-processing`   | Reference: the upstream archive format a microcontroller job reads               |
 
 ---
 

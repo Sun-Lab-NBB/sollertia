@@ -14,11 +14,11 @@ user-invocable: false
 Documents every artifact the pipelines write, the tracker each one records against, and the procedure that separates a
 real success from a vacuous one. This skill owns no MCP tools.
 
-**This library ships no output-verification tool and no feather-query tool.** Nothing on the `slf mcp` server opens a
-feather, counts its rows, or checks its schema. Verification runs through the breakdowns of `read_project_jobs_tool`,
-owned by `/project-state`, and of `get_processing_status_tool`, owned by `/batch-processing`, with
-`read_dataset_state_tool`, owned by `/dataset-definition`, covering the forging jobs those two never carry. Read the
-record with those tools first, then read the bytes by hand.
+**The server ships no output-verification tool and no feather-query tool.** Nothing on it opens a feather, counts its
+rows, or checks its schema. Verification runs through the breakdowns of `read_project_jobs_tool`,
+owned by `/project-state`, and of `get_processing_status_tool`, owned by `/batch-processing`. The forging jobs those two
+never carry are covered by `read_dataset_state_tool`, owned by `/dataset-definition`. Read the record with those tools
+first, then read the bytes by hand.
 
 ---
 
@@ -45,9 +45,9 @@ record with those tools first, then read the bytes by hand.
   `cindra:single-recording-results`.
 - The preprocessing that materializes `raw_data`. Owned by `experiment:data-management`.
 
-**Handoff rules:** a question about which sessions are ready goes to `/project-state`, a question about why a job
-failed while a batch is still installed goes to `/batch-processing`, and any question naming a concrete behavior
-column, parsed table, or camera name goes to the acquisition system's own plugin.
+**Handoff rules:** a question about which sessions are ready goes to `/project-state`, and a question about why a job
+failed while a batch is still installed goes to `/batch-processing`. Any question naming a concrete behavior column,
+parsed table, or camera name goes to the acquisition system's own plugin.
 
 ---
 
@@ -63,8 +63,8 @@ failed because a file you expected is absent. Both readings are settled by the t
 You MUST NOT name an acquisition system's file, column, or session type when reporting a result from this plugin.
 Report the agnostic artifact and defer the schema.
 
-> The response envelope every tool on this server returns, and the staged-read contract its read tools follow, are
-> documented in the `## Response contract` section of `/forging-mcp-environment-setup`.
+The response envelope every tool on this server returns, and the staged-read contract its read tools follow, are
+documented in the `## Response contract` section of `/forging-mcp-environment-setup`.
 
 ---
 
@@ -225,8 +225,8 @@ tracker's lock and leaves `ax_checksum.txt` where it is, so the unit keeps the b
 against, and the unit contributes exactly one removed path rather than two.
 
 A verification run against a session carrying no stored checksum raises `FileNotFoundError` rather than recording a
-mismatch, and a session whose `raw_data` holds only the excluded bookkeeping files is refused before the tracker is
-touched, so the last recorded verdict survives.
+mismatch. A session whose `raw_data` holds only the excluded bookkeeping files is refused before the tracker is touched,
+so the last recorded verdict survives.
 
 **Real against vacuous.** A `SUCCEEDED` job under `regenerate_checksum=False` means the recomputed digest matched the
 stored one. A `SUCCEEDED` job under `regenerate_checksum=True` proves only that the baseline was rewritten, since the
@@ -253,8 +253,7 @@ per module that produced at least one message, each carrying the five fixed colu
 them.
 
 No `controller_{cid}_kernel.feather` is ever produced here, because `microcontrollers.pipeline._resolve_controllers`
-builds every `ControllerExtractionConfig` with `kernel=None`. An agent looking for one is looking for a file this
-library does not write.
+builds every `ControllerExtractionConfig` with `kernel=None`.
 
 `extraction_configuration.yaml` is rewritten on every invocation, before any job is dispatched, in local and remote
 mode alike. Its presence is evidence that the pipeline was invoked, never that a run completed.
@@ -283,14 +282,12 @@ one camera's canonical name is another camera's parsed feather. A camera whose m
 frame. The tracking stage's output is named by the acquisition system's donated tracking function.
 
 **Real against vacuous.** The rename job reports `SUCCEEDED` having published zero names when no parsed feather exists
-yet, echoing `Renamed {published} parsed camera timestamp feather(s) to their canonical names.` with a count of zero,
-so read the count rather than the status. A camera whose recording is absent from the raw camera data directory
-completes its energy job with no output, echoing that no recording was found for that camera and that its motion-energy
-measurement is skipped. A rig that ran one of two cameras therefore leaves a clear tracker on the camera it did not
-run. A camera's timestamp job that appears in the discovered universe but not in the possible set has no log archive,
-or a name that resolves to several archives, while its energy job stays possible because that stage reads only the
-recording.
-
+yet, echoing `Renamed {published} parsed camera timestamp feather(s) to their canonical names.` with a count of zero, so
+read the count rather than the status. A camera whose recording is absent from the raw camera data directory completes
+its energy job with no output, echoing that no recording was found for that camera and that its motion-energy
+measurement is skipped. A rig that ran one of two cameras therefore leaves a clear tracker on the camera it did not run.
+A camera's timestamp job that appears in the discovered universe but not in the possible set has no log archive, or has
+a name that resolves to several archives. Its energy job stays possible because that stage reads only the recording.
 ### The two-photon pipeline
 
 The imaging library writes everything under `processed_data/cindra` and records the four stages on
@@ -384,8 +381,8 @@ integers, so animal `2` precedes animal `10`. A reader comparing two listings by
 
 ## Related skills
 
-> The `video:`, `communication:`, and `cindra:` entries below resolve through the ataraxis and cindra marketplaces.
-> Every other entry resolves inside the sollertia marketplace.
+The `video:`, `communication:`, and `cindra:` entries below resolve through the ataraxis and cindra marketplaces. Every
+other entry resolves inside the sollertia marketplace.
 
 | Skill                                      | Relationship                                                                      |
 |--------------------------------------------|-----------------------------------------------------------------------------------|

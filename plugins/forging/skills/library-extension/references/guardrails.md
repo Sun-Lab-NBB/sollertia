@@ -1,8 +1,9 @@
 # Extension guardrails
 
 Documents the import-time checks that guard the `sollertia-forgery` registries, the dispatch table, and the project
-manifest, the verbatim text of every failure they raise, the touch each message names, and the extension steps no
-check covers. The per-scenario touch lists those steps belong to are in [extension-recipes.md](extension-recipes.md).
+manifest. It carries the verbatim text of every failure they raise, the touch each message names, and the extension
+steps no check covers. The per-scenario touch lists that carry those steps are in
+[extension-recipes.md](extension-recipes.md).
 
 Every failure is raised through `ataraxis_base_utilities.console.error`, so it stops the import at the first offender
 rather than accumulating a report.
@@ -11,12 +12,12 @@ rather than accumulating a report.
 
 ## Where each check runs
 
-| Check                             | Module                        | Import that runs it                    | What it guards |
-|-----------------------------------|-------------------------------|----------------------------------------|----------------|
-| `_assert_registry_coverage()`     | `registries.py`               | `sollertia_forgery.registries`, and every module that reaches it | The eleven donor registries |
-| `_assert_dispatch_coverage()`     | `orchestration/dispatch.py`   | `sollertia_forgery.orchestration`      | The batch dispatch table |
-| `_assert_status_column_coverage()`| `managing/manifest.py`        | `sollertia_forgery.managing`           | The manifest's per-pipeline status columns |
-| A system package's own checks     | `<system>/`                   | `sollertia_forgery.registries`, since it imports every system package | Whatever privately keyed table that system declares |
+| Check                              | Module                      | Import that runs it                                                   | What it guards                                      |
+|------------------------------------|-----------------------------|-----------------------------------------------------------------------|-----------------------------------------------------|
+| `_assert_registry_coverage()`      | `registries.py`             | `sollertia_forgery.registries`, and every module that reaches it      | The eleven donor registries                         |
+| `_assert_dispatch_coverage()`      | `orchestration/dispatch.py` | `sollertia_forgery.orchestration`                                     | The batch dispatch table                            |
+| `_assert_status_column_coverage()` | `managing/manifest.py`      | `sollertia_forgery.managing`                                          | The manifest's per-pipeline status columns          |
+| A system package's own checks      | `<system>/`                 | `sollertia_forgery.registries`, since it imports every system package | Whatever privately keyed table that system declares |
 
 `import sollertia_forgery` on its own runs none of them, because the top-level `__init__.py` re-exports no library
 symbol. `slf --help` runs all three, since `interfaces/entry_points.py` imports `interfaces/manage.py`, which imports
@@ -34,18 +35,18 @@ raises on the first offender, so an extender fixes one gap, re-imports, and read
 The loop iterates a literal tuple of eleven `(registry_name, registered_systems)` pairs and raises on the first whose
 `frozenset(AcquisitionSystems) - registered_systems` is non-empty. The order decides which registry the error names.
 
-| Order | Registry named in the message           |
-|-------|-----------------------------------------|
-| 1     | `_FORGING_ASSEMBLY_REGISTRY`            |
-| 2     | `_RUNTIME_PARSER_REGISTRY`              |
-| 3     | `_TWO_PHOTON_DATA_REGISTRY`             |
-| 4     | `_VIDEO_TRACKING_REGISTRY`              |
-| 5     | `_POSE_PREDICTION_REGISTRY`             |
-| 6     | `_MICROCONTROLLER_EVENT_CODE_REGISTRY`  |
-| 7     | `_MICROCONTROLLER_ELIGIBILITY_REGISTRY` |
-| 8     | `_CINDRA_CONFIGURATION_REGISTRY`        |
-| 9     | `_MULTI_RECORDING_SESSION_TYPE_REGISTRY`|
-| 10    | `_FORGING_ADMISSION_REGISTRY`           |
+| Order | Registry named in the message                                                                                       |
+|-------|---------------------------------------------------------------------------------------------------------------------|
+| 1     | `_FORGING_ASSEMBLY_REGISTRY`                                                                                        |
+| 2     | `_RUNTIME_PARSER_REGISTRY`                                                                                          |
+| 3     | `_TWO_PHOTON_DATA_REGISTRY`                                                                                         |
+| 4     | `_VIDEO_TRACKING_REGISTRY`                                                                                          |
+| 5     | `_POSE_PREDICTION_REGISTRY`                                                                                         |
+| 6     | `_MICROCONTROLLER_EVENT_CODE_REGISTRY`                                                                              |
+| 7     | `_MICROCONTROLLER_ELIGIBILITY_REGISTRY`                                                                             |
+| 8     | `_CINDRA_CONFIGURATION_REGISTRY`                                                                                    |
+| 9     | `_MULTI_RECORDING_SESSION_TYPE_REGISTRY`                                                                            |
+| 10    | `_FORGING_ADMISSION_REGISTRY`                                                                                       |
 | 11    | `_MICROCONTROLLER_PARSER_REGISTRY`, reached through `frozenset(system for system, _, _ in ...)` on its 3-tuple keys |
 
 ```text
@@ -95,9 +96,9 @@ message for the wrong one of the two spellings is the usual reason an extender c
 type the system does record is the supported opt-out and means the type joins no dataset, which is indistinguishable
 from an accidental omission.
 
-**Coverage is a check on wiring, not on capability.** A no-op tracking function, a locator returning `None`, an empty
-`frozenset[SessionTypes]`, and a two-photon locator returning the path the system would use all satisfy it, so a
-system that produces none of a data class still donates an entry for it.
+**Coverage is a check on wiring, not on capability.** A system that produces none of a data class still donates an entry
+for it. A no-op tracking function, a locator returning `None`, an empty `frozenset[SessionTypes]`, and a two-photon
+locator returning the path the system would use each satisfy the check.
 
 ---
 
@@ -144,20 +145,20 @@ empty `KeyError` and a `<system>/metadata.py` frame is that omission and nothing
 
 Each of these fires while a pipeline runs rather than at import, and each names exactly one missing touch.
 
-| Function                       | Module                             | Touch it names |
-|--------------------------------|------------------------------------|----------------|
-| `_resolve_system`              | `registries.py`                    | The caller passed a system outside `AcquisitionSystems`, so the message lists the valid values |
-| `resolve_job_cores`            | `orchestration/dispatch.py`        | The `_JOB_CORE_ALLOCATIONS` entry for a job type a pipeline resolves |
-| `size_session_jobs`            | `orchestration/footprints.py`      | The sizing model and its routing branch, for a session pipeline's job type |
-| `size_dataset_jobs`            | `orchestration/footprints.py`      | The sizing model and its routing branch, for the dataset pipeline's job type |
-| `run_batch_job`                | `orchestration/dispatch.py`        | The dispatch entry for the pipeline a job names |
-| `resolve_job_command`          | `orchestration/dispatch.py`        | The command renderer for the pipeline a job names |
-| `resolve_session_tracker_path` | `shared_assets/pipelines.py`       | The `_SESSION_TRACKER_LOCATIONS` entry, or a caller asking a project or dataset pipeline for a per-session tracker |
-| The pipeline's private dispatcher | `<category>/pipeline.py`        | The execution branch for a stage the pipeline discovered |
-| `verify_session_admissibility` | `forging/admission.py`             | The admission entry for a session type, or a pipeline the session has not completed |
-| `assemble_<system>_session`    | `<system>/forging.py`              | The assembly-routing branch for a session type |
-| `_unsupported_message`         | `interfaces/processing_tools.py`   | The `BATCH_PIPELINES` membership of a pipeline an MCP caller named |
-| `read_resource_model_tool`     | `interfaces/orchestration_tools.py`| The `_PIPELINE_JOB_NAMES` entry for a pipeline or job type a caller named |
+| Function                          | Module                              | Touch it names                                                                                                     |
+|-----------------------------------|-------------------------------------|--------------------------------------------------------------------------------------------------------------------|
+| `_resolve_system`                 | `registries.py`                     | The caller passed a system outside `AcquisitionSystems`, so the message lists the valid values                     |
+| `resolve_job_cores`               | `orchestration/dispatch.py`         | The `_JOB_CORE_ALLOCATIONS` entry for a job type a pipeline resolves                                               |
+| `size_session_jobs`               | `orchestration/footprints.py`       | The sizing model and its routing branch, for a session pipeline's job type                                         |
+| `size_dataset_jobs`               | `orchestration/footprints.py`       | The sizing model and its routing branch, for the dataset pipeline's job type                                       |
+| `run_batch_job`                   | `orchestration/dispatch.py`         | The dispatch entry for the pipeline a job names                                                                    |
+| `resolve_job_command`             | `orchestration/dispatch.py`         | The command renderer for the pipeline a job names                                                                  |
+| `resolve_session_tracker_path`    | `shared_assets/pipelines.py`        | The `_SESSION_TRACKER_LOCATIONS` entry, or a caller asking a project or dataset pipeline for a per-session tracker |
+| The pipeline's private dispatcher | `<category>/pipeline.py`            | The execution branch for a stage the pipeline discovered                                                           |
+| `verify_session_admissibility`    | `forging/admission.py`              | The admission entry for a session type, or a pipeline the session has not completed                                |
+| `assemble_<system>_session`       | `<system>/forging.py`               | The assembly-routing branch for a session type                                                                     |
+| `_unsupported_message`            | `interfaces/processing_tools.py`    | The `BATCH_PIPELINES` membership of a pipeline an MCP caller named                                                 |
+| `read_resource_model_tool`        | `interfaces/orchestration_tools.py` | The `_PIPELINE_JOB_NAMES` entry for a pipeline or job type a caller named                                          |
 
 The two sizing refusals share one wording, which states that a job whose resources nothing resolves cannot be
 admitted to a batch. The core-allocation refusal states that every job type a pipeline resolves must declare its
@@ -170,20 +171,20 @@ cores in `_JOB_CORE_ALLOCATIONS`.
 Everything below passes every import and fails later, or silently. Each one is covered by a test rather than by a
 guardrail.
 
-| Uncovered touch point                                                        | Scenario | How the omission surfaces                                                                                     | Where to cover it |
-|------------------------------------------------------------------------------|----------|-----------------------------------------------------------------------------------------------------------------|-------------------|
-| The assembly-routing branch for a session type                               | Session type | `ValueError` when the forging pipeline reaches a session of that type                                        | The system package's forging tests |
-| A type declared cross-recording whose resolver still returns `None`          | Session type | Silent. Dataset definition writes no multi-recording configuration and the cross-recording jobs never appear | The system package's two-photon tests |
-| A recorded session type omitted from the admission mapping                   | Session type | Silent by design, since omission is the opt-out                                                              | The system package's admission tests |
-| A dataset column with no description entry                                   | Session type | A bare `KeyError` at import of the system's metadata module, with no message                                 | The system package's metadata tests |
-| The job emitted from discovery, and its prerequisite ordering                | Stage    | Silent. The job is never planned, or it runs out of order                                                      | The category package's discovery tests |
-| The `_JOB_CORE_ALLOCATIONS` entry                                            | Stage, pipeline | `ValueError` during preparation of the unit that resolves the job type                                  | The orchestration dispatch tests |
-| The sizing model and its routing branch                                      | Stage, pipeline | `ValueError` during the sizing pass                                                                     | The orchestration footprint tests |
-| The execution branch inside the pipeline entry point                         | Stage    | `ValueError` when the job identifier reaches the dispatcher                                                    | The category package's pipeline tests |
-| The `_PIPELINE_JOB_NAMES` entry                                              | Stage, pipeline | Silent. `read_resource_model_tool` never reports the job type                                           | The interface tests, or a manual tool call |
-| The CLI stage flag or the `slf process` subcommand                           | Stage, pipeline | The command simply does not exist                                                                       | A manual `slf --help` pass |
-| The `_PROJECT_MANIFEST_SCHEMA` column beside a declared status column        | Pipeline | The manifest frame rejects the row, since the schema names no such column                                      | The manifest tests |
-| A tool module misnamed or nested below `interfaces/`                         | MCP tool | The glob never imports it and the tools silently do not exist                                                  | A manual tool listing against a started server |
-| A new `*_tools.py` missing from the coverage omit list                       | MCP tool | `tox -e coverage` fails the 100 percent gate                                                                   | The gate itself |
-| A system package importing a category package                                | System   | A circular `ImportError` at import. Nothing else checks the layering                                           | The import gate itself |
-| A donated worker that is not a picklable module-level function               | System   | The pool fails at pickling time when the stage first dispatches                                                | The system package's worker tests |
+| Uncovered touch point                                                 | Scenario        | How the omission surfaces                                                                                    | Where to cover it                              |
+|-----------------------------------------------------------------------|-----------------|--------------------------------------------------------------------------------------------------------------|------------------------------------------------|
+| The assembly-routing branch for a session type                        | Session type    | `ValueError` when the forging pipeline reaches a session of that type                                        | The system package's forging tests             |
+| A type declared cross-recording whose resolver still returns `None`   | Session type    | Silent. Dataset definition writes no multi-recording configuration and the cross-recording jobs never appear | The system package's two-photon tests          |
+| A recorded session type omitted from the admission mapping            | Session type    | Silent by design, since omission is the opt-out                                                              | The system package's admission tests           |
+| A dataset column with no description entry                            | Session type    | A bare `KeyError` at import of the system's metadata module, with no message                                 | The system package's metadata tests            |
+| The job emitted from discovery, and its prerequisite ordering         | Stage           | Silent. The job is never planned, or it runs out of order                                                    | The category package's discovery tests         |
+| The `_JOB_CORE_ALLOCATIONS` entry                                     | Stage, pipeline | `ValueError` during preparation of the unit that resolves the job type                                       | The orchestration dispatch tests               |
+| The sizing model and its routing branch                               | Stage, pipeline | `ValueError` during the sizing pass                                                                          | The orchestration footprint tests              |
+| The execution branch inside the pipeline entry point                  | Stage           | `ValueError` when the job identifier reaches the dispatcher                                                  | The category package's pipeline tests          |
+| The `_PIPELINE_JOB_NAMES` entry                                       | Stage, pipeline | Silent. `read_resource_model_tool` never reports the job type                                                | The interface tests, or a manual tool call     |
+| The CLI stage flag or the `slf process` subcommand                    | Stage, pipeline | The command simply does not exist                                                                            | A manual `slf --help` pass                     |
+| The `_PROJECT_MANIFEST_SCHEMA` column beside a declared status column | Pipeline        | The manifest frame rejects the row, since the schema names no such column                                    | The manifest tests                             |
+| A tool module misnamed or nested below `interfaces/`                  | MCP tool        | The glob never imports it and the tools silently do not exist                                                | A manual tool listing against a started server |
+| A new `*_tools.py` missing from the coverage omit list                | MCP tool        | `tox -e coverage` fails the 100 percent gate                                                                 | The gate itself                                |
+| A system package importing a category package                         | System          | A circular `ImportError` at import. Nothing else checks the layering                                         | The import gate itself                         |
+| A donated worker that is not a picklable module-level function        | System          | The pool fails at pickling time when the stage first dispatches                                              | The system package's worker tests              |

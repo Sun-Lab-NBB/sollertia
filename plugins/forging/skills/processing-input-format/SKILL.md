@@ -38,8 +38,8 @@ inputs into a job universe, and the reason a unit resolves fewer jobs than its u
 - Every acquisition-system file name, column, module, and session type. Owned by
   `mesoscope:mesoscope-vr-processing-schema`.
 
-> The response envelope every tool on this server returns, and the staged-read contract its read tools follow, are
-> documented in the `## Response contract` section of `/forging-mcp-environment-setup`.
+The response envelope every tool on this server returns, and the staged-read contract its read tools follow, are
+documented in the `## Response contract` section of `/forging-mcp-environment-setup`.
 
 ---
 
@@ -88,10 +88,9 @@ pipeline's job for the same session. `managing.checksum.run_checksum_processing_
 the two cannot disagree. Excluding them keeps the tracker's own presence from altering the value it records.
 
 **The tracker sits under the acquired data, not beside an output.** `shared_assets.pipelines._SESSION_TRACKER_LOCATIONS`
-binds this pipeline to `session.raw_data.checksum_tracker_path`, and its notes give the reason, that the checksum
-tracker sits under the acquired data since the pipeline verifies the acquired data in place while every other pipeline
-records beside the output it produces. This pipeline is also the one batch pipeline whose dispatch entry declares no
-output directory.
+binds this pipeline to `session.raw_data.checksum_tracker_path`, and its notes give the reason. This pipeline verifies
+the acquired data in place, while every other pipeline records beside the output it produces. This pipeline is also the
+one batch pipeline whose dispatch entry declares no output directory.
 
 The stored digest is the single prerequisite an earlier run establishes. A verification run that finds no stored value
 raises `FileNotFoundError` and names the remedy, regenerating the session's checksum to establish the value against
@@ -127,7 +126,7 @@ payload bytes mean is the donated parser's business.
 Both halves of the runtime binding are donated per acquisition system, the fixed source identifier that names the
 archive and the payload layout the parser reads.
 
-> The Mesoscope-VR donations that fill this seam are documented by `mesoscope:mesoscope-vr-processing-schema`.
+The Mesoscope-VR donations that fill this seam are documented by `mesoscope:mesoscope-vr-processing-schema`.
 
 ---
 
@@ -141,8 +140,8 @@ tree for exactly one `microcontroller_manifest.yaml` and then indexes one `{sour
 registered controller.
 
 When no manifest resolves, `microcontrollers.pipeline._resolve_controllers` raises `FileNotFoundError` naming the log
-directory, and the message states what the manifest is for, that it enumerates the controllers and modules to extract
-and confirms the archives were produced by ataraxis-communication-interface. A tree holding several manifests spans
+directory, and the message states the manifest's purpose, that it enumerates the controllers and modules to extract and
+confirms the archives were produced by ataraxis-communication-interface. A tree holding several manifests spans
 several recordings and raises `ValueError` instead.
 
 A controller whose archive name resolves to zero files, or to several, is left unresolved. Its universe entries survive
@@ -175,8 +174,8 @@ preparation step outside it.
 When no configured controller carries both a present archive and at least one eligible module, the pipeline raises
 `ValueError` rather than running an empty batch.
 
-> The Mesoscope-VR event codes, module eligibility rules, and parser roster that fill this seam are documented by
-> `mesoscope:mesoscope-vr-module-parsing`.
+The Mesoscope-VR event codes, module eligibility rules, and parser roster that fill this seam are documented by
+`mesoscope:mesoscope-vr-module-parsing`.
 
 ---
 
@@ -223,8 +222,8 @@ produces it, and job discovery consults the locator to decide whether the sessio
 donated tracking function locates its own predictions again and returns without writing when it finds none, so the job
 is safe on every session.
 
-> The Mesoscope-VR pose-prediction locator and tracking function that fill this seam are documented by
-> `mesoscope:mesoscope-vr-processing-schema`.
+The Mesoscope-VR pose-prediction locator and tracking function that fill this seam are documented by
+`mesoscope:mesoscope-vr-processing-schema`.
 
 ---
 
@@ -250,8 +249,8 @@ Discovery returns the possible subset equal to the universe. Possibility here st
 than what it has already produced, so a freshly acquired session reports its whole stage universe and the tracker
 decides each stage's turn.
 
-> The Mesoscope-VR imaging-directory locator and cindra configuration resolvers that fill this seam are documented by
-> `mesoscope:mesoscope-vr-processing-schema`.
+The Mesoscope-VR imaging-directory locator and cindra configuration resolvers that fill this seam are documented by
+`mesoscope:mesoscope-vr-processing-schema`.
 
 ---
 
@@ -293,8 +292,8 @@ the original session in the project hierarchy rather than a copy under the datas
 `SessionData.required_raw_assets` is the single source of truth for which assets a session must carry, and assembly
 enforces it over the three files it re-exports. The session descriptor is always required, the experiment configuration
 when the session names an experiment, and the VR configuration when the session type uses a VR task. A required but
-absent asset raises `FileNotFoundError` before any expensive work begins, naming the filename and the path it was
-expected at.
+absent asset raises `FileNotFoundError` before any expensive work begins, naming the filename and the path where it was
+expected.
 
 Every column the donated assembler writes into a session's `data.feather` must have a matching description in the
 dataset's `data_descriptions.feather`. The pipeline reads the written file's schema alone and raises `ValueError`
@@ -310,8 +309,8 @@ without one is either untracked or has its source sessions elsewhere.
 Whether any animal needs one follows from `registries.resolve_multi_recording_session_types`, read off the dataset's own
 recorded session type. A dataset whose type is untracked skips the call outright and reads no source data.
 
-> The Mesoscope-VR admission policy, tracked session types, and assembly worker that fill these seams are documented by
-> `mesoscope:mesoscope-vr-processing-schema`.
+The Mesoscope-VR admission policy, tracked session types, and assembly worker that fill these seams are documented by
+`mesoscope:mesoscope-vr-processing-schema`.
 
 ---
 
@@ -336,8 +335,8 @@ unfilled when the artifact is missing.
 
 ## Related skills
 
-> The `video:`, `communication:`, and `cindra:` entries below resolve through the ataraxis and cindra marketplaces.
-> Every other entry resolves inside the sollertia marketplace.
+The `video:`, `communication:`, and `cindra:` entries below resolve through the ataraxis and cindra marketplaces. Every
+other entry resolves inside the sollertia marketplace.
 
 | Skill                                      | Relationship                                                                |
 |--------------------------------------------|-----------------------------------------------------------------------------|

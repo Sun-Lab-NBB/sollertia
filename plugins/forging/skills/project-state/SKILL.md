@@ -1,19 +1,18 @@
 ---
 name: project-state
 description: >-
-  Documents the project state artifacts of sollertia-forgery, the session manifest and the job table published
-  beside it, covering their exact column schemas, the one call that writes both, the three widening reads that
-  query them, and the query order that establishes whether a batch of jobs succeeded. Use when generating or
-  reading a project manifest, when asking which sessions finished a pipeline, when investigating why a job
-  failed, or when verifying the outcome of a processing batch.
+  Documents the project state artifacts of sollertia-forgery, the session manifest and the job table published beside
+  it. Covers their column schemas, the one call that writes both, the three widening reads that query them, and the
+  query order that establishes whether a batch succeeded. Use when generating or reading a project manifest, when
+  asking which sessions finished a pipeline, when investigating why a job failed, or when verifying the outcome of a
+  processing batch.
 user-invocable: false
 ---
 
 # Project state
 
-Documents the two project state artifacts, the session-rowed manifest and the job-rowed table published beside it,
-covering their exact column schemas, the single call that writes both, the three widening reads that query them, the
-generation tracker, and the query order that establishes whether a batch of jobs succeeded.
+Reads a project's sessions in one walk and publishes two feather artifacts under one lock, a manifest holding one row
+per session and a job table holding one row per tracked per-session job.
 
 This skill is the **exclusive** owner of `generate_project_manifest_tool`, `read_project_manifest_tool`,
 `read_project_jobs_tool`, and `get_manifest_status_tool`. No other skill in the marketplace may document or call these
@@ -42,7 +41,7 @@ four tools.
 - The `slf manifest` command surface a user runs by hand. Owned by `/cli-reference`.
 - Every acquisition-system-specific file, column, and session type. Owned by `mesoscope:mesoscope-vr-processing-schema`.
 
-**Handoff rules:** a question about what a running batch is doing right now goes to `/batch-processing`, whose status
+**Handoff rules:** A question about what a running batch is doing right now goes to `/batch-processing`, whose status
 tool reads the live trackers. A question about what a finished batch left behind is answered here, because both
 artifacts are snapshots taken between execution graphs. A question about the contents of one written feather is analysis
 Python rather than an MCP call, and `/processing-results` owns the file layout that Python reads.
@@ -59,8 +58,8 @@ Python rather than an MCP call, and `/processing-results` owns the file layout t
 - Never round-trip the `project_path` a read reports back into a tool as a server path, because a remote read reports
   the local mirror. Take server paths from `discover_remote_project_tool`, which `/remote-execution` owns.
 
-> The response envelope every tool on this server returns, and the staged-read contract its read tools follow, are
-> documented in the `## Response contract` section of `/forging-mcp-environment-setup`.
+The response envelope every tool on this server returns, and the staged-read contract its read tools follow, are
+documented in the `## Response contract` section of `/forging-mcp-environment-setup`.
 
 ---
 
@@ -263,8 +262,8 @@ pipeline's own jobs belong to `read_dataset_state_tool`, which `/dataset-definit
 Both table names derive from the project directory's stem rather than its name, through
 `managing.manifest.project_manifest_path` and `managing.jobs.project_jobs_path`. The `.lock` sibling is the file lock
 the generator holds while it writes, so it appears in a listing without being an artifact. Both tables are written as
-uncompressed Arrow IPC so a reader memory-maps rather than decodes them, and both are published through `atomic_write`,
-a temporary file renamed over the destination, because the readers that memory-map them take no lock of their own.
+uncompressed Arrow IPC so a reader memory-maps rather than decodes them. Both are published through `atomic_write`, a
+temporary file renamed over the destination, because the readers that memory-map them take no lock of their own.
 
 ### Manifest schema
 

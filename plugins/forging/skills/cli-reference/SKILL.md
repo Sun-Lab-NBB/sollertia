@@ -48,10 +48,10 @@ handoff table below only after the server cannot be restored.
 You MUST answer CLI questions from this skill or from `slf COMMAND --help`, never from memory. When a user's report
 disagrees with this reference, ask them to run `slf COMMAND --help` and read the installed build's answer.
 
-The `slf` CLI is not only the human path, it is also the remote execution substrate. `orchestration/dispatch.py`
-renders every prepared job back into a one-unit `slf` command line, and `orchestration/remote.py::_submit_ordered_jobs`
-joins that argv into the SBATCH script the scheduler runs. A remote job therefore executes the same command a local
-operator would type, so read a rendered job script as this reference documents it rather than as a separate interface.
+The `slf` CLI is not only the human path but also the remote execution substrate. `orchestration/dispatch.py` renders
+every prepared job back into a one-unit `slf` command line, and `orchestration/remote.py::_submit_ordered_jobs` joins
+that argv into the SBATCH script the scheduler runs. A remote job therefore executes the same command a local operator
+would type, so read a rendered job script as this reference documents it rather than as a separate interface.
 
 ---
 
@@ -323,7 +323,7 @@ job regardless of the state the tracker holds for it.
 
 ### `slf manifest print`
 
-Three guards fire in order, and each raises uncaught. Neither `-n` nor `-s` given raises `ValueError`. No manifest on
+Three guards fire in order, and each raises uncaught. Giving neither `-n` nor `-s` raises `ValueError`. No manifest on
 disk raises `FileNotFoundError` naming the generation command to run first, because printing reads an existing
 snapshot and never regenerates one. An animal that did not participate in the project raises `ValueError`. Both views
 print when both flags are given, notes first.
@@ -414,10 +414,10 @@ Note that `-id` is rendered after `-np` and before the subcommand name, which is
 remote side too. The forging command names no session and requests no rebuild, so it runs the tracked job alone.
 
 The same rendering carries every other remote operation. `orchestration/hosts.py` renders `slf plan session` or
-`slf plan dataset` followed by `slf plan project` for a remote plan, `slf reset` once per unit, `slf clean` once over
-every named unit, and `slf manifest create` or `slf dataset-state` to refresh a remote project's state artifacts. Its
-`_parse_removals` then reads the byte and path lines `slf clean` printed, so a remote cleanup returns figures parsed
-straight out of the CLI's own output.
+`slf plan dataset` followed by `slf plan project` for a remote plan. It also renders `slf reset` once per unit,
+`slf clean` once over every named unit, and `slf manifest create` or `slf dataset-state` to refresh a remote project's
+state artifacts. Its `_parse_removals` then reads the byte and path lines `slf clean` printed, so a remote cleanup
+returns figures parsed straight out of the CLI's own output.
 
 ---
 
@@ -447,10 +447,10 @@ Three caveats. Every substitute runs one unit on this machine, so a batch spanni
 session and a remote batch has no CLI substitute at all. `slf clean` carries none of the running-batch guard its tool
 holds. Only `slf plan project`, `slf dataset-state`, and `slf clean` print machine-readable output, so ask for it.
 
-Everything else genuinely blocks until the server is back: dispatching, polling, and cancelling a batch, listing and
-forgetting prepared batches, reading the resource model, inspecting what outstanding jobs would cost, and reading the
-project plan, the project jobs table, the dataset state, the dataset listing, the manifest generation status, and the
-stored server configuration. Say so plainly rather than improvising a substitute.
+Everything else genuinely blocks until the server is back. That covers dispatching, polling, and cancelling a batch,
+listing and forgetting prepared batches, reading the resource model, and inspecting what outstanding jobs would cost. It
+also covers reading the project plan, the project jobs table, the dataset state, the dataset listing, the manifest
+generation status, and the stored server configuration. Say so plainly rather than improvising a substitute.
 
 ---
 

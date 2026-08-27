@@ -13,7 +13,7 @@ user-invocable: false
 Runs the `forging` batch pipeline, whose processing unit is a dataset rather than a session and whose tracker records
 three job types rather than one. This skill owns no MCP tools of its own. Preparation, execution, monitoring,
 cancellation, reset, and cleaning are owned by `/batch-processing`, which drives `forging` through the same generic
-tools it drives the other five pipelines with, so this skill states only what `forging` does differently.
+tools the other five pipelines use, so this skill states only what `forging` does differently.
 
 ---
 
@@ -60,11 +60,11 @@ rather than an empty batch.
 
 You MUST pass dataset roots wherever a forging batch names units, never session paths. A dataset root is the one
 `define_forging_dataset_tool` reported or one `list_project_datasets_tool` lists, both owned by `/dataset-definition`.
-`assets:session-discovery` is the exclusive producer of the session lists a dataset is composed from, and the session
-paths it returns are the units the five session pipelines take, never the unit a forging batch takes.
+`assets:session-discovery` is the exclusive producer of the session lists that compose a dataset, and the session paths
+it returns are the units the five session pipelines take, never the unit a forging batch takes.
 
-> The response envelope every tool on this server returns, and the staged-read contract its read tools follow, are
-> documented in the `## Response contract` section of `/forging-mcp-environment-setup`.
+The response envelope every tool on this server returns, and the staged-read contract its read tools follow, are
+documented in the `## Response contract` section of `/forging-mcp-environment-setup`.
 
 ---
 
@@ -74,7 +74,7 @@ paths it returns are the units the five session pipelines take, never the unit a
 selects `DATASET_UNIT` for `ProcessingPipelines.FORGING` and `SESSION_UNIT` for every other member of
 `BATCH_PIPELINES`. `orchestration/preparation.py::_UNIT_DEPTHS` records that a dataset root sits one level under its
 project root, where a session root sits two. Every unit named in one batch must still belong to a single project,
-because the plan and state artifacts a batch is resolved from are written per project.
+because the plan and state artifacts that resolve a batch are written per project.
 
 The parameter that carries the unit list changes name from tool to tool, and a forging batch fills every one of them
 with dataset roots. Execution is the exception, because it names prepared batch identifiers rather than any path.
@@ -135,10 +135,9 @@ Both cross-recording stages are jobs of the forging pipeline itself, dispatched 
 directly on the forging tracker under the identifier the forging universe issued, so one tracker holds all three job
 types for the dataset.
 
-This is worth stating plainly, because the opposite assumption costs a whole batch. The two stages are owned by an
-upstream library that also exposes them under its own pipeline. An agent reading only the stage names therefore
-concludes that a separate run has to finish first, prepares a batch naming the assembly jobs alone, and then cannot
-explain why every one of them reports blocked.
+The opposite assumption costs a whole batch. The two stages are owned by an upstream library that also exposes them
+under its own pipeline. An agent reading only the stage names therefore concludes that a separate run has to finish
+first, prepares a batch naming the assembly jobs alone, and then cannot explain why every one of them reports blocked.
 
 The vocabularies differ on purpose. `forging/pipeline.py::_MULTIDAY_JOB_NAMES` maps cindra's own two multi-recording
 job names onto this library's `multiday_discovery` and `multiday_extraction`, and its docstring calls that table the
@@ -198,7 +197,7 @@ rule that produces it.
    dataset of many sessions produces far more assembly jobs than cross-recording jobs, so an unfiltered listing buries
    the stages that gate everything else.
 
-7. **Verify through the state reads.** There is no output-verification tool and no feather-query tool in this library.
+7. **Verify through the state reads.** There is no output-verification tool and no feather-query tool on this server.
    Confirm a forged dataset from the dataset state read and the job breakdowns `/batch-processing` and `/project-state`
    expose, then hand off to `/processing-results` for the outputs themselves.
 
@@ -237,8 +236,8 @@ The column gate is the one failure worth understanding rather than merely recogn
 `forging/pipeline.py::_forge_session` reads the assembled file's schema after the donated assembler writes it and
 refuses any column the description companion does not describe. That companion is filled at dataset creation from
 `registries.py::resolve_forging_column_descriptions` while the assembler comes from
-`registries.py::resolve_forging_assembly_worker`, so a column one donation emits and the other omits is a gap in the
-acquisition system's registration rather than a data fault.
+`registries.py::resolve_forging_assembly_worker`, so a column that one donation emits and the other omits marks a gap in
+the acquisition system's registration rather than a data fault.
 
 ---
 
@@ -256,8 +255,8 @@ assembled file, and `/batch-processing` owns its arguments and its return tree.
 
 ## Related skills
 
-> The `cindra:` entry below resolves through the cindra marketplace. Every other entry resolves inside the sollertia
-> marketplace.
+The `cindra:` entry below resolves through the cindra marketplace. Every other entry resolves inside the sollertia
+marketplace.
 
 | Skill                                      | Relationship                                                              |
 |--------------------------------------------|---------------------------------------------------------------------------|
@@ -279,7 +278,7 @@ assembled file, and `/batch-processing` owns its arguments and its return tree.
 ## Verification checklist
 
 ```text
-Tool-settled (run `rg -n '.{121,}' SKILL.md` and `wc -l SKILL.md`):
+Tool-settled (run `rg -n '.{121,}' <file>` and `wc -l <file>`):
 - [ ] All lines at or under 120 characters (tables and code blocks may exceed for clarity)
 - [ ] SKILL.md under 500 lines
 - [ ] Every code fence carries a language identifier

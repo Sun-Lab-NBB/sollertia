@@ -76,8 +76,8 @@ snapshot rather than the tracker, so a read taken without a fresh snapshot repor
 
 ## Response and host contract
 
-> The response envelope every tool on this server returns, and the staged-read contract its read tools follow, are
-> documented in the `## Response contract` section of `/forging-mcp-environment-setup`.
+The response envelope every tool on this server returns, and the staged-read contract its read tools follow, are
+documented in the `## Response contract` section of `/forging-mcp-environment-setup`.
 
 All four tools take `host: str = "local"`, accepting `"local"` for this machine and `"remote"` for the configured
 compute server. Any other value returns `Unsupported host '<host>'. Available: local, remote.` In a `remote` call every
@@ -233,8 +233,8 @@ policy raises before anything is written, so a rejected request leaves the datas
 
 **What the call writes beyond the hierarchy.** For each animal it covers, it materializes that animal's multi-recording
 configuration when the dataset's session type resolves one. The covered set is the animals this call added, plus the
-animals named in `recreate_animals`, plus every animal holding no configuration on disk whose source directory is still
-present under the project root. An animal already carrying its configuration is left alone. An animal whose sessions
+animals named in `recreate_animals`, plus every animal that still has a source directory under the project root and
+holds no configuration on disk. An animal already carrying its configuration is left alone. An animal whose sessions
 have moved off this machine is passed over, so a dataset keeps growing while part of its source data lives elsewhere,
 and a large project is forged in passes. Membership in the marker is not evidence that a configuration was written,
 because the marker commits first, so a definition that failed partway heals itself on the next identical call.
@@ -269,8 +269,8 @@ animal's session set invalidates the outputs already forged for the sessions it 
 the dataset does not hold stays safe and needs nothing extra.
 
 Name the animal in `recreate_animals` to opt it out of the freeze. The animal is dropped from the dataset with its
-directory tree and rebuilt from the sessions the provided list holds for it, while every other animal keeps its data,
-and its tracked jobs return to the scheduled state. Each animal is named at most once, must already be in the dataset,
+directory tree and rebuilt from the sessions the provided list holds for it, and its tracked jobs return to the
+scheduled state. Every other animal keeps its data. Each animal is named at most once, must already be in the dataset,
 and must have at least one session in the provided list, all three checked before the hierarchy is touched.
 
 `force_recreate` is the destructive alternative. It deletes the entire hierarchy and rebuilds it from the provided
@@ -296,7 +296,7 @@ units[]:      dataset_path, dataset_name, job_count, and a summary counting jobs
               A failed local unit carries dataset_path, error, and job_count: 0
 ```
 
-A local snapshot reports a dataset it cannot read in that dataset's own entry, leaves the others alone, and still
+A local snapshot reports an unreadable dataset in that dataset's own entry, leaves the others alone, and still
 returns `success: true`, so inspect every entry rather than the envelope alone. A remote snapshot fails the whole call
 instead, because one failure anywhere in the server-side sequence aborts it. A dataset with no tracker file, or a
 tracker holding no jobs, produces an empty snapshot rather than an error.
@@ -374,7 +374,7 @@ carries `unsized_jobs` whenever the plan recorded a sizing refusal, mapping each
 pass gave, and a refused job is left out of the plan rather than failing it.
 
 `unsized_jobs` is local-only. The remote summariser reads its figures back out of the project plan projection and
-cannot see the plan cache's refusal map, so a remote unit reports `unit_path`, `unit_name`, `job_count`, and
+cannot see the plan cache's refusal map. A remote unit therefore reports `unit_path`, `unit_name`, `job_count`, and
 `summed_memory_mb` alone, or an error saying the projection holds no job for the unit.
 
 ---
@@ -473,7 +473,7 @@ per-animal configurations, and undoing that means deleting and rebuilding it.
 ## Verification checklist
 
 ```text
-Tool-settled (run `rg -n '.{121,}' SKILL.md` and `wc -l SKILL.md`):
+Tool-settled (run `rg -n '.{121,}' <file>` and `wc -l <file>`):
 - [ ] All lines at or under 120 characters (tables and code blocks may exceed for clarity)
 - [ ] SKILL.md under 500 lines
 - [ ] Every code fence carries a language identifier
