@@ -27,7 +27,13 @@ The Sollertia platform currently uses type codes 1-7.
 | 6    | `TorqueModule`  | `TorqueInterface`                                            | Input           | 1                   | AD620-amplified analog torque sensor                                  |
 | 7    | `ScreenModule`  | `ScreenInterface`                                            | Output          | 1                   | Pulses FET gates on VR-screen power boards                            |
 
-**Next unused code:** 8.
+**Next unused code:** 8. The "Extending the Library" section of `slmc/README.md` carries the same allocation, and the
+two move together, because the firmware repository owns the codes its targets instantiate.
+
+Nothing in either repository enforces the allocation. The ataraxis `Kernel::ResolveTargetModule` scans `modules[]`
+and returns the first entry whose type and id match, so a duplicated pair leaves the later module permanently
+unaddressable and raises no error, and the Kernel declares no status code for the condition. Confirm a candidate pair
+against the table above and against every target block of `slmc/src/main.cpp` before instantiating it.
 
 Type 5 is the only type with two instance ids in the current slmc deployment. Its `ACTOR` target instantiates
 `reward_valve` at `(5, 1)` and `gas_puff_valve` at `(5, 2)` (`slmc/src/main.cpp`), so it is the one worked
