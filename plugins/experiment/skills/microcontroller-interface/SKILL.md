@@ -163,9 +163,10 @@ this stack.
 ## Cross-repo constants that move together
 
 Each row names a value that is declared twice, once in firmware and once on the host. A one-sided change usually
-produces a runtime that connects and then misreads every message. The serial baud rate is the exception, because
-Teensy boards ignore the declared `kSerialBaudRate` value (`slmc/src/main.cpp`). Citations under `slmc/` are firmware,
-and the rest are relative to `src/sollertia_experiment/`.
+produces a runtime that connects and then misreads every message. Two rows fail differently. Teensy boards ignore the
+declared `kSerialBaudRate` value (`slmc/src/main.cpp`), so that row binds only on a board family that honors it. The ADC
+resolution corrupts no message at all, and the note below the table gives its failure mode. Citations under `slmc/` are
+firmware, and the rest are relative to `src/sollertia_experiment/`.
 
 | Constant                              | Firmware declaration                                                             | Host mirror                                                                                                 |
 |---------------------------------------|----------------------------------------------------------------------------------|-------------------------------------------------------------------------------------------------------------|
@@ -177,6 +178,17 @@ and the rest are relative to `src/sollertia_experiment/`.
 | `kModuleCommands` values              | each `slmc/src/<name>_module.h`                                                  | the cached `np.uint8` command attributes in each wrapper's `__init__` (`module_interfaces.py`)              |
 | `CustomRuntimeParameters` field order | each `slmc/src/<name>_module.h`                                                  | the tuple each wrapper's `set_parameters()` hands to `send_parameters()`                                    |
 | Valve calibration count, 200          | `kDefaultCalibrationCount` (`slmc/src/valve_module.h`)                           | `self._calibration_count = np.uint16(200)` (`WaterValveInterface.__init__` in `module_interfaces.py`)       |
+| Brake full-strength value, 255        | `kMaximumDutyCycle` (`slmc/src/brake_module.h`)                                  | `_MAXIMUM_BRAKING_STRENGTH: np.uint8 = np.uint8(255)` (`module_interfaces.py`)                              |
+| ADC resolution, 12 bits               | `kAnalogReadResolution` (`slmc/src/main.cpp`)                                    | the `*_adc` calibration fields of the active system's configuration (`mesoscope_vr/system.py`)              |
+| Module template parameters            | the template arguments of each instantiation (`slmc/src/main.cpp`)               | `torque_baseline_voltage_adc: int = 2048` for `TorqueModule`'s `kBaseline` (`mesoscope_vr/system.py`)       |
+| Per-target module layout              | each target's `modules[]` array (`slmc/src/main.cpp`)                            | the `module_interfaces` tuple of each `MicroControllerInterface` (`mesoscope_vr/binding_classes.py`)        |
+
+The ADC resolution is the row that fails silently. `analogReadResolution(kAnalogReadResolution)` in `slmc/src/main.cpp`
+fixes the readout range at 0 to 4095, and every ADC-unit value on both sides is scaled to it: `TorqueModule`'s
+`kBaseline` template argument of 2048 and the `kDefault*` thresholds of the analog modules in firmware, and the `*_adc`
+calibration fields in the active system's configuration. Narrowing the width keeps every struct the same size, so the
+wire stays valid and each message still parses while its numbers silently mean something else. Treat a change to it as a
+re-calibration of both sides rather than a firmware-only setting.
 
 The keepalive interval also bounds the host-side valve safety cap. `_MAXIMUM_VALVE_PULSE_DURATION_MS = 400` is set
 below the 500 ms interval so a pulse cannot outlast the handshake (`module_interfaces.py`). The controller ids
@@ -312,16 +324,18 @@ catalog of what currently exists, and that skill owns the seam map a new acquisi
 
 ## Maintenance contract for this skill
 
-This skill is a knowledge repository split across four files, and each one carries its own update trigger.
+This skill is a knowledge repository split across five files, and each one carries its own update trigger.
 
-| File                                                               | Holds                                                 | Update when                                                                                |
-|--------------------------------------------------------------------|-------------------------------------------------------|--------------------------------------------------------------------------------------------|
-| SKILL.md                                                           | Durable conventions, contracts, principles, workflows | A new target macro reaches `main.cpp`, or a contract, allocation rule, or workflow changes |
-| [`references/module-catalog.md`](references/module-catalog.md)     | The state snapshot of the deployed pairs              | A module or wrapper is added, removed, or changed in any surface the catalog records       |
-| [`references/slmc-conventions.md`](references/slmc-conventions.md) | The firmware conventions every `Module` follows       | A new slmc convention is established that future modules must follow                       |
-| [`references/sle-conventions.md`](references/sle-conventions.md)   | The wrapper conventions every interface follows       | A new sle convention is established that future wrappers must follow                       |
+| File                                                               | Holds                                                 | Update when                                                                                   |
+|--------------------------------------------------------------------|-------------------------------------------------------|-----------------------------------------------------------------------------------------------|
+| SKILL.md                                                           | Durable conventions, contracts, principles, workflows | A new target macro reaches `main.cpp`, or a contract, allocation rule, or workflow changes    |
+| [`references/board-allocation.md`](references/board-allocation.md) | Split criteria, target set, add-a-board workflow      | A target or controller id changes, a module moves targets, or the criteria or workflow change |
+| [`references/module-catalog.md`](references/module-catalog.md)     | The state snapshot of the deployed pairs              | A module or wrapper is added, removed, or changed in any surface the catalog records          |
+| [`references/slmc-conventions.md`](references/slmc-conventions.md) | The firmware conventions every `Module` follows       | A new slmc convention is established that future modules must follow                          |
+| [`references/sle-conventions.md`](references/sle-conventions.md)   | The wrapper conventions every interface follows       | A new sle convention is established that future wrappers must follow                          |
 
-A changed parameter **default**, meaning any `kDefault*` constant in `slmc/src/<name>_module.h`, is the one catalog
+A changed parameter **default**, meaning any constant a `CustomRuntimeParameters` field initializes from in
+`slmc/src/<name>_module.h`, is the one catalog
 trigger that fires alone. The struct layout, the command codes, and the event codes all stay valid, so the firmware
 compiles and the wrapper still matches while the "Boot defaults" row goes quietly wrong. An agent acting on a stale
 catalog ships a pair that the codebase does not contain, so re-read `slmc/src/*_module.h`, `slmc/src/main.cpp`, and
@@ -367,7 +381,8 @@ Firmware (slmc):
 - [ ] static_assert(kPin != LED_BUILTIN, ...) for every pin template parameter
 - [ ] Multi-pin module additionally static_asserts that its pins are distinct from one another
 - [ ] CustomRuntimeParameters struct uses PACKED_STRUCT and matches the wrapper's send_parameters tuple
-- [ ] Every parameter-struct default comes from a named static constexpr kDefault<Field> member, which is
+- [ ] Every parameter-struct default comes from a named static constexpr member, kDefault<Field> for a plain
+      default and a bound-describing name for a hardware limit (BrakeModule's kFullEngageDuty), which is
       also where the value's unit and derivation are documented
 - [ ] SetupModule() emits at least one SendData() initial-state report after pin configuration
 - [ ] Cross-call state lives in instance members, never in function-local statics
@@ -413,7 +428,8 @@ Cross-side contract:
 Catalog (`references/module-catalog.md`):
 - [ ] Type-code registry table updated with the new (or removed) entry
 - [ ] Hardware-surface block added (or removed) with all fields populated
-- [ ] If a new controller board target was introduced, SKILL.md board-allocation discussion updated
+- [ ] If a new controller board target was introduced, references/board-allocation.md's current-deployment
+      section updated
 
 Verification:
 - [ ] pio run succeeds, compiling every target in one invocation

@@ -9,7 +9,7 @@ Carries seams 29 through 32 of the extension seam table in [SKILL.md](../SKILL.m
 
 ## Seam 1, a new firmware module
 
-Nine steps, in order.
+Ten steps, in order.
 
 1. Create `slmc/src/<name>_module.h` guarded by `SLMC_<NAME>_MODULE_H`, following the `SLMC_BRAKE_MODULE_H` guard
    of `slmc/src/brake_module.h`.
@@ -36,8 +36,11 @@ Nine steps, in order.
    `kKeepaliveInterval` in `slmc/src/main.cpp`, which is 500 ms, trips the Kernel's emergency reset.
 8. Wire the module into `slmc/src/main.cpp`: add the `#include` inside the target's `#ifdef` block, instantiate it
    with a unique `(module_type, module_id)` pair, and append its address to that target's `modules[]` array.
-9. Pin any new third-party library in the `lib_deps` of `[teensy41_base]` with a caret constraint
-   (`slmc/platformio.ini`).
+9. Register the header for documentation: add `src/<name>_module.h` to the `INPUT` list of `slmc/Doxyfile` and a
+   `.. doxygenfile:: <name>_module.h` block carrying `:project: sollertia-micro-controllers` to
+   `slmc/docs/source/api.rst`. Omit either and the module renders no API documentation.
+10. Pin any new third-party library in the `lib_deps` of `[teensy41_base]` with a caret constraint
+    (`slmc/platformio.ini`).
 
 **The synchronized sollertia-experiment change is required.** The module stays unusable until a matching
 `ModuleInterface` subclass exists that carries the same `module_type`, `module_id`, command codes, status codes, and
@@ -65,7 +68,8 @@ Three steps.
 
 1. Add `[env:<board>_<name>]` to `slmc/platformio.ini` with `extends = teensy41_base` and
    `build_flags = ${teensy41_base.build_flags} -D <MACRO>`, following `[env:teensy41_actor]` in
-   `slmc/platformio.ini`.
+   `slmc/platformio.ini`. The file's header comment states the current target count, so update it alongside the
+   environment.
 2. Add an `#elif defined <MACRO>` branch to `slmc/src/main.cpp`, following its `SENSOR` and `ENCODER` branches,
    holding the module `#include`s, a `static constexpr uint8_t kControllerID`, the module instantiations, and a
    `Module* modules[]` array.
@@ -95,17 +99,19 @@ Five steps.
 3. Re-verify every `LED_BUILTIN` `static_assert` in the module headers under `slmc/src/`, and every pin literal in
    the target blocks of `slmc/src/main.cpp`, because
    pin numbering is board-specific.
-4. Confirm the board supports the `kAnalogReadResolution` of 12 bits that `setup()` passes to
-   `analogReadResolution()` in `slmc/src/main.cpp`. That ADC width underpins the 12-bit-unit parameter defaults of
-   the analog sensor modules and the analog module baselines set in `main.cpp`.
+4. Confirm the board supports the `kAnalogReadResolution` of 12 bits that `setup()` passes to `analogReadResolution()`
+   in `slmc/src/main.cpp`. That ADC width underpins the 12-bit-unit parameter defaults of the analog sensor modules, the
+   analog module baselines set in `main.cpp`, and the `*_adc` calibration fields on the host, so a board that cannot
+   supply it re-scales both sides.
 5. Confirm the `paulstoffregen/Encoder` entry of `lib_deps` (`slmc/platformio.ini`) supports the architecture's
    interrupt pins, because `slmc/src/encoder_module.h` forces `ENCODER_USE_INTERRUPTS`. Keep `kSerialBaudRate`
    (`slmc/src/main.cpp`) matching `monitor_speed` (`slmc/platformio.ini`), since Teensy ignores the value and other
    architectures do not.
 
-**The synchronized sollertia-experiment change happens only when controller IDs, event codes, or the baud rate
-change.** The host side binds on a serial port plus a controller ID and on `_MICROCONTROLLER_BAUDRATE`
-(`interfaces/get.py`), so it is otherwise board-agnostic.
+**The synchronized sollertia-experiment change happens only when controller IDs, event codes, the baud rate, or the ADC
+resolution change.** The host side binds on a serial port plus a controller ID and on `_MICROCONTROLLER_BAUDRATE`
+(`interfaces/get.py`), and its `*_adc` calibration fields assume the firmware's ADC width, so it is otherwise
+board-agnostic.
 
 Every environment today inherits `board = teensy41` and `monitor_speed = 115200` from the `[teensy41_base]` template
 (`slmc/platformio.ini`), so Teensy 4.1 is the only board family for which the firmware builds.
@@ -115,12 +121,12 @@ Every environment today inherits `board = teensy41` and `monitor_speed = 115200`
 
 ## Seam 4, constants that move together
 
-Eight constants exist on both sides of the serial boundary, and each row moves as a unit. A one-sided change produces
+Twelve constants exist on both sides of the serial boundary, and each row moves as a unit. A one-sided change produces
 firmware that compiles and a host that runs while the data between them is garbage, because `PACKED_STRUCT` carries
 no padding and no field is self-describing on the wire.
 
 `/microcontroller-interface` owns the roster, naming each constant's firmware declaration and its host mirror, and
-carries the per-module catalog of status codes, command codes, and parameter fields. Read it before adding a ninth
+carries the per-module catalog of status codes, command codes, and parameter fields. Read it before adding a thirteenth
 paired constant or changing an existing one, because the seam is that both sides land in the same change set.
 
 ---

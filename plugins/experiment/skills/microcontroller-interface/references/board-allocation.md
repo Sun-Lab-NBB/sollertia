@@ -76,8 +76,7 @@ reuse-first bias rather than by copying or discarding the existing layout.
 ## Workflow: adding a new controller board
 
 1. **Pick a target macro name**: short, all-caps, semantically meaningful (e.g., `STIMULUS`, `RECORD`). The macro is
-   conventionally one word, so avoid underscores or punctuation. Document the macro's purpose in a comment on the
-   `#elif defined <NAME>` line in `main.cpp`.
+   conventionally one word, so avoid underscores or punctuation.
 
 2. **Allocate a controller ID**: `uint8_t`, and it must be unique across every controller board that a single
    DataLogger ingests. The ataraxis advised range for `MicroControllerInterface` instances is 101-150. The current slmc
@@ -88,13 +87,16 @@ reuse-first bias rather than by copying or discarding the existing layout.
 
 3. **Update `main.cpp`**:
    - Add the new `#elif defined <NEW_TARGET>` block.
+   - Add the macro to the target-macro comment above the selection block, which currently names `ACTOR`, `SENSOR`,
+     and `ENCODER`.
    - Set `kControllerID` to the chosen value.
    - Include only the headers for modules instantiated on this board.
    - Build the per-board `Module* modules[]` array.
 
 4. **Add the PlatformIO environment**: Add an `[env:<board>_<target>]` section to `platformio.ini` that extends the
    board's `[<board>_base]` template and appends `-D <NEW_TARGET>` to `build_flags`. Without it the target compiles
-   only when the macro is passed by hand, so `pio run` never gates it.
+   only when the macro is passed by hand, so `pio run` never gates it. The file's header comment states the current
+   target count, so update it alongside the new environment.
 
 5. **Extend the trailing `#else static_assert(false, ...)` block**. It MUST remain the last branch, and its message
    MUST name the new macro alongside the existing ones (the `#else` `static_assert` block in `slmc/src/main.cpp`).

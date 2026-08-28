@@ -60,11 +60,12 @@ and `error_codes` must draw from the firmware `kCustomStatusCodes` values listed
 the interface in the log archive. Citations are relative to `src/sollertia_experiment/cross_system/`.
 
 **Reading the "Boot defaults" row.** It gives the `CustomRuntimeParameters` field order, C++ types, and the values
-`SetupModule()` assigns, which are the firmware's own `kDefault*` constants. During a session a module runs on the
-values the host-PC binding class pushes through `set_parameters()` at session start, which overwrite the whole struct.
-The boot defaults therefore govern exactly two windows: the span before the first `set_parameters()` call, and the span
-after a controller reset or keepalive timeout makes the Kernel re-run `SetupModule()`. Field order and types are the
-load-bearing half of the row, because the wrapper's `send_parameters()` tuple must match them exactly.
+`SetupModule()` assigns, which are the firmware's own named `static constexpr` members, `kDefault<Field>` for a plain
+default and a bound-describing name for a hardware limit (`BrakeModule`'s `kFullEngageDuty`). During a session a module
+runs on the values the host-PC binding class pushes through `set_parameters()` at session start, which overwrite the
+whole struct. The boot defaults therefore govern exactly two windows: the span before the first `set_parameters()` call,
+and the span after a controller reset or keepalive timeout makes the Kernel re-run `SetupModule()`. Field order and
+types are the load-bearing half of the row, because the wrapper's `send_parameters()` tuple must match them exactly.
 
 ### TTLModule + MesoscopeFrameTTLInterface (type 1)
 
@@ -184,15 +185,15 @@ prevents the counter from inflating during sustained tongue contact.
 
 ### ValveModule + WaterValveInterface + GasPuffValveInterface (type 5, ids 1 and 2)
 
-**Firmware**: `src/valve_module.h`,
-`ValveModule<kValvePin, kNormallyClosed, kStartClosed, kTonePin=255, kNormallyOff=true, kStartOff=true>`. Drives a
-solenoid valve with an optional co-driven tone buzzer. When `kTonePin == 255` the `kToneEnabled` constant elides the
-tone branches in `SetupModule()` and `Pulse()` and forces `tone_duration` to 0. `Tone()` (command 5) is not elided: it
-aborts at its first stage on the runtime `tone_duration == 0` check and reports 56 `kInvalidToneConfiguration`, which is
-why that code exists. A pulse that energized the buzzer always reaches the silencing stage, so the tone is never left
-sounding. A tone longer than the valve pulse extends past it by the difference, and a shorter one still sounds for the
-full pulse duration. The `Calibrate` command is **blocking** (delayMicroseconds-based burst) intended only for offline
-calibration.
+**Firmware**: `src/valve_module.h`, `ValveModule<kValvePin, kNormallyClosed, kStartClosed, kTonePin=255,
+kNormallyOff=true, kStartOff=true>`. Drives a solenoid valve with an optional co-driven tone buzzer. When `kTonePin ==
+255` the `kToneEnabled` constant elides the tone-pin configuration in `SetupModule()` and the tone branches in
+`Pulse()`, and forces `tone_duration` to 0. `SetupModule()` still reports 55 `kToneOff` in that case, so the host sees a
+consistent initial state either way. `Tone()` (command 5) is not elided: it aborts at its first stage on the runtime
+`tone_duration == 0` check and reports 56 `kInvalidToneConfiguration`, which is why that code exists. A pulse that
+energized the buzzer always reaches the silencing stage, so the tone is never left sounding. A tone longer than the
+valve pulse extends past it by the difference, and a shorter one still sounds for the full pulse duration. The
+`Calibrate` command is **blocking** (delayMicroseconds-based burst) intended only for offline calibration.
 
 | Item               | Value                                                                                                                                                       |
 |--------------------|-------------------------------------------------------------------------------------------------------------------------------------------------------------|
