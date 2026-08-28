@@ -79,8 +79,9 @@ classes and drives the system state machine. The orchestrator is documented in `
 | Runtime orchestrator                        | `MesoscopeVRSystem` (`mesoscope_vr/system_controller.py`), see `/mesoscope-vr-runtime`         |
 | Per-system CLI group and MCP tool module    | `sle mesoscope` and `interfaces/mesoscope_vr_tools.py`, see `/mesoscope-vr-runtime`            |
 
-The platform supplies no runtime base class, so `MesoscopeVRSystem` is written directly against the shared seams.
-`experiment:library-extension` catalogues the full seam list and the order a new system fills it in.
+The acquisition engine is written per system by design rather than derived from a runtime base class, and this package
+is the worked example from which a new system's engine is scaffolded. `experiment:library-extension` owns that design
+position in its "The acquisition engine is a human-in-the-loop rewrite" section, along with the full seam list.
 
 ---
 
@@ -446,6 +447,7 @@ inside the sollertia marketplace.
 | `experiment:microcontroller-interface`    | The slmc + sle wrapper layer the microcontroller binding class composes.                        |
 | `/mesoscope-vr-runtime`                   | Mesoscope-VR runtime behavior (state machine, training modes, CLI).                             |
 | `/mesoscope-vr-session-schema`            | Field schemas of the per-session descriptors this skill delegates.                              |
+| `/mesoscope-vr-module-parsing`            | Owns the forgery parser a new microcontroller module needs to reach processed output.           |
 | `/mesoscope-vr-experiment-schema`         | Field schema of the experiment configuration file this skill's authoring command creates.       |
 | `/mesoscope-vr-snapshots`                 | Per-session Zaber position snapshots consumed by `ZaberMotors.restore_position()`.              |
 | `experiment:zaber-interface`              | Zaber motor mechanics consumed by `ZaberMotors`.                                                |
@@ -457,6 +459,7 @@ inside the sollertia marketplace.
 | `assets:working-directory`                | Required prerequisite for configuration authoring.                                              |
 | `assets:task-templates`                   | Authors the task templates the experiment configuration command instantiates.                   |
 | `assets:project-hierarchy`                | The on-disk hierarchy within which `MesoscopeData` resolves session paths.                      |
+| `assets:session-hardware-state`           | Generic owner of the `hardware_state.yaml` snapshot whose fields gate each parser.              |
 | `experiment:data-management`              | Transfer and removal workflows that consume the resolved storage destinations.                  |
 | `forging:server-configuration`            | Sibling configuration file for remote storage transfer.                                         |
 

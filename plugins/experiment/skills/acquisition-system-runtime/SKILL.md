@@ -351,10 +351,12 @@ session.
 
 ## Workflow: building a runtime for a new acquisition system
 
-0. Read `/library-extension` for the seam catalog the new runtime composes and for the ordered cross-repository gating
-   conditions. The platform exposes **no generic runtime base class**, so each system writes its own controller against
-   the shared seams rather than subclassing a common runtime (see the "Extending the Platform" section of
-   `sollertia-experiment/README.md`).
+0. Read `/library-extension` for the seam catalog the new runtime composes, for the ordered cross-repository gating
+   conditions, and for the autonomy boundary on which this workflow sits, under its section "The acquisition engine is
+   a human-in-the-loop rewrite". Each system's controller is scaffolded from the worked example rather than subclassed
+   from a common runtime, because an engine is defined by a physical hardware inventory and by lab-local wiring
+   conventions. The "Extending the Platform" section of `sollertia-experiment/README.md` states the same design position
+   from the library side.
 1. Compose the system statically first. See `/acquisition-system-design`.
 2. Define the system-state enumeration, one member per hardware mode, and the runtime-state stage codes.
 3. Define the log message code enumeration, one code per state axis plus the domain events.
@@ -366,6 +368,16 @@ session.
 A new system diverges from the current instance wherever its hardware subsystems differ, through fewer or more
 cycle steps, a different state set, and so on. The patterns above are conventions rather than a fixed template, so
 apply the ones that fit the system's hardware.
+
+**Autonomy boundary.** The workflow above is a convention catalog rather than a template that emits a controller, and
+only its mechanical steps carry an author-derived recipe. Steps 3, 4, and 6 are that recipe work, which you complete
+autonomously, meaning the log code enumeration, the bounded per-cycle step per subsystem, and the CLI group that fronts
+the logic functions. Steps 2 and 5 carry the part no recipe reaches. That part is which hardware modes the system has,
+what each mode does to the animal and to the instrument, and the interlocks that make an unsafe transition impossible.
+Teardown ordering belongs to the same escalated part and sits in the static composition that
+`/acquisition-system-design` owns. Escalate those to the human supervisor and co-design them in a generative,
+collaborative mode. What is missing there is a hardware fact that no repository records, rather than capability, so the
+work must be human-supervised. `/library-extension` owns the full treatment of this boundary.
 
 ---
 
@@ -392,7 +404,7 @@ system's runtime reveals a genuinely shared pattern not captured here, add it.
 | Skill                            | Relationship                                                                                     |
 |----------------------------------|--------------------------------------------------------------------------------------------------|
 | `/acquisition-system-design`     | Static composition counterpart (configuration, binding classes, construction and shutdown order) |
-| `/library-extension`             | Owns the seam catalog a new system's runtime composes, and the absent generic runtime base class |
+| `/library-extension`             | Owns the seam catalog a new runtime composes, and the acquisition-engine autonomy boundary       |
 | `mesoscope:mesoscope-vr-runtime` | The current worked instance of this pattern                                                      |
 | `mesoscope:mesoscope-vr`         | The current worked instance of the static design pattern                                         |
 | `/microcontroller-interface`     | Per-module wrapper APIs and the SharedMemoryArray accessors the loop reads                       |

@@ -51,7 +51,8 @@ Detailed authoring patterns live in three reference files, loaded on demand:
 - The per-firmware-module Python wrapper layer (`cross_system/module_interfaces.py`) and the slmc firmware Modules.
   Owned by `/microcontroller-interface`.
 - The seam catalog a new system composes: the configuration registry, the shared `cross_system` primitives, the MCP and
-  CLI seams, and the slmc module, target, and board seams. Owned by `/library-extension`.
+  CLI seams, the slmc module, target, and board seams, and the full treatment of the acquisition-engine autonomy
+  boundary. Owned by `/library-extension`.
 - Concrete Mesoscope-VR composition, meaning the binding-class instances and their YAML field surface. Owned by
   `mesoscope:mesoscope-vr`.
 - The platform-general runtime-behavior pattern (state machine, runtime loop, event dispatch). Owned by
@@ -180,9 +181,8 @@ inputs. It caches the configuration when it must re-read fields after constructi
 push runtime parameters in `start()`. A subsystem that consumes every field at construction, as the camera and SDK types
 do, keeps no reference to the dataclass. It instantiates as a public attribute any per-device wrapper the orchestrator
 commands at runtime, and keeps every other wrapper and every low-level controller private. Bring-up and tear-down are
-idempotent
-for the microcontroller and camera types, and `__del__` calls the tear-down as a safety net. A third-party-SDK subsystem
-connects in `__init__` and relies on the orchestrator calling its `disconnect()` explicitly.
+idempotent for the microcontroller and camera types, and `__del__` calls the tear-down as a safety net. A
+third-party-SDK subsystem connects in `__init__` and relies on the orchestrator calling its `disconnect()` explicitly.
 
 A flag guarding a bring-up that walks several devices is set **before** the first bring-up step, so a failure partway
 through still routes through the tear-down, and each low-level controller's own tear-down self-guards. A per-device flag
@@ -213,7 +213,7 @@ bring-up sequences, see [references/subsystem-types.md](references/subsystem-typ
 One class per acquisition system (typically `<System>System` or `<System>VRSystem`, in a `system_controller` module)
 composes the Layer-2 binding classes and owns the master start/stop. It instantiates the DataLogger first, so each
 `MicroControllerInterface.__init__` can register a manifest entry. It then constructs the binding classes in a fixed
-order and starts the DataLogger before any binding class. Teardown reverses that, so each producer stops before its
+order and starts the DataLogger before any binding class. Tear-down reverses that, so each producer stops before its
 recorder and the DataLogger outlives every consumer. It also owns all cross-subsystem synchronization, and individual
 binding classes stay oblivious to one another. The VR task driver is a standard subsystem of every acquisition system,
 because every Sollertia system presents a Unity task in the linear infinite corridor, as the `AcquisitionSystems`
@@ -321,9 +321,19 @@ and Layer-2 source.
 
 `/library-extension` owns the seam catalog a new acquisition system composes: the configuration-registry seam, the
 shared `cross_system` primitives a new system reuses rather than rewrites, and the MCP tool-module and CLI group
-registration seams in `interfaces/`. It also records that the platform exposes no generic runtime base class, so each
-system writes its own controller against those seams. The "Building a new acquisition system from scratch" workflow in
-[references/workflows.md](references/workflows.md) defers every phase-order question to that skill.
+registration seams in `interfaces/`. It also owns the autonomy boundary at the acquisition engine, under its section
+"The acquisition engine is a human-in-the-loop rewrite". The "Building a new acquisition system from scratch" workflow
+in [references/workflows.md](references/workflows.md) defers every phase-order question to that skill.
+
+**Autonomy boundary.** The three-layer pattern above is a composition contract rather than a template that emits a
+binding class, and the Mesoscope-VR composition is the only one with an author-derived recipe. Composing the
+`cross_system` wrappers, mirroring the worked example's layer split, and enforcing every lifecycle and cross-layer
+contract are agent-ownable, and you complete them autonomously. What a binding class binds has no recipe, meaning the
+device inventory of the rig, its wiring topology, the per-device calibration values, and the tear-down order on which
+the rig's safety depends. Escalate those to the human supervisor and co-design them in a generative, collaborative mode.
+What is missing there is a hardware fact that no repository records, rather than capability, so the work must be
+human-supervised. `/library-extension` owns the full treatment of this boundary, and this skill states it for the
+configuration and binding layer only.
 
 ---
 
@@ -412,8 +422,8 @@ Binding classes:
       set_parameters flow is type-specific rather than universal
 - [ ] A flag guarding a multi-device bring-up is set before the first step, and a per-device flag
       guarding a single self-guarding device is set after that device's bring-up returns
-- [ ] stop() clears the flag only after every teardown step, so a failure leaves the instance stoppable on retry
-- [ ] Each teardown step of a multi-device subsystem is isolated through run_shutdown_step, in the
+- [ ] stop() clears the flag only after every tear-down step, so a failure leaves the instance stoppable on retry
+- [ ] Each tear-down step of a multi-device subsystem is isolated through run_shutdown_step, in the
       binding class or, for an SDK-connection subsystem, inside its connection class
 - [ ] Lifecycle methods cite the controller's start/stop order requirements
 
@@ -426,7 +436,7 @@ Lifecycle orchestrator:
 - [ ] Constructs DataLogger → binding classes → VR task driver in the documented order
 - [ ] Bring-up order follows runtime dependencies and defers resource-heavy assets until interactive
       setup needs them, rather than mirroring construction order (see references/layer-patterns.md)
-- [ ] Teardown stops each producer before the asset that records from it
+- [ ] Tear-down stops each producer before the asset that records from it
 - [ ] DataLogger stops only after every binding class has stopped
 - [ ] Cross-subsystem signaling lives in the orchestrator, not the binding classes
 - [ ] Keepalive is passed to each MicroControllerInterface at construction and AXCI enforces it,

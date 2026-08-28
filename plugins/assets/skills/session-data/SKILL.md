@@ -431,23 +431,23 @@ acquisition system, because the unscoped form returns every platform session typ
 
 ## Related skills
 
-| Skill                              | Relationship                                                                                                                                            |
-|------------------------------------|---------------------------------------------------------------------------------------------------------------------------------------------------------|
-| `/cli-reference`                   | Reference: the `slsa` commands available while the MCP server is down                                                                                   |
-| `/assets-mcp-environment-setup`    | Run first if the MCP server is not connected                                                                                                            |
-| `/working-directory`               | Required prerequisite that bootstraps the local working directory the agent uses to resolve project roots                                               |
-| `/project-hierarchy`               | Owns `get_data_root_overview_tool` for root-wide discovery                                                                                              |
-| `/session-discovery`               | Filters the flat `sessions` list from `get_data_root_overview_tool`                                                                                     |
-| `/session-descriptors`             | Sibling that owns the per-session descriptor read, write, and schema tools                                                                              |
-| `/session-hardware-state`          | Sibling that owns the per-session hardware-state snapshot                                                                                               |
-| `mesoscope:mesoscope-vr-snapshots` | Owns the frozen Zaber and mesoscope-objective position snapshots                                                                                        |
-| `/data-assets`                     | Sibling that owns read assets, such as animal-scoped surgery records                                                                                    |
-| `mesoscope:mesoscope-vr`           | Owns `read_session_system_configuration_tool` for the frozen `system_configuration.yaml` snapshot                                                       |
-| `/experiment-configuration`        | Owns `read_experiment_configuration_tool` (reads both project source and frozen session snapshot)                                                       |
-| `/task-templates`                  | Owns `vr_configuration.yaml`, the frozen VR task snapshot captured at session start                                                                     |
-| `/library-extension`               | Cross-cutting recipe to add new `SessionTypes` or `AcquisitionSystems` members. Lists the skill content that needs updating in lockstep                 |
-| `/datasets`                        | Datasets aggregate sessions                                                                                                                             |
-| `experiment:data-management`       | Preprocesses, migrates, and deletes sessions. Project directories must already exist (created via `create_project_tool`) before sessions can be created |
+| Skill                              | Relationship                                                                                                                                                                                                                           |
+|------------------------------------|----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| `/cli-reference`                   | Reference: the `slsa` commands available while the MCP server is down                                                                                                                                                                  |
+| `/assets-mcp-environment-setup`    | Run first if the MCP server is not connected                                                                                                                                                                                           |
+| `/working-directory`               | Required prerequisite that bootstraps the local working directory the agent uses to resolve project roots                                                                                                                              |
+| `/project-hierarchy`               | Owns `get_data_root_overview_tool` for root-wide discovery                                                                                                                                                                             |
+| `/session-discovery`               | Filters the flat `sessions` list from `get_data_root_overview_tool`                                                                                                                                                                    |
+| `/session-descriptors`             | Sibling that owns the per-session descriptor read, write, and schema tools                                                                                                                                                             |
+| `/session-hardware-state`          | Sibling that owns the per-session hardware-state snapshot                                                                                                                                                                              |
+| `mesoscope:mesoscope-vr-snapshots` | Owns the frozen Zaber and mesoscope-objective position snapshots                                                                                                                                                                       |
+| `/data-assets`                     | Sibling that owns read assets, such as animal-scoped surgery records                                                                                                                                                                   |
+| `mesoscope:mesoscope-vr`           | Owns `read_session_system_configuration_tool` for the frozen `system_configuration.yaml` snapshot                                                                                                                                      |
+| `/experiment-configuration`        | Owns `read_experiment_configuration_tool` (reads both project source and frozen session snapshot)                                                                                                                                      |
+| `/task-templates`                  | Owns `vr_configuration.yaml`, the frozen VR task snapshot captured at session start                                                                                                                                                    |
+| `/library-extension`               | Cross-cutting recipes to add a `SessionTypes` or `AcquisitionSystems` member, a read asset, a raw-tree directory, or the session-record surfaces of a new processing pipeline. Lists the skill content that needs updating in lockstep |
+| `/datasets`                        | Datasets aggregate sessions                                                                                                                                                                                                            |
+| `experiment:data-management`       | Preprocesses, migrates, and deletes sessions. Project directories must already exist (created via `create_project_tool`) before sessions can be created                                                                                |
 
 ---
 

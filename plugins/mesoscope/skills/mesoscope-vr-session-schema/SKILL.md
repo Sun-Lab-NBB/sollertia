@@ -42,6 +42,7 @@ than trusting a stale table here. Each class is importable as `from sollertia_sh
 - Per-session-type hardware-state field population (which fields are set vs. `None` per session type)
 - Per-session-type applicability (window-checking yields no `hardware_state.yaml`)
 - The `delivered_gas_puffs` derivation from `MesoscopeGasPuffTrial` in `trial_structures`
+- The workflow for widening `MesoscopeHardwareState` with a field for a newly added hardware module
 
 **Does not cover:**
 - The generic read/write/validate/describe MCP tools and registry dispatch. Owned by the `assets` plugin
@@ -233,6 +234,32 @@ otherwise. For lick-training and run-training it is fixed `False`, because those
 
 ---
 
+## Adding a hardware-state field for a new module
+
+A hardware module added to the acquisition runtime reaches the processing side only through a `MesoscopeHardwareState`
+field, because every Mesoscope-VR module parser is gated on one. The surrounding add-a-module chain is owned by
+`/mesoscope-vr`, under "Add a new module to an existing microcontroller" in its `references/modification-workflows.md`,
+and this section owns the field itself.
+
+1. **Append the field to `MesoscopeHardwareState`** in `mesoscope_vr/runtime_data.py`, carrying the `| None` union, the
+   `None` default, and the unit-bearing docstring every existing field carries. Appending rather than inserting keeps
+   the YAML key order of already written snapshots aligned with the class.
+2. **Decide which eligibility group the field joins.** A calibration constant or a recorded state value belongs in the
+   parser's `required_fields`, where only `None` disqualifies the module, so a legitimate `False` such as
+   `screens_initially_on` still parses. A boolean recording whether the module was used at all belongs in
+   `usage_flags`, where any falsy value skips the module. `/mesoscope-vr-module-parsing` owns both tuples.
+3. **Set the field in every session type that drives the module**, and leave it `None` in the rest, then extend the
+   population table above with the result. The runtime writes the snapshot from three hand-written per-session-type
+   branches, and `/mesoscope-vr`'s modification workflow names that edit site.
+4. **Regenerate the checked-in stub** with `tox -e stubs` in `sollertia-shared-assets`, which refreshes
+   `mesoscope_vr/runtime_data.pyi` next to the source module. A stale stub ships with the release.
+5. **Bump the `sollertia-shared-assets` version** in its `pyproject.toml`, then raise the pin in both consumers, the
+   `sollertia-experiment` pin behind the runtime that writes the snapshot and the `sollertia-forgery` pin behind the
+   parsers that read it. A consumer resolved below the bump loads a `MesoscopeHardwareState` that lacks the field, the
+   eligibility check reads the absent attribute as `None`, and the module is skipped rather than reported.
+
+---
+
 ## Related skills
 
 | Skill                             | Relationship                                                                                                                                              |
@@ -270,6 +297,10 @@ Session schema:
 - [ ] AcquisitionSystems.MESOSCOPE_VR documented as the string value "mesoscope"
 - [ ] Per-session-type hardware-state population table matches the producer convention (window-checking = no file)
 - [ ] delivered_gas_puffs documented as derived from MesoscopeGasPuffTrial in trial_structures (experiment only)
+- [ ] A new hardware-state field carries a None default, joins required_fields or usage_flags deliberately, and is
+      reflected in the per-session-type population table
+- [ ] A new hardware-state field was followed by tox -e stubs, a sollertia-shared-assets version bump, and raised
+      pins in sollertia-experiment and sollertia-forgery
 - [ ] Generic tool mechanics deferred to assets:session-descriptors and assets:session-hardware-state, not re-documented
 - [ ] Runtime behavior deferred to /mesoscope-vr-runtime, not duplicated
 - [ ] Every cross-reference uses the bare /skill-name or plugin:skill-name form, with no marketplace prefix

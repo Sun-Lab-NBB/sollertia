@@ -40,13 +40,13 @@ user-invocable: false
 - The Zaber and mesoscope-objective position schemas the four position tools carry. Owned by `/mesoscope-vr-snapshots`.
 - The shared preprocessing, transfer, and purge primitives behind `preprocess`, `delete`, and `migrate`. Owned by
   `experiment:data-management`.
-- Diagnosing why the MCP server is down, and the response envelope its tools return. Owned by
-  `experiment:experiment-mcp-environment-setup`.
+- Diagnosing why an MCP server is down, and the response envelope its tools return. Owned by
+  `experiment:experiment-mcp-environment-setup` for `sle` and by `assets:assets-mcp-environment-setup` for `slsa`.
 
 **Handoff rules:** If the user wants a configuration or data-management operation performed rather than explained, use
-the MCP tool and invoke the owning skill. If the MCP tools are unavailable, invoke
-`experiment:experiment-mcp-environment-setup` first, and fall back to the handoff table below only after the server
-cannot be restored. Every `run` subcommand and `maintain` is handed to the experimenter regardless of server health.
+the MCP tool and invoke the owning skill. If the MCP tools are unavailable, invoke the environment-setup skill that
+owns the blocked tool's server first, and fall back to the handoff table below only after the server cannot be
+restored. Every `run` subcommand and `maintain` is handed to the experimenter regardless of server health.
 
 ---
 
@@ -73,26 +73,28 @@ The group declares fourteen Click nodes: the `mesoscope` group, the `configure` 
 commands. `interfaces/entry_points.py::_register_subcommands` attaches the group to the top-level `sle` group, so
 every node below is reached as `sle mesoscope ...`. Every node lives in `interfaces/mesoscope_vr.py`.
 
-| Click node                           | Kind    | Purpose                                                               | MCP equivalent                    |
-|--------------------------------------|---------|-----------------------------------------------------------------------|-----------------------------------|
-| `sle mesoscope`                      | group   | Entry point for the system. Dispatches and prints the listing         | None, dispatch only               |
-| `sle mesoscope configure`            | group   | Dispatches the two configuration file authoring commands              | None, dispatch only               |
-| `sle mesoscope configure system`     | command | Writes the default system configuration file to the working directory | `write_system_configuration_tool` |
-| `sle mesoscope configure experiment` | command | Builds an experiment configuration from a named task template         | None                              |
-| `sle mesoscope maintain`             | command | Opens the hardware maintenance GUI. Acquires no data                  | None, and none is possible        |
-| `sle mesoscope check-bridge`         | command | Probes the ScanImagePC `runAcquisition` MQTT control loop             | `check_mesoscope_bridge_tool`     |
-| `sle mesoscope run`                  | group   | Parses the four session identifiers its four subcommands share        | None, dispatch only               |
-| `sle mesoscope run window-checking`  | command | Runs the cranial window quality session                               | None, and none is possible        |
-| `sle mesoscope run lick-training`    | command | Runs the lick training session                                        | None, and none is possible        |
-| `sle mesoscope run run-training`     | command | Runs the run training session                                         | None, and none is possible        |
-| `sle mesoscope run experiment`       | command | Runs the named experiment session                                     | None, and none is possible        |
-| `sle mesoscope preprocess`           | command | Preprocesses one locally stored session's data                        | `preprocess_session_tool`         |
-| `sle mesoscope delete`               | command | Purges one session from every acquisition and storage machine         | `delete_session_tool`             |
-| `sle mesoscope migrate`              | command | Moves one animal's sessions from a source project to a target project | `migrate_animal_tool`             |
+| Click node                           | Kind    | Purpose                                                               | MCP equivalent                            |
+|--------------------------------------|---------|-----------------------------------------------------------------------|-------------------------------------------|
+| `sle mesoscope`                      | group   | Entry point for the system. Dispatches and prints the listing         | None, dispatch only                       |
+| `sle mesoscope configure`            | group   | Dispatches the two configuration file authoring commands              | None, dispatch only                       |
+| `sle mesoscope configure system`     | command | Writes the default system configuration file to the working directory | `write_system_configuration_tool`         |
+| `sle mesoscope configure experiment` | command | Builds an experiment configuration from a named task template         | `create_experiment_from_vr_template_tool` |
+| `sle mesoscope maintain`             | command | Opens the hardware maintenance GUI. Acquires no data                  | None, and none is possible                |
+| `sle mesoscope check-bridge`         | command | Probes the ScanImagePC `runAcquisition` MQTT control loop             | `check_mesoscope_bridge_tool`             |
+| `sle mesoscope run`                  | group   | Parses the four session identifiers its four subcommands share        | None, dispatch only                       |
+| `sle mesoscope run window-checking`  | command | Runs the cranial window quality session                               | None, and none is possible                |
+| `sle mesoscope run lick-training`    | command | Runs the lick training session                                        | None, and none is possible                |
+| `sle mesoscope run run-training`     | command | Runs the run training session                                         | None, and none is possible                |
+| `sle mesoscope run experiment`       | command | Runs the named experiment session                                     | None, and none is possible                |
+| `sle mesoscope preprocess`           | command | Preprocesses one locally stored session's data                        | `preprocess_session_tool`                 |
+| `sle mesoscope delete`               | command | Purges one session from every acquisition and storage machine         | `delete_session_tool`                     |
+| `sle mesoscope migrate`              | command | Moves one animal's sessions from a source project to a target project | `migrate_animal_tool`                     |
 
 `configure system` is paired rather than equivalent, because the CLI writes a defaults-only file where the tool writes
-a caller-supplied payload. The divergence table below states the difference. See `/mesoscope-vr-runtime` for what each
-`run` subcommand and `maintain` then does once the command starts.
+a caller-supplied payload. The divergence table below states the difference. `create_experiment_from_vr_template_tool`
+is the one equivalent above that lives on the `slsa` server, and the Mesoscope-VR tool module on the `sle` server
+registers every other one. See `/mesoscope-vr-runtime` for what each `run` subcommand and `maintain` then does once the
+command starts.
 
 **Note on `-h`:** the group sets `context_settings` to `{"max_content_width": 120}` alone, leaving Click's
 `help_option_names` at its `["--help"]` default, so `-h` is never a help alias. No node in this group binds `-h` to an
@@ -185,7 +187,8 @@ node in this group takes one.
 | `-e`  | `--experiment`         | `str` | (required) | required | The name of the experiment configuration to carry out           |
 | `-ur` | `--unconsumed-rewards` | `int` | `None`     | optional | Unconsumed reward ceiling. Help text states 1, and `0` lifts it |
 
-`-e` is the only required option on any `run` subcommand, and it names a configuration `configure experiment` wrote.
+`-e` is the only required option on any `run` subcommand, and it names a configuration that `configure experiment` or
+`create_experiment_from_vr_template_tool` wrote.
 
 ### `sle mesoscope preprocess` and `sle mesoscope delete`
 
@@ -295,20 +298,24 @@ from the session that failed rather than starting over.
 
 ## How the CLI diverges from the MCP path
 
-The response envelope every tool on this server returns, and the tri-state confirmation its destructive tools take,
-are documented in the `## Response contract` section of `experiment:experiment-mcp-environment-setup`.
+The response envelope every tool on the `sle` server returns, and the tri-state confirmation its destructive tools
+take, are documented in the `## Response contract` section of `experiment:experiment-mcp-environment-setup`. The one
+tool below on the `slsa` server is `create_experiment_from_vr_template_tool`, and the `## Response contract` section of
+`assets:assets-mcp-environment-setup` documents its envelope.
 
 ### CLI commands with no MCP equivalent
 
-- **`configure experiment`.** No tool builds an experiment configuration from a task template. The CLI command is the
-  only way to create one, and the resulting file's field schema is owned by `/mesoscope-vr-experiment-schema`.
-- **`maintain` and the four `run` subcommands.** Each opens a blocking GUI and drives hardware with an animal on the
-  rig, so no tool exists and none should. These are the experimenter's commands.
+**`maintain` and the four `run` subcommands** are the only commands on this surface with no MCP equivalent. Each opens
+a blocking GUI and drives hardware with an animal on the rig, so no tool exists and none should. These are the
+experimenter's commands. `configure experiment` pairs with `create_experiment_from_vr_template_tool`, which
+`assets:experiment-configuration` owns, so an agent asked to create an experiment configuration calls that tool rather
+than handing the command to a user.
 
 ### MCP tools with no CLI equivalent
 
 The Mesoscope-VR tool module registers fifteen tools, of which five pair with a command. The remaining ten have no CLI
-surface at all.
+surface at all. `configure experiment` pairs with a tool on the `slsa` server instead, which brings the divergence
+table below to six rows.
 
 | Tool                                        | What the CLI cannot do                                                  |
 |---------------------------------------------|-------------------------------------------------------------------------|
@@ -328,13 +335,14 @@ and reads nothing back.
 
 ### Where a paired command and tool differ
 
-| CLI command        | Nearest MCP tool                  | Divergence                                                                                                                                                                                                                      |
-|--------------------|-----------------------------------|---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
-| `configure system` | `write_system_configuration_tool` | The CLI writes defaults only, takes no payload and no overwrite guard, and unbinds the host from every other system. The tool takes a full payload, validates it, and refuses an existing file unless `overwrite` is true       |
-| `check-bridge`     | `check_mesoscope_bridge_tool`     | The same probe. The CLI swallows every exception into a WARNING at exit 0, while the tool returns an `error` key, and the CLI echoes rather than returning the `reachable` flag                                                 |
-| `preprocess`       | `preprocess_session_tool`         | The CLI resolves both operands before the data-root check and the tool compares them unresolved. The CLI validates the path through Click and prompts when it is omitted, and raises where the tool returns an `Error: ` string |
-| `delete`           | `delete_session_tool`             | The tool refuses to act until the caller passes an explicit confirmation value, and the CLI purges immediately. The same resolve and error-reporting differences as `preprocess` apply                                          |
-| `migrate`          | `migrate_animal_tool`             | The same three arguments against the same library call. The CLI names them `-s`, `-d`, and `-a`, and the tool names them `source_project`, `destination_project`, and `animal_id`                                               |
+| CLI command            | Nearest MCP tool                          | Server | Divergence                                                                                                                                                                                                                                                                                                                      |
+|------------------------|-------------------------------------------|--------|---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| `configure system`     | `write_system_configuration_tool`         | `sle`  | The CLI writes defaults only, takes no payload and no overwrite guard, and unbinds the host from every other system. The tool takes a full payload, validates it, and refuses an existing file unless `overwrite` is true                                                                                                       |
+| `configure experiment` | `create_experiment_from_vr_template_tool` | `slsa` | The CLI names the project, the experiment, and the template stem, and resolves each one under the data root and the templates directory, while the tool takes an absolute `file_path` and an absolute `template_path`. The CLI also sets the three trial defaults, and the tool leaves them at the configuration class defaults |
+| `check-bridge`         | `check_mesoscope_bridge_tool`             | `sle`  | The same probe. The CLI swallows every exception into a WARNING at exit 0, while the tool returns an `error` key, and the CLI echoes rather than returning the `reachable` flag                                                                                                                                                 |
+| `preprocess`           | `preprocess_session_tool`                 | `sle`  | The CLI resolves both operands before the data-root check and the tool compares them unresolved. The CLI validates the path through Click and prompts when it is omitted, and raises where the tool returns an `Error: ` string                                                                                                 |
+| `delete`               | `delete_session_tool`                     | `sle`  | The tool refuses to act until the caller passes an explicit confirmation value, and the CLI purges immediately. The same resolve and error-reporting differences as `preprocess` apply                                                                                                                                          |
+| `migrate`              | `migrate_animal_tool`                     | `sle`  | The same three arguments against the same library call. The CLI names them `-s`, `-d`, and `-a`, and the tool names them `source_project`, `destination_project`, and `animal_id`                                                                                                                                               |
 
 ### The three rules behind the table
 
@@ -349,16 +357,18 @@ and reads nothing back.
 
 ## Fallback: what to tell a user when MCP is unavailable
 
-Confirm the server is genuinely unrecoverable through `experiment:experiment-mcp-environment-setup` before handing one
-of these over.
+Confirm the blocked tool's own server is genuinely unrecoverable before handing one of these over.
+`experiment:experiment-mcp-environment-setup` diagnoses the `sle` server, and `assets:assets-mcp-environment-setup`
+diagnoses the `slsa` server.
 
-| Blocked MCP tool                  | Tell the user to run                                                          |
-|-----------------------------------|-------------------------------------------------------------------------------|
-| `write_system_configuration_tool` | `sle mesoscope configure system`, then edit the written file by hand          |
-| `check_mesoscope_bridge_tool`     | `sle mesoscope check-bridge`                                                  |
-| `preprocess_session_tool`         | `sle mesoscope preprocess -sp <session>`                                      |
-| `delete_session_tool`             | `sle mesoscope delete -sp <session>`, after stating that it purges every copy |
-| `migrate_animal_tool`             | `sle mesoscope migrate -s <source> -d <destination> -a <animal>`              |
+| Blocked MCP tool                          | Server | Tell the user to run                                                            |
+|-------------------------------------------|--------|---------------------------------------------------------------------------------|
+| `write_system_configuration_tool`         | `sle`  | `sle mesoscope configure system`, then edit the written file by hand            |
+| `create_experiment_from_vr_template_tool` | `slsa` | `sle mesoscope configure experiment -p <project> -e <experiment> -t <template>` |
+| `check_mesoscope_bridge_tool`             | `sle`  | `sle mesoscope check-bridge`                                                    |
+| `preprocess_session_tool`                 | `sle`  | `sle mesoscope preprocess -sp <session>`                                        |
+| `delete_session_tool`                     | `sle`  | `sle mesoscope delete -sp <session>`, after stating that it purges every copy   |
+| `migrate_animal_tool`                     | `sle`  | `sle mesoscope migrate -s <source> -d <destination> -a <animal>`                |
 
 Two caveats. The `configure system` substitute writes defaults and discards the current hardware parameters, so tell
 the user to copy the existing file aside first. The `delete` substitute carries none of the confirmation the tool
@@ -373,19 +383,21 @@ plainly rather than improvising a substitute out of a shell command.
 
 ## Related skills
 
-| Skill                                         | Relationship                                                                       |
-|-----------------------------------------------|------------------------------------------------------------------------------------|
-| `experiment:cli-reference`                    | Owns the `sle` root, the `sle mcp` command, and the `sle get` surface              |
-| `experiment:experiment-mcp-environment-setup` | Owns the `sle --help` smoke test, the response contract, and MCP recovery          |
-| `/mesoscope-vr-runtime`                       | Owns what each `run` subcommand and `maintain` does once the command starts        |
-| `/mesoscope-vr`                               | Owns the system configuration field schema `configure system` writes               |
-| `/mesoscope-vr-experiment-schema`             | Owns the experiment configuration field schema `configure experiment` writes       |
-| `/mesoscope-vr-session-schema`                | Owns the descriptor and hardware-state schemas the descriptor tools carry          |
-| `/mesoscope-vr-snapshots`                     | Owns the Zaber and mesoscope-objective position schemas the position tools carry   |
-| `experiment:data-management`                  | Owns the preprocessing, transfer, and purge primitives the three data commands run |
-| `assets:task-templates`                       | Owns the task templates `configure experiment` instantiates through `-t`           |
-| `assets:working-directory`                    | Owns the working directory `configure system` writes the configuration file into   |
-| `assets:project-hierarchy`                    | Owns the on-disk hierarchy the `-sp`, `-p`, and `-a` values address                |
+| Skill                                         | Relationship                                                                                    |
+|-----------------------------------------------|-------------------------------------------------------------------------------------------------|
+| `experiment:cli-reference`                    | Owns the `sle` root, the `sle mcp` command, and the `sle get` surface                           |
+| `experiment:experiment-mcp-environment-setup` | Owns the `sle --help` smoke test, the response contract, and MCP recovery                       |
+| `/mesoscope-vr-runtime`                       | Owns what each `run` subcommand and `maintain` does once the command starts                     |
+| `/mesoscope-vr`                               | Owns the system configuration field schema `configure system` writes                            |
+| `/mesoscope-vr-experiment-schema`             | Owns the experiment configuration field schema `configure experiment` writes                    |
+| `/mesoscope-vr-session-schema`                | Owns the descriptor and hardware-state schemas the descriptor tools carry                       |
+| `/mesoscope-vr-snapshots`                     | Owns the Zaber and mesoscope-objective position schemas the position tools carry                |
+| `experiment:data-management`                  | Owns the preprocessing, transfer, and purge primitives the three data commands run              |
+| `assets:assets-mcp-environment-setup`         | Owns `slsa` server recovery and the response contract its tools follow                          |
+| `assets:experiment-configuration`             | Owns `create_experiment_from_vr_template_tool`, the tool that pairs with `configure experiment` |
+| `assets:task-templates`                       | Owns the task templates `configure experiment` instantiates through `-t`                        |
+| `assets:working-directory`                    | Owns the working directory `configure system` writes the configuration file into                |
+| `assets:project-hierarchy`                    | Owns the on-disk hierarchy the `-sp`, `-p`, and `-a` values address                             |
 
 ---
 
@@ -409,7 +421,7 @@ Handing a user a CLI command, reader-judged:
 - [ ] Placed every shared identifier before the subcommand name on sle mesoscope run
 - [ ] Warned that configure system discards the current hardware parameters before offering it
 - [ ] Obtained an explicit go-ahead before printing sle mesoscope delete
-- [ ] Confirmed the MCP server is unrecoverable through experiment-mcp-environment-setup first
+- [ ] Confirmed the blocked tool's own server is unrecoverable through that server's environment-setup skill first
 
 Preparing a hardware command, reader-judged:
 - [ ] Printed the run or maintain command for the experimenter instead of running it

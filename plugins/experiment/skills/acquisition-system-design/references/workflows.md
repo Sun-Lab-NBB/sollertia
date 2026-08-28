@@ -24,7 +24,7 @@ gains a camera), follow these steps:
    configuration dataclass, and the lifecycle methods follow the conventions above.
 
 5. **Wire the binding class into the lifecycle orchestrator.** Add the construction in the correct order (per the
-   construction order in `layer-patterns.md`) and the teardown in the reverse order.
+   construction order in `layer-patterns.md`) and the tear-down in the reverse order.
 
 6. **Update the per-system instance skill.** Add a section documenting the new subsystem's configuration surface and
    binding-class composition. *Worked example:* see `mesoscope:mesoscope-vr`.
@@ -46,10 +46,11 @@ gains a camera), follow these steps:
    session type needs. Bump that package's version.
 
 2. **Read the seam catalog before writing any code.** `/library-extension` owns the seam map for sollertia-experiment
-   and sollertia-micro-controllers: the configuration registry, the shared `cross_system` primitives, the MCP and CLI
-   registration seams, the absence of a generic runtime base class, and the firmware module, controller target, and
-   board family seams. It also owns the phase order and the gating conditions of the steps below, and the audit view of
-   which seams a half-built system still misses.
+   and sollertia-micro-controllers, meaning the configuration registry, the shared `cross_system` primitives, the MCP
+   and CLI registration seams, and the firmware module, controller target, and board family seams. It also owns the
+   phase order and the gating conditions of the steps below, and the audit view of which seams a half-built system
+   still misses. The autonomy boundary at the acquisition engine belongs to the same skill, under its section "The
+   acquisition engine is a human-in-the-loop rewrite".
 
 3. **Define the system's hardware composition.** List every hardware subsystem, meaning microcontrollers, cameras,
    motors, and external devices, plus the per-subsystem device count.
@@ -67,9 +68,15 @@ gains a camera), follow these steps:
 
 7. **Author the per-subsystem binding classes.** One per subsystem, in `<system>/binding_classes.py`.
 
-8. **Author the lifecycle orchestrator.** Typically in `<system>/system_controller.py`. The platform exposes no generic
-   runtime base class, so this controller is written against the shared seams rather than subclassed from a common
-   runtime (see the "Extending the Platform" section of `sollertia-experiment/README.md`).
+8. **Author the lifecycle orchestrator.** Typically in `<system>/system_controller.py`. This step sits on the platform's
+   autonomy boundary, and only its scaffolding half carries an author-derived recipe. Scaffolding the orchestrator from
+   the Mesoscope-VR package split, and composing the `cross_system` primitives that already cover the hardware families
+   that the rig drives, are that recipe work, which you complete autonomously. The hardware inventory, the wiring
+   topology, the per-mode semantics of the state machine, the calibration values, the safety interlocks, and the
+   tear-down order have no recipe. Escalate those to the human supervisor and co-design them in a generative,
+   collaborative mode. What is missing there is a hardware fact that no repository records, rather than capability, so
+   the work must be human-supervised. `/library-extension` owns the full treatment of this boundary, under its section
+   "The acquisition engine is a human-in-the-loop rewrite".
 
 9. **Wire the system into the package's CLI.** Add a `<system>` command group beside the hardware-agnostic `sle get`
    group, then add one import line and one `add_command` call inside `_register_subcommands` in
@@ -98,7 +105,7 @@ gains a camera), follow these steps:
 - `<system>/data_acquisition.py` for the per-mode logic functions: one per session type the system runs, plus one per
   non-session runtime mode such as hardware maintenance.
 - `<system>/acquisition_components.py` for the shared runtime-state types (trial state, log message codes) and the
-  hardware setup, teardown, and snapshot helpers the orchestrator and the per-mode logic functions both call, kept out
+  hardware setup, tear-down, and snapshot helpers the orchestrator and the per-mode logic functions both call, kept out
   of `system_controller.py` so the orchestrator holds only the state machine.
 - `<system>/data_preprocessing.py` for the session-lifecycle orchestrators, meaning the preprocess, purge, and migrate
   entry points that compose the six shared `cross_system` primitives and add the system's own conversion, compression,

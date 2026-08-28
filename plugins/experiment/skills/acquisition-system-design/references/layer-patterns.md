@@ -320,7 +320,7 @@ and differ in their method surface, documented in `subsystem-types.md`.
   guarding a bring-up that walks several devices is raised before the first step, so a partial bring-up still tears
   down. A per-device flag guarding a single device whose own tear-down self-guards is raised after that device's
   bring-up returns.
-- **Teardown isolation.** Each step of a multi-device tear-down runs inside `run_shutdown_step`, which catches the
+- **Tear-down isolation.** Each step of a multi-device tear-down runs inside `run_shutdown_step`, which catches the
   failure and echoes an ERROR so later steps still run (`cross_system/shutdown_tools.py`). An SDK-connection subsystem
   isolates inside its connection class instead, so its binding class calls `disconnect()` bare
   (`cross_system/zaber_bindings.py`).
@@ -407,7 +407,7 @@ depend on it, and stop the DataLogger last.
   `mesoscope:mesoscope-vr-runtime`.
 - **The DataLogger is stopped last.** Every binding class's `stop()` may write final messages to it, and it records the
   data streams from all sources, so it MUST outlive every consumer.
-- **Every teardown step is isolated.** `run_shutdown_step` catches a failing step and echoes an ERROR so the remaining
+- **Every tear-down step is isolated.** `run_shutdown_step` catches a failing step and echoes an ERROR so the remaining
   steps still run (`cross_system/shutdown_tools.py`).
 
 After shutdown, the downstream preprocessing pipeline calls `assemble_log_archives()` from `ataraxis_data_structures` to
