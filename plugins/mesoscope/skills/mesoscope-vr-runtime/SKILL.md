@@ -50,19 +50,19 @@ the static pattern in `experiment:acquisition-system-design`, and the seam catal
 
 A new acquisition system is built by substituting its own answer in the left column.
 
-| Mesoscope-VR choice                                     | Platform seam it instantiates                                                                                                          |
-|---------------------------------------------------------|----------------------------------------------------------------------------------------------------------------------------------------|
-| `MesoscopeVRStates` plus `change_runtime_state()`       | The two state axes, system state and runtime stage                                                                                     |
-| `MesoscopeVRSystem`                                     | A per-system controller, since the platform exposes no runtime base class (`sollertia-experiment/README.md`, "Extending the Platform") |
-| The five per-mode logic functions                       | One logic function per acquisition mode                                                                                                |
-| Every teardown step wrapped in `run_shutdown_step`      | Teardown isolation, `run_shutdown_step` in `cross_system/shutdown_tools.py`                                                            |
-| `RuntimeControlUI` and `MaintenanceControlUI`           | Two daemon-process GUIs, each owning one `SharedMemoryArray`                                                                           |
-| `BehaviorVisualizer`                                    | A main-thread visualizer driven by direct cycle calls                                                                                  |
-| `MesoscopeVRLogMessageCodes`                            | The system's own log message code space                                                                                                |
-| `mark_runtime_initialized()` and `raw_data/nk.bin`      | The initialization marker, owned by `assets:session-data`                                                                              |
-| The `sle mesoscope` command group                       | One CLI group per registered acquisition system                                                                                        |
-| The fifteen tools of `interfaces/mesoscope_vr_tools.py` | One `<system>_tools.py` module, discovered by filename suffix in `_register_tool_modules()` (`interfaces/mcp_server.py`)               |
-| The Mesoscope-VR steps of `preprocess_session_data`     | Per-system steps around the shared preprocessing primitives                                                                            |
+| Mesoscope-VR choice                                     | Platform seam it instantiates                                                                                                                    |
+|---------------------------------------------------------|--------------------------------------------------------------------------------------------------------------------------------------------------|
+| `MesoscopeVRStates` plus `change_runtime_state()`       | The two state axes, system state and runtime stage                                                                                               |
+| `MesoscopeVRSystem`                                     | A per-system controller, since the platform exposes no runtime base class by design (`sollertia-experiment/README.md`, "Extending the Platform") |
+| The five per-mode logic functions                       | One logic function per acquisition mode                                                                                                          |
+| Every teardown step wrapped in `run_shutdown_step`      | Teardown isolation, `run_shutdown_step` in `cross_system/shutdown_tools.py`                                                                      |
+| `RuntimeControlUI` and `MaintenanceControlUI`           | Two daemon-process GUIs, each owning one `SharedMemoryArray`                                                                                     |
+| `BehaviorVisualizer`                                    | A main-thread visualizer driven by direct cycle calls                                                                                            |
+| `MesoscopeVRLogMessageCodes`                            | The system's own log message code space                                                                                                          |
+| `mark_runtime_initialized()` and `raw_data/nk.bin`      | The initialization marker, owned by `assets:session-data`                                                                                        |
+| The `sle mesoscope` command group                       | One CLI group per registered acquisition system                                                                                                  |
+| The fifteen tools of `interfaces/mesoscope_vr_tools.py` | One `<system>_tools.py` module, discovered by filename suffix in `_register_tool_modules()` (`interfaces/mcp_server.py`)                         |
+| The Mesoscope-VR steps of `preprocess_session_data`     | Per-system steps around the shared preprocessing primitives                                                                                      |
 
 ---
 
@@ -394,8 +394,8 @@ this GUI. You MUST NOT drive them on the operator's behalf, and you MUST NOT iss
 Adding a mode is a coordinated cross-repository change. Follow the steps in order. Steps that touch repositories outside
 sollertia-experiment are delegated through explicit handoffs.
 
-**Step 0, read the seam catalog.** Hand off to `experiment:library-extension` for the configuration-registry,
-`cross_system`, MCP, and CLI seams a new mode or a new system touches, and for the absent runtime base class.
+**Step 0, read the seam catalog.** `experiment:library-extension` owns the configuration-registry, `cross_system`, MCP,
+and CLI seams, plus the acquisition-engine autonomy boundary in "The acquisition engine is a human-in-the-loop rewrite".
 
 **Step 1, author the session descriptor.** Hand off to `assets:library-extension`, which owns the full touch list for
 adding a `SessionTypes` member. The one Mesoscope-VR-specific point is that the new member MUST be claimed by

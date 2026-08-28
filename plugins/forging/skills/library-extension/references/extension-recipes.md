@@ -12,6 +12,7 @@ is what this library's coverage checks measure against. The upstream half is own
 | New acquisition system  | Every session and dataset the system produces | Yes, `sollertia-shared-assets` |
 | New session type        | One session type of one system                | Yes, `sollertia-shared-assets` |
 | New processing stage    | One pipeline that already exists              | No                             |
+| Per-system registry     | One donation seam every system fills          | No                             |
 | New processing pipeline | A new category package                        | Yes, `sollertia-shared-assets` |
 | New MCP tool            | One `interfaces/*_tools.py` module            | No                             |
 
@@ -39,6 +40,17 @@ contract exists. The enforcement is the circular `ImportError` itself.
 `ataraxis_video_system.orchestration.jobs`, `CONTROLLER_EXTRACTION_JOB_NAME` from
 `ataraxis_communication_interface.orchestration.jobs`, and `SingleRecordingJobNames` and `MultiRecordingJobNames` from
 `cindra.orchestration.jobs`. A stage that wraps one of their bindings imports the constant it already exports.
+
+**The forged dataset's file set is closed to a donation.** A forged session directory carries the assembled
+`DatasetFiles.DATA` feather plus the raw assets that the `reexported_assets` mapping in `_forge_session` names, which
+are `RawDataFiles.SESSION_DESCRIPTOR`, `RawDataFiles.VR_CONFIGURATION`, and `RawDataFiles.EXPERIMENT_CONFIGURATION`,
+each copied when the session holds it. That mapping is a literal inside the agnostic `forging/pipeline.py` and no
+registry feeds it, the per-animal `RawDataFiles.SURGERY_METADATA` copy is fixed the same way in
+`_copy_animal_surgery_files` in `forging/dataset.py`, and `DatasetFiles` in
+`sollertia_shared_assets.data_hierarchy.dataset_data` declares only `DATA` and `DESCRIPTIONS`. A new per-session
+artifact therefore folds into `data.feather` columns through the system's own assembly worker, or the extension stops
+and becomes a platform-contract change to `reexported_assets` and `DatasetFiles` that the human supervisor co-designs.
+No `<system>/` package widens the set.
 
 **Verify by importing the package that runs each check.** `python -c "import sollertia_forgery.registries"` runs the
 donor-registry coverage check, `python -c "import sollertia_forgery.orchestration"` adds the dispatch-table check, and
@@ -106,12 +118,12 @@ A new system therefore adds no CLI option, no MCP parameter, and no dispatch ent
 ### Cross-repository coordination
 
 - `sollertia-shared-assets` is blocking and lands first, through `assets:library-extension`.
-- `sollertia-experiment` must write the artifacts the donations read, which is a `SystemConfiguration` subclass, its
-  binding classes, a runtime controller written from scratch, an `interfaces/<system>.py` CLI group added to
-  `_register_subcommands`, and an `interfaces/<system>_tools.py` module. That library runs no import-time check, so a
-  half-wired system there surfaces only when an operator runs its configure command. Hand off to
-  `experiment:library-extension`, and to `experiment:pipeline` for the acquisition run that produces the first
-  processable session.
+- `sollertia-experiment` must write the artifacts the donations read. Those are a `SystemConfiguration` subclass, its
+  binding classes, a runtime controller scaffolded from the Mesoscope-VR worked example with its hardware-defined
+  decisions settled with the human supervisor, an `interfaces/<system>.py` CLI group added to `_register_subcommands`,
+  and an `interfaces/<system>_tools.py` module. That library runs no import-time check, so a half-wired system there
+  surfaces only when an operator runs its configure command. Hand off to `experiment:library-extension`, and to
+  `experiment:pipeline` for the acquisition run that produces the first processable session.
 - `cindra` needs nothing when the system reuses `SingleRecordingConfiguration`, `MultiRecordingConfiguration`,
   `SingleRecordingJobNames`, and `MultiRecordingJobNames`. A system needing a new cindra stage needs a cindra release
   first, then a `_MULTIDAY_JOB_NAMES` entry in `forging/pipeline.py` or a `_JOB_CORE_ALLOCATIONS` entry in
@@ -156,7 +168,9 @@ and the cross-recording declaration decides whether the dataset tracks its anima
 ## Adding a new processing stage
 
 A stage rides its pipeline's existing routing. It needs no `ProcessingPipelines` member, no `BATCH_PIPELINES` change,
-no `PipelineDispatch` entry, no CLI subcommand, and no MCP tool.
+no `PipelineDispatch` entry, no CLI subcommand, and no MCP tool. A stage that reads or writes something only an
+acquisition system can supply also needs the registry through which each system supplies it, which is the separate
+"Minting or joining a per-system registry" scenario below.
 
 | #  | Touch point             | File and identifier                                                                                                                                                                                                            |
 |----|-------------------------|--------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
@@ -211,6 +225,59 @@ ceilings, and `**FORGING_JOB_CONCURRENCY_LIMITS`. `_JOB_CONCURRENCY_RESERVATIONS
 - `sollertia-experiment` is involved only when the stage reads an artifact acquisition does not yet write.
 - A dependency is involved only when the stage is one of theirs, in which case reuse its exported job-name constant
   and its declared core and ceiling figures rather than inventing widths.
+
+---
+
+## Minting or joining a per-system registry
+
+A stage whose input is produced outside this library, or whose behavior is decided by hardware, needs one donation per
+acquisition system, and that donation arrives through a per-system registry. A bound external tool takes this path
+twice, once for the locator that finds its artifact and once for the worker that reads it, which
+`experiment:external-tool-bindings` routes here. One question picks the branch. A stage joins the registry that
+already names its concern, and mints a new one when no registry names that concern yet.
+
+### Joining an existing registry
+
+| # | Touch point  | File and identifier                                                                                                                     |
+|---|--------------|-----------------------------------------------------------------------------------------------------------------------------------------|
+| 1 | The donation | The donated module-level function in the `<system>/` package, listed in that package's `__all__`                                        |
+| 2 | The entry    | The import added to the `registries.py` import block, and the system's entry set in the registry that already declares the concern      |
+| 3 | The test     | The donated function's own behavior. The registry already sits in the coverage tuple and in `_DONOR_REGISTRY_NAMES`, so neither changes |
+
+A join adds no Protocol, no accessor, and no `__all__` entry, because the concern already carries all three, and it
+edits no consumer, because the stage that reads the registry already imports the accessor.
+
+### Minting a new registry
+
+| # | Touch point       | File and identifier                                                                                                                             |
+|---|-------------------|-------------------------------------------------------------------------------------------------------------------------------------------------|
+| 1 | Value contract    | A `Protocol` in `registries.py` declaring the donated callable's `__call__` signature, following `_PosePredictionLocator`                       |
+| 2 | The registry      | A module-private `dict[AcquisitionSystems, <Protocol>]` whose docstring states the null donation a system producing nothing of this class makes |
+| 3 | The accessor      | A `resolve_<concern>` function returning `_<NAME>_REGISTRY[_resolve_system(system=system)]`, following `resolve_pose_prediction_locator`        |
+| 4 | The export        | The accessor's name added to the `__all__` of `registries.py`, which lists the accessors and the public Protocols and no registry               |
+| 5 | Coverage          | The `("_<NAME>_REGISTRY", frozenset(_<NAME>_REGISTRY))` pair added to the tuple `_assert_registry_coverage()` iterates                          |
+| 6 | The donation      | The donated module-level function in each `<system>/` package, listed in that package's `__all__` and added to the `registries.py` import block |
+| 7 | The consumer      | The accessor imported from `..registries` by the stage that reads it, since no category package imports a registry constant                     |
+| 8 | The coverage test | The registry's name added to `_DONOR_REGISTRY_NAMES` in `tests/registry_coverage_test.py`, whose parametrized test empties each one             |
+
+`_POSE_PREDICTION_REGISTRY` and `resolve_pose_prediction_locator` are the worked pattern for touches 1 through 7, since
+that seam is a locator over an artifact a tool outside this library writes. Touch 8 is the one they do not model.
+`_DONOR_REGISTRY_NAMES` in `tests/registry_coverage_test.py` names ten of the eleven registries and omits that one, so
+the worked pattern is itself the standing instance of the gap that touch 8 closes.
+
+A new Protocol stays module-private unless a consumer names it in a type annotation outside `registries.py`. Two of
+the six declared today do, which are the public `ForgingAssembler` and `MicrocontrollerParser`.
+
+Touch 5 is the one that no other touch implies and that no error reports. A registry left out of the coverage tuple
+accepts a system with no entry, so the seam it opened raises a bare `KeyError` from the accessor at runtime rather
+than a named `RuntimeError` at import. Touch 8 measures touch 5, which is why the two are separate rows.
+
+### Cross-repository coordination
+
+- `sollertia-shared-assets` needs nothing. A registry is internal to this library.
+- `sollertia-experiment` writes the artifact a locator finds, so a registry opened for a bound external tool waits on
+  the producer half that `experiment:external-tool-bindings` owns.
+- A dependency is involved only when the donated worker wraps one of its bindings.
 
 ---
 
@@ -314,6 +381,7 @@ changes.
 | New acquisition system  | A `<System> Assets` section carrying `.. automodule:: sollertia_forgery.<system>`, one `.. autoclass::` per column enumeration, and one `.. autodata::` per exported constant, each naming the defining module rather than the package | Fully measured. The omit list covers `interfaces/` modules only    | A `tests/<system>/` package, plus the new registry names added to `_DONOR_REGISTRY_NAMES` in `tests/registry_coverage_test.py` and the system added to that file's parametrized coverage tests |
 | New session type        | Nothing new, unless the type adds an exported constant                                                                                                                                                                                 | Fully measured                                                     | The assembly-routing branch, the multi-recording resolver's answer for the type, and the column-description entry                                                                              |
 | New processing stage    | One `.. autodata::` for the job-name constant in the owning section, naming the defining module. A dependency's constant is named through that dependency's own module path                                                            | Fully measured                                                     | Discovery emission, prerequisite ordering, the dispatcher branch, the core allocation, and the sizing model                                                                                    |
+| Per-system registry     | Nothing new. The `Dispatch Registries` section's `.. automodule:: sollertia_forgery.registries` carries `:members:`, so a new accessor is documented from its own docstring                                                            | Fully measured                                                     | The donated function's behavior, and, for a mint, the registry's name added to `_DONOR_REGISTRY_NAMES` in `tests/registry_coverage_test.py` alongside the coverage-tuple pair it measures      |
 | New processing pipeline | A new section with `.. automodule:: sollertia_forgery.<category>` plus one `.. autodata::` per exported job-name constant                                                                                                              | Fully measured                                                     | A `tests/<category>/` package mirroring the new source package                                                                                                                                 |
 | New MCP tool            | Nothing. `interfaces/` carries no `automodule` section                                                                                                                                                                                 | The new `*_tools.py` module is added to `[tool.coverage.run] omit` | None required by the gate, since the module is omitted                                                                                                                                         |
 

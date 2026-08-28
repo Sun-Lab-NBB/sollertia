@@ -8,14 +8,16 @@ You MUST read the named README section before applying a scenario, because the l
 than replacing it. The import-time checks that catch an unfinished recipe, their verbatim failure messages, and the
 touch points no check covers are documented in [guardrails.md](guardrails.md).
 
-| Scenario                        | README section                          |
-|---------------------------------|-----------------------------------------|
-| New `SessionTypes` member       | "Adding New Session Types"              |
-| New `AcquisitionSystems` member | "Adding New Acquisition Systems"        |
-| New runtime trial class         | "Adding a New Trial Class"              |
-| New `TriggerType` member        | "Adding a New Trigger Type"             |
-| New `ReadAssets` member         | "Adding a New Read Asset"               |
-| New `CredentialsTypes` member   | None, this file carries the only recipe |
+| Scenario                               | README section                          |
+|----------------------------------------|-----------------------------------------|
+| New `SessionTypes` member              | "Adding New Session Types"              |
+| New `AcquisitionSystems` member        | "Adding New Acquisition Systems"        |
+| New runtime trial class                | "Adding a New Trial Class"              |
+| New `TriggerType` member               | "Adding a New Trigger Type"             |
+| New `ReadAssets` member                | "Adding a New Read Asset"               |
+| New raw-tree directory                 | None, this file carries the only recipe |
+| New processing pipeline, upstream half | None, this file carries the only recipe |
+| New `CredentialsTypes` member          | None, this file carries the only recipe |
 
 ---
 
@@ -33,6 +35,20 @@ chosen once, and renaming it later is a data migration rather than a rename. Eve
 member **name** instead, so the two are read in different places. The live conventions are lowercase single tokens for
 `AcquisitionSystems` (`MESOSCOPE_VR = "mesoscope"`) and space-separated lowercase words for `SessionTypes`
 (`"lick training"`, `"mesoscope experiment"`).
+
+**Every session artifact is addressed through a session-record field.** A file or a directory that lives inside a
+session is named by a member of `RawDataFiles`, `Directories`, or `ProcessingTrackers` in
+`data_hierarchy/session_data.py`. It is then declared as a field on `RawData` or on `ProcessedData` in that same module,
+and resolved from the member inside the owning dataclass's `build` classmethod. The Notes of `RawData` name `build` the
+single source of truth for the enum-to-field mapping. Producers then write through the resolved field, the way
+`snapshot_surgery_data` in `sollertia-experiment`'s `cross_system/data_preprocessing.py` writes the surgery snapshot
+through `session_data.raw_data.surgery_metadata_path`.
+
+An artifact that stops at its dataclass and its registry entry passes every import-time check and is served by the
+generic MCP tools, yet has no session-resolved location. Its producer then invents a path literal, and the session
+record stops describing the session. No import-time check reaches this rule, because `_assert_registry_coverage()`
+compares registry keys against enum members and never reads `data_hierarchy/session_data.py`. The path-resolution tests
+in `tests/data_hierarchy/session_data_test.py` are the only guardrail over the enum, field, and `build` touches.
 
 **Verify by importing.** `python -c "import sollertia_shared_assets"` runs every import-time check, because the package
 `__init__.py` imports `registries.py` directly. Run it after the code touches of any scenario, and use
@@ -87,13 +103,12 @@ that owns the concrete per-system material, so record the new material there.
   `experiment:acquisition-system-runtime` and its per-system instance, and to `experiment:data-management` for the
   post-acquisition session lifecycle.
 - `sollertia-forgery` decides whether sessions of the new type may join a forged dataset, and
-  `forging:dataset-definition` owns that admission policy. The code touch is the per-system session-type mapping the
-  admission registry dispatches through, which is `MESOSCOPE_ADMISSION_PIPELINES` in
-  `src/sollertia_forgery/mesoscope_vr/forging.py` for the reference system, reached through
-  `_FORGING_ADMISSION_REGISTRY` in `src/sollertia_forgery/registries.py`. A session type absent from a system's mapping
-  joins no dataset. `_MULTI_RECORDING_SESSION_TYPE_REGISTRY` in the same module is the second session-type-keyed
-  structure, and it decides whether the new type's animals are tracked across recordings. Hand off to
-  `forging:dataset-definition`.
+  `forging:dataset-definition` owns that admission policy. The code touch is `MESOSCOPE_ADMISSION_PIPELINES` in
+  `src/sollertia_forgery/mesoscope_vr/forging.py`, the per-system session-type mapping through which the admission
+  registry dispatches for the reference system, reached through `_FORGING_ADMISSION_REGISTRY` in
+  `src/sollertia_forgery/registries.py`. A session type absent from a system's mapping joins no dataset.
+  `_MULTI_RECORDING_SESSION_TYPE_REGISTRY` in the same module is the second session-type-keyed structure, and it decides
+  whether the new type's animals are tracked across recordings. Hand off to `forging:dataset-definition`.
 
 ---
 
@@ -173,7 +188,7 @@ system whose extension stops at the code still runs, and stays invisible to ever
 |---------------------------------------|-----------------------------------------------------------------------------------------------|-----------------------------------------------------------------------------------------------------------------------------------------------------|
 | `plugins/<system>/`                   | A companion plugin for the new system, carrying its own `.claude-plugin/plugin.json`          | Nothing. The directory belongs to no marketplace and installs nowhere                                                                               |
 | `.claude-plugin/marketplace.json`     | A `plugins` entry naming the new plugin and pointing its `source` at `./plugins/<system>`     | Nothing. The plugin ships uninstallable                                                                                                             |
-| `plugins/<system>/skills/`            | The three per-system schema skills the generic skills defer to, named below the table         | Nothing. Every per-system pointer in the generic skills routes to a skill that does not exist                                                       |
+| `plugins/<system>/skills/`            | The three per-system schema skills to which the generic skills defer, named below the table   | Nothing. Every per-system pointer in the generic skills routes to a skill that does not exist                                                       |
 | `experiment:acquisition-system-setup` | A row in its "Supported acquisition systems" table naming the new system and its schema skill | Nothing. `experiment:pipeline` routes to the running system's owning skill through that table, so operate-time routing never reaches the new system |
 
 The three schema skills mirror the mesoscope trio, and copying that trio is the shortest route to them.
@@ -204,19 +219,16 @@ one, enumerating both explicitly rather than lengthening a "currently only X" ch
   CLI-driveable but exposes no system-specific MCP surface. The "Author the system's dedicated companion plugin" step
   authors the system's agentic assets, a per-system instance skill and, when the system has non-trivial runtime modes, a
   per-system runtime skill. Both live in the system's companion plugin rather than in the experiment plugin, and both
-  are required deliverables. The
-  assets plugin's generic skills carry pointers that assume the per-system schema skills exist, so a system that stops
-  at the code is driveable yet undocumented for every agent that would drive it.
-- `sollertia-forgery` dispatches every per-system behavior through ten registries in
+  are required deliverables. The assets plugin's generic skills carry pointers that assume the per-system schema skills
+  exist, so a system that stops at the code is driveable yet undocumented for every agent that would drive it.
+- `sollertia-forgery` dispatches every per-system behavior through eleven registries in
   `src/sollertia_forgery/registries.py`, and the new system needs an entry in each of them before its sessions are
-  processed or forged. They are `_MICROCONTROLLER_PARSER_REGISTRY`, `_MICROCONTROLLER_EVENT_CODE_REGISTRY`,
-  `_MICROCONTROLLER_ELIGIBILITY_REGISTRY`, `_FORGING_ASSEMBLY_REGISTRY`, `_FORGING_ADMISSION_REGISTRY`,
-  `_CINDRA_CONFIGURATION_REGISTRY`, `_MULTI_RECORDING_SESSION_TYPE_REGISTRY`, `_RUNTIME_PARSER_REGISTRY`,
-  `_TWO_PHOTON_DATA_REGISTRY`, and `_VIDEO_TRACKING_REGISTRY`. Two of them gate the dataset seam outright.
-  `_FORGING_ASSEMBLY_REGISTRY` carries the system's `column_descriptions`, which the agnostic pipeline bakes into the
-  dataset's `data_descriptions.feather` when the dataset is defined, and `_FORGING_ADMISSION_REGISTRY` carries the
-  per-session-type pipeline requirements, so a session type absent from a system's mapping joins no dataset. Hand off to
-  `forging:dataset-definition` for the admission policy and the column-description companion, and to
+  processed or forged. `forging:library-extension` carries the roster and the donation shape each one expects, and
+  `_assert_registry_coverage()` in that module reports every system a registry omits. Two of the eleven gate the dataset
+  seam outright. `_FORGING_ASSEMBLY_REGISTRY` carries the system's `column_descriptions`, which the agnostic pipeline
+  bakes into the dataset's `data_descriptions.feather` when the dataset is defined, and `_FORGING_ADMISSION_REGISTRY`
+  carries the per-session-type pipeline requirements, so a session type absent from a system's mapping joins no dataset.
+  Hand off to `forging:dataset-definition` for the admission policy and the column-description companion, and to
   `forging:data-processing-design` for the per-stage processing design behind the remaining entries.
 - `sollertia-virtual-reality` may need new scene scaffolding when the new system uses Unity.
 
@@ -306,11 +318,11 @@ it, and neither branch is named by any of the checks in [guardrails.md](guardrai
 
 **Skill touches:**
 
-| Skill                                      | What to update                                                                                                                                                                                                                                                                                                                 |
-|--------------------------------------------|--------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
-| `/task-templates`                          | The `TriggerType` enumeration sentence and the primitives table in SKILL.md, plus `references/field-semantics.md`, which hardcodes the trigger-mode count in its intro, its section heading, and three sentences of that section, counts the occupancy modes separately, and carries a firing-rule table with one row per mode |
-| `/experiment-configuration`                | The trigger to trial-class pairing convention                                                                                                                                                                                                                                                                                  |
-| `mesoscope:mesoscope-vr-experiment-schema` | The trigger-to-trial mapping table, whenever Mesoscope-VR gains a branch for the new member                                                                                                                                                                                                                                    |
+| Skill                                      | What to update                                                                                                                                                                                                                                                                                                                          |
+|--------------------------------------------|-----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| `/task-templates`                          | The `TriggerType` enumeration sentence and the primitives table in SKILL.md, plus `references/field-semantics.md`. That reference hardcodes the trigger-mode count in its intro, its section heading, and three sentences of that section, counts the occupancy modes separately, and carries a firing-rule table with one row per mode |
+| `/experiment-configuration`                | The trigger to trial-class pairing convention                                                                                                                                                                                                                                                                                           |
+| `mesoscope:mesoscope-vr-experiment-schema` | The trigger-to-trial mapping table, whenever Mesoscope-VR gains a branch for the new member                                                                                                                                                                                                                                             |
 
 ---
 
@@ -330,7 +342,18 @@ adding one is a platform-contract decision rather than a routine extension.
    re-export it from the top-level `src/sollertia_shared_assets/__init__.py` and its `__all__`.
 2. Append the member to `ReadAssets` in `enums.py`.
 3. Register the dataclass under the new key in `READ_ASSET_REGISTRY` in `registries.py`.
-4. Run `python -c "import sollertia_shared_assets"`. A forgotten registry entry is named at import time.
+4. Add a `RawDataFiles` member in `data_hierarchy/session_data.py` holding the canonical filename the cached asset
+   takes at the root of a session's `raw_data` directory, following `SURGERY_METADATA = "surgery_metadata.yaml"`.
+5. Declare the matching `<asset>_path: Path` field on `RawData` in the same module, following `surgery_metadata_path`.
+6. Resolve that field from the new member inside `RawData.build`, following
+   `surgery_metadata_path=root.joinpath(RawDataFiles.SURGERY_METADATA)`.
+7. Extend `test_session_data_raw_data_file_paths` in `tests/data_hierarchy/session_data_test.py` with the new field.
+8. Run `python -c "import sollertia_shared_assets"`. A forgotten registry entry is named at import time.
+
+Touches 4 through 6 are what give the asset a session-resolved home, per the session-record convention above. An asset
+cached per animal rather than per session resolves through `AnimalData` in `data_hierarchy/project_hierarchy.py`, whose
+`persistent_data_path` property addresses the animal's cross-session directory, so record which of the two locations
+the asset takes before applying touch 4.
 
 ### Resolving the new asset from Python
 
@@ -357,8 +380,96 @@ raising. `assets:data-assets` documents the MCP path.
 **Downstream coordination:**
 
 - `sollertia-experiment` owns the reader that translates the external source into the new dataclass and caches it on
-  disk. This recipe owns the dataclass and the registry entry only.
+  disk. This recipe owns the dataclass, the registry entry, and the asset's session-resolved location only.
 - `sollertia-forgery` consumes the cached on-disk dataclass during dataset assembly.
+
+---
+
+## Adding a raw-tree directory for a new artifact
+
+The library README carries no section for this scenario, so this recipe is the only one. It applies when an acquisition
+runtime, or an external tool bound into one, writes an artifact into the session's `raw_data` tree and no existing
+directory field is the right home for it. `experiment:external-tool-bindings` routes here from the artifact-home step of
+its binding workflow.
+
+**Code touches:**
+
+1. Add the member to `Directories` in `data_hierarchy/session_data.py`, following `BEHAVIOR_DATA = "behavior_data"`.
+   The enum names the subdirectories of both session trees, so the member's docstring states under which of `raw_data`
+   and `processed_data` the directory sits, the way every existing member's docstring opens.
+2. Declare the matching `<name>_path: Path` field on `RawData` in the same module, following `behavior_data_path`.
+3. Resolve that field from the new member inside `RawData.build`, following
+   `behavior_data_path=root.joinpath(Directories.BEHAVIOR_DATA)`.
+4. Extend `test_session_data_raw_data_directory_paths` in `tests/data_hierarchy/session_data_test.py` with the new
+   field.
+
+`build` resolves paths and creates nothing, and `SessionData.create()` calls `ensure_directory_exists` for the
+`raw_data` root alone, so the producer that writes into the new directory creates it. `required_raw_assets` is not
+touched, because it lists the files a session must contain rather than its directories.
+
+**Skill touches:**
+
+| Skill           | What to update                                                                                                                                                |
+|-----------------|---------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| `/session-data` | The `instance.raw_data` field list under "Path-resolution sub-dataclasses on `SessionData`", and the raw-tree branch of the session directory tree it renders |
+
+**Downstream coordination:**
+
+- `sollertia-experiment` owns the producer that writes the artifact. Hand off to `experiment:external-tool-bindings`
+  for a bound external tool, and to `experiment:acquisition-system-runtime` when the acquisition runtime writes it
+  directly.
+- `sollertia-forgery` is involved only when a processing stage reads the artifact back, which
+  `forging:library-extension` owns.
+
+---
+
+## Adding the session-record surfaces of a new processing pipeline
+
+The library README carries no section for this scenario, so this recipe is the only one. A new `sollertia-forgery`
+processing pipeline writes into a directory under the session's `processed_data` tree and records its outcome in a
+tracker beside that output, and both are addressed through `ProcessedData`. `forging:library-extension` names this half
+blocking and lands it here, because `_SESSION_TRACKER_LOCATIONS` in that library's `shared_assets/pipelines.py` resolves
+each per-session pipeline's tracker through a `session.raw_data` or `session.processed_data` accessor that has to exist
+first. The Notes of `ProcessedData` state that future processing tools applying across acquisition systems get added
+directly as new fields there, so this recipe is the intended growth path for the dataclass rather than a widening of a
+frozen contract.
+
+**Code touches:**
+
+1. Add the member naming the pipeline's output directory to `Directories` in `data_hierarchy/session_data.py`,
+   following `RUNTIME_DATA = "runtime_data"`, with a docstring stating that it sits under `processed_data`.
+2. Add the member holding the tracker filename to `ProcessingTrackers` in the same module, following
+   `RUNTIME = "runtime_processing_tracker.yaml"`. Choose the member **name** to mirror the downstream
+   `ProcessingPipelines` member, whose own Notes in `sollertia-forgery`'s `shared_assets/pipelines.py` state that the
+   two names mirror each other.
+3. Declare the field pair on `ProcessedData`, one `<name>_data_path: Path` for the output directory and one
+   `<name>_tracker_path: Path` for the tracker, following `runtime_data_path` and `runtime_tracker_path`.
+4. Resolve both inside `ProcessedData.build`, binding the directory to a local variable and joining the tracker filename
+   onto it, following `runtime_data_path = root.joinpath(Directories.RUNTIME_DATA)` and
+   `runtime_tracker_path=runtime_data_path.joinpath(ProcessingTrackers.RUNTIME)`. The tracker is resolved under the
+   pipeline's own output directory rather than under the `processed_data` root.
+5. Add the new member to the `descriptions` dictionary inside `list_processing_trackers_tool` in
+   `interfaces/data_tools.py`. Its entry comprehension iterates every `ProcessingTrackers` member and indexes that
+   dictionary, so a member the dictionary omits raises `KeyError` on the first call of the tool.
+6. Extend `test_session_data_processed_data_directory_paths` and `test_session_data_processing_tracker_paths` in
+   `tests/data_hierarchy/session_data_test.py` with the new directory and tracker.
+
+A tracker written outside a session takes touches 2, 5, and 6 alone, because no fixed per-session path addresses it.
+`ProcessingTrackers.FORGING` lives at the forged dataset root and `ProcessingTrackers.MANIFEST` at the project root, and
+neither carries a `ProcessedData` field.
+
+**Skill touches:**
+
+| Skill           | What to update                                                                                                                                                                |
+|-----------------|-------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| `/session-data` | The `instance.processed_data` field list and its asset count, the count of `ProcessingTrackers` members dispatched onto a sub-dataclass field, and the session directory tree |
+
+**Downstream coordination:**
+
+- `sollertia-forgery` owns the pipeline itself, its category package, its dispatch entry, and its admission wiring. Hand
+  off to `forging:library-extension`, whose processing-pipeline recipe lists this half as blocking and lands first.
+- `sollertia-experiment` is involved only when the pipeline reads an artifact acquisition does not yet write, which
+  `experiment:external-tool-bindings` and `experiment:acquisition-system-runtime` own between them.
 
 ---
 

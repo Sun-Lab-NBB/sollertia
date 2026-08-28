@@ -248,6 +248,13 @@ every consumer of that module, while adding a Python wrapper is a Python-only ch
    schema) is owned by the consuming system's own skill, currently `mesoscope:mesoscope-vr`. The platform-general
    pattern those steps follow is documented in `/acquisition-system-design`.
 
+   The acquisition half of the handoff leaves the module logging events that nothing downstream reads, so the
+   processing half is part of the same change. The system's hardware-state snapshot gains the calibration field or
+   usage boolean that records the module, on Mesoscope-VR through `mesoscope:mesoscope-vr-session-schema`. The parser
+   that converts the module's logged events into a processed feather file is added through
+   `mesoscope:mesoscope-vr-module-parsing`, which also owns the registry entry that makes the parser reachable. A
+   module wired into a binding class without both edits acquires data for which no processed output ever exists.
+
 ### Workflow: adding a wrapper for an existing firmware module
 
 Same as above, skipping steps 2 and 6's `slmc` version bump. The new wrapper takes the existing `module_type` and the
@@ -339,6 +346,8 @@ Every entry prefixed `microcontroller:`, `communication:`, or `automation:` reso
 | `/acquisition-system-design`              | Platform-general pattern for composing wrappers into binding classes and a system configuration.                 |
 | `mesoscope:mesoscope-vr`                  | Current worked instance, composes the wrappers documented here into its microcontroller binding class.           |
 | `mesoscope:mesoscope-vr-runtime`          | The worked instance's runtime behavior, which consumes the wrapper APIs documented here.                         |
+| `mesoscope:mesoscope-vr-session-schema`   | The worked instance's hardware-state snapshot, which records a new module's calibration or usage.                |
+| `mesoscope:mesoscope-vr-module-parsing`   | The worked instance's parser layer, which turns a new module's logged events into processed output.              |
 
 ---
 

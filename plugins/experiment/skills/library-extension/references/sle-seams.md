@@ -205,12 +205,29 @@ around `setup()`, an interactive terminal operator, and the shutdown-isolation h
 
 ---
 
-## What is not a seam
+## The seam the human supervisor settles
 
-Seam 28 is the one entry in the table that has nothing to compose. The platform exposes no generic runtime base
-class, and each system implements its own controller against the seams above, as the "Extending the Platform"
-section of `sollertia-experiment/README.md` states. Treat that as a budgeted authoring task rather than a missing
-abstraction.
+Seam 28 is the acquisition engine, meaning the runtime controller together with the binding classes and acquisition
+components it drives. It is scaffolded from the Mesoscope-VR worked example and composed from the `cross_system`
+primitives catalogued above rather than subclassed from a generic runtime type. That is a design position, because an
+engine is defined by a physical hardware inventory and by lab-local wiring conventions that no template carries
+honestly. The "Extending the Platform" section of `sollertia-experiment/README.md` states the same position from the
+library side.
+
+**Autonomy boundary.** The Mesoscope-VR engine is the **only** acquisition engine with an author-derived recipe, and the
+seams catalogued above are the composition surface that recipe names. Mirroring its file split, composing those
+primitives, and wiring every glue seam is agent-ownable, and you complete it autonomously. The engine's substance has no
+recipe, meaning the hardware inventory, the wiring topology, the per-mode semantics of the state machine, the
+calibration values, the safety interlocks, and the teardown ordering. Escalate those to the human supervisor and
+co-design them in a generative, collaborative mode. What is missing there is a hardware fact that no repository records,
+rather than capability, so the work must be human-supervised.
+
+The full treatment of this boundary, with both scaffolds enumerated and every glue seam named, lives under "The
+acquisition engine is a human-in-the-loop rewrite" in [SKILL.md](../SKILL.md).
+
+---
+
+## Deliberate boundaries of the shared layer
 
 Nothing in `cross_system` drives microscope hardware. Calibration and hardware positioning stay experimenter-operated
 through the maintenance runtime GUI, so no agent instruction moves a motor or calibrates a valve.

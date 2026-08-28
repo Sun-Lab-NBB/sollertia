@@ -38,6 +38,7 @@ The column-roster enum definitions themselves (`DatasetColumn`, `BehaviorDataFil
 - Sentinel masking outside the run state (`cue` 255, `trial` 65535, `trial_type` `"undefined"`) and the conditional
   guidance-state columns
 - `clip_to_session_bounds`, the session-bounds clip that runs last on both paths
+- Where a new assembled column is emitted, one site per `DatasetColumn` group
 - Which session type makes `vr_configuration.yaml` a required artifact of a forged Mesoscope-VR dataset
 
 **Does not cover:**
@@ -239,11 +240,10 @@ The temporary tone, active-flag, event-id, water-delta, and per-event-water colu
 
 ### System-state code inversion
 
-The `MesoscopeHardwareState` supplies a `system_state_codes` mapping (name to code). The assembly inverts it
-(code to name) and casts `system_state` to a Polars Enum built from the mapping's keys, yielding the five descriptive
-state names (`idle`, `rest`, `run`, `lick training`, `run training`), of which the downstream special cases and the
-masking test only `idle`, `rest`, and `run`. If the hardware state is
-missing `system_state_codes`, assembly raises a `ValueError`.
+The `MesoscopeHardwareState` supplies a `system_state_codes` mapping (name to code). The assembly inverts it (code to
+name) and casts `system_state` to a Polars Enum built from the mapping's keys, yielding the five descriptive state
+names (`idle`, `rest`, `run`, `lick training`, `run training`). The downstream special cases and the masking test only
+`idle`, `rest`, and `run`. If the hardware state is missing `system_state_codes`, assembly raises a `ValueError`.
 
 ### Torque, distance, and brake special cases
 
@@ -261,9 +261,8 @@ missing `system_state_codes`, assembly raises a `ValueError`.
 
 ## Behavior-dataset column order
 
-After cleanup, the behavior DataFrame is reordered to this canonical sequence. Only columns that actually exist for
-the session are selected, so lick-training and run-training sessions omit the columns whose source feathers are
-absent:
+After cleanup, the behavior DataFrame is reordered to this canonical sequence. Only columns that actually exist for the
+session are selected, so lick-training and run-training sessions omit the columns whose source feathers are absent:
 
 ```text
 time_us
@@ -383,6 +382,27 @@ setup, so the first row of an assembled feather carries an `elapsed_minutes` val
 
 ---
 
+## Emitting a new assembled column
+
+The `DatasetColumn` group that a column joins names the one sub-assembler that emits it. `time_us` and `elapsed_minutes`
+are the exception, coming from the fluorescence assembly for experiment sessions and from the behavior assembly for
+training sessions. The member declaration, its `_COLUMN_DESCRIPTIONS` entry, and the rebuild a new column forces on
+datasets already defined belong to `/mesoscope-vr-processing-schema`, and this table serves that skill's third touch.
+
+| `DatasetColumn` group       | Sub-assembler                                      | Where the value is emitted                                                              |
+|-----------------------------|----------------------------------------------------|-----------------------------------------------------------------------------------------|
+| Behavior alignment          | `assemble_behavior_dataset`, `behavior_dataset.py` | The aligned column, plus an entry in the `final_columns` list behind the order above    |
+| Runtime and experiment      | `assemble_runtime_dataset`, `runtime_dataset.py`   | A key in the `aligned_data` dict, handed to `pl.DataFrame` whole with no order list     |
+| cindra fluorescence         | `assemble_cindra_dataset`, `two_photon_dataset.py` | A `with_columns` call, or a `fluorescence_sources` row for a cindra trace array         |
+| Video motion energy         | `assemble_video_dataset`, `video_dataset.py`       | A per-camera key in that module's own `aligned_data` dict, built from `_CAMERA_SOURCES` |
+| Pupil tracking, face camera | `assemble_video_dataset`, `video_dataset.py`       | Nothing here for a continuous metric, copied from the pupil feather's own schema        |
+
+The per-emission-site rules each sub-assembler adds, covering the `final_columns` select, the `PupilColumn` split
+between continuous metrics and state flags, and the `mask_non_run_experiment_data` branch a new runtime column needs,
+live in [`references/column-emission.md`](references/column-emission.md).
+
+---
+
 ## Error surface
 
 | Raise                   | Origin                                         | Condition                                                                                                  |
@@ -430,7 +450,7 @@ report that applies it belong to `assets:datasets`.
 | `/mesoscope-vr-video-tracking`         | Owns the video sub-dataset, the camera clock resolver, and the pupil columns                 |
 | `/mesoscope-vr-trial-decomposition`    | Produces the `trial` / `cue` / `vr_trigger_zone` feathers consumed by the runtime assembly   |
 | `/mesoscope-vr-module-parsing`         | Produces the per-module behavior feathers consumed by the behavior assembly                  |
-| `/mesoscope-vr-processing-schema`      | Owns the roster enums, the column-presence matrix, and `MESOSCOPE_COLUMN_DESCRIPTIONS`       |
+| `/mesoscope-vr-processing-schema`      | Owns the roster enums, the presence matrix, and the recipe that declares a new column        |
 
 ---
 
@@ -461,6 +481,10 @@ Assembly claims:
 - [ ] clip_to_session_bounds stated as running last on both paths, head at the first non-idle system state and tail
       at the last runtime-state entry
 - [ ] Behavior column order quoted exactly
+- [ ] A newly emitted column was placed in the one sub-assembler its DatasetColumn group names, and a behavior
+      column also joined final_columns, whose closing select drops what the list omits
+- [ ] references/column-emission.md was applied to the new column, with a boolean pupil state flag also joining
+      _PUPIL_FLAG_COLUMNS in video_dataset.py
 - [ ] Conditional columns (encoder/screen/brake/torque, reinforcing_guided, aversive_guided) gated on file existence
 - [ ] Behavior sources homed in processed_data/microcontroller_data and processed_data/runtime_data, hardware state
       in raw_data/hardware_state.yaml, with no processed_data/behavior_data claim

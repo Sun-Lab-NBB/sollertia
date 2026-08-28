@@ -153,17 +153,33 @@ This crosses repositories. Follow the "Workflow: adding a paired Module + Interf
    tuple.
 3. **Extend `MicroControllerInterfaces.start()`** when the new wrapper needs `initialize_local_assets()`, which every
    wrapper backed by a `SharedMemoryArray` needs, or a runtime parameter push through `set_parameters()`.
-4. **Bump the `sollertia-experiment` version** in `pyproject.toml`.
-5. **Regenerate the system configuration YAML** on every deployment so the new fields appear.
-6. **Update this skill.** When the new module changes the boards' module inventory, update the table at the top of
+4. **Populate the module's hardware-state field in every session-type branch.**
+   `MesoscopeVRSystem._generate_hardware_state_snapshot` (`mesoscope_vr/system_controller.py`) builds a
+   `MesoscopeHardwareState` three times by hand, once per session type, in a mesoscope-experiment branch, a
+   `SessionTypes.LICK_TRAINING` branch, and a `SessionTypes.RUN_TRAINING` branch, each listing its fields explicitly.
+   Set the new field in every branch whose session type drives the module, and leave it at its `None` default in the
+   branches that do not, because `None` is how the snapshot records a module the runtime never used. A field populated
+   in only one branch stays `None` in the others, the forgery eligibility check reads that `None` as "module not
+   used", and the module's data is silently absent from those sessions with no error raised. Adding the field itself
+   follows the "Adding a hardware-state field for a new module" workflow of `/mesoscope-vr-session-schema`.
+5. **Bump the `sollertia-experiment` version** in `pyproject.toml`.
+6. **Regenerate the system configuration YAML** on every deployment so the new fields appear.
+7. **Update this skill.** When the new module changes the boards' module inventory, update the table at the top of
    [Hardware subsystem: microcontrollers](../SKILL.md#hardware-subsystem-microcontrollers).
+8. **Hand off to the processing side.** A module the runtime drives produces no processed output until a parser exists
+   for it. Follow the "Adding a new module parser" workflow of `/mesoscope-vr-module-parsing` to write the
+   `parse_<module>` entry point, register its `_ModuleSpecification` under the module's `(module_type, module_id)` key
+   in `_MODULE_REGISTRY`, and register the entry point in `_MICROCONTROLLER_PARSER_REGISTRY`. The specification's
+   `required_fields` and `usage_flags` name the hardware-state fields set in step 4, so the two edits must agree, or
+   `check_eligibility` skips the module for every session and no output feather is ever written.
 
 ---
 
 ## Add a new module that needs a new microcontroller board
 
-Follow the "Workflow: adding a new controller board" section of `experiment:microcontroller-interface` to add the new
-target macro to slmc's `main.cpp` and its PlatformIO environment to `platformio.ini`. Then in this skill:
+Follow the "Workflow: adding a new controller board" section of `experiment:microcontroller-interface`, in its
+`references/board-allocation.md`, to add the new target macro to slmc's `main.cpp` and its PlatformIO environment to
+`platformio.ini`. Then in this skill:
 
 1. **Add a new port field** to `MesoscopeMicroControllers` (e.g., `<role>_port`).
 2. **Add a new construction block** in `MicroControllerInterfaces.__init__` for the new board, using the new port, a

@@ -32,8 +32,8 @@ checklist before reporting a binding complete.
 - The ordered workflow for adding a binding, and the worked instance the platform carries today
 
 **Does not cover:**
-- The registry extension path a dependency takes when it does fit the platform vocabulary, which is the
-  `AcquisitionSystems` member, the dispatch registries, and the record dataclasses. Owned by `assets:library-extension`
+- The registry extension path a dependency takes when it does fit the platform vocabulary, which is a pin, an import,
+  and the "New `AcquisitionSystems` member" or "New `ReadAssets` member" scenario. Owned by `assets:library-extension`
 - The session directory anatomy that receives the artifact, and the `Directories` member naming its subdirectory.
   Owned by `assets:session-data`
 - The acquisition-system configuration layer that hosts the binding's configuration section. Owned by
@@ -78,7 +78,9 @@ that citation into the README entry and the launcher docstring.
 4. **Interaction constraint.** The tool runs only under its own session manager, launcher, or graphical shell, so it
    cannot be driven as a library call.
 
-When no condition holds, the dependency registers instead, and `assets:library-extension` owns that path.
+When no condition holds, the dependency registers instead, taking a pin and an import. When it also carries a
+platform-vocabulary asset, `assets:library-extension` owns that addition through its "New `AcquisitionSystems` member"
+and "New `ReadAssets` member" scenarios.
 
 ### Bindability conditions
 
@@ -302,34 +304,58 @@ alone.
 You MUST follow these steps in order when adding a binding.
 
 1. **Run the admission test.** Check the four blocking conditions and record the one that holds, with the evidence its
-shape allows. When none holds, stop and follow `assets:library-extension` instead. 2. **Check bindability.** Confirm the
-non-interactive entry point, the predictable output path, and the readable output format. A tool failing any of the
-three is not bound. 3. **Declare the configuration section.** Add a dataclass section to the acquisition system's
-configuration under `/acquisition-system-design`, with empty-defaulted identity fields for the tool's address and for
-its project, script, or model path, plus any parameter fields the run needs. 4. **Choose the artifact's home.** Reuse an
-existing raw-tree directory field when the artifact belongs beside the data that produced it. Otherwise add a
-`Directories` member in `data_hierarchy/session_data.py`, plus the matching field resolved in that dataclass's `build`
-classmethod. `assets:library-extension` owns that change and `assets:session-data` describes it. 5. **Fix the naming
-rule.** Pass the output name or directory explicitly where the tool's command line accepts one. Otherwise decide the
-substring and extension identifying the artifact, and the total order breaking ties. Record the rule as a module
-constant on each seam. 6. **Write the launcher.** Gate on the identity fields, and probe the input and return `None`
-with a WARNING when it is absent. Build the argument vector from the host-owned prefix and the tool's tokens, open the
-transient log file in the operating system's temporary directory under a session-derived name, and start the child. 7.
-**Verify the run.** Check the exit status and the artifact's existence together, raise with the log tail embedded, and
-unlink the log after the raising call. A synchronous launcher does this inline, and an asynchronous one does it in the
-caller's join. Place the verification before the checksum-and-transfer step that `/data-management` owns. 8. **Reap on
-abort, when the launch is asynchronous.** Wrap the stages running while the child is in flight, terminate the child on
-any exception, wait a bounded time, escalate to a kill, and re-raise. 9. **Decide whether the platform reads the
-artifact back.** When it does not, the producer half alone is the complete binding, so skip ahead to the recording step
-below. 10. **Write the consumer seam.** Donate the locator and the worker to an existing stage's registries when a stage
-already reads this kind of artifact, and otherwise mint the new stage first, both under `forging:library-extension`.
-Then follow `forging:processing-input-format` for the locator's contract, and `forging:data-processing-design` for the
-worker itself. 11. **Add the reader dependency.** Declare the library that opens the artifact in the consuming package,
-with a comment naming the producing tool and the writer-side library version on which the format depends. 12. **Carry
-the artifact to the dataset, when the request ends there.** Add the dataset columns the worker's output feeds and the
-assembly routing that fills them, under `forging:library-extension`. 13. **Record the binding.** Add the marketplace
-root README entry, and the packaging comment when the platform authors the bound repository. Then verify by grep that
-the tool's distribution name appears in no stack dependency list and its module name in no import.
+   shape allows. When none holds, stop and follow `assets:library-extension` instead.
+
+2. **Check bindability.** Confirm the non-interactive entry point, the predictable output path, and the readable output
+   format. A tool failing any of the three is not bound.
+
+3. **Declare the configuration section.** Add a dataclass section to the acquisition system's configuration under
+   `/acquisition-system-design`, with empty-defaulted identity fields for the tool's address and for its project,
+   script, or model path, plus any parameter fields the run needs.
+
+4. **Choose the artifact's home.** Reuse an existing raw-tree directory field when the artifact belongs beside the data
+   that produced it. Otherwise add a `Directories` member in `data_hierarchy/session_data.py`, plus the matching field
+   resolved in that dataclass's `build` classmethod. `assets:library-extension` owns that change and
+   `assets:session-data` describes it.
+
+5. **Fix the naming rule.** Pass the output name or directory explicitly where the tool's command line accepts one.
+   Otherwise decide the substring and extension identifying the artifact, and the total order breaking ties. Record the
+   rule as a module constant on each seam.
+
+6. **Write the launcher.** Gate on the identity fields, and probe the input and return `None` with a WARNING when it is
+   absent. Build the argument vector from the host-owned prefix and the tool's tokens, open the transient log file in
+   the operating system's temporary directory under a session-derived name, and start the child.
+
+7. **Verify the run.** Check the exit status and the artifact's existence together, raise with the log tail embedded,
+   and unlink the log after the raising call. A synchronous launcher does this inline, and an asynchronous one does it
+   in the caller's join. Place the verification before the checksum-and-transfer step that `/data-management` owns.
+
+8. **Reap on abort, when the launch is asynchronous.** Wrap the stages running while the child is in flight, terminate
+   the child on any exception, wait a bounded time, escalate to a kill, and re-raise.
+
+9. **Decide whether the platform reads the artifact back.** When it does not, the producer half alone is the complete
+   binding, so skip ahead to the recording step below.
+
+10. **Write the consumer seam.** The locator and the worker are each a per-system donation, so each one joins the
+    registry that already names its concern or mints a new one, under the "Minting or joining a per-system registry"
+    scenario of `forging:library-extension`. When no stage reads this kind of artifact yet, mint the stage first through
+    that skill's "Adding a new processing stage" recipe, then open the registry that stage needs. Then follow
+    `forging:processing-input-format` for the locator's contract, and `forging:data-processing-design` for the worker
+    itself.
+
+11. **Add the reader dependency.** Declare the library that opens the artifact in the consuming package, with a comment
+    naming the producing tool and the writer-side library version on which the format depends.
+
+12. **Carry the artifact to the dataset, when the request ends there.** Add the dataset columns the worker's output
+    feeds and the assembly routing that fills them, under `forging:library-extension` for the agnostic touches. The
+    column itself and its emission site belong to the running system's schema skills, currently
+    `mesoscope:mesoscope-vr-processing-schema` under "Adding an assembled column" and
+    `mesoscope:mesoscope-vr-dataset-assembly` under "Emitting a new assembled column". The first of those also states
+    the rebuild a new column forces on every dataset already defined.
+
+13. **Record the binding.** Add the marketplace root README entry, and the packaging comment when the platform authors
+    the bound repository. Then verify by grep that the tool's distribution name appears in no stack dependency list and
+    its module name in no import.
 
 ---
 
@@ -366,19 +392,21 @@ the precedent does not yet meet.
 
 ## Related skills
 
-| Skill                                   | Relationship                                                                         |
-|-----------------------------------------|--------------------------------------------------------------------------------------|
-| `assets:library-extension`              | Owns the register path taken by a dependency the admission test admits               |
-| `assets:session-data`                   | Owns the session anatomy and the `Directories` member that names the artifact's home |
-| `/acquisition-system-design`            | Owns the configuration layer that hosts the binding's section                        |
-| `/library-extension`                    | Owns the sollertia-experiment seams a new acquisition system composes                |
-| `/data-management`                      | Owns the checksum-and-transfer step and the preprocessing lifecycle                  |
-| `forging:data-processing-design`        | Owns the worker pattern the consumer seam's reader follows                           |
-| `forging:library-extension`             | Owns the registries, the new stage, and the dataset columns a consumer adds          |
-| `forging:processing-input-format`       | Owns the donated locator's contract and the job discovery it gates                   |
-| `mesoscope:mesoscope-vr`                | Owns the worked instance's configuration section                                     |
-| `mesoscope:mesoscope-vr-runtime`        | Owns the worked instance's launcher, join, abort reap, and options                   |
-| `mesoscope:mesoscope-vr-video-tracking` | Owns the worked instance's consumer stage                                            |
+| Skill                                      | Relationship                                                                             |
+|--------------------------------------------|------------------------------------------------------------------------------------------|
+| `assets:library-extension`                 | Owns the register path taken by a dependency the admission test admits                   |
+| `assets:session-data`                      | Owns the session anatomy and the `Directories` member that names the artifact's home     |
+| `/acquisition-system-design`               | Owns the configuration layer that hosts the binding's section                            |
+| `/library-extension`                       | Owns the sollertia-experiment seams a new acquisition system composes                    |
+| `/data-management`                         | Owns the checksum-and-transfer step and the preprocessing lifecycle                      |
+| `forging:data-processing-design`           | Owns the worker pattern the consumer seam's reader follows                               |
+| `forging:library-extension`                | Owns the registries, the new stage, and the dataset columns a consumer adds              |
+| `forging:processing-input-format`          | Owns the donated locator's contract and the job discovery it gates                       |
+| `mesoscope:mesoscope-vr`                   | Owns the worked instance's configuration section                                         |
+| `mesoscope:mesoscope-vr-runtime`           | Owns the worked instance's launcher, join, abort reap, and options                       |
+| `mesoscope:mesoscope-vr-video-tracking`    | Owns the worked instance's consumer stage                                                |
+| `mesoscope:mesoscope-vr-processing-schema` | Owns the worked instance's assembled column, and the dataset rebuild a new column forces |
+| `mesoscope:mesoscope-vr-dataset-assembly`  | Owns the worked instance's emission site that fills that column                          |
 
 ---
 
@@ -387,12 +415,14 @@ the precedent does not yet meet.
 You MUST verify a binding against this checklist before reporting it complete.
 
 ```text
-Binding compliance, tool-settled (run the greps named in each item): - [ ] The tool's distribution name appears in no
-stack `pyproject.toml` dependency list (`grep -rn "<distribution-name>" */pyproject.toml`) - [ ] The tool's module name
-appears in no stack import (`grep -rnE "^[[:space:]]*(import|from)[[:space:]]+<module>" */src/`) - [ ] The tool appears
-in no `AcquisitionSystems` member and no sollertia-shared-assets registry - [ ] No `plugins/` directory carries a plugin
-for the bound tool - [ ] The marketplace root README library index carries no entry, and its bindings section carries
-one
+Binding compliance, tool-settled (run the greps named in each item):
+- [ ] The tool's distribution name appears in no stack `pyproject.toml` dependency list
+      (`grep -rn "<distribution-name>" */pyproject.toml`)
+- [ ] The tool's module name appears in no stack import
+      (`grep -rnE "^[[:space:]]*(import|from)[[:space:]]+<module>" */src/`)
+- [ ] The tool appears in no `AcquisitionSystems` member and no sollertia-shared-assets registry
+- [ ] No `plugins/` directory carries a plugin for the bound tool
+- [ ] The marketplace root README library index carries no entry, and its bindings section carries one
 
 Binding compliance, reader-judged:
 - [ ] The blocking condition is named, with the evidence its shape allows
@@ -412,7 +442,7 @@ Binding compliance, reader-judged:
 - [ ] A failed run and a zero exit writing no artifact are checked together, and both raise before the transfer
 - [ ] The child's streams go to a file in the temporary directory, and the unlink follows the raising call
 - [ ] An asynchronous launch terminates the child on abort with a bounded wait escalating to a kill
-- [ ] The consumer donation reaches an existing registry, or a new stage is minted first
+- [ ] The consumer donation joins the registry naming its concern or mints one, with a new stage minted first
 - [ ] An artifact that must reach a forged dataset carries its dataset columns and assembly routing
 - [ ] The reader dependency comment names the tool and the writer-side version on which the format depends
 - [ ] Every recording place that applies to this binding carries it

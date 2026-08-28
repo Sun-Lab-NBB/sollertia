@@ -13,7 +13,8 @@ user-invocable: false
 
 Extends `sollertia-forgery` along the seams by which an acquisition system, a session type, a processing stage, a
 processing pipeline, and an MCP tool enter it. Every system-specific behavior enters this library through
-`registries.py` alone, so extending it is a wiring exercise, and an import error names the work that remains.
+`registries.py` alone, so extending it is a wiring exercise, and an import error names the work that remains. The file
+set of a forged dataset is the one seam a donation does not reach.
 
 You MUST read this entire skill before extending the library, then read
 [references/extension-recipes.md](references/extension-recipes.md) for the scenario you are applying and
@@ -29,9 +30,11 @@ checklist before reporting an extension complete.
 - Adding a session type's forging half, which is the admission policy, the assembly routing, the cross-recording
   declaration, the multi-recording resolver, and the dataset columns
 - Adding a processing stage to a pipeline that already exists
+- Minting or joining a per-system registry for a stage whose input only an acquisition system can supply
 - Adding a processing pipeline, which is a new `ProcessingPipelines` member and a new category package
 - Adding an MCP tool module to the `slf mcp` server
 - The three import-time coverage checks, their verbatim errors, and the touch points no check reaches
+- The dataset file set fixed in the agnostic layer, which no donation widens
 - The cross-repository ordering the upstream libraries impose, and the handoff each scenario carries
 - The documentation, coverage, and test obligations each scenario carries
 
@@ -40,8 +43,9 @@ checklist before reporting an extension complete.
 - Operating the admission policy and the column descriptions once they are wired. Owned by `/dataset-definition`.
 - The upstream `AcquisitionSystems` and `SessionTypes` members and the `SYSTEM_SESSION_TYPES` pairing. Owned by
   `assets:library-extension`.
-- The `ProcessingTrackers` filenames, the `Directories` members, and the `ProcessedData` fields. Owned by
-  `assets:session-data`.
+- The `ProcessingTrackers` members, the `Directories` members, and the `ProcessedData` fields a new pipeline needs.
+  Owned by `assets:library-extension`, under "Adding the session-record surfaces of a new processing pipeline" in its
+  `references/extension-recipes.md`, and documented by `assets:session-data`.
 - The acquisition runtime that records the artifacts a donation reads. Owned by `experiment:library-extension`.
 - The concrete donations the one registered acquisition system makes. Owned by the `mesoscope:mesoscope-vr-*` skill
   family.
@@ -55,12 +59,12 @@ checklist before reporting an extension complete.
 
 An extension spans up to four repositories, and this library sits at the downstream end of the chain.
 
-| Repository                                                            | What it owns for an extension                                                                                                                                                     | Owning skill                                      |
-|-----------------------------------------------------------------------|-----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|---------------------------------------------------|
-| `sollertia-shared-assets`                                             | The `AcquisitionSystems` and `SessionTypes` members, the `SYSTEM_SESSION_TYPES` pairing, the `ProcessingTrackers` filenames, and the `ProcessedData` directory and tracker fields | `assets:library-extension`, `assets:session-data` |
-| `sollertia-experiment`                                                | The acquisition runtime that records the artifacts every donation reads                                                                                                           | `experiment:library-extension`                    |
-| `sollertia-forgery`                                                   | The eleven donor registries, the category packages, the dispatch table, the resource model, the `slf` CLI, and the MCP tools                                                      | This skill                                        |
-| `cindra`, `ataraxis-video-system`, `ataraxis-communication-interface` | The stages this library delegates in-process, and the job-name constants and resource figures a wrapper reuses rather than mints                                                  | The owning library's maintainers                  |
+| Repository                                                            | What it owns for an extension                                                                                                                                                     | Owning skill                     |
+|-----------------------------------------------------------------------|-----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|----------------------------------|
+| `sollertia-shared-assets`                                             | The `AcquisitionSystems` and `SessionTypes` members, the `SYSTEM_SESSION_TYPES` pairing, the `ProcessingTrackers` filenames, and the `ProcessedData` directory and tracker fields | `assets:library-extension`       |
+| `sollertia-experiment`                                                | The acquisition runtime that records the artifacts every donation reads                                                                                                           | `experiment:library-extension`   |
+| `sollertia-forgery`                                                   | The eleven donor registries, the category packages, the dispatch table, the resource model, the `slf` CLI, and the MCP tools                                                      | This skill                       |
+| `cindra`, `ataraxis-video-system`, `ataraxis-communication-interface` | The stages this library delegates in-process, and the job-name constants and resource figures a wrapper reuses rather than mints                                                  | The owning library's maintainers |
 
 ---
 
@@ -106,6 +110,15 @@ system package, so the reverse import is a cycle rather than a style preference.
 `..shared_assets`, which imports nothing from this library. Nothing enforces the rule, so the circular `ImportError`
 is the enforcement.
 
+Minting a twelfth registry is a separate act from adding an entry to the eleven above. A stage whose input only an
+acquisition system can supply joins the registry that already names its concern, or mints one. Minting is a donation
+Protocol, a module-private dict, a `resolve_*` accessor, its `__all__` export, and its name in the tuple
+`_assert_registry_coverage()` iterates. That last touch is the one nothing else implies. A registry outside the tuple
+admits a system with no entry, so the seam raises a bare `KeyError` from its accessor at runtime rather than a named
+`RuntimeError` at import. The ordered touch list of each branch is under "Minting or joining a per-system registry" in
+[references/extension-recipes.md](references/extension-recipes.md). `_POSE_PREDICTION_REGISTRY` is the worked pattern
+there for every touch except the coverage test, which omits that registry itself.
+
 The Mesoscope-VR donations that fill these seams are documented by the `mesoscope:mesoscope-vr-*` skill family, one
 member per seam group. `forging:data-processing-design` carries the registry-to-skill map, and the related-skills table
 below repeats it as routing.
@@ -119,6 +132,23 @@ system from `SessionData.acquisition_system` or `DatasetData.acquisition_system`
 docstring in `interfaces/entry_points.py` states that as a property of the whole command surface. A new system therefore
 adds no CLI option, no MCP parameter, no dispatch entry, and no sizing branch, and every skill in this plugin stays
 acquisition-system-agnostic across the change.
+
+---
+
+## What a donation cannot widen
+
+**Autonomy boundary.** The file set of a forged dataset is fixed in the agnostic layer, and no registry reaches it. That
+closure is deliberate, because a forged dataset is read by consumers that know no acquisition system, so its file set is
+a platform contract rather than a per-system choice. `_forge_session` in `forging/pipeline.py` re-exports exactly the
+raw assets its `reexported_assets` mapping names, and `DatasetFiles` in
+`sollertia_shared_assets.data_hierarchy.dataset_data` declares exactly `DATA` and `DESCRIPTIONS`. Folding a new
+per-session artifact into `data.feather` columns through the assembly worker that every system already donates is
+agent-ownable, and you complete it autonomously. Widening the file set itself has no recipe, because it edits
+`reexported_assets` and `DatasetFiles` across two repositories and reaches every dataset already forged against the
+current set. Neither routing the artifact around the seam nor minting a per-system copy of either symbol substitutes for
+that change. Escalate those to the human supervisor and co-design them in a generative, collaborative mode. What is
+missing there is a platform-contract decision that binds consumers outside this library, rather than capability, so the
+work must be human-supervised.
 
 ---
 
@@ -169,13 +199,14 @@ scenario each belongs to, how it surfaces, and where to cover it.
 Pick exactly one row and apply its recipe. A change spanning several scenarios applies their recipes sequentially
 rather than interleaved, because the coverage check reports one structure at a time.
 
-| Scenario                | Blocking upstream half                                                               | Recipe                                                                                  |
-|-------------------------|--------------------------------------------------------------------------------------|-----------------------------------------------------------------------------------------|
-| New acquisition system  | `AcquisitionSystems` member, per-system record classes, `SYSTEM_SESSION_TYPES` claim | [Acquisition system](references/extension-recipes.md#adding-a-new-acquisition-system)   |
-| New session type        | `SessionTypes` member, its descriptor, its `SYSTEM_SESSION_TYPES` pairing            | [Session type](references/extension-recipes.md#adding-a-new-session-type)               |
-| New processing stage    | None                                                                                 | [Processing stage](references/extension-recipes.md#adding-a-new-processing-stage)       |
-| New processing pipeline | `ProcessingTrackers` member, `ProcessedData` field pair, `Directories` member        | [Processing pipeline](references/extension-recipes.md#adding-a-new-processing-pipeline) |
-| New MCP tool            | None                                                                                 | [MCP tool](references/extension-recipes.md#adding-an-mcp-tool)                          |
+| Scenario                | Blocking upstream half                                                               | Recipe                                                                                          |
+|-------------------------|--------------------------------------------------------------------------------------|-------------------------------------------------------------------------------------------------|
+| New acquisition system  | `AcquisitionSystems` member, per-system record classes, `SYSTEM_SESSION_TYPES` claim | [Acquisition system](references/extension-recipes.md#adding-a-new-acquisition-system)           |
+| New session type        | `SessionTypes` member, its descriptor, its `SYSTEM_SESSION_TYPES` pairing            | [Session type](references/extension-recipes.md#adding-a-new-session-type)                       |
+| New processing stage    | None                                                                                 | [Processing stage](references/extension-recipes.md#adding-a-new-processing-stage)               |
+| Per-system registry     | None                                                                                 | [Per-system registry](references/extension-recipes.md#minting-or-joining-a-per-system-registry) |
+| New processing pipeline | `ProcessingTrackers` member, `ProcessedData` field pair, `Directories` member        | [Processing pipeline](references/extension-recipes.md#adding-a-new-processing-pipeline)         |
+| New MCP tool            | None                                                                                 | [MCP tool](references/extension-recipes.md#adding-an-mcp-tool)                                  |
 
 A new MCP tool module registers itself, since `_register_tool_modules()` in `interfaces/mcp_server.py` globs
 `*_tools.py` inside its own directory and imports every match.
@@ -218,25 +249,26 @@ prints, which is what runs all three of this library's checks.
 Each recipe names the handoffs its scenario carries. This table is the inverse view, and a review of a finished
 extension checks against it.
 
-| Skill                                      | Touched by                                    | What changes                                                                                                      |
-|--------------------------------------------|-----------------------------------------------|-------------------------------------------------------------------------------------------------------------------|
-| `/data-processing-design`                  | New system, new stage                         | The per-system donation design behind a registry entry, and the design of what a new stage computes               |
-| `/dataset-definition`                      | New system, new session type                  | The admission policy a session satisfies before it joins a dataset, and the column descriptions a dataset records |
-| `/dataset-forging`                         | New system, new session type                  | The reach of the forging pipeline over a system's session types                                                   |
-| `/batch-processing`                        | New pipeline, new stage                       | The per-pipeline table, and the stages a pipeline dispatches                                                      |
-| `/job-planning`                            | New pipeline, new stage                       | The resource model, since a job type reaches the report only through `_PIPELINE_JOB_NAMES`                        |
-| `/project-state`                           | New per-session pipeline                      | The manifest status column and the schema column that pipeline adds                                               |
-| `/processing-input-format`                 | New pipeline, new system                      | The acquired artifacts a pipeline requires before it runs                                                         |
-| `/processing-results`                      | New pipeline, new stage                       | The outputs a stage writes and the directory that owns them                                                       |
-| `/cli-reference`                           | New pipeline, new stage flag                  | The `slf` command surface and its option roster                                                                   |
-| `/pipeline`                                | New pipeline                                  | The phase map and the routing into the new pipeline                                                               |
-| `/forging-mcp-environment-setup`           | New MCP tool                                  | Nothing structural. The new module joins the server that skill documents                                          |
-| `assets:library-extension`                 | Every blocking scenario                       | The upstream `AcquisitionSystems` or `SessionTypes` member and its `SYSTEM_SESSION_TYPES` pairing                 |
-| `assets:session-data`                      | New pipeline                                  | The `ProcessingTrackers` filename, the `Directories` member, and the `ProcessedData` fields                       |
-| `experiment:library-extension`             | New system, new session type, some pipelines  | The acquisition runtime that writes what a donation reads                                                         |
-| `mesoscope:mesoscope-vr-processing-schema` | A change to the registered system's donations | The concrete donations that system makes                                                                          |
-| `mesoscope:mesoscope-vr-dataset-assembly`  | A new session type on the registered system   | The assembly routing and the sub-dataset it produces                                                              |
-| The new system's companion plugin          | New acquisition system                        | The per-system schema skills, which `assets:library-extension` and `experiment:library-extension` own             |
+| Skill                                      | Touched by                                    | What changes                                                                                                                                 |
+|--------------------------------------------|-----------------------------------------------|----------------------------------------------------------------------------------------------------------------------------------------------|
+| `/data-processing-design`                  | New system, new stage                         | The per-system donation design behind a registry entry, and the design of what a new stage computes                                          |
+| `/dataset-definition`                      | New system, new session type                  | The admission policy a session satisfies before it joins a dataset, and the column descriptions a dataset records                            |
+| `/dataset-forging`                         | New system, new session type                  | The reach of the forging pipeline over a system's session types                                                                              |
+| `/batch-processing`                        | New pipeline, new stage                       | The per-pipeline table, and the stages a pipeline dispatches                                                                                 |
+| `/job-planning`                            | New pipeline, new stage                       | The resource model, since a job type reaches the report only through `_PIPELINE_JOB_NAMES`                                                   |
+| `/project-state`                           | New per-session pipeline                      | The manifest status column and the schema column that pipeline adds                                                                          |
+| `/processing-input-format`                 | New pipeline, new system                      | The acquired artifacts a pipeline requires before it runs                                                                                    |
+| `/processing-results`                      | New pipeline, new stage                       | The outputs a stage writes and the directory that owns them                                                                                  |
+| `/cli-reference`                           | New pipeline, new stage flag                  | The `slf` command surface and its option roster                                                                                              |
+| `/pipeline`                                | New pipeline                                  | The phase map and the routing into the new pipeline                                                                                          |
+| `/forging-mcp-environment-setup`           | New MCP tool                                  | Nothing structural. The new module joins the server that skill documents                                                                     |
+| `assets:library-extension`                 | Every blocking scenario                       | The upstream `AcquisitionSystems` or `SessionTypes` member, its `SYSTEM_SESSION_TYPES` pairing, and a new pipeline's session-record surfaces |
+| `assets:session-data`                      | New pipeline                                  | The `instance.processed_data` field list, its asset count, the tracker-member count, and the session directory tree                          |
+| `experiment:library-extension`             | New system, new session type, some pipelines  | The acquisition runtime that writes what a donation reads                                                                                    |
+| `experiment:external-tool-bindings`        | New stage, per-system registry                | The bound tool that writes what a donated locator finds and a donated worker reads                                                           |
+| `mesoscope:mesoscope-vr-processing-schema` | A change to the registered system's donations | The concrete donations that system makes                                                                                                     |
+| `mesoscope:mesoscope-vr-dataset-assembly`  | A new session type on the registered system   | The assembly routing and the sub-dataset it produces                                                                                         |
+| The new system's companion plugin          | New acquisition system                        | The per-system schema skills, which `assets:library-extension` and `experiment:library-extension` own                                        |
 
 ---
 
@@ -300,6 +332,8 @@ Cross-document references follow the same rule. Cite a README or a CLAUDE.md by 
 | Minting a local job-name string for a dependency's stage     | The dependency exports the constant and its resource figures, and a local copy drifts the moment either is retuned                                    |
 | Registering a closure or a bound method as a donated worker  | The forging assemblers and the module parsers cross a process boundary, so a donation that is not a picklable module-level function fails at dispatch |
 | Adding a per-system section to a skill in this plugin        | Every forging skill is acquisition-system-agnostic. Concrete per-system material belongs in that system's own companion plugin                        |
+| Minting a per-system registry with no coverage-tuple row     | The seam stays unguarded, so a system with no entry raises a bare `KeyError` from the accessor instead of a named `RuntimeError`                      |
+| Planning a new per-session dataset file as a donation        | The re-exported set and `DatasetFiles` are fixed in the agnostic layer, so the artifact folds into `data.feather` or escalates                        |
 
 ---
 
@@ -310,7 +344,7 @@ marketplaces. Every other entry resolves inside the sollertia marketplace.
 
 | Skill                                           | Relationship                                                                                            |
 |-------------------------------------------------|---------------------------------------------------------------------------------------------------------|
-| `experiment:external-tool-bindings`             | Owns the binding convention whose consumer locator joins a registry here                                |
+| `experiment:external-tool-bindings`             | Owns the binding convention whose locator and worker mint or join a registry here                       |
 | `/forging-mcp-environment-setup`                | Owns the `slf mcp` server a new tool module joins, and the response contract that module returns        |
 | `/data-processing-design`                       | Owns the per-system donation design behind a registry entry, and the doctrine a new stage follows       |
 | `/dataset-definition`                           | Owns the admission policy and the column descriptions a new session type or system changes              |
@@ -390,6 +424,10 @@ Code side:
 - [ ] slf --help prints and slf mcp starts cleanly
 - [ ] No system package imports a category package, and every donated worker is a picklable module-level function
 - [ ] Every donated worker's signature matches the Protocol its registry declares
+- [ ] A newly minted registry carries its donation Protocol, its resolve_* accessor, its __all__ export, and its
+      pair in the tuple _assert_registry_coverage() iterates
+- [ ] No new per-session file was added to a forged dataset, or the change to reexported_assets and DatasetFiles was
+      escalated to the human supervisor rather than worked around
 - [ ] Every touch point under "What the checks do not catch" that this scenario reaches carries a test
 - [ ] A new system or category package has a mirrored tests/ package, and a new registry name was added to
       _DONOR_REGISTRY_NAMES in tests/registry_coverage_test.py

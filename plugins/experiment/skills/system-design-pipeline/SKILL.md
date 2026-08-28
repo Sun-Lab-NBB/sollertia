@@ -143,9 +143,14 @@ half 2, because half 2 names the files each of them touches.
 - **Plugin / Skill:** `/acquisition-system-design` for the static composition, then `/acquisition-system-runtime` for
   the runtime loop. Follow the "Building a new acquisition system from scratch" workflow and the per-package
   deliverables manifest in `/acquisition-system-design`'s `references/workflows.md`.
-- **No generic runtime base class exists.** The platform ships no common runtime superclass, so this phase writes the
-  system controller from scratch against the seams half 2 catalogued rather than subclassing a shared runtime (the
-  "Extending the Platform" section of `sollertia-experiment/README.md`).
+- **This is the human-in-the-loop phase of the build.** Every other phase is agent-ownable glue against a documented
+  contract, and this one is co-designed with the human supervisor. An acquisition engine is written per system rather
+  than derived from a common runtime superclass, because it is defined by a physical hardware inventory and by
+  lab-local wiring conventions (the "Extending the Platform" section of `sollertia-experiment/README.md`). Scaffold the
+  controller from the Mesoscope-VR package split and compose the `cross_system` primitives. Settle the hardware
+  inventory, the wiring topology, the per-mode semantics of the state machine, the calibration values, the safety
+  interlocks, and the teardown ordering with the human supervisor. `/library-extension` owns the full treatment of this
+  boundary, under "The acquisition engine is a human-in-the-loop rewrite".
 - **Actions:** Author the system package: the per-subsystem configuration dataclasses, the
   `<System>SystemConfiguration` subclass with its `register_system_configuration` call and typed
   `get_system_configuration` accessor, the binding classes, the lifecycle orchestrator, the per-mode logic functions,
@@ -370,6 +375,7 @@ System build orchestration:
 - [ ] Phase 1 half 1 completed before half 2, and half 2 before any Phase 3 work began
 - [ ] `import sollertia_shared_assets` succeeds and the system appears in list_supported_acquisition_systems_tool
 - [ ] Every seam in the /library-extension catalog is marked reuse-as-is or author-in-Phase-N
+- [ ] Phase 3's hardware-defined decisions were settled with the human supervisor rather than inferred
 - [ ] Every new hardware module pair is verified against hardware through the ataraxis MCP servers
 - [ ] The sle CLI group was registered by hand in entry_points.py, since only the MCP seam is automatic
 - [ ] The experiment configuration's unity_scene_name resolves to a real task template and scene

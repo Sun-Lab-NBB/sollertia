@@ -2,10 +2,10 @@
 name: library-extension
 description: >-
   Owns the extension path of sollertia-experiment and sollertia-micro-controllers: the acquisition-system configuration
-  registry, the shared cross_system primitives a new system composes, the MCP tool-module and CLI group registration
-  seams, the absence of a generic runtime base class, and the firmware module, controller target, and board family
-  seams. Use when implementing a new acquisition system against the Mesoscope-VR worked example, adding a firmware
-  module or controller board, or auditing which seams a half-built system still misses.
+  registry, the shared cross_system primitives a new system composes, and the MCP tool-module and CLI group registration
+  seams. Also owns the human-in-the-loop acquisition-engine rewrite and the firmware module, controller target, and
+  board family seams. Use when implementing a new acquisition system against the Mesoscope-VR worked example, adding a
+  firmware module or controller board, or auditing which seams a half-built system still misses.
 user-invocable: false
 ---
 
@@ -26,7 +26,7 @@ repository you are touching. You MUST run the verification checklist before repo
 - The acquisition-system configuration registry and the zero-code file lifecycle it unlocks
 - The shared `cross_system` primitives a new system composes rather than rewrites
 - The `interfaces/` seams: automatic MCP tool-module discovery and manual CLI group registration
-- The absence of a generic runtime base class, and what a new system therefore writes from scratch
+- The autonomy boundary at the acquisition engine, and the scaffolding a new system composes on either side of it
 - The sollertia-micro-controllers seams: a new firmware module, a new controller target, a new board family, and
   the cross-repo constants that move together
 - The ordered new-system workflow across four repositories, with its gating conditions
@@ -98,10 +98,9 @@ system-agnostic: `assemble_session_logs`, `rename_session_videos`, `snapshot_sur
 resolved paths, so none of them needs a per-system branch. `/data-management` owns their individual contracts, and
 [references/sle-seams.md](references/sle-seams.md) lists them beside the seam each one occupies.
 
-One constant and one shared type decide whether those primitives find anything to work on. The behavior `DataLogger`
-of every acquisition
-system is named `"behavior"`, because `BEHAVIOR_LOGGER_NAME` derives the `behavior_data_log` directory that
-`assemble_session_logs` looks for (`cross_system/data_preprocessing.py`). Long-term storage targets reach the
+One constant and one shared type decide whether those primitives find anything to work on. The behavior `DataLogger` of
+every acquisition system is named `"behavior"`, because `BEHAVIOR_LOGGER_NAME` derives the `behavior_data_log` directory
+that `assemble_session_logs` looks for (`cross_system/data_preprocessing.py`). Long-term storage targets reach the
 shared utilities as a `StorageDestinations` collection of `StorageDestination` records, and each system resolves the
 paths from its own configuration (`cross_system/data_preprocessing.py`).
 
@@ -142,16 +141,58 @@ because they are typed against one system's configuration.
 
 ---
 
-## There is no generic runtime base class
+## The acquisition engine is a human-in-the-loop rewrite
 
-The platform exposes no runtime base class to subclass, so each system writes its own controller against the seams
-above, as the "Extending the Platform" section of `sollertia-experiment/README.md` states. Budget for that work
-explicitly, because it is the largest single item in a new system's build and no scaffolding shortens it.
+The acquisition engine, meaning the runtime controller together with the binding classes and acquisition components it
+drives, is written per system rather than derived from a base class, and that is a design position rather than a gap. An
+engine is defined by a physical hardware inventory and by lab-local wiring conventions, so a template wide enough to
+cover every engine would assert a topology that no acquisition system actually shares. The "Extending the Platform"
+section of `sollertia-experiment/README.md` states the same position from the library side.
+
+Two kinds of scaffolding carry that work. The first is the Mesoscope-VR worked example, whose package splits the engine
+across five core modules:
+
+- `mesoscope_vr/system.py` for the configuration layer
+- `mesoscope_vr/binding_classes.py` for the `ZaberMotors`, `MicroControllerInterfaces`, and `VideoSystems` binding
+  classes
+- `mesoscope_vr/system_controller.py` for the `MesoscopeVRSystem` orchestrator
+- `mesoscope_vr/data_acquisition.py` for the per-mode logic functions
+- `mesoscope_vr/acquisition_components.py` for the runtime helpers those logic functions share
+
+Mirror that split and leave the values behind. Five further modules complete the package, meaning
+`mesoscope_vr/data_preprocessing.py` for the preprocess, purge, and migrate entry points, `mesoscope_vr/runtime_ui.py`
+and `mesoscope_vr/maintenance_ui.py` for the two control UIs, `mesoscope_vr/visualizer.py` for `BehaviorVisualizer`, and
+`mesoscope_vr/mesoscope_driver.py` for the external-instrument driver. The second is `cross_system`, catalogued in the
+"Shared primitives a new system composes" section above and composed rather than rewritten:
+
+- the eight module interface wrappers (`cross_system/module_interfaces.py`)
+- the `ZaberAxis`, `ZaberDevice`, and `ZaberConnection` hierarchy (`cross_system/zaber_bindings.py`)
+- the six preprocessing primitives, with `StorageDestination` and `StorageDestinations`
+  (`cross_system/data_preprocessing.py`)
+- the `SurgeryLog` and `WaterLog` sheet readers (`cross_system/google_sheet_tools.py`)
+- the five prompt helpers (`cross_system/terminal_prompts.py`)
+- `run_shutdown_step` (`cross_system/shutdown_tools.py`)
+- `get_version_data` and `get_project_experiments` (`cross_system/project_tools.py`)
+- the configuration lifecycle (`cross_system/system_configuration.py`)
+
+**Autonomy boundary.** The Mesoscope-VR engine is the **only** acquisition engine with an author-derived recipe, and the
+two scaffolds above are the material that recipe carries. Composing those primitives, mirroring the worked example's
+file split, and wiring every glue seam is agent-ownable, and you complete it autonomously. The glue is the registry
+surface that the other repositories expose for exactly this purpose. On the shared-assets side that is the
+`AcquisitionSystems` member and the dispatch registry entries in
+`sollertia-shared-assets/src/sollertia_shared_assets/registries.py` (`assets:library-extension`), and on the forgery
+side the `AcquisitionSystems`-keyed registries in `sollertia-forgery/src/sollertia_forgery/registries.py`
+(`forging:data-processing-design`). The firmware side is the target selection block of `slmc/src/main.cpp`, and the
+Unity side is the corridor task and scene in sollertia-virtual-reality (`unity:task-prefabs`). The engine's substance
+has no recipe, meaning the hardware inventory, the wiring topology, the per-mode semantics of the state machine, the
+calibration values, the safety interlocks, and the teardown ordering. Escalate those to the human supervisor and
+co-design them in a generative, collaborative mode. What is missing there is a hardware fact that no repository records,
+rather than capability, so the work must be human-supervised.
 
 `/acquisition-system-runtime` owns the contract that controller must satisfy, which is the two state axes, the
 per-mode logic functions, the per-cycle loop, the typed-event dispatch, and the teardown ordering.
-`/acquisition-system-design` owns the binding-class contract the controller composes. This skill owns only the fact
-that the seams are the whole inheritance story.
+`/acquisition-system-design` owns the binding-class contract the controller composes. This skill owns the boundary
+itself and the scaffolding that sits on either side of it.
 
 ---
 
@@ -209,7 +250,7 @@ Column `Counterpart` names the paired obligation in another repository.
 | 26  | Hardware-agnostic discovery CLI and tools         | automatic, reused unchanged                  | the `get` command group in `interfaces/get.py` and the seven tools in `interfaces/get_tools.py`                                                                                                                                                               | none                                                                                                                                                                                                   |
 | 26a | Sphinx API documentation entry                    | manual, one block                            | a `.. automodule:: sollertia_experiment.<system>` section in `docs/source/api.rst`, following its "Mesoscope-VR Acquisition System" section                                                                                                                   | none. Omit it and the new package renders no API documentation                                                                                                                                         |
 | 27  | The VR task package                               | automatic, composed                          | the `__all__` list of `vr_task/__init__.py`, consumer obligations in `/vr-driver-interface`                                                                                                                                                                   | unity: a scene carrying a `"Linear"` controller and a running Editor                                                                                                                                   |
-| 28  | The runtime controller                            | **manual, from scratch**                     | no base class exists, per the "Extending the Platform" section of `sollertia-experiment/README.md`                                                                                                                                                            | none                                                                                                                                                                                                   |
+| 28  | The runtime controller                            | **manual, human-in-the-loop**                | scaffolded from the worked example, per "The acquisition engine is a human-in-the-loop rewrite" above                                                                                                                                                         | none                                                                                                                                                                                                   |
 | 29  | slmc: a new firmware module                       | manual, nine steps                           | `slmc/src/<name>_module.h`, wired into the target block of `slmc/src/main.cpp` as an `#include`, an instantiation, and a `modules[]` entry                                                                                                                    | sle: a matching `ModuleInterface` carrying the same type, id, codes, and parameter order                                                                                                               |
 | 30  | slmc: a new controller target                     | manual, three steps                          | the `[env:teensy41_actor]` pattern in `slmc/platformio.ini`, plus the `#elif` branch, `kControllerID`, `modules[]`, and `static_assert` of `slmc/src/main.cpp`                                                                                                | sle: a `MicroControllerInterface(controller_id=...)` mirror, pattern in `MicroControllerInterfaces.__init__` in `mesoscope_vr/binding_classes.py`                                                      |
 | 31  | slmc: a new board family                          | manual, five steps                           | a second non-`env:` template mirroring `[teensy41_base]` in `slmc/platformio.ini`, plus one `[env:<board>_<target>]` per target                                                                                                                               | sle: only when controller IDs, event codes, or the baud rate change                                                                                                                                    |
@@ -252,8 +293,12 @@ of them covers.
 ### Step 4: Binding classes and orchestrator
 
 Follow `/acquisition-system-design` for the binding-class contract and `/acquisition-system-runtime` for the runtime
-contract. There is no base class to subclass.
-**Gate:** the orchestrator constructs, starts, and stops with the DataLogger outliving every consumer.
+contract, and scaffold the orchestrator from the worked example's file split above. The hardware-defined decisions this
+step cannot infer, meaning the hardware inventory, the wiring topology, the per-mode semantics, the calibration values,
+the safety interlocks, and the teardown ordering, go to the human supervisor. Co-design them in a generative,
+collaborative mode, per "The acquisition engine is a human-in-the-loop rewrite" above.
+**Gate:** the orchestrator constructs, starts, and stops with the DataLogger outliving every consumer, and the human
+supervisor has signed off on every hardware-defined decision.
 
 ### Step 5: VR task wiring
 
@@ -319,13 +364,13 @@ owns. Every omission below therefore surfaces at runtime, or silently, and each 
 
 ## Pitfalls
 
-| Pitfall                                                           | Why it bites                                                                                                                                                   |
-|-------------------------------------------------------------------|----------------------------------------------------------------------------------------------------------------------------------------------------------------|
-| Assuming CLI registration is as automatic as MCP registration     | MCP tool modules are globbed, and CLI groups are two hand-written lines. The asymmetry is the single most missed seam                                          |
-| Looking for a runtime base class to subclass                      | None exists. Each system writes its controller against the seams, so budget for that work                                                                      |
-| Copying a private helper out of the worked example's tools module | The shared session-parameter object and the health-report helpers are private and typed against one system's configuration, so a new system re-implements them |
-| Treating a role-specialized interface name as system coupling     | The eight `ModuleInterface` subclasses live in `cross_system` and bind hardware families, so any system driving the same modules reuses them                   |
-| Changing a firmware constant on one side only                     | The eight constants in seam 32 move together, and a one-sided change produces a system that compiles and runs while its data is garbage                        |
+| Pitfall                                                           | Why it bites                                                                                                                                                     |
+|-------------------------------------------------------------------|------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| Assuming CLI registration is as automatic as MCP registration     | MCP tool modules are globbed, and CLI groups are two hand-written lines. The asymmetry is the single most missed seam                                            |
+| Looking for a runtime base class to subclass                      | None exists by design. Each system composes its engine from the worked example and `cross_system`, with the human supervisor settling the hardware-defined parts |
+| Copying a private helper out of the worked example's tools module | The shared session-parameter object and the health-report helpers are private and typed against one system's configuration, so a new system re-implements them   |
+| Treating a role-specialized interface name as system coupling     | The eight `ModuleInterface` subclasses live in `cross_system` and bind hardware families, so any system driving the same modules reuses them                     |
+| Changing a firmware constant on one side only                     | The eight constants in seam 32 move together, and a one-sided change produces a system that compiles and runs while its data is garbage                          |
 
 ---
 
@@ -425,7 +470,8 @@ sollertia-experiment side:
 - [ ] Every shared-memory ModuleInterface the system adds implements initialize_local_assets()
 - [ ] interfaces/<system>_tools.py exists, sits directly in interfaces/, and ends in _tools.py
 - [ ] _register_subcommands carries the new group's import and add_command call
-- [ ] The runtime controller was written against the seams, since no base class exists
+- [ ] The runtime controller was scaffolded from the worked example, with every hardware-defined decision settled
+      with the human supervisor rather than inferred
 - [ ] The runtime writes the session descriptor, the system-configuration snapshot, and hardware_state.yaml
 - [ ] docs/source/api.rst carries an automodule block for the new system package
 

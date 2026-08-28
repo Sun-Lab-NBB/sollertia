@@ -51,7 +51,7 @@ ___
   still outstanding.
 
 ### AI-Assisted Development
-- **Sixty-five skills across five plugins**: Encoded conventions, record schemas, extension recipes, and end-to-end
+- **Sixty-six skills across five plugins**: Encoded conventions, record schemas, extension recipes, and end-to-end
   pipeline orchestration.
 - **Three MCP servers**: Structured tool access to shared assets, the acquisition system, and the processing pipeline.
 - **Deliberate handoffs**: Each skill declares what it owns and what it defers, so an agent reaches the one skill that
@@ -79,6 +79,33 @@ Shared assets sit at the center, because both the acquisition side and the proce
 acquisition libraries write a session, and the processing library reads it back without either side importing the
 other. Neither side ever imports a per-system package directly, since every system-specific asset resolves through a
 registry keyed by the acquisition system recorded in the session itself.
+
+___
+
+## Design Invariants
+
+The platform declines to generalize in two places, and it does so deliberately. The registries exist to make
+everything around those two boundaries mechanical, so the boundaries themselves stay small, explicit, and stated in
+the skills an agent reaches on the way to them.
+
+**The acquisition system engine is a human-in-the-loop rewrite.** An engine is defined by a hardware inventory and a
+set of laboratory-local wiring conventions that no template can carry without misrepresenting them, so the platform
+exposes no runtime base class to subclass. It supplies two scaffolds instead: the Mesoscope-VR package, from which a new
+engine is copied, and the domain-agnostic primitives in `sollertia-experiment`'s `cross_system` package, which a new
+engine composes. An agent scaffolds the engine and owns every registry seam that glues it into the rest of the
+platform. The hardware inventory, the wiring topology, the per-mode semantics of the state machine, the calibration
+values, the safety interlocks, and the teardown ordering are settled with the human supervisor who owns the rig.
+
+**Virtual Reality is the linear infinite corridor.** Every acquisition system presents a Unity task in the linear
+infinite corridor, as the `AcquisitionSystems` enumeration states in its own docstring, so every experiment
+configuration is seeded from a corridor task template and satisfies one contract. Authoring and validating new
+corridor templates is autonomous work. A different topology, such as a T-maze, an open field, or a branching maze, is
+a second task engine rather than an extension of this one, and it is co-designed with the human supervisor.
+
+Neither boundary is a missing feature. Every other extension the platform supports, including session types, hardware
+modules, processing pipelines, forged datasets, read assets, and credentials, resolves through a registry. The
+shared-assets and forgery registries run import-time coverage checks that refuse a partially wired extension rather
+than failing once a session is already on disk.
 
 ___
 
@@ -152,7 +179,7 @@ ___
 ## Claude Code Plugins
 
 This repository serves as a [Claude Code](https://docs.anthropic.com/en/docs/claude-code) plugin marketplace. It
-distributes five plugins carrying sixty-five skills that encode the platform's record schemas, extension recipes, and
+distributes five plugins carrying sixty-six skills that encode the platform's record schemas, extension recipes, and
 pipeline workflows, along with the MCP servers that expose the libraries to AI agents. Installing a plugin makes its
 skills available to Claude Code and, for the plugins that bundle an MCP server, registers that server automatically.
 
@@ -250,7 +277,8 @@ ___
 5. **Record and process a session.** Run one acquisition session, preprocess it, then plan and execute the processing
    pipelines against it before scaling to a project.
 6. **Implement your own system.** Mesoscope-VR is the reference instance, and the `mesoscope` plugin documents every
-   donation it makes. Copy its shape rather than inventing a new one.
+   donation it makes. Scaffold your engine from its shape rather than inventing a new one, and expect to settle the
+   hardware-defined decisions with the human supervisor while an agent wires the registry seams around them.
 
 ___
 
