@@ -64,7 +64,8 @@ Under `Assets/InfiniteCorridorTask/Scripts/CumulativeOccupancyZone.cs` (invoke `
   lap.
 
 Everything else is unchanged, which covers the `occupancyMet` signal, the `Stopwatch`, the per-lap `ResetState` reset,
-and every inherited Unity callback. Save and confirm `CumulativeOccupancyZone.cs.meta` exists with a fresh `guid:`.
+and every inherited Unity callback. Save the file, call `refresh_assets_tool` so the Editor imports it, then confirm
+`CumulativeOccupancyZone.cs.meta` exists with a fresh `guid:`.
 
 ### Step 3: Copy and rename the prefab
 
@@ -202,11 +203,14 @@ Subclassing means:
 
 Replacing the region's `GuidanceZone` with `SpeedZone` removes the only `GuidanceZone` from every scene generated from
 this prefab, and `GuidanceZone` is the marker on which the Task Parameters surface keys.
-`McpBridge.AcquireSceneComponents` (`McpBridge.cs`) sets `HasInteractionZone = false`, so `read_task_parameters`
-reports `require_interaction: false`, `write_task_parameters` rejects the key in `ValidateTaskSectionWrites`, and the
-Parameters-window control is hidden. The overridden `UpdateInteractionMode` still reads `_task.requireInteraction`
-(`StimulusTriggerZone.cs`). Either keep a `GuidanceZone` on a second region or extend `AcquireSceneComponents` to
-detect `SpeedZone` as well (see `/task-parameters`).
+`McpBridge.AcquireSceneComponents` (`McpBridge.cs`) sets `HasInteractionZone = false`, so `read_task_parameters` reports
+`visibility.task.require_interaction: false` and the Parameters-window control is hidden.
+`state.task.require_interaction` keeps reporting the live `Task.requireInteraction` field, which `CreateTask` writes as
+`true` on every generated task and which is stuck there, because `write_task_parameters` rejects the key in
+`ValidateTaskSectionWrites`. The overridden `UpdateInteractionMode` still reads `_task.requireInteraction`
+(`StimulusTriggerZone.cs`), so it sees `true` and takes the strict branch that demands the interaction sensor. Either
+keep a `GuidanceZone` on a second region or extend `AcquireSceneComponents` to detect `SpeedZone` as well (see
+`/task-parameters`).
 
 ### Step 5: Validate via `inspect_prefab_tool`
 

@@ -257,7 +257,7 @@ Route each family to its owning skill rather than improvising a CLI substitute, 
 | Session hardware state                 | 3     | `/session-hardware-state`   |
 | Read assets                            | 3     | `/data-assets`              |
 | Datasets                               | 7     | `/datasets`                 |
-| Unity Editor relay                     | 15    | the `unity` plugin          |
+| Unity Editor relay                     | 18    | the `unity` plugin          |
 
 The session discovery row counts `get_data_root_overview_tool`, whose project-name slice `slsa get projects` does
 reach. Every other tool in these eleven families is unreachable from the CLI.
@@ -334,7 +334,7 @@ relay operation. Say so plainly rather than improvising a substitute.
 | `/experiment-configuration`         | Owns the configuration tools behind `slsa get experiments`                                      |
 | `/library-extension`                | Owns the registries behind the `--category` choice and the `list_supported_*` tools             |
 | `/datasets`                         | Owns the dataset tool family with no CLI surface                                                |
-| `unity:unity-mcp-environment-setup` | Owns the relay diagnostic for the fifteen Unity tools with no CLI surface                       |
+| `unity:unity-mcp-environment-setup` | Owns the relay diagnostic for the eighteen Unity tools with no CLI surface                      |
 
 ---
 

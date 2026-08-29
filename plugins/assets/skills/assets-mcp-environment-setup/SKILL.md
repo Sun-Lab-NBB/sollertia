@@ -84,11 +84,11 @@ installed in the active Python environment.
 
 ### Unity tools
 
-The `slsa mcp` server also serves 15 Unity-relay tools, spanning seven families: task creation and deletion, prefab
-inspection and zone cloning, asset listing and deletion, scene listing, opening, and inspection, play mode, task
-parameters, and monitor refresh. Those tools depend on the Unity Editor running with the `McpBridge` plugin loaded.
-**That diagnostic is owned by `unity:unity-mcp-environment-setup`.** This skill covers the slsa CLI and Python
-environment side of the stack alone.
+The `slsa mcp` server also serves 18 Unity-relay tools, spanning eight families: task creation and deletion, prefab
+inspection and zone cloning, asset listing, deletion, and refresh, scene listing, opening, saving, and inspection, play
+mode, task parameters, monitor refresh, and Console reads. Those tools depend on the Unity Editor running with the
+`McpBridge` plugin loaded. **That diagnostic is owned by `unity:unity-mcp-environment-setup`.** This skill covers the
+slsa CLI and Python environment side of the stack alone.
 
 ---
 

@@ -173,7 +173,9 @@ corridor's own segment lengths, to prevent the camera from seeing past the last 
 `SKILL.md` and is protected by `McpBridge.DeleteProtectedPaths`.
 
 Its geometry is built from Unity built-in primitive meshes, a `Floor` plane plus `Walls/LeftWall` and `Walls/RightWall`
-quads mirroring the generated segment layout, with two hand-authored materials. A corridor-cap geometry change is
-therefore a prefab edit rather than a code change. `Assets/InfiniteCorridorTask/Models/blender_TunnelSegment.blend` is
-the Blender 4.5.0 LTS source mesh for the corridor tunnel segment, but `Padding.prefab` references it only through a
-leftover `Animator` avatar, never for its geometry, so re-exporting the model changes nothing about the padding cap.
+quads mirroring the generated segment layout. Its three renderers bind the shared `Materials/Floor.mat` and
+`Materials/Wall.mat`, so a material edit is corridor-wide and only the geometry is padding-local. A corridor-cap
+geometry change is therefore a prefab edit rather than a code change.
+`Assets/InfiniteCorridorTask/Models/blender_TunnelSegment.blend` is the Blender 4.5.0 LTS source mesh for the corridor
+tunnel segment, but `Padding.prefab` references it only through a leftover `Animator` avatar, never for its geometry, so
+re-exporting the model changes nothing about the padding cap.

@@ -18,6 +18,11 @@ asynchronous Unity messages it surfaces are enumerated by `VRTaskEventKind` (`In
 | `TRIGGER_DELAY_REQUESTED` | 2     | `DELAY`                             | Unity requests a brake pulse of `delay_ms` milliseconds               |
 | `UNITY_TERMINATED`        | 3     | `SESSION_STOP`                      | Unity runtime ended. The system must enter an emergency pause         |
 
+`SessionStop` publishes only from `MQTTClient.OnApplicationQuit`, which the Editor raises when Play Mode ends, so
+`UNITY_TERMINATED` marks the whole Unity session ending. A `Task` that disables itself mid-run instead leaves the Editor
+playing and the MQTT client connected, so `cycle()` keeps returning `NONE` while the corridor stops advancing.
+`unity:task-generator` catalogues those bailouts, and `read_console_tool` at `level="error"` reads the logged error.
+
 `VRTaskEvent` (frozen slots dataclass) carries `kind: VRTaskEventKind` plus `delay_ms: int = 0`, populated only for
 `TRIGGER_DELAY_REQUESTED`. Three further fields are populated only for `STIMULUS_TRIGGERED` and parsed from the
 `Stimulus` payload: `trial_name: str = ""`, `delivered: bool = True`, and `cause: StimulusCause = BEHAVIOR`, where

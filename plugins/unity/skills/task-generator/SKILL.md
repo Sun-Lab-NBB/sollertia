@@ -122,6 +122,8 @@ CreateTask.CreateSceneFromTemplate(sceneSavePath, taskPrefabPath, overwriteExist
 │                                                             the scene's "Controllers" root (no-op if missing)
 ├── MainWindow.EnsureMqttDefaults                           ← EditorPrefs MQTT IP/port, 127.0.0.1:1883 fallback
 ├── MainWindow.SyncDisplayBrightnessToSettings              ← sets DisplayObject.currentBrightness = settings.brightness
+├── MainWindow.RemoveDefaultMainCamera                      ← destroys every Camera tagged MainCamera or named
+│                                                             "Main Camera", including inactive ones
 └── Save the new scene + return SceneCreationResult         ← {Success, Message, SimulatedControllerAdded, TaskPrefabNotFound}
 ```
 
@@ -142,8 +144,11 @@ CreateTask.CreateSceneFromTemplate(sceneSavePath, taskPrefabPath, overwriteExist
   segment, and a longest segment for which `floor(15000 / max_segment_length_unity) < segments_per_corridor`, where
   `15000` is `Task.DefaultTrackLength` and `max_segment_length_unity` is the largest per-trial `sum(cue.length_cm) /
   cm_per_unity_unit`. Without it, generation would succeed and the task would disable itself on the first Play Mode
-  entry. Resolve template-side (shorten the longest `cue_sequence`, lower `segments_per_corridor`, raise
-  `cm_per_unity_unit`) or scene-side (raise Track Length via `/task-parameters`).
+  entry. Resolve it template-side only, by shortening the longest `cue_sequence`, lowering `segments_per_corridor`, or
+  raising `cm_per_unity_unit`. Raising Track Length cannot clear this gate, because the check divides the compile-time
+  constant `Task.DefaultTrackLength` rather than the serialized `Task.trackLength` that `/task-parameters` writes, and
+  the refusal returns before any scene exists to edit. The C# message's own "raise Track Length in Window > Task
+  Parameters before generating" tail is misleading for that reason.
 - **`ValidateHandAuthoredAssets` is the single missing-asset gate.** It checks `Materials/Floor.mat`,
   `Materials/Wall.mat`, both zone base prefabs, and `Prefabs/<padding_prefab_name>.prefab`, reporting every missing path
   at once, and runs before `CleanGeneratedSegments`.
@@ -166,7 +171,10 @@ CreateTask.CreateSceneFromTemplate(sceneSavePath, taskPrefabPath, overwriteExist
 - **Validation warning** (not an error): a measured segment-prefab length that disagrees with `sum(cue.length_cm /
   cm_per_unity_unit)` by more than `0.01` warns but proceeds on the template's computed length.
 - **Scene generation is bundled with prefab generation**: `CreateSceneFromTemplate` copies `ExperimentTemplate.unity`,
-  instantiates the just-built task prefab, runs `MainWindow.EnsureControllers`, and saves the scene. Both the
+  instantiates the just-built task prefab, runs `MainWindow.EnsureControllers`, `MainWindow.EnsureMqttDefaults`,
+  `MainWindow.SyncDisplayBrightnessToSettings`, and `MainWindow.RemoveDefaultMainCamera`, then saves the scene. The
+  camera step leaves the generated scene free of the template's default camera without a human opening Window > Task
+  Parameters, the window whose `OnEnable` otherwise runs that removal through `MainWindow.InitializeScene`. Both the
   `CreateTask → New Task` Editor menu and `create_task_tool` call `CreateFromTemplate` and `CreateSceneFromTemplate`
   back-to-back from one template selection, so the manual and agentic paths produce byte-equivalent assets.
 
@@ -207,8 +215,10 @@ You MUST NOT rename these assets, because `BuildSegmentPrefabs` / `LoadReference
 serialized GUID. The scene base template `Assets/Scenes/ExperimentTemplate.unity` is also in
 `McpBridge.DeleteProtectedPaths` but is consumed by `CreateSceneFromTemplate` rather than by the prefab build pass.
 `Prefabs/Padding.prefab` is not synthesized either. It is hand-authored from Unity built-in primitives, a `Floor` plane
-plus `Walls/LeftWall` and `Walls/RightWall` quads mirroring the generated segment layout, and carries its own
-hand-authored materials. A corridor-cap geometry change is therefore a prefab edit rather than a code change.
+plus `Walls/LeftWall` and `Walls/RightWall` quads mirroring the generated segment layout, and its three renderers bind
+the same shared `Materials/Floor.mat` and `Materials/Wall.mat` that `BuildSegmentPrefabs` bakes into every generated
+segment. A material edit is therefore corridor-wide, only the geometry is padding-local, and a corridor-cap geometry
+change is a prefab edit rather than a code change.
 
 ---
 
@@ -217,7 +227,8 @@ hand-authored materials. A corridor-cap geometry change is therefore a prefab ed
 Generation succeeding is not the same as the task running. `Task.Start` re-loads the template from the `configPath`
 baked into the prefab and disables itself rather than running on an inconsistent configuration. Every bailout below sets
 `enabled = false` after logging a `Debug.LogError`, so the symptom is a Play Mode session in which nothing moves and no
-stimulus publishes. A change to `CreateTask` MUST keep all of them unreachable for a fresh task.
+stimulus publishes. `read_console_tool` retrieves that error, which names the bailout that fired. A change to
+`CreateTask` MUST keep all of them unreachable for a fresh task.
 
 - **Corridor-count ceiling.** `Task` allocates one corridor-map entry per permutation, so `len(trial_structures) **
   vr_environment.segments_per_corridor` must stay at or below `Task.MaximumCorridorCount` (`268435456` = 2^28, the point
@@ -418,24 +429,9 @@ verify before done against the inventory in [references/template-validation.md](
 
 ## Failure modes
 
-| Symptom                                                                              | Root cause                                                                         | Resolution                                                                               |
-|--------------------------------------------------------------------------------------|------------------------------------------------------------------------------------|------------------------------------------------------------------------------------------|
-| `error: Cross-template cue-texture conflict detected`                                | Two templates declare the same `(cue name, length_cm)` with different textures     | Rename the cue, change its length, or unify the textures, then re-run                    |
-| `error: Cross-template cue-texture preflight aborted: failed to load '<file>'`       | Another template in the catalog no longer loads, and the preflight loads every one | Fix the named template, since generation is blocked for all until it loads               |
-| `error: Template filename '<name>' is invalid.`                                      | The filename stem carries something outside `[A-Za-z0-9_]`                         | Rename the YAML file, because the segment name reserves the hyphen as its only separator |
-| `error: Cue '<name>' references texture '<t>' but no file found at <path>`           | Load-time check: the file is absent from `Textures/`                               | Hand the texture off to the user for import, then re-run                                 |
-| `BuildCuePrefabs: Failed to load texture '<t>'`                                      | On disk but not imported into the AssetDatabase as a `Texture2D`                   | Refresh / reimport the asset in the Editor, then re-run                                  |
-| `BuildCuePrefabs: Cue '<name>' at <n> cm ... built from a different texture`         | The cached `Cue_<name>_<n>cm.mat` was built from a different texture               | Delete both cue assets to rebuild them, or re-key the cue by name or length              |
-| `error: Generation requires hand-authored assets that are missing from the project:` | `ValidateHandAuthoredAssets`: a hand-authored material or base prefab is absent    | Restore every named path from version control                                            |
-| `error: Template '<name>' declares a longest segment of <n> Unity units, ...`        | The default track length cannot fill `segments_per_corridor`                       | Shorten the longest `cue_sequence`, lower `segments_per_corridor`, or raise Track Length |
-| `error: Failed to build segment prefabs.`                                            | A cue prefab for a `cue_sequence` is missing, or a `trigger_type` has no branch    | Check the Console for the preceding `BuildSegmentPrefabs:` error                         |
-| `error: No segment found at <path>`                                                  | The segment prefab was written but could not be loaded back                        | Refresh the AssetDatabase and re-run                                                     |
-| Segment length warning in Console                                                    | Cue lengths do not sum to the measured prefab length                               | Either regenerate the segment or fix template cues                                       |
-| Zone geometry looks wrong in scene view                                              | Template's cm values or `cm_per_unity_unit` mismatch                               | Recheck the YAML, then regenerate                                                        |
-| Cue textures appear mirrored on Left or Right wall                                   | Quad scale sign is flipped (Right uses negative X)                                 | Intentional, because each wall shows a correctly-oriented cue                            |
-| Play Mode runs but nothing moves, and a `Task:` error is logged                      | A `Task.cs` startup bailout fired (see [Runtime contract](#runtime-contract))      | Lower `segments_per_corridor` / the trial count, or regenerate the prefab                |
-
----
+Every symptom `CreateTask` can produce is cataloged in
+[references/generation-errors.md](references/generation-errors.md), covering the raw `error: ` prefixed form the
+`CreateTask → New Task` menu path returns and the unprefixed text `create_task_tool` callers match.
 
 ## Related skills
 
@@ -479,7 +475,8 @@ Generator Pipeline Compliance:
 - [ ] LoadReferenceCueShader still falls back through the documented chain when _CueShaderReference.mat is missing
 - [ ] CreateTask → New Task Editor menu and McpBridge.GenerateTask produce identical assets for the same template
 - [ ] CreateSceneFromTemplate runs MainWindow.EnsureControllers so the generated scene contains one GameObject
-      per ControllerTypes enum value under the "Controllers" root
+      per ControllerTypes enum value under the "Controllers" root, and MainWindow.RemoveDefaultMainCamera so it
+      retains no Camera tagged MainCamera or named "Main Camera"
 - [ ] A freshly generated task prefab reaches no Task.cs enabled = false bailout (corridor-count ceiling, configPath
       lookup, track-length-covers-depth) at the default Track Length, and any new standalone IResettable implementer
       is registered in Task.FindResettableZones()

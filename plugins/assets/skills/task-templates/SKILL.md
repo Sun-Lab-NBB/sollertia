@@ -126,8 +126,10 @@ A `TaskTemplate` is composed of these classes (all defined in `sollertia_shared_
 | `cm_per_unity_unit`     | `10.0`      |
 | `cue_offset_cm`         | `0.0`       |
 
-Each default matches the one Unity's own `VREnvironment` class declares for the same field, so omitting the whole
-`vr_environment` key loads the template with the geometry Unity would apply to it.
+Each default matches the one Unity's own `VREnvironment` class declares for the same field, so a key omitted inside a
+present `vr_environment` block loads with the geometry Unity would apply to it. The block itself is required, because
+`TaskTemplate.vr_environment` carries no default, so `from_yaml` raises dacite's `MissingValueError`, and Unity's
+`ConfigLoader.ValidateTemplate` throws `No VR environment configuration defined.`
 
 `TaskTemplate.trial_structures` is a `dict[str, TrialStructure]` keyed by trial name. The template owns how often each
 trial runs, through each trial's `TrialStructure.transitions` probability dict, and the experiment configuration owns
@@ -303,8 +305,8 @@ class, and `/experiment-configuration` owns that surface.
 Build the template dictionary in this order:
 
 1. **VR environment.** Define the `VREnvironment`, covering corridor spacing, segments per corridor, padding prefab
-   name, cm-per-unity-unit conversion, and cue offset. Every field carries a default, so omitting the whole key is legal
-   and loads Unity's own geometry.
+   name, cm-per-unity-unit conversion, and cue offset. Every field carries a default, so individual keys may be omitted,
+   but the `vr_environment` block itself is required on both the Python and the Unity side.
 2. **Cue catalog.** Define every `Cue`, covering name, uint8 code, length, and required texture filename. A cue name may
    hold only ASCII letters, digits, and underscores, because the name is embedded in the generated
    `Cue_<name>_<length>cm` asset filename and in the cue-sequence signature that identifies a trial.

@@ -84,15 +84,20 @@ Editor-side helper consumed by `MainWindow`'s Camera Mapping section. Enumerates
 `Monitor.EnumerateMonitors()`, persists camera bindings in
 `Assets/VRSettings/Displays/<scene>-savedFullScreenViews.asset` (a `FullScreenViewsSaved` `ScriptableObject` holding one
 camera GameObject path per monitor index), and creates one `FullScreenView` (a borderless popup `EditorWindow`) per
-assigned monitor at Play Mode entry. The same instance is shared by the McpBridge's `read_task_parameters`,
-`write_task_parameters`, and `refresh_monitors` handlers so editor edits and MCP edits stay in sync.
+assigned monitor at Play Mode entry. While the Parameters window is open, the McpBridge's `read_task_parameters`,
+`write_task_parameters`, and `refresh_monitors` handlers share that window's instance, so editor edits and MCP edits
+stay in sync.
 
 The McpBridge's `AcquireFullScreenManager` reuses the open Parameters window's manager when one exists and otherwise
 reuses a per-scene cached manager (`_cachedFullScreenManager ??= new FullScreenViewManager()`), whose constructor
 already runs `LoadCameras` against the saved asset, so no second load happens. The cache is cleared on every
 `activeSceneChangedInEditMode`, so monitor enumeration runs once per scene rather than once per request, which is why a
-physical monitor rearrangement mid-session needs an explicit `refresh_monitors` call. The shared instance is the reason
-editor-side writes via `/task-parameters` are visible in the already-open GUI without a reload.
+physical monitor rearrangement mid-session needs an explicit `refresh_monitors` call. The cache holds the camera
+assignments that one `LoadCameras` pass read as well, and `RefreshMonitorPositions` carries the in-memory
+`cameraEntityId` values across rather than re-reading the asset, so `refresh_monitors` reloads geometry only. The one
+agent-reachable reload is switching the active scene away and back with `open_scene_tool`, which clears the cache. The
+shared instance is the reason editor-side writes via `/task-parameters` are visible in the already-open GUI without a
+reload.
 
 **`RefreshMonitorPositions()`** is the shared re-detection entry point behind both the Camera Mapping "Refresh Monitor
 Positions" button and the `refresh_monitors` MCP tool. It re-runs `Monitor.EnumerateMonitors()` and carries existing
@@ -102,21 +107,28 @@ later assignment up one slot. The refreshed list stays in memory and only reache
 
 `LoadCameras` and `SaveCameras` skip the saved-views asset I/O entirely when the active scene has no name (untitled /
 unsaved buffer). That guards against creating an orphan `-savedFullScreenViews.asset` (hyphen-prefixed, no scene to
-consume it) when the Parameters window or the McpBridge writes camera mapping before the scene has been saved.
-`SaveCameras` additionally no-ops when `monitors.Count == 0`, so a host where enumeration found no monitors (a headless
-runner, or a macOS box without `displayplacer`) cannot wipe a scene's persisted camera assignments. The companion asset
-is also cascade-deleted when its owning scene is removed via `delete_task_tool` (see `/task-prefabs`).
+consume it) when the Parameters window or the McpBridge writes camera mapping before the scene has been saved. For a
+named scene `LoadCameras` instead creates the companion asset when none exists (`AssetDatabase.CreateAsset` plus
+`SaveAssets`), so constructing a manager writes an empty `cameraNames` asset. Any handler that builds one while the
+Parameters window is closed, `read_task_parameters` included, can add `<scene>-savedFullScreenViews.asset` to the
+project, so the file's presence proves nothing about whether cameras are bound. Read the snapshot's `camera_mapping`
+rows for that. `SaveCameras` additionally no-ops when `monitors.Count == 0`, so a host where enumeration found no
+monitors (a headless runner, or a macOS box without `displayplacer`) cannot wipe a scene's persisted camera assignments.
+The companion asset is also cascade-deleted when its owning scene is removed via `delete_task_tool` (see
+`/task-prefabs`).
 
 **Monitor enumeration timeout.** `Monitor` is Editor-only (the whole file sits inside `#if UNITY_EDITOR`).
 `Monitor.EnumerateMonitors` calls `xrandr` (Linux) or `displayplacer list` (macOS) as a subprocess, and
-`/unity-mcp-environment-setup` owns which helper each platform needs and the order
-`Monitor.ResolveDisplayPlacerPath` searches for the macOS executable. A host carrying none of them logs
-`Monitor enumeration: failed to start 'displayplacer'. Install it with 'brew install displayplacer'.` and returns
-an empty monitor list rather than throwing. The 5000ms `SubprocessTimeoutMilliseconds` budget is applied twice, once to
-`process.WaitForExit` and again to the stdout read, and a process that overruns it is killed, logged as a warning, and
-parsed from whatever it produced. On Windows the enumeration is a synchronous P/Invoke (`EnumDisplayMonitors`) and has
-no timeout. Every detected monitor is then probed for its `EditorGUIUtility.pixelsPerPoint` via a temporary 20x20 popup
-`MonitorTester` window, which produces a brief visual flicker on each display.
+`/unity-mcp-environment-setup` owns which helper each platform needs and the order `Monitor.ResolveDisplayPlacerPath`
+searches for the macOS executable. A host missing its helper logs `Monitor enumeration: failed to start '<command>'.`
+and returns an empty monitor list rather than throwing. `<command>` is `xrandr` on Linux and the resolved
+`displayplacer` path on macOS. The log appends `Install it with 'brew install displayplacer'.` on macOS only, then
+always appends a space and `Reported error: <exception message>`. The 5000ms `SubprocessTimeoutMilliseconds` budget is
+applied twice, once to `process.WaitForExit` and again to the stdout read, and a process that overruns it is killed,
+logged as a warning, and parsed from whatever it produced. On Windows the enumeration is a synchronous P/Invoke
+(`EnumDisplayMonitors`) and has no timeout. Every detected monitor is then probed for its
+`EditorGUIUtility.pixelsPerPoint` via a temporary 20x20 popup `MonitorTester` window, which produces a brief visual
+flicker on each display.
 
 **One-camera-per-monitor invariant.** `RenderMonitorRow` silently ignores any selection that would alias another
 monitor's camera. The dropdown change appears to apply but the underlying `cameraEntityId` is not reassigned. The

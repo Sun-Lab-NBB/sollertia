@@ -124,12 +124,14 @@ Notable invariants:
   the run on a save dialog batch mode cancels.
 - `OnEnable() → InitializeScene()` first creates the `Assets/VRSettings` and `Assets/VRSettings/Displays` folders when
   missing (`DisplayObject.Create` and `FullScreenViewManager.LoadCameras` write their assets there). It then ensures the
-  active scene contains `Actors`, `Controllers`, `MQTT Client` roots, removes the Unity-default Main Camera, creates a
-  default Actor + Display, runs `EnsureControllers`, and finally runs `EnsureMqttDefaults` to apply the project-wide
-  broker IP / port. Existing GameObjects keep their components, but every pass re-stamps `hideFlags`: `MQTT Client` is
-  forced to `HideFlags.HideInHierarchy` and `Controllers` to `HideFlags.None`, whether the object was just created or
-  already present. So the MQTT client does **not** appear in the scene Hierarchy panel. Looking for it there is futile,
-  so query it via `GameObject.Find("MQTT Client")` or `MQTTClient.Instance`.
+  active scene contains `Actors`, `Controllers`, `MQTT Client` roots, calls `RemoveDefaultMainCamera`, creates a default
+  Actor + Display, runs `EnsureControllers`, and finally runs `EnsureMqttDefaults` to apply the project-wide broker IP /
+  port. `RemoveDefaultMainCamera` is public static and `CreateTask.CreateSceneFromTemplate` calls it too, so a generated
+  scene carries no stray `Main Camera` and needs nobody to open the window to clear one. Existing GameObjects keep their
+  components, but every pass re-stamps `hideFlags`: `MQTT Client` is forced to `HideFlags.HideInHierarchy` and
+  `Controllers` to `HideFlags.None`, whether the object was just created or already present. So the MQTT client does
+  **not** appear in the scene Hierarchy panel. Looking for it there is futile, so query it via
+  `GameObject.Find("MQTT Client")` or `MQTTClient.Instance`.
 - `EnsureControllers()` iterates `CachedControllerSpecs` (resolved once via reflection at type init) and creates one
   GameObject per `ControllerTypes` enum value. The actor's controller assignment is not auto-changed, so user-chosen
   swaps survive a re-init.
@@ -193,9 +195,10 @@ scene initialized by `MainWindow`.
   subscribers on the matching topic so keyboard-only test runs without a broker still reach local listeners (for
   example, `LickStimulusSpawner`). The first loopback delivery on each topic logs `MQTTClient: broker unreachable, so
   '<topic>' is delivered to in-process subscribers only ...`, deduplicated per topic via the `_loopbackWarnedTopics`
-  set, so a console full of these warnings names exactly which topics have no wired experiment-side counterpart.
-  Loopback calls `ReceivedMessage` synchronously on the publisher's thread, so a typed channel's deserialization
-  `InvalidOperationException` propagates back out of the caller's `Send`, not only out of the broker callback.
+  set. A console full of these warnings names exactly which topics have no wired experiment-side counterpart, and
+  `read_console_tool(level="warning")` collects them without the Console window. Loopback calls `ReceivedMessage`
+  synchronously on the publisher's thread, so a typed channel's deserialization `InvalidOperationException` propagates
+  back out of the caller's `Send`, not only out of the broker callback.
 - **Lifecycle**: `Awake` first guards against a duplicate. A second `MQTTClient` in the scene logs `MQTTClient: Multiple
   instances found, using existing instance` and returns without claiming `Instance` or loading any settings, so its
   `ipAddress` / `port` keep their field initializers. Otherwise `Awake` sets `Instance` and loads `ipAddress` / `port`
@@ -421,22 +424,35 @@ arrangement before committing.
 
 ## Common pitfalls
 
-| Pitfall                                                                     | Fix                                                                                                                                                                                                                                                         |
-|-----------------------------------------------------------------------------|-------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
-| `NullReferenceException` on `MQTTClient.Instance`                           | Ensure the scene has a `MQTT Client` GameObject (auto-created by MainWindow), and create channels in `Start()` rather than `Awake()`                                                                                                                        |
-| `JsonUtility` returns default-valued messages                               | Payload class uses properties `{ get; set; }`, so convert them to public fields                                                                                                                                                                             |
-| Actor's own model appears in its VR view (display camera renders the actor) | No project layer is named exactly after the actor GameObject, so check the console for `DisplayObject.ParentToActor: unable to cull the actor model` and add the layer, or re-run `InitiateActor` so `TagsAndLayers.AddLayer(gameObject.name)` allocates it |
-| A section says "No Actor / Display / MQTT Client in the active scene"       | The scene predates `MainWindow.InitializeScene`, so close and reopen the window to auto-create the root                                                                                                                                                     |
-| The Task section says "No Task component found in the current scene."       | Expected outside a generated task scene, and reopening the window does not repair it                                                                                                                                                                        |
-| MQTT settings reset after reopening the project                             | `EditorPrefs` are per-user-per-project-path, which is expected, so reconfigure once                                                                                                                                                                         |
-| Adding a new controller does not appear in the dropdown                     | Missing `ControllerTypes` enum entry, or `BuildControllerSpecs` could not resolve the type at `Gimbl.<EnumName>`                                                                                                                                            |
+| Pitfall                                                                     | Fix                                                                                                                                  |
+|-----------------------------------------------------------------------------|--------------------------------------------------------------------------------------------------------------------------------------|
+| `NullReferenceException` on `MQTTClient.Instance`                           | Ensure the scene has a `MQTT Client` GameObject (auto-created by MainWindow), and create channels in `Start()` rather than `Awake()` |
+| `JsonUtility` returns default-valued messages                               | Payload class uses properties `{ get; set; }`, so convert them to public fields                                                      |
+| Actor's own model appears in its VR view (display camera renders the actor) | No project layer is named exactly after the actor GameObject. See **Adding the actor's layer** below                                 |
+| A section says "No Actor / Display / MQTT Client in the active scene"       | The scene was never seeded by `MainWindow.InitializeScene`. See **Re-running scene init** below                                      |
+| The Task section says "No Task component found in the current scene."       | Expected outside a generated task scene, and reopening the window does not repair it                                                 |
+| MQTT settings reset after reopening the project                             | `EditorPrefs` are per-user-per-project-path, which is expected, so reconfigure once                                                  |
+| Adding a new controller does not appear in the dropdown                     | Missing `ControllerTypes` enum entry, or `BuildControllerSpecs` could not resolve the type at `Gimbl.<EnumName>`                     |
+
+**Adding the actor's layer.** `DisplayObject.ParentToActor` logs `unable to cull the actor model from display '<name>'`,
+which `read_console_tool(level="warning")` surfaces, and leaves every display camera's culling mask fully open. No
+bridge tool writes `ProjectSettings/TagManager.asset`. `TagsAndLayers.AddLayer` reaches it through a `SerializedObject`,
+the same in-memory representation the Editor's `Edit → Project Settings → Tags and Layers` GUI writes, so ask the user
+to add the layer there. `InitiateActor` allocates the layer itself, but `MainWindow.EnsureActorAndDisplay` calls it only
+when the scene holds no `ActorObject`, so reopening the window never re-runs it on an actor that already exists.
+
+**Re-running scene init.** `InitializeScene` runs from `MainWindow.OnEnable`, and the `EditorSceneManager.sceneOpened`
+hook that `open_scene_tool` fires calls `EnsureWindowOpen`, which returns early while a Parameters window is already
+open. No bridge tool invokes `InitializeScene` directly. Ask the user to close and reopen `Window → Task Parameters`, or
+build the scene with `create_task_tool`, whose copy of `ExperimentTemplate.unity` already carries `Actors`,
+`Controllers`, `MQTT Client`, `Actor`, and `Display`.
 
 ---
 
 ## Related skills
 
-The `automation:` entry below resolves through the ataraxis marketplace. Every other entry resolves inside the
-sollertia marketplace.
+The `automation:` entry below resolves through the ataraxis marketplace. Every other entry resolves inside the sollertia
+marketplace.
 
 | Skill                            | Relationship                                                                                   |
 |----------------------------------|------------------------------------------------------------------------------------------------|
