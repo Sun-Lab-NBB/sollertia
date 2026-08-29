@@ -89,7 +89,10 @@ possibly empty when the OS reports no monitors, and is never `None`.
     {"monitor": 2, "left": 1920, "top": 0, "camera": "Center View"},
     {"monitor": 3, "left": 3840, "top": 0, "camera": "Right View"}
   ],
-  "task":           {"require_interaction": true, "require_wait": false, "track_length": 15000.0, "track_seed": -1}
+  "task":           {
+    "require_interaction": true, "require_wait": false, "track_length": 15000.0, "track_seed": -1,
+    "actor": "Actor", "config_path": "InfiniteCorridorTask/Configurations/SSO_Merging.yaml"
+  }
 }
 ```
 
@@ -114,7 +117,20 @@ in `/scene-setup` "Scene-specific vs project-wide state", which is the canonical
   detecting monitors spawns an OS subprocess on Linux and macOS. A read taken after the physical monitor arrangement
   changed still reports the old geometry until `refresh_monitors_tool()` (or the GUI's `Refresh Monitor Positions`
   button) re-detects.
+- That cached manager also holds the camera assignments its constructor read once through
+  `FullScreenViewManager.LoadCameras()`, and `refresh_monitors_tool()` does not reload them, because
+  `RefreshMonitorPositions` carries the in-memory `cameraEntityId` values across by index. While the Parameters window
+  is open the bridge borrows the window's own manager, which reloads its assignments when the active scene changes, so
+  the two agree. Once that window closes the bridge falls back to its cache, so a binding a human made through the
+  since-closed window is invisible to a read and is overwritten by the next `camera_mapping` write. The agent-reachable
+  reload is an `open_scene_tool` trip away and back (`/task-scenes`), which clears the cache.
 - `task.track_seed == -1` is the documented sentinel for "nondeterministic seed".
+- `task.actor` is the GameObject name of the `ActorObject` the `Task` repositions at each corridor start, and `null`
+  when the field is unassigned. `task.config_path` is the template YAML path relative to `Application.dataPath`, for
+  example `InfiniteCorridorTask/Configurations/<name>.yaml`. Both are read-only, because `write_task_parameters_tool`
+  reads neither key. `create_task_tool` (`/task-prefabs`) fills `config_path`, while `actor` fills itself in the Editor,
+  because the `Task` component's `OnValidate` and the Parameters window each claim the first `ActorObject` they find
+  whenever the reference is null.
 
 ### `options`
 
@@ -129,7 +145,7 @@ error.
     "controller": ["None", "Linear", "Simulated Linear"]
   },
   "camera_mapping": {
-    "camera":     ["None", "Left View", "Center View", "Right View"]
+    "camera":     ["None", "Left View", "Center View", "Right View", "Actor View"]
   }
 }
 ```
@@ -140,6 +156,9 @@ error.
   `/scene-setup`).
 - `camera_mapping.camera` is every scene `Camera` that is **not** tagged `MainCamera` and **not** named `Main Camera`,
   plus `"None"`. This matches the filter the GUI dropdown applies so the agent and the user see the same option set.
+  Every scene seeded by `InitializeScene` or copied from `ExperimentTemplate.unity` therefore also lists the Actor's
+  `Actor View` camera, the `TrackCam`-tagged third-person follow view `/scene-setup` describes. The bridge accepts it as
+  a write value, but it is not part of the display rig, so **You MUST NOT** bind it to a VR monitor.
 
 `state.camera_mapping[*].camera` and `options.camera_mapping.camera` are **not** built from the same query: the state
 resolves the persisted assignment through `EditorUtility.EntityIdToObject` regardless of the GameObject's active state,
@@ -192,6 +211,15 @@ frames.
 success the response is the post-write snapshot in the same shape as `read_task_parameters_tool`, so a `read → modify →
 write → consume_snapshot` loop never needs a second read for plain field values.
 
+A field is omitted by leaving its key out of the section dict, never by passing `None`. The bridge gates each write on
+key presence alone and then converts the value. An explicit `None` reaching `mqtt.port`, `display.current_brightness` /
+`brightness` / `height_in_vr`, or `task.require_interaction` / `require_wait` / `track_seed` converts to `0` or `false`,
+is written, and returns `success: true`. `mqtt={"port": None}` passes validation, because the accepted range starts at
+0, and writes port 0 to both the live `MQTTClient` and the `SollertiaVR_MQTT_Port` EditorPrefs entry, so it survives
+into later Editor sessions. `task={"track_seed": None}` writes seed 0, a real deterministic seed rather than the
+nondeterministic sentinel. Only `task.track_length` and `camera_mapping[*].monitor` fail loudly on `None`, so build
+write payloads by omission, for example `{key: value for key, value in candidates.items() if value is not None}`.
+
 ```text
 write_task_parameters_tool(
     actor={"controller": "Simulated Linear"},
@@ -225,12 +253,14 @@ The bridge marks the active scene dirty when any write succeeds and runs `Editor
 plus `AssetDatabase.SaveAssets` on the `FullScreenViewsSaved` asset). It also runs `Undo.RecordObject(task, "Write Task
 Parameters")` plus `EditorUtility.SetDirty(task)` on the `Task` component whenever a `task` section object is supplied
 and a `Task` exists, even a section carrying no recognized fields. `ApplyCameraMappingSection` is the one applier that
-explicitly guards against that. A `camera_mapping` list whose rows are all skipped (no `monitor` key, no string
-`camera`) returns before `SaveCameras()`, so it neither rewrites the `FullScreenViewsSaved` companion asset nor dirties
-the scene. A subsequent `Ctrl+S` (`Cmd+S` on macOS) or `EditorSceneManager.SaveOpenScenes()` persists every scene-level
-change. A `display.height_in_vr` write additionally translates the `DisplayObject` GameObject by setting
-`display.transform.localPosition = (0, height_in_vr, 0)`, so the scene's display rig moves in lockstep with the asset
-value.
+explicitly guards against that. A `camera_mapping` list whose rows are all skipped (a row that is not an object, or a
+row carrying `monitor` but no string `camera`) returns before `SaveCameras()`, so it neither rewrites the
+`FullScreenViewsSaved` companion asset nor dirties the scene. A row carrying no `monitor` key never reaches the applier,
+because validation rejects the whole write first. `save_scene_tool()` (`/task-scenes`) then persists the scene-level
+changes to the active scene's asset and clears the dirty flag, and it refuses while the Editor is in Play Mode or when
+the active scene has never been saved. A `display.height_in_vr` write additionally translates the `DisplayObject` by
+setting `display.transform.localPosition = (0, height_in_vr, 0)`, so the scene's display rig moves in lockstep with the
+asset value.
 
 ### Verify a write took effect
 
@@ -343,15 +373,19 @@ dropdown merely *parked* on `None` because the assigned camera sits on a deactiv
 `ApplyCameraMappingSection` writes `EntityId.None` unconditionally. A `"None"` write therefore clears assignments the
 GUI would have preserved.
 
-`mqtt.ip` is the only field the bridge accepts unconditionally (any string, and a non-string value is ignored rather
-than rejected). `mqtt.port` is bounded to `[0, 65535]` because the value reaches both the live client and the
-`EditorPrefs` entry from which a fresh session reloads. `display.current_brightness` / `brightness` / `height_in_vr`
-must convert to finite floats but are not range-checked, and nothing downstream clamps or warns. `PerspectiveProjection`
-passes `currentBrightness` straight to the display shader, so an out-of-range value writes and takes effect silently.
-`task.track_length` must be strictly positive and finite, so zero and negative values are rejected, and that bridge
-bound is the only check applied here. A `track_length` too short to cover the template's corridor still writes
-successfully. That value then disables the `Task` at the next Play Mode entry with
-`Task: trackLength <n> is too short for template '<name>'.` `/task-generator` owns that runtime contract and
+`actor.model`, `actor.controller`, and `mqtt.ip` apply only when the value is a JSON string, because every applier
+guards on that type. Any other type, `null` included, is dropped while the call still returns `success: true`, so the
+two `actor` rows above fire only for a string outside the option list. Compare `state.actor` and `state.mqtt` in the
+post-write snapshot against the requested values rather than trusting the success flag. `mqtt.ip` carries no validation
+of its own, so any string is accepted. `mqtt.port` is bounded to `[0, 65535]` because the value reaches both the live
+client and the `EditorPrefs` entry from which a fresh session reloads. `display.current_brightness` / `brightness` /
+`height_in_vr` must convert to finite floats but are not range-checked, and nothing downstream clamps or warns.
+`PerspectiveProjection` passes `currentBrightness` straight to the display shader, so an out-of-range value writes and
+takes effect silently. `task.track_length` must be strictly positive and finite, so zero and negative values are
+rejected, and that bridge bound is the only check applied here. A `track_length` too short to cover the template's
+corridor still writes successfully. That value then disables the `Task` at the next Play Mode entry with
+`Task: trackLength <n> is too short for template '<name>'.`, which `read_console_tool(level="error")`
+(`/unity-mcp-environment-setup`) surfaces after the run. `/task-generator` owns that runtime contract and
 `ValidateTrackLengthCoversCorridor`, the generation-time gate that keeps it unreachable at the generated value.
 `task.track_seed` must convert to a 32-bit integer.
 
@@ -425,8 +459,8 @@ Camera mapping is the exception to the repaint caveat: the bridge reuses the ope
 
 | Skill                                        | Relationship                                                                                 |
 |----------------------------------------------|----------------------------------------------------------------------------------------------|
-| `/unity-mcp-environment-setup` (this plugin) | Run first if Unity Editor is unreachable                                                     |
-| `/task-scenes` (this plugin)                 | Upstream, switches the active scene that this skill reads and writes                         |
+| `/unity-mcp-environment-setup` (this plugin) | Run first if Unity Editor is unreachable, and owns `read_console_tool`                       |
+| `/task-scenes` (this plugin)                 | Upstream, switches the active scene, and owns `save_scene_tool` for persisting writes        |
 | `/scene-setup` (this plugin)                 | Upstream, owns the `MainWindow` GUI and the auto-creation of Actors / Controllers / Displays |
 | `/play-mode` (this plugin)                   | Upstream, `get_play_state_tool` gates writes that the GUI greys out at runtime               |
 | `/task-prefabs` (this plugin)                | Upstream, generates the task prefab whose `Task` component this skill mutates                |
@@ -455,7 +489,9 @@ Task Parameters Compliance:
       re-read afterwards because assignments carry across by index
 - [ ] Post-write snapshot is inspected to confirm the new state matches the requested change, and a
       follow-up read is issued when the write changed scene structure
+- [ ] No section dict passed to write_task_parameters_tool carries a None-valued key
 - [ ] state.<section> is non-null before a write to that section is treated as applied
+- [ ] save_scene_tool is called after a successful write whose result must outlive the session
 - [ ] MQTT writes are avoided while the Editor is in Play Mode (use /play-mode to confirm state)
 - [ ] Validation rules are not bypassed by editing the scene file directly to set rejected fields
 ```
