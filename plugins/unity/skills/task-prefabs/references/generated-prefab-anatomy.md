@@ -11,12 +11,12 @@ publishes the same `Stimulus` event. `CreateTask` sets the `StimulusTriggerZone.
 `Collision`, `OccupancyDisarm`, `OccupancyArm`, `OccupancyTrigger`) from `trigger_type` and the zone dispatches on it at
 runtime.
 
-**`triggerMode` is not observable from `inspect_prefab_tool`.** The tool emits `name`, the three transform vectors,
-`components` (type names only), the `collider_*` keys, and `children`, and never a serialized MonoBehaviour field value.
-Distinguish the modes by the root GameObject's **name**, its **child shape**, and its `collider_size.z`, then confirm
-the intended mode from the template's `trigger_type`. The same limit applies to `showBoundary`. The `MeshRenderer` is
-always present in `components`, and `CreateTask` only flips its `enabled` flag from the template's
-`show_stimulus_collision_boundary`, which the tool does not report.
+**`triggerMode` is not observable from `inspect_prefab_tool`.** The tool emits `name`, `active_self`, the three
+transform vectors, `components` (type names only), `component_states` (a `type` and an `enabled` flag per component),
+the `collider_*` keys, and `children`, and never a serialized MonoBehaviour field value. Distinguish the modes by the
+root GameObject's **name**, its **child shape**, and its `collider_size.z`, then confirm the intended mode from the
+template's `trigger_type`. `showBoundary` is the exception. `CreateTask` mirrors it onto the always-present
+`MeshRenderer`, whose `component_states` entry reports the template's `show_stimulus_collision_boundary` as `enabled`.
 
 Both base prefabs carry the same six root components, emitted in `GetComponents<Component>()` order so `Transform` is
 always first:
@@ -121,6 +121,6 @@ it, so firing is occupancy-only.
 ## Disarmed segments and ignorable components
 
 `CreateTask` strips zones from segments at corridor depth > 0 because they are visual-only, so an `inspect_prefab_tool`
-result where every segment except the first under a corridor has no stimulus zone child is expected. When reading the
-JSON, ignore `Transform`, `MeshFilter`, `MeshRenderer`, `MeshCollider`, and any `BoxCollider` not paired with a zone
-script. Those are either visual geometry or standard Unity components every GameObject carries.
+result where every segment except the first under a corridor has no stimulus zone child is expected. When judging the
+hierarchy, ignore `Transform`, `MeshFilter`, `MeshRenderer`, `MeshCollider`, and any `BoxCollider` not paired with a
+zone script. Those are either visual geometry or standard Unity components every GameObject carries.

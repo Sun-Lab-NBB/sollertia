@@ -93,7 +93,7 @@ at `create_task` time, far from the edit that caused it, in the other repo. Ther
 |------------------------------------|------------------------------------------------|----------------------------------------|----------------------------------------|
 | `cues`                             | `TaskTemplate.cues`                            | `TaskTemplate.cues`                    | Required, non-empty                    |
 | `vr_environment`                   | `TaskTemplate.vrEnvironment`                   | `TaskTemplate.vr_environment`          | Required                               |
-| `trial_structures`                 | `TaskTemplate.trialStructures`                 | `TaskTemplate.trial_structures`        | Required, non-empty                    |
+| `trial_structures`                 | `TaskTemplate.trialStructures`                 | `TaskTemplate.trial_structures`        | Required, non-empty in C# only         |
 | (none, filename stem)              | `TaskTemplate.templateName`                    | (none)                                 | C#-only, derived from the filename     |
 | `name`                             | `Cue.name`                                     | `Cue.name`                             | Required                               |
 | `code`                             | `Cue.code`                                     | `Cue.code`                             | Required, uint8                        |
@@ -112,6 +112,11 @@ at `create_task` time, far from the edit that caused it, in the other repo. Ther
 | `trigger_type`                     | `TrialStructure.triggerType`                   | `TrialStructure.trigger_type`          | Required, one of five literals         |
 | `occupancy_duration_ms`            | `TrialStructure.occupancyDurationMs`           | `TrialStructure.occupancy_duration_ms` | `null` / `None`, required on occupancy |
 | `transitions`                      | `TrialStructure.transitions`                   | `TrialStructure.transitions`           | `null` / `None`                        |
+
+Python's `TaskTemplate.__post_init__` carries no emptiness guard on `cues` or `trial_structures`. An empty `cues` list
+is still rejected whenever a trial exists, indirectly, because every `cue_sequence` is required non-empty and each name
+it holds must resolve against the cue catalog. An empty `trial_structures` dict passes `write_template_tool` and
+`validate_template_tool` unchallenged and fails only later in Unity, with `No trial structures defined in template.`
 
 `VREnvironment` also exposes two C#-only conversion accessors, `CorridorSpacingUnity` and `CueOffsetUnity`, that divide
 their cm field by `cmPerUnityUnit`. They are not template fields and have no Python counterpart.
