@@ -52,6 +52,10 @@ authoritative read and uses the first three values. The transition tools return 
 issue the transition and the matching steady-state value when they short-circuit (already in the target state).
 `get_play_state_tool` also returns `active_scene`, which is the active scene's *name* (not its asset path).
 
+`get_play_state_tool` cannot represent an in-flight transition. `GetPlayState` (`McpBridge.cs`) derives the value from
+`EditorApplication.isPlaying` and `EditorApplication.isCompiling` alone, never from `isPlayingOrWillChangePlaymode`, so
+a poll taken while Unity is still tearing the domain down for Play Mode entry answers `edit`.
+
 | State                | Returned by                                           | Meaning                                                                              |
 |----------------------|-------------------------------------------------------|--------------------------------------------------------------------------------------|
 | `edit`               | `get_play_state_tool`, `exit_play_mode_tool` (no-op)  | Editor is in the default edit mode, the scene is mutable, and no runtime loop runs   |
@@ -85,6 +89,8 @@ is in `edit` before performing mutating Unity operations.
 1. **Verify prerequisites:**
    - Unity Editor running with McpBridge reachable (else `/unity-mcp-environment-setup`).
    - The target scene is open. Hand off to `/task-scenes` (`open_scene_tool`) if not.
+   - The scene carries no unsaved edits. `/task-scenes` reads `is_dirty` through `inspect_scene_tool` and clears it
+     through `save_scene_tool`, which refuses to run in Play Mode and on a scene that has never been saved.
    - No acquisition session is armed against this Editor (see the interaction contract below).
    - The scene's Actor references the `Simulated Linear` controller. Only `SimulatedLinearTreadmill` reads keyboard
      input. `Linear` subscribes to the hardware `Motion` MQTT topic and ignores the keyboard entirely
@@ -94,21 +100,24 @@ is in `edit` before performing mutating Unity operations.
    ```text
    get_play_state_tool()
    ```
-   If `state == "playing"`, skip to step 4. If `state == "compiling"`, wait and re-poll. You MUST NOT attempt to enter
-   Play Mode during compilation.
+   If `state == "playing"`, skip to step 4. If `state == "compiling"`, you SHOULD wait and re-poll rather than issuing
+   the call. `EnterPlayMode` (`McpBridge.cs`) guards only on `EditorApplication.isPlaying`, so the call is accepted and
+   Unity defers the transition until the recompile finishes (see the interaction contract).
 3. **Enter Play Mode:**
    ```text
    enter_play_mode_tool()
    ```
    The response's `state` is `entering_play_mode` when the bridge has issued the transition (or `playing` if the editor
-   was already in Play Mode). The tool does not block on completion, so poll `get_play_state_tool` to confirm `playing`
-   before exercising the scene.
+   was already in Play Mode). The tool does not block on completion, so poll `get_play_state_tool` about once a second
+   for up to 30 s to confirm `playing` before exercising the scene. Entry runs a full domain and scene reload
+   (`m_EnterPlayModeOptionsEnabled: 0` in `ProjectSettings/EditorSettings.asset`), so an `edit` reading inside that
+   window means the transition is still running. Conclude that Unity refused entry only once the window expires.
 
    Play Mode entry also connects the scene's `MQTTClient` to the broker configured in the MQTT section
-   (`MQTTConnectorObject.OnEnable`), blocking the Editor main thread for up to 10 s on failure and logging `Could not
-   connect to MQTT broker at <ip>:<port>` (`ConnectTimeoutMilliseconds` and `MQTTClient.Connect` in `MQTTClient.cs`).
-   A keyboard-only run needs no broker: `MQTTClient.Publish` falls back to in-process delivery and logs `MQTTClient:
-   broker unreachable, so '<topic>' is delivered to in-process subscribers only ...` once per topic
+   (`MQTTConnectorObject.OnEnable`). A failed connection blocks the Editor main thread for up to 10 s and logs `Could
+   not connect to MQTT broker at <ip>:<port>` (`ConnectTimeoutMilliseconds` and `MQTTClient.Connect` in
+   `MQTTClient.cs`). A keyboard-only run needs no broker: `MQTTClient.Publish` falls back to in-process delivery and
+   logs `MQTTClient: broker unreachable, so '<topic>' is delivered to in-process subscribers only ...` once per topic
    (`MQTTClient.cs`). Treat that warning as expected during an interactive Play Mode run, not as a defect.
 4. **Ask the user to exercise the task:** The developer drives the scene from the Game view with the keyboard.
    `Movement` (forward/back) advances the simulated treadmill and `Jump` (spacebar) publishes a synthetic `Interaction`
@@ -160,8 +169,10 @@ You MUST hand off to the owning skill (`/task-scenes`, `/task-prefabs`) only aft
   `exit_play_mode_tool` against `edit`) short-circuits with the canonical steady-state `state` and an `Already in Play
   Mode.` / `Not in Play Mode.` message. You SHOULD still avoid these calls to keep the transcript focused.
 - **You MUST** confirm the final state with `get_play_state_tool` after issuing a transition. The transition tools
-  acknowledge the request (`entering_play_mode` / `exiting_play_mode`) but do not block on completion, and Unity refuses
-  Play Mode entry when the active scene has compile errors. In that case `get_play_state_tool` keeps reporting `edit`.
+  acknowledge the request (`entering_play_mode` / `exiting_play_mode`) but do not block on completion, so an `edit`
+  reading taken right after `enter_play_mode_tool` is ambiguous. It means either that the reload is still running or
+  that Unity refused entry because the active scene has compile errors. Re-poll for up to 30 s, then read the refusal
+  with `read_console_tool(level="error")`.
 - **Play Mode publishes on the configured broker.** Entering Play Mode makes the scene's `MQTTClient` connect to the
   IP/port in the MQTT section and broadcast `SessionStart`. Exiting broadcasts `SessionStop` (`MQTTClient.Start` and
   `MQTTClient.OnApplicationQuit`). Trigger zones publish `Stimulus` and `Delay` while playing. If an acquisition
@@ -170,32 +181,36 @@ You MUST hand off to the owning skill (`/task-scenes`, `/task-prefabs`) only aft
 - **Task Parameters re-opens on Play Mode entry.** `MainWindow.RegisterAutoOpen` registers an
   `EditorApplication.playModeStateChanged` hook that calls `EnsureWindowOpen` when the editor reaches
   `PlayModeStateChange.EnteredPlayMode`. The exception is a batch-mode Editor, where `RegisterAutoOpen` returns before
-  subscribing any hook (`MainWindow.cs`), so a headless `-runTests -testPlatform PlayMode` run never opens the
-  window. The MQTT section, the Task section, and the Camera Mapping `Show Full-Screen Views` control are disabled at
-  runtime, so you SHOULD flip the Task flags via MQTT (`/mqtt-contract`) instead of `/task-parameters` during a Play
-  Mode run. Note the GUI disable is cosmetic from the agent's side. The bridge itself has no play-state guard on
-  `write_task_parameters`. `EditorApplication.isPlaying` is referenced only by the three play-state handlers
-  (`EnterPlayMode`, `ExitPlayMode`, and `GetPlayState` in `McpBridge.cs`). Thus a write issued during Play Mode is
-  accepted and applied to the runtime scene instance. The scene-component values (the Task flags) revert when Play
-  Mode exits, so that half of the write is silently lost. The MQTT ip/port values additionally persist to EditorPrefs
-  (`McpBridge.ApplyMqttSection`), which `MainWindow.EnsureMqttDefaults` and `MQTTClient.Awake` re-apply to
-  the scene on the next window init or Play Mode entry. The MQTT half of the write therefore survives the exit, and the
-  Task-flag half does not. This is why MQTT is the correct path for runtime flag changes.
+  subscribing any hook (`MainWindow.cs`), so a headless `-runTests -testPlatform PlayMode` run never opens the window.
+  The MQTT section, the Task section, and the Camera Mapping `Show Full-Screen Views` control are disabled at runtime,
+  so you SHOULD flip the Task flags via MQTT (`/mqtt-contract`) instead of `/task-parameters` during a Play Mode run.
+  Note the GUI disable is cosmetic from the agent's side. The bridge itself has no play-state guard on
+  `write_task_parameters`. `EditorApplication.isPlaying` is consulted only by `EnterPlayMode`, `ExitPlayMode`,
+  `GetPlayState`, and `SaveScene` (`McpBridge.cs`). Thus a write issued during Play Mode is accepted and applied to the
+  runtime scene instance. The scene-component values (the Task flags) revert when Play Mode exits, so that half of the
+  write is silently lost. The MQTT ip/port values additionally persist to EditorPrefs (`McpBridge.ApplyMqttSection`),
+  which `MainWindow.EnsureMqttDefaults` and `MQTTClient.Awake` re-apply to the scene on the next window init or Play
+  Mode entry. The MQTT half of the write therefore survives the exit, and the Task-flag half does not. This is why MQTT
+  is the correct path for runtime flag changes.
 
 ---
 
 ## Troubleshooting
 
-| Symptom                                                                          | Cause                                                                                                             | Resolution                                                                         |
-|----------------------------------------------------------------------------------|-------------------------------------------------------------------------------------------------------------------|------------------------------------------------------------------------------------|
-| `enter_play_mode_tool` returns `entering_play_mode` but follow-up poll is `edit` | Unity refused the transition because the active scene has compile errors                                          | Ask the user to fix errors in the Console                                          |
-| `enter_play_mode_tool` returns `entering_play_mode` while `compiling`            | Script recompile in progress, and Unity will run the transition once it finishes                                  | Wait and re-poll `get_play_state_tool`                                             |
-| `exit_play_mode_tool` returns `state == "edit"` immediately                      | Editor already in `edit`, and the handler short-circuits with `Not in Play Mode.`                                 | Expected, no further action needed                                                 |
-| A poll fails with `Unable to complete the request to the Unity Editor ...`       | Play Mode entry triggered a domain reload and the Editor main thread is not draining the bridge queue             | Wait for the Editor to settle, then re-poll, because this is not a bridge outage   |
-| Console logs `Could not connect to MQTT broker at <ip>:<port>`                   | No broker is listening on the configured IP/port, and entry blocked for 10 s first (`ConnectTimeoutMilliseconds`) | Expected for a keyboard-only run, otherwise fix the IP/port via `/task-parameters` |
-| Console logs `MQTTClient: broker unreachable, so '<topic>' is ...`               | `MQTTClient.Publish` fell back to in-process delivery (`MQTTClient.cs`)                                           | Expected while playing without a broker, rather than a defect                      |
-| Active scene is not the one expected                                             | A different scene was opened previously                                                                           | Hand off to `/task-scenes` (`open_scene_tool`)                                     |
-| All tools fail with `Unable to reach the Unity Editor at http://localhost:8090/` | McpBridge down                                                                                                    | `/unity-mcp-environment-setup`                                                     |
+| Symptom                                                                          | Cause                                                                                                              | Resolution                                                                                        |
+|----------------------------------------------------------------------------------|--------------------------------------------------------------------------------------------------------------------|---------------------------------------------------------------------------------------------------|
+| `enter_play_mode_tool` returns `entering_play_mode` but follow-up poll is `edit` | The domain and scene reload has not landed yet, or Unity refused entry because the active scene has compile errors | Re-poll on step 3's schedule first, then read the refusal with `read_console_tool(level="error")` |
+| `enter_play_mode_tool` returns `entering_play_mode` while `compiling`            | Script recompile in progress, and Unity will run the transition once it finishes                                   | Wait and re-poll `get_play_state_tool`                                                            |
+| `exit_play_mode_tool` returns `state == "edit"` immediately                      | Editor already in `edit`, and the handler short-circuits with `Not in Play Mode.`                                  | Expected, no further action needed                                                                |
+| A poll fails with `Unable to complete the request to the Unity Editor ...`       | Play Mode entry triggered a domain reload and the Editor main thread is not draining the bridge queue              | Wait for the Editor to settle, then re-poll, because this is not a bridge outage                  |
+| Console logs `Could not connect to MQTT broker at <ip>:<port>`                   | No broker is listening on the configured IP/port, and entry blocked for 10 s first (`ConnectTimeoutMilliseconds`)  | Expected for a keyboard-only run, otherwise fix the IP/port via `/task-parameters`                |
+| Console logs `MQTTClient: broker unreachable, so '<topic>' is ...`               | `MQTTClient.Publish` fell back to in-process delivery (`MQTTClient.cs`)                                            | Expected while playing without a broker, rather than a defect                                     |
+| Active scene is not the one expected                                             | A different scene was opened previously                                                                            | Hand off to `/task-scenes` (`open_scene_tool`)                                                    |
+| All tools fail with `Unable to reach the Unity Editor at http://localhost:8090/` | McpBridge down                                                                                                     | `/unity-mcp-environment-setup`                                                                    |
+
+`read_console_tool` reads the Console rows above without a human at the Editor. Its buffer holds the last 500 entries
+logged since the Editor loaded, and a domain reload starts it empty, so entries predating a Play Mode entry are gone
+once the state reaches `playing` (`ReadConsole` in `McpBridge.cs`).
 
 ---
 
@@ -203,8 +218,8 @@ You MUST hand off to the owning skill (`/task-scenes`, `/task-prefabs`) only aft
 
 | Skill                                        | Relationship                                                                                                                                                                             |
 |----------------------------------------------|------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
-| `/unity-mcp-environment-setup` (this plugin) | Run first if Unity Editor is unreachable                                                                                                                                                 |
-| `/task-scenes` (this plugin)                 | Upstream, opens the scene to exercise in Play Mode                                                                                                                                       |
+| `/unity-mcp-environment-setup` (this plugin) | Run first if Unity Editor is unreachable, and owns `read_console_tool` for reading Play Mode Console output                                                                              |
+| `/task-scenes` (this plugin)                 | Upstream, opens the scene to exercise in Play Mode and saves it before entry (`save_scene_tool`)                                                                                         |
 | `/scene-setup` (this plugin)                 | Upstream, must pass the pre-Play Mode checklist first                                                                                                                                    |
 | `/task-prefabs` (this plugin)                | Upstream, generates the prefab under test                                                                                                                                                |
 | `/task-parameters` (this plugin)             | Upstream, sets Actor / Task / Display fields in edit mode before entering Play Mode                                                                                                      |
@@ -225,6 +240,8 @@ You MUST hand off to the owning skill (`/task-scenes`, `/task-prefabs`) only aft
 - [ ] The response's "success" was checked before its "state" was read
 - [ ] The target scene was open before entering Play Mode
 - [ ] The scene's Actor referenced the "Simulated Linear" controller
+- [ ] The scene was saved (is_dirty == false) before enter_play_mode_tool
+- [ ] Console errors were read with read_console_tool when the entry poll never reached "playing"
 - [ ] State returned to "edit" after exit_play_mode_tool
 - [ ] No mutating Unity operation was issued while state was "playing" or "compiling"
 ```
