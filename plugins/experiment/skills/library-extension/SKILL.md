@@ -359,6 +359,7 @@ owns. Every omission below therefore surfaces at runtime, or silently, and each 
 | A new shared-memory interface without `initialize_local_assets` | The binding class raises `AttributeError` at start (`MicroControllerInterfaces.start()` in `mesoscope_vr/binding_classes.py` shows the call site)                                         |
 | Firmware and wrapper parameter structs disagree                 | Every field after the first mismatch is silently corrupted, because `PACKED_STRUCT` carries no padding                                                                                    |
 | A new system missing from the supported-systems table           | `/pipeline` never routes to it at operate time, and nothing warns                                                                                                                         |
+| Two controller boards flashed with the same ID                  | The identification handshake raises `ValueError` on the port whose interface expects a different id (`microcontroller/interface.py` in axci). Silent only if two interfaces share an id   |
 
 ---
 

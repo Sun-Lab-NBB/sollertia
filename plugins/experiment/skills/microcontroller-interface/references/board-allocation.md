@@ -83,7 +83,9 @@ reuse-first bias rather than by copying or discarding the existing layout.
    deployment uses 101, 152, and 203, so two of its three ids sit outside that advised range
    (the per-target `kControllerID` constants in `slmc/src/main.cpp`). Pick a value that no slmc target already uses
    and that does not collide with the advised ranges of other ataraxis libraries, such as video systems. Coordinate
-   with the binding-class layer in sle.
+   with the binding-class layer in sle. Neither library range-checks the id, but the identification handshake catches
+   a repeat, because each `MicroControllerInterface` binds one port to one expected id and raises `ValueError` when
+   the board on that port reports a different one. Only two interfaces configured with the same id slip through.
 
 3. **Update `main.cpp`**:
    - Add the new `#elif defined <NEW_TARGET>` block.
