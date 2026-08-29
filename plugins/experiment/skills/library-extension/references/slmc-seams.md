@@ -149,3 +149,10 @@ rotates the encoder through every measured revolution. Neither one belongs in an
 
 Calibration and hardware positioning are experimenter-operated through the maintenance runtime GUI. You MUST NOT
 write an instruction that has an agent upload firmware, run a `pio` command, or drive hardware.
+
+Hand the experimenter the command instead of running it, because every seam above leaves a board that still needs a
+flash before the change reaches hardware. One board takes one target firmware, uploaded with
+`pio run -e <board>_<target> -t upload` while that board is the only microcontroller connected. The flashing section of
+`/microcontroller-interface`'s `references/slmc-conventions.md` carries the procedure and the two rules an upload
+follows, and it is the answer to give when a user asks how firmware reaches a board. The environment a given board
+takes is named by the consuming system's skill, which is `mesoscope:mesoscope-vr` today.

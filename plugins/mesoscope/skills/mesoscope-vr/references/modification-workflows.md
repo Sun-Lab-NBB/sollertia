@@ -122,6 +122,11 @@ targets the declared file. For the GenICam node mechanics themselves, hand off t
 For each: read the configuration, mutate the relevant field, write back via `write_system_configuration_tool`. No code
 changes needed.
 
+A replacement Teensy is the one exception, because it arrives with no firmware and its port field means nothing until
+the board is flashed with the environment its row names in
+[Hardware subsystem: microcontrollers](../SKILL.md#hardware-subsystem-microcontrollers). The experimenter runs the
+upload.
+
 ---
 
 ## Recalibrate a module

@@ -107,6 +107,11 @@ reuse-first bias rather than by copying or discarding the existing layout.
 6. **Update slmc README and CLAUDE.md**: Add the new target to the README's "Per-Target Configuration" bullet list and
    to CLAUDE.md's build-system environment table. The README and CLAUDE.md SHOULD list every supported target.
 
-7. **Hand off to the consuming system's skill**: The host-PC binding class must add a `MicroControllerInterface`
+7. **Hand the experimenter the flash command**: The board runs no firmware until it is uploaded with
+   `pio run -e <board>_<target> -t upload`, issued while that board is the only microcontroller connected. You MUST NOT
+   run the upload yourself. See the flashing section of [slmc-conventions.md](slmc-conventions.md) for the two rules an
+   upload follows and for what a board carrying the wrong target does on the host.
+
+8. **Hand off to the consuming system's skill**: The host-PC binding class must add a `MicroControllerInterface`
    instance for the new board, carrying the new controller ID and the matching `ModuleInterface` instances. This skill
    does not cover that step. See `mesoscope:mesoscope-vr` for the current worked example.

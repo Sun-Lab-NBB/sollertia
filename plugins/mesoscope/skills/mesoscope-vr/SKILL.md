@@ -199,11 +199,16 @@ configuration first, mutate the returned dictionary, then write the whole thing 
 
 The Mesoscope-VR system uses **three Teensy 4.1 microcontrollers** in dedicated roles:
 
-| Board   | Controller ID | Role                                             | Modules as `(module_type, module_id)`                                |
-|---------|---------------|--------------------------------------------------|----------------------------------------------------------------------|
-| ACTOR   | 101           | Output control (irregular, command-driven)       | brake (3,1), reward valve (5,1), gas-puff valve (5,2), screens (7,1) |
-| SENSOR  | 152           | Input sensing (regular polling, no interrupts)   | mesoscope-frame TTL (1,1), lick sensor (4,1), torque (6,1)           |
-| ENCODER | 203           | Quadrature encoder (hardware-interrupt-isolated) | wheel encoder (2,1)                                                  |
+| Board   | Controller ID | PlatformIO environment | Role                                             | Modules as `(module_type, module_id)`                                |
+|---------|---------------|------------------------|--------------------------------------------------|----------------------------------------------------------------------|
+| ACTOR   | 101           | `teensy41_actor`       | Output control (irregular, command-driven)       | brake (3,1), reward valve (5,1), gas-puff valve (5,2), screens (7,1) |
+| SENSOR  | 152           | `teensy41_sensor`      | Input sensing (regular polling, no interrupts)   | mesoscope-frame TTL (1,1), lick sensor (4,1), torque (6,1)           |
+| ENCODER | 203           | `teensy41_encoder`     | Quadrature encoder (hardware-interrupt-isolated) | wheel encoder (2,1)                                                  |
+
+Each board takes the firmware of the environment its row names, uploaded from the slmc repository with
+`pio run -e <environment> -t upload` while that board is the only microcontroller connected to the host. The
+experimenter runs every upload. `experiment:microcontroller-interface` carries the procedure and the two rules an
+upload follows in its `references/slmc-conventions.md`.
 
 Board allocation reasoning is documented in `experiment:microcontroller-interface`'s "Controller board allocation
 principles" section. The Mesoscope-VR three-board split is one valid application of the platform-general allocation

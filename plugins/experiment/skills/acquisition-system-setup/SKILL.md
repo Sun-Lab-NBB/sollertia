@@ -33,6 +33,7 @@ creation are owned by sibling plugins, named per item in the hand-off list below
 - Reading, writing, or validating system configuration YAML → the active acquisition system's skill
   (`mesoscope:mesoscope-vr` for the current worked example)
 - Verifying an out-of-process tool environment the active system declares → that same system's skill
+- Building or flashing controller firmware onto a microcontroller board → `/microcontroller-interface`
 - Extending the platform with a new acquisition system → `/library-extension`
 - Creating projects → `assets:project-hierarchy`
 - Authoring task templates → `assets:task-templates`
@@ -305,19 +306,20 @@ on the `slf mcp` server.
 
 ## Troubleshooting
 
-| Error                                  | Cause                                  | Solution                                                                              |
-|----------------------------------------|----------------------------------------|---------------------------------------------------------------------------------------|
-| Camera not found at expected index     | Wrong camera index                     | Re-run `list_cameras_tool()`, hand off to the active system's skill                   |
-| Microcontroller connection failed      | Wrong port or disconnected             | Re-run `list_microcontrollers_tool()`, check USB cables                               |
-| Zaber motor not responding             | Wrong port or powered off              | Re-run `get_zaber_devices_tool()`, verify power supply                                |
-| MQTT broker unreachable                | Broker not running                     | Start Mosquitto or the configured MQTT broker                                         |
-| Unity bridge unreachable               | Unity Editor not open                  | Open the Unity project in the editor, whose MCP bridge auto-starts                    |
-| FFMPEG not found                       | FFMPEG not installed                   | Install FFMPEG via the OS package manager                                             |
-| GPU not detected                       | NVIDIA driver missing                  | Install NVIDIA driver and restart                                                     |
-| CTI file not configured                | GenTL producer not registered          | Hand off to `video:camera-setup` to register the CTI file                             |
-| Out-of-process tool fails to start     | Declared environment or path missing   | Create the environment, or fix the path through the active system's skill             |
-| Live camera config differs from stored | Camera drifted or reconfigured         | Restore via `load_genicam_config_tool`, or re-baseline via `dump_genicam_config_tool` |
-| Stored camera config file not found    | Declared path points at a missing file | Dump a baseline with `dump_genicam_config_tool`, or fix the path through that skill   |
+| Error                                     | Cause                                  | Solution                                                                              |
+|-------------------------------------------|----------------------------------------|---------------------------------------------------------------------------------------|
+| Camera not found at expected index        | Wrong camera index                     | Re-run `list_cameras_tool()`, hand off to the active system's skill                   |
+| Microcontroller connection failed         | Wrong port, disconnected, or unflashed | Re-run `list_microcontrollers_tool()`, check USB cables, confirm the board is flashed |
+| Board reports an unexpected controller id | Board flashed with another target      | Re-flash the board's own environment, see `/microcontroller-interface`                |
+| Zaber motor not responding                | Wrong port or powered off              | Re-run `get_zaber_devices_tool()`, verify power supply                                |
+| MQTT broker unreachable                   | Broker not running                     | Start Mosquitto or the configured MQTT broker                                         |
+| Unity bridge unreachable                  | Unity Editor not open                  | Open the Unity project in the editor, whose MCP bridge auto-starts                    |
+| FFMPEG not found                          | FFMPEG not installed                   | Install FFMPEG via the OS package manager                                             |
+| GPU not detected                          | NVIDIA driver missing                  | Install NVIDIA driver and restart                                                     |
+| CTI file not configured                   | GenTL producer not registered          | Hand off to `video:camera-setup` to register the CTI file                             |
+| Out-of-process tool fails to start        | Declared environment or path missing   | Create the environment, or fix the path through the active system's skill             |
+| Live camera config differs from stored    | Camera drifted or reconfigured         | Restore via `load_genicam_config_tool`, or re-baseline via `dump_genicam_config_tool` |
+| Stored camera config file not found       | Declared path points at a missing file | Dump a baseline with `dump_genicam_config_tool`, or fix the path through that skill   |
 
 For configuration-file-level errors (working directory not set, schema validation failures, missing projects), hand off
 to the assets plugin skill that owns the affected asset.

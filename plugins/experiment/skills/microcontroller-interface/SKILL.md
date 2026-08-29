@@ -3,7 +3,8 @@ name: microcontroller-interface
 description: >-
   Registry of paired Module (sollertia-micro-controllers) and ModuleInterface (sollertia-experiment) classes available
   to Sollertia acquisition systems, plus the conventions on top of the ataraxis base templates and principles for adding
-  modules or controller boards. Use when extending hardware support or modifying a paired Module + Interface.
+  modules or controller boards. Use when extending hardware support, modifying a paired Module + Interface, or
+  answering how to build and flash a target firmware onto a controller board.
 user-invocable: false
 ---
 
@@ -39,6 +40,7 @@ lives in `/acquisition-system-design`.
 - Principles for adding or removing modules on both sides
 - Principles for allocating modules across controller boards
 - Workflows for adding paired modules and adding new controller boards
+- Building and flashing per-target firmware, covering the PlatformIO environment each controller board takes
 
 **Does not cover:**
 - Base `Module` / `ModuleInterface` API, `PACKED_STRUCT` mechanics, `SendData` patterns, event-code ranges,
@@ -105,8 +107,13 @@ The slmc firmware `Module` subclass conventions that extend or deviate from `mic
 [`references/slmc-conventions.md`](references/slmc-conventions.md). They cover header guards, template-parameterized
 pins, named parameter defaults, and the mandatory `LED_BUILTIN` and pin-collision static_asserts. They also cover
 `constexpr` polarity logic, initial-state reporting from `SetupModule()`, per-instance state and its restoration on
-reset, stage-based commands and blocking exceptions, pin primitives, the multi-target `main.cpp` pattern, and the
-clang-tidy gate. Every slmc `Module` subclass MUST follow them.
+reset, stage-based commands and blocking exceptions, pin primitives, the multi-target `main.cpp` pattern, the
+per-target flashing procedure, and the clang-tidy gate. Every slmc `Module` subclass MUST follow them.
+
+A board takes the firmware of exactly one target, uploaded with `pio run -e <board>_<target> -t upload` while that board
+is the only microcontroller connected. The experimenter runs every upload, so hand over the command rather than running
+it. The flashing section of [`references/slmc-conventions.md`](references/slmc-conventions.md) carries the procedure
+and the two rules an upload follows, and the consuming system's skill names the environment each of its boards takes.
 
 ---
 
