@@ -56,32 +56,35 @@ depend on the listener: the shipped Python wrapper hard-codes `http://localhost:
 `sollertia-shared-assets/.../interfaces/unity_tools.py`, while the acquisition runtime's `UnityBridgeClient` defaults
 to `127.0.0.1` through `_BRIDGE_HOST` in `sollertia-experiment/.../vr_task/bridge.py`. Both of those prefixes are
 load-bearing in production, and `[::1]` is load-bearing on Mono, where the `localhost` prefix alone can bind only the
-IPv6 stack. The 15 relayed tools are:
+IPv6 stack. The 18 relayed tools are:
 
-| Tool                         | Owning skill       |
-|------------------------------|--------------------|
-| `create_task_tool`           | `/task-prefabs`    |
-| `delete_task_tool`           | `/task-prefabs`    |
-| `inspect_prefab_tool`        | `/task-prefabs`    |
-| `delete_asset_tool`          | `/task-prefabs`    |
-| `clone_zone_prefab_tool`     | `/zone-prefabs`    |
-| `list_assets_tool`           | `/task-scenes`     |
-| `list_scenes_tool`           | `/task-scenes`     |
-| `open_scene_tool`            | `/task-scenes`     |
-| `inspect_scene_tool`         | `/task-scenes`     |
-| `enter_play_mode_tool`       | `/play-mode`       |
-| `exit_play_mode_tool`        | `/play-mode`       |
-| `get_play_state_tool`        | `/play-mode`       |
-| `read_task_parameters_tool`  | `/task-parameters` |
-| `write_task_parameters_tool` | `/task-parameters` |
-| `refresh_monitors_tool`      | `/task-parameters` |
+| Tool                         | Owning skill                   |
+|------------------------------|--------------------------------|
+| `create_task_tool`           | `/task-prefabs`                |
+| `delete_task_tool`           | `/task-prefabs`                |
+| `inspect_prefab_tool`        | `/task-prefabs`                |
+| `delete_asset_tool`          | `/task-prefabs`                |
+| `clone_zone_prefab_tool`     | `/zone-prefabs`                |
+| `list_assets_tool`           | `/task-scenes`                 |
+| `refresh_assets_tool`        | `/task-scenes`                 |
+| `list_scenes_tool`           | `/task-scenes`                 |
+| `open_scene_tool`            | `/task-scenes`                 |
+| `save_scene_tool`            | `/task-scenes`                 |
+| `inspect_scene_tool`         | `/task-scenes`                 |
+| `enter_play_mode_tool`       | `/play-mode`                   |
+| `exit_play_mode_tool`        | `/play-mode`                   |
+| `get_play_state_tool`        | `/play-mode`                   |
+| `read_task_parameters_tool`  | `/task-parameters`             |
+| `write_task_parameters_tool` | `/task-parameters`             |
+| `refresh_monitors_tool`      | `/task-parameters`             |
+| `read_console_tool`          | `/unity-mcp-environment-setup` |
 
-Three read-only tools serve as **natural shares** that skills beyond their owner may call. `inspect_prefab_tool`
-inspects a prefab hierarchy, `get_play_state_tool` confirms the Editor sits in `edit` before a mutating call, and
-`list_assets_tool` enumerates prefabs for `/task-prefabs`. Every other tool in the table is owned exclusively by the
-listed skill.
+Four read-only tools serve as **natural shares** that skills beyond their owner may call. `inspect_prefab_tool`
+inspects a prefab hierarchy, `get_play_state_tool` confirms the Editor sits in `edit` before a mutating call,
+`list_assets_tool` enumerates prefabs for `/task-prefabs`, and `read_console_tool` reads the Unity Console that every
+skill prescribing a Console check depends on. Every other tool in the table is owned exclusively by the listed skill.
 
-All 15 tools require **both** the `slsa mcp` MCP server to be connected **and** the Unity Editor to be running with
+All 18 tools require **both** the `slsa mcp` MCP server to be connected **and** the Unity Editor to be running with
 `sollertia-virtual-reality` open.
 
 ---
@@ -293,7 +296,7 @@ Claude.
 
 ### Unity side
 
-1. **Add the `Dispatch` case.** `Dispatch` (`McpBridge.cs`) is one `switch` expression whose fifteen arms map a wire
+1. **Add the `Dispatch` case.** `Dispatch` (`McpBridge.cs`) is one `switch` expression whose eighteen arms map a wire
    tool name to a handler, with a `_` arm returning `Error($"Unknown tool: {tool}")`. Add one arm, in the order the
    README's bridge table lists it. The wire name is snake_case and carries **no** `_tool` suffix, because that suffix
    belongs to the Python wrapper alone.
@@ -341,20 +344,19 @@ The Unity half is unreachable from Claude until a matching wrapper exists in
 ### Finish the change
 
 - Add a row to the tool-ownership table in this skill's "Architecture" section naming the owning skill. Then bump all
-  three counts ("The 15 relayed tools are:", "All 15 tools require ...", and the "fifteen arms" count in "Adding a
+  three counts ("The 18 relayed tools are:", "All 18 tools require ...", and the "eighteen arms" count in "Adding a
   bridge tool"). An unowned tool breaks the plugin's exclusive-ownership lattice.
-- Update the `sollertia-virtual-reality` README's "Editor MCP Bridge" table **and** its `The bridge dispatches **15
+- Update the `sollertia-virtual-reality` README's "Editor MCP Bridge" table **and** its `The bridge dispatches **18
   tools**:` count in the same change, because that README is the catalog.
 - Update the `sollertia-shared-assets` README's MCP tool table and the Unity-tool list in the `***Note,***` paragraph
   that follows it, because agents read that README as the wrapper catalog.
-- Bump the remaining counts: the `sollertia-virtual-reality` README's "15 Editor operations" bullet, its `CLAUDE.md`
-  "dispatches 15 tools" line, the `eleven of the fifteen` counts in `/unity-tests`, and the `<remarks>` count on
+- Bump the remaining counts: the `sollertia-virtual-reality` README's "18 Editor operations" bullet, its `CLAUDE.md`
+  "dispatches 18 tools" line, the `thirteen of the eighteen` counts in `/unity-tests`, the `Unity Editor relay` row
+  and the `eighteen Unity tools` phrase in `assets:cli-reference`, and the `<remarks>` count on
   `Dispatch_DeclaredToolName_DoesNotFallThroughToUnknownTool` in `McpBridgeTests.cs`.
-- Bump the count in `plugins/assets/skills/assets-mcp-environment-setup/SKILL.md`, which says "15 Unity-relay tools,
-  spanning seven families". Its family grouping must still partition the full roster: a new tool either joins one of
-  the seven families or makes an eighth, so update the family count in the same edit.
-- Bump the `fifteen-tool` wording in the plugin descriptions, meaning `plugins/unity/.claude-plugin/plugin.json` and the
-  unity plugin's entry in `.claude-plugin/marketplace.json`, because both advertise the relay's tool surface.
+- Bump the count in `plugins/assets/skills/assets-mcp-environment-setup/SKILL.md`, which says "18 Unity-relay tools,
+  spanning eight families". Its family grouping must still partition the full roster: a new tool either joins one of
+  the eight families or makes a ninth, so update the family count in the same edit.
 - Document the tool in the owning skill's own tool surface, and register the handler with whichever bridge fixture its
   prerequisites allow, meaning `McpBridgeTests`, `McpBridgeTaskParametersTests`, or `McpBridgePlayModeTests` (see
   `/unity-tests`).
