@@ -76,7 +76,8 @@ files before each edit, because Unity GUIDs are sticky but verification catches 
 | `OccupancyZone`         | `Assets/InfiniteCorridorTask/Scripts/OccupancyZone.cs.meta`         | `5ac4de8c500fd94d192243204f3a2a99` |
 | `OccupancyGuidanceZone` | `Assets/InfiniteCorridorTask/Scripts/OccupancyGuidanceZone.cs.meta` | `dcab3a92479672720b736c7ef24fcacf` |
 
-For a newly authored script, read its `.cs.meta` to extract the freshly minted GUID.
+For a newly authored script, call `refresh_assets_tool` so the Editor imports the file and mints its `.cs.meta`, then
+read that file for the fresh GUID.
 
 ---
 
@@ -168,8 +169,8 @@ The `m_EditorClassIdentifier` is informational, but updating it preserves diff r
 the Editor later. The committed templates leave the field empty on the root MonoBehaviour in both prefabs and populate
 it on modifier MonoBehaviours (`Assembly-CSharp::OccupancyZone`, `Assembly-CSharp::OccupancyGuidanceZone`) in
 `OccupancyTriggerZone.prefab`, so preserve the source's polarity when editing. Those two literals are pre-`.asmdef`
-leftovers that Unity rewrites on reimport, and no script compiles into `Assembly-CSharp` any more. A **newly authored**
-value must name the real assembly and the fully qualified type, so a zone script under
+leftovers that Unity rewrites on reimport, and no script in the project compiles into `Assembly-CSharp`. A **newly
+authored** value must name the real assembly and the fully qualified type, so a zone script under
 `Assets/InfiniteCorridorTask/Scripts/` declaring `namespace SL.Tasks` is
 `Sollertia.InfiniteCorridorTask::SL.Tasks.<Class>`. Read the script's own `namespace` line rather than assuming
 `SL.Tasks` (`ConfigLoader.cs` declares `namespace SL.Config`).
@@ -246,9 +247,11 @@ its Transform fileID from the parent's `m_Children` list.
 
 ### Step 6: Validate via inspect_prefab_tool
 
-Run `inspect_prefab_tool` (a read-only **natural share** any skill may call) against the new prefab. The tool returns
-the hierarchy Unity actually loads. If the YAML is malformed, the tool errors out before producing a hierarchy, which is
-a stronger signal than visual inspection.
+Call `refresh_assets_tool` first, because the prefab was written outside the Editor and `inspect_prefab_tool` resolves
+it through `AssetDatabase`, which reports `Prefab not found at: <path>` for a file the Editor has not imported. Then run
+`inspect_prefab_tool` (a read-only **natural share** any skill may call) against the new prefab. The tool returns the
+hierarchy Unity actually loads. If the YAML is malformed, the tool errors out before producing a hierarchy, which is a
+stronger signal than visual inspection.
 
 ```text
 inspect_prefab_tool(prefab_path="Assets/InfiniteCorridorTask/Prefabs/MyNewTriggerZone.prefab")
@@ -267,5 +270,5 @@ Verify:
   `BoxCollider.m_IsTrigger: 1` invariant from the tables above.
 - The hierarchy depth and child ordering match the template you copied.
 
-If `inspect_prefab_tool` fails, the YAML is broken. Re-read the file, compare to the source template via `git diff`, and
-fix the structural divergence before continuing.
+If `inspect_prefab_tool` fails, the YAML is broken. Read Unity's own import error through `read_console_tool`, compare
+the file to the source template via `git diff`, and fix the structural divergence before continuing.
