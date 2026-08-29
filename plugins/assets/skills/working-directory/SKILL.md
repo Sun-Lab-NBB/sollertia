@@ -129,15 +129,18 @@ back to the persisted record whenever `root_directory` is omitted.
 
 The task templates directory is a standalone directory (separate from the working directory) that holds reusable
 `TaskTemplate` YAML files. This is typically the path to the local sollertia-virtual-reality repository's template
-directory: `<local-repo>/Assets/InfiniteCorridorTask/Configurations/`. The MCP `create_task_tool` refuses templates
-outside that directory (see `unity_tools.py`), and the Unity-side `CreateFromTemplate` generator scans the same
+directory: `<local-repo>/Assets/InfiniteCorridorTask/Configurations/`. A template outside that directory is invisible to
+the MCP `create_task_tool` (see `unity_tools.py`). The Unity-side `CreateFromTemplate` generator scans the same
 directory (see `unity:task-prefabs` for `create_task_tool` and `unity:task-generator` for the generator's directory
 scan), so this directory is the single source of truth. Keep it pointed at the canonical repo path.
 
 Templates are **project-agnostic**, so the same template can back many per-project experiment configuration instances
 across different projects and even across different hosts. Decoupling the templates directory from the working directory
-lets multiple hosts share the same template set (for example, via a network mount or a synced folder). It also lets a
-single host maintain one template library that serves all of its projects.
+lets multiple hosts share the same template set (for example, via a network mount or a synced folder), and lets a single
+host maintain one template library that serves all of its projects. Sharing is safe only on a host that never calls
+`unity:task-prefabs` `create_task_tool`, which resolves the template basename inside the Unity project's own
+`Configurations/` folder and ignores this record. You MUST keep the record on the `Configurations/` folder of the local
+sollertia-virtual-reality clone on any host that generates Unity tasks.
 
 The templates directory must be set before any template authoring (`/task-templates`) work, because the authoring tools
 resolve their target directory from the persisted record. Experiment configuration does not read that record:
@@ -300,6 +303,10 @@ Skip this step if Step 5 was skipped, because there is no templates directory to
 discover tool that `/task-templates` also exposes, and the call here exists only to validate the templates path was set
 correctly. Do not inspect or modify any template content from this skill, because `/task-templates` owns that.
 
+A `discover_templates_tool` success proves only that this record points at readable templates. It does not imply that
+`unity:task-prefabs` `create_task_tool` will find them, because that tool resolves the template basename inside the
+Unity Editor's own project folder rather than through this record.
+
 ### CLI equivalents
 
 Every bootstrap step that writes a record has a `slsa` CLI equivalent, for a host operating without the MCP server.
@@ -356,7 +363,9 @@ whole Sollertia lifecycle and names the phase that follows working-directory set
 - **New host that will author or consume templates:** Step 5 during initial bootstrap.
 - **Templates directory relocated:** Step 5 to update the stored path, then step 6 to verify templates are still
   discoverable.
-- **Switching to a shared network templates directory:** Step 5 to point at the new mount, then step 6.
+- **Switching to a shared network templates directory:** Step 5 to point at the new mount, then step 6. Do this only on
+  a host that never calls `unity:task-prefabs` `create_task_tool`, which resolves a template basename under the Unity
+  project's own `Assets/InfiniteCorridorTask/Configurations/` and ignores this record.
 
 ### Diagnosing a path-record failure
 
