@@ -279,6 +279,33 @@ library, so `automation:platformio-config`'s `lib_deps` mirroring rule has nothi
 
 ---
 
+## Flashing a target
+
+Each controller board runs one target firmware, so an upload names the environment carrying that target's macro. The
+experimenter runs every upload, because a flash needs physical access to the board.
+
+```bash
+pio run -e <board>_<target> -t upload    # Compiles one target and flashes it to the connected board
+```
+
+Two rules govern the procedure, and `slmc/README.md` states both as the operator-facing source of truth:
+
+- Connect exactly one microcontroller for the duration of an upload, because some hosts select the wrong upload target
+  when several boards are attached. Flash one board, disconnect it, then attach the next one.
+- Always pass `-e`. An upload command naming no environment processes every environment in turn, flashing the connected
+  board with each target firmware and leaving it running the last one.
+
+Which environment a given physical board takes is a consumer-owned assignment rather than a firmware-general one,
+because slmc defines the target mechanism while the acquisition system defines the targets themselves. The consuming
+system's skill names the environment, controller id, and module set of each board it wires, and that skill is
+`mesoscope:mesoscope-vr` today.
+
+A board carrying the wrong target announces the wrong controller id, so the `MicroControllerInterface` bound to that
+port raises `ValueError` during its identification handshake. Re-flash a board whenever a module's command codes, event
+codes, or parameter-struct layout change, because the wire format is positional and carries no field names.
+
+---
+
 ## Clang-tidy gate
 
 `platformio.ini` enables clang-tidy as a PlatformIO check tool, so `pio check` is a gate on firmware changes alongside
