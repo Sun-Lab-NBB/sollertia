@@ -8,13 +8,13 @@ surface, the authoring workflow, and the verification checklist.
 
 ## How template fields are used
 
-| Field                                 | Consumer-side role                                                                                                                                                                                                                                                                                                       |
-|---------------------------------------|--------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
-| **`cues`**                            | Unity bakes wall textures from each cue's `texture` asset. The uint8 `code` is the on-the-wire identifier the runtime uses for analysis.                                                                                                                                                                                 |
-| **`vr_environment`**                  | Parameterizes corridor geometry: how many segments are visible at once, how parallel corridor instances are spaced, the centimeter to Unity-unit conversion, the padding prefab, and the cue offset that shifts the cue sequence origin relative to each corridor's spawn point. See `unity:task-prefabs` for specifics. |
-| **`trial_structures`**                | Spatial config per trial type, covering the cue sequence, stimulus trigger zone bounds, stimulus location, visible-boundary flag, trigger type, and optional transitions. The trigger type tells Unity which zone prefab to bake.                                                                                        |
-| **`trial_structures[].cue_sequence`** | Drives Unity's segment-prefab geometry: each trial generates a single segment prefab whose cue ordering matches this sequence. Cue prefab lengths sum to the segment length used by zone validation.                                                                                                                     |
-| **`trial_structures[].transitions`**  | Drives Unity's segment-sequence resolver at session init. Sampled to materialize the deterministic trial chain. A null or empty map falls back to uniform-random successor selection.                                                                                                                                    |
+| Field                                 | Consumer-side role                                                                                                                                                                                                                                                                                                        |
+|---------------------------------------|---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| **`cues`**                            | Unity bakes wall textures from each cue's `texture` asset. The uint8 `code` is the on-the-wire identifier the runtime uses for analysis.                                                                                                                                                                                  |
+| **`vr_environment`**                  | Parameterizes corridor geometry: how many segments are visible at once, how parallel corridor instances are spaced, the centimeter to Unity-unit conversion, the padding prefab, and the cue offset that shifts the cue sequence origin relative to each corridor's spawn point. See `unity:task-generator` for specifics.|
+| **`trial_structures`**                | Spatial config per trial type, covering the cue sequence, stimulus trigger zone bounds, stimulus location, visible-boundary flag, trigger type, and optional transitions. The trigger type tells Unity which zone prefab to bake.                                                                                         |
+| **`trial_structures[].cue_sequence`** | Drives Unity's segment-prefab geometry: each trial generates a single segment prefab whose cue ordering matches this sequence. Cue prefab lengths sum to the segment length used by zone validation.                                                                                                                      |
+| **`trial_structures[].transitions`**  | Drives Unity's segment-sequence resolver at session init. Sampled to materialize the deterministic trial chain. A null or empty map falls back to uniform-random successor selection.                                                                                                                                     |
 
 After Unity emits the materialized cue sequence at session start, the acquisition runtime **decomposes it back into a
 trial timeline** by motif-matching each `TrialStructure`'s cue sequence against the materialized sequence. The trial
@@ -81,6 +81,8 @@ does **not** require a `from_task_template` branch in every system, because a sy
   and the matching experiment-config trial class is the experiment config's contract with the runtime's stimulus
   delivery code.
 - **`cue_offset_cm` lives on `vr_environment`** because the cue-origin shift is an attribute of the corridor geometry
-  itself, and every Unity-spawned corridor instance sees the same value. On the Unity side, in
-  `sollertia-virtual-reality`, it also drives the per-segment ResetZone placement, so the animal's spawn point falls
-  inside the reset zone on every lap restart. See the unity plugin's skills for the prefab-generation specifics.
+  itself, and every Unity-spawned corridor instance sees the same value. Unity's `CreateTask` reads it as
+  `VREnvironment.CueOffsetUnity` (`cueOffsetCm / cmPerUnityUnit`), authors every segment prefab's root at
+  `(0, 0, -cueOffsetUnity)`, and anchors each corridor's padding at `zShift - cueOffsetUnity`. Per-lap zone reset is
+  offset-independent, driven at each corridor advance by `Task.ResetZoneStates()`. See `unity:task-generator` and its
+  `references/prefab-anatomy.md` for generation specifics.
