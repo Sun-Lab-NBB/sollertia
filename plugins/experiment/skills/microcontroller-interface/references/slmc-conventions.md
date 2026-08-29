@@ -244,7 +244,9 @@ every supported target macro, so a build that selects none fails with the list i
 
 Three named constants at the top of `main.cpp` are set globally for all targets and apply to every module regardless of
 board. They are `kKeepaliveInterval = 500` milliseconds, `kSerialBaudRate = 115200`, which Teensy boards ignore, and
-`kAnalogReadResolution = 12`, the 0-4095 readout range the analog modules assume.
+`kAnalogReadResolution = 12`, the 0-4095 readout range the analog modules assume. All three are cross-repo constants, so
+see the constants table in [`../SKILL.md`](../SKILL.md#cross-repo-constants-that-move-together) for the host mirror each
+one carries.
 
 The target-selection block is wrapped in a `NOLINTBEGIN(*-magic-numbers)` / `NOLINTEND` band. Its literals are
 hardware assignments, covering pin numbers, module type codes, per-controller instance ids, and the torque
@@ -270,8 +272,8 @@ appending one `-D <MACRO>` to the inherited `build_flags`. Every environment the
 monitor speed 115200, so Teensy 4.1 is the only board family slmc targets today. A second board family
 means a second non-`env:` template plus one environment per target macro.
 
-`lib_deps` holds three caret-pinned entries: `inkaros/ataraxis-transport-layer-mc@^4.0.1`,
-`inkaros/ataraxis-micro-controller@^4.0.2`, and `paulstoffregen/Encoder@^1.4.4`. A new third-party library is added
+`lib_deps` holds three caret-pinned entries: `inkaros/ataraxis-transport-layer-mc@^4.0.2`,
+`inkaros/ataraxis-micro-controller@^4.0.3`, and `paulstoffregen/Encoder@^1.4.4`. A new third-party library is added
 here with the same caret pin. `slmc` ships no `library.json`, because it is a firmware project rather than a PlatformIO
 library, so `automation:platformio-config`'s `lib_deps` mirroring rule has nothing to mirror into.
 
