@@ -331,14 +331,17 @@ The runtime orchestrator owns the driver lifecycle. The current worked example i
 
 ## Known edge cases
 
-- The `Delay` branch of `cycle()` decodes its payload without the `None` guard the `Stimulus` branch carries
-  (both branches live in `VRTaskDriver.cycle`, `vr_task/driver.py`).
-- `push_position` tests the truthiness of the delta, so an exactly-zero delta publishes nothing
-  (`vr_task/driver.py`).
-- `_stop_unity` drains `SessionStop` within 5 seconds, so `cycle()` never misreads a commanded exit as an
-  unexpected Unity termination (`vr_task/driver.py`).
+- The `Delay` branch of `cycle()` decodes its payload without the `None` guard the `Stimulus` branch carries (both
+  branches live in `VRTaskDriver.cycle`, `vr_task/driver.py`).
+- `push_position` tests the truthiness of the delta, so an exactly-zero delta publishes nothing (`vr_task/driver.py`).
+- `_stop_unity` drains `SessionStop` within 5 seconds, so `cycle()` never misreads a commanded exit as an unexpected
+  Unity termination (`vr_task/driver.py`).
 - `_arm_unity` restarts Play Mode when Unity already reports `"playing"`, because an earlier `SessionStart` never
   repeats and a fresh entry yields a clean VR origin (`vr_task/driver.py`).
+- Unity's `Task.cs` disables itself mid-run on the corridor-key and segment-exhaustion bailouts, and `SessionStop`
+  publishes only from `MQTTClient.OnApplicationQuit`, so the driver reads a silent stall instead of `UNITY_TERMINATED`.
+  The diagnostic is the Unity Console error, which `read_console_tool` (`unity:unity-mcp-environment-setup`) returns
+  with `level="error"`, and `unity:task-generator` catalogues every bailout.
 
 ---
 
@@ -396,6 +399,7 @@ runtime.
 | Active scene name            | `expected_scene_name` + `SceneName` handshake | `unity:task-scenes`, `unity:task-prefabs`                                        | `assets:experiment-configuration` (`unity_scene_name`) |
 | Cue catalog / trial motifs   | `decompose_cue_sequence` (this skill)         | `unity:task-generator`, `unity:task-prefabs`                                     | `assets:task-templates` (`TaskTemplate`)               |
 | TriggerType / trigger zones  | `trial_names` join key (this skill)           | `unity:zone-prefabs`, `unity:task-generator`                                     | `assets:library-extension`, `assets:task-templates`    |
+| Unity-side runtime bailouts  | Known edge cases (this skill)                 | `unity:task-generator` (`Task.cs` self-disable paths)                            | (none)                                                 |
 
 When in doubt, re-read `vr_task/driver.py`, `vr_task/configuration.py`, and `vr_task/trial_decomposition.py` and
 reconcile this skill against ground truth.
