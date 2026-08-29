@@ -174,7 +174,7 @@ the matching fixture in the same change as the source edit.
 | `MQTTTopicsTests`   | `ExpectedTopicCount = 12` and the twelve-literal `ExpectedTopics` array                    | An `MQTTTopics` constant is added         |
 | `TriggerModeTests`  | Five `TriggerMode` members, their declaration order, and the accepted ordinals 0 through 4 | A `TriggerMode` member is added           |
 | `ControllerTests`   | `ControllerTypes` holding exactly two members, and each name resolving to `Gimbl.<Name>`   | A controller type is added                |
-| `McpBridgeTests`    | Eleven of the fifteen dispatched tool names, and seven protected asset paths               | A bridge tool or protected asset is added |
+| `McpBridgeTests`    | Thirteen of the eighteen dispatched tool names, and seven protected asset paths            | A bridge tool or protected asset is added |
 | `ConfigLoaderTests` | The accepted `trigger_type` literal set quoted in the rejection message                    | A `trigger_type` literal is accepted      |
 
 **`MQTTTopicsTests`** requires three edits for a new topic: bump `ExpectedTopicCount`, add the literal to
@@ -199,7 +199,7 @@ assert.
 
 **`McpBridgeTests`** carries the per-tool registration a new bridge tool joins.
 `Dispatch_DeclaredToolName_DoesNotFallThroughToUnknownTool` takes one `[TestCase]` per tool name and currently covers
-eleven of the fifteen names `McpBridge.Dispatch` handles. Its XML remark states that count and names the four
+thirteen of the eighteen names `McpBridge.Dispatch` handles. Its XML remark states that count and names the four
 exclusions, so the remark is updated alongside the case list. The exclusions are deliberate. `enter_play_mode` would
 strand the Editor in Play Mode for the rest of the run and is covered by `McpBridgePlayModeTests` instead.
 `read_task_parameters`, `write_task_parameters`, and `refresh_monitors` need the `FullScreenViewManager` fixture and are
