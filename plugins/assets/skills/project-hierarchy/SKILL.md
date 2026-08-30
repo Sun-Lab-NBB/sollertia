@@ -361,7 +361,7 @@ strategy lists it once it holds a session.
 |-----------------------------------------|--------------------------------------------------------------------------------------------------|
 | `/cli-reference`                        | Owns the `slsa get projects` and `slsa configure project` commands                               |
 | `/assets-mcp-environment-setup`         | Run first if the MCP server is not connected                                                     |
-| `/working-directory`                    | Required prerequisite. Bootstraps the local working directory used to resolve project roots      |
+| `/working-directory`                    | Owns the persisted data root that `create_project_tool` uses when `root_directory` is omitted    |
 | `experiment:acquisition-system-runtime` | Creates sessions via `SessionData.create`. Project directories must exist beforehand             |
 | `experiment:data-management`            | Preprocesses, migrates, and deletes sessions. Migration requires an existing destination project |
 | `/experiment-configuration`             | Consumes projects to author experiment YAMLs                                                     |

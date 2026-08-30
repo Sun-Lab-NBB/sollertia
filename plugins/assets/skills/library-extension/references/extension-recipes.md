@@ -221,15 +221,16 @@ one, enumerating both explicitly rather than lengthening a "currently only X" ch
   per-system runtime skill. Both live in the system's companion plugin rather than in the experiment plugin, and both
   are required deliverables. The assets plugin's generic skills carry pointers that assume the per-system schema skills
   exist, so a system that stops at the code is driveable yet undocumented for every agent that would drive it.
-- `sollertia-forgery` dispatches every per-system behavior through eleven registries in
+- `sollertia-forgery` dispatches every per-system behavior through thirteen registries in
   `src/sollertia_forgery/registries.py`, and the new system needs an entry in each of them before its sessions are
   processed or forged. `forging:library-extension` carries the roster and the donation shape each one expects, and
-  `_assert_registry_coverage()` in that module reports every system a registry omits. Two of the eleven gate the dataset
-  seam outright. `_FORGING_ASSEMBLY_REGISTRY` carries the system's `column_descriptions`, which the agnostic pipeline
-  bakes into the dataset's `data_descriptions.feather` when the dataset is defined, and `_FORGING_ADMISSION_REGISTRY`
-  carries the per-session-type pipeline requirements, so a session type absent from a system's mapping joins no dataset.
-  Hand off to `forging:dataset-definition` for the admission policy and the column-description companion, and to
-  `forging:data-processing-design` for the per-stage processing design behind the remaining entries.
+  `_assert_registry_coverage()` in that module walks all thirteen in one coverage tuple and reports every system a
+  registry omits. Two of the thirteen gate the dataset seam outright. `_FORGING_ASSEMBLY_REGISTRY` carries the system's
+  `column_descriptions`, which the agnostic pipeline bakes into the dataset's `data_descriptions.feather` when the
+  dataset is defined, and `_FORGING_ADMISSION_REGISTRY` carries the per-session-type pipeline requirements, so a session
+  type absent from a system's mapping joins no dataset. Hand off to `forging:dataset-definition` for the admission
+  policy and the column-description companion, and to `forging:data-processing-design` for the per-stage processing
+  design behind the remaining entries.
 - `sollertia-virtual-reality` may need new scene scaffolding when the new system uses Unity.
 
 ---
@@ -454,9 +455,11 @@ frozen contract.
 6. Extend `test_session_data_processed_data_directory_paths` and `test_session_data_processing_tracker_paths` in
    `tests/data_hierarchy/session_data_test.py` with the new directory and tracker.
 
-A tracker written outside a session takes touches 2, 5, and 6 alone, because no fixed per-session path addresses it.
-`ProcessingTrackers.FORGING` lives at the forged dataset root and `ProcessingTrackers.MANIFEST` at the project root, and
-neither carries a `ProcessedData` field.
+A tracker written outside a session takes touches 2 and 5 alone, plus a value assertion in
+`test_processing_trackers_enum_is_string_enum` in `tests/data_hierarchy/session_data_test.py`, because no fixed
+per-session path addresses it and neither test named in touch 6 can assert on it. Both tests resolve a
+`session.processed_data.<field>` attribute, which such a tracker never gains. `ProcessingTrackers.FORGING` lives at the
+forged dataset root and `ProcessingTrackers.MANIFEST` at the project root, and neither carries a `ProcessedData` field.
 
 **Skill touches:**
 

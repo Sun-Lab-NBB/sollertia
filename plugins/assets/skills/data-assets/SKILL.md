@@ -87,8 +87,10 @@ of `read_data_asset_tool`'s dispatch and is documented in `/library-extension`.
 resolved dataclass name), and `data_asset` (the caller's input echoed back). The last two are attached only on success,
 so a failure envelope carries neither and cannot be used to confirm which class the dispatch picked.
 `describe_data_asset_schema_tool` returns `data_asset`, `data_asset_class`, and `schema`. It is the one describe tool in
-the module that names the resolved class, so a caller can confirm the dispatch without a second call. The shape of the
-`schema` payload is documented in the `## Response contract` section of `/assets-mcp-environment-setup`.
+the module that names the resolved class in a dedicated top-level `data_asset_class` key, while the sibling describe
+tools report the resolved class inside `schema["class"]` instead. Either way, a caller can confirm the dispatch without
+a second call. The shape of the `schema` payload is documented in the `## Response contract` section of
+`/assets-mcp-environment-setup`.
 
 ### Failure modes
 

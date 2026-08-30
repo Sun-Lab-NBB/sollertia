@@ -146,8 +146,10 @@ reads downstream as "this hardware module was not used". A field missing from th
 acquisition record as a false claim rather than as a visible gap. There is no partial-update tool.
 
 On success, `read_session_hardware_state_tool` and `write_session_hardware_state_tool` both return the same four payload
-keys: `data` (the serialized record), `file_path`, `acquisition_system` (the echoed input), and `hardware_state_class`
-(the resolved dataclass name, useful for confirming the dispatch picked the class you expected).
+keys: `data` (the serialized record, which for the write tool is the reloaded instance rather than an echo of the input,
+per the `## Response contract` section of `/assets-mcp-environment-setup`), `file_path`, `acquisition_system` (the
+echoed input), and `hardware_state_class` (the resolved dataclass name, useful for confirming the dispatch picked the
+class you expected).
 `describe_session_hardware_state_schema_tool` returns `acquisition_system` (the echoed input) and `schema` (the
 dataclass field schema), and `acquisition_system` is required with no default.
 
@@ -226,12 +228,17 @@ conventionally immutable once written, so confirm with the user before every wri
        overwrite=True,  # the default, set to False to refuse-on-existing
    )
    ```
-7. **Re-read and diff. This step is mandatory, not a formality:**
+7. **Diff the write response, then re-read and diff again. This step is mandatory, not a formality:** the write tool's
+   `data` is not an echo of your input but the reloaded record, per the `## Response contract` section of
+   `/assets-mcp-environment-setup`, so a key the payload omitted already surfaces in the write response at its schema
+   default, which is `None` under `MesoscopeHardwareState`. Compare that `data` field by field against the payload you
+   intended before doing anything else. Then re-read the file:
    ```text
    read_session_hardware_state_tool(file_path="<absolute path>", acquisition_system="<system>")
    ```
-   Compare the returned `data` field by field against the payload you intended. A key the write dropped surfaces here as
-   `None`, and this diff is the only thing that catches it. Report success only after the diff is clean.
+   and diff the returned `data` the same way. A persist that raises already comes back as an error envelope, so the
+   re-read is not what catches a reported write failure. It catches what the write response cannot see: an out-of-band
+   writer, a later modification, or a corruption that never raised. Report success only after both diffs are clean.
 8. **Tell the user which copy was amended** and that the change does not propagate to any other copy that may exist.
 
 ---
@@ -241,7 +248,7 @@ conventionally immutable once written, so confirm with the user before every wri
 | Skill                                   | Relationship                                                                                                                                          |
 |-----------------------------------------|-------------------------------------------------------------------------------------------------------------------------------------------------------|
 | `/assets-mcp-environment-setup`         | Run first if the MCP server is not connected. Owns the plugin-wide response contract                                                                  |
-| `/working-directory`                    | Required prerequisite that bootstraps the local working directory used to resolve project roots                                                       |
+| `/working-directory`                    | Bootstraps the host path records. This skill's tools take absolute paths and read none of them                                                        |
 | `/session-discovery`                    | Resolves raw session roots                                                                                                                            |
 | `/session-data`                         | Sibling that owns `SessionData` and the session anatomy, and surfaces `acquisition_system`                                                            |
 | `/session-descriptors`                  | Sibling that owns the per-session-type descriptor read, write, and schema tools                                                                       |
@@ -273,8 +280,8 @@ conventionally immutable once written, so confirm with the user before every wri
 - [ ] User confirmed the planned write, including awareness that overwrite defaults to True
 - [ ] Payload was passed as hardware_state_payload (the correct kwarg name)
 - [ ] If refuse-on-existing semantics were required, overwrite=False was passed explicitly
-- [ ] After writing: the file was re-read and the returned data was diffed field by field
-      against the intended payload before success was reported
+- [ ] After writing: the write response's data and the data from a re-read of the file were
+      both diffed field by field against the intended payload before success was reported
 - [ ] If writing: the user was told which single copy was amended and that the change does not
       propagate to any sibling copy that may exist
 - [ ] Did not touch SessionData, descriptors, Zaber positions, or mesoscope positions from

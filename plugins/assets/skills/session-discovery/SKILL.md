@@ -91,7 +91,8 @@ total_projects, total_animals, total_sessions, root_directory
 `status="error"` entries come in two shapes, both owned and documented by `/project-hierarchy`, which also states the
 rule excluding them from the `projects[*]` aggregates. Because `filter_sessions_tool` drops them from `session_paths`,
 a marker or descriptor problem silently shrinks the batch a downstream skill receives. You MUST surface every error
-entry to the user before handing off.
+entry to the user before handing off, reading them from this response rather than from the filtered `sessions` list,
+which does not carry the marker-load-failure shape.
 
 ### Session filtering
 
@@ -117,7 +118,8 @@ and returns a filtered subset with the same structure.
 
 **Filtering precedence:** Animal filtering is applied before session filtering. Exclusion always takes precedence over
 inclusion. The `exclude_sessions` list overrides both `include_sessions` and date range criteria. Each input entry must
-carry `session_name` and `animal` keys, matching the shape produced by `get_data_root_overview_tool`.
+carry `session_name` and `animal` keys. Every entry `get_data_root_overview_tool` produces carries both, except its
+marker-load-failure shape, which carries only `session_path`, `marker`, `status`, and `error_detail`.
 
 The date-range pass runs only when `start_date` or `end_date` is supplied. Inside that pass, a session whose name does
 not parse as the 7-component `YYYY-MM-DD-HH-MM-SS-microseconds` grammar is dropped without an error. With no date bound
@@ -125,9 +127,12 @@ the pass is skipped and such names survive.
 
 **Return structure:** Structurally identical to the input shape, carrying `sessions`, `session_paths`, `total_sessions`,
 and `total_eligible`. Entries with `status="error"`, and entries carrying no `session_path` key, are excluded from
-`session_paths` but remain in `sessions` so the agent can surface them to the user. `sessions` is sorted by
-`(session_name, animal, session_path)` and `session_paths` by path. An `invalid_entries` key appears when input entries
-lack the required `session_name` or `animal` fields.
+`session_paths`. Only the descriptor-failure error shape survives into `sessions`, because it carries `session_name`
+and `animal`. The marker-load-failure shape carries neither, so it is diverted into `invalid_entries` with a
+`filter_error` field before filtering runs, and is counted in neither `sessions` nor `total_sessions`. Surface error
+entries from the `get_data_root_overview_tool` response and from `invalid_entries`, never from the filtered `sessions`
+list alone. `sessions` is sorted by `(session_name, animal, session_path)` and `session_paths` by path. An
+`invalid_entries` key appears when input entries lack the required `session_name` or `animal` fields.
 
 ---
 
@@ -166,9 +171,15 @@ before step 4:
 
 ```text
 filtered = [entry for entry in response["sessions"]
-            if entry["project"] == "<project>"
-            and entry["session_type"] in {"mesoscope experiment", "run training"}]
+            if entry.get("status") != "error"
+            and entry.get("project") == "<project>"
+            and entry.get("session_type") in {"mesoscope experiment", "run training"}]
+errors = [entry for entry in response["sessions"] if entry.get("status") == "error"]
 ```
+
+The `status="error"` guard is mandatory, not defensive: a marker-load-failure entry carries no `project` and no
+`session_type` key, so subscripting it raises `KeyError`. Collect those entries separately, as `errors` above, and
+surface them to the user, because narrowing drops them from the list handed to step 4.
 
 ### Step 4: Optionally filter by date / name / animal
 
@@ -203,7 +214,7 @@ in the `error_detail` field of a session entry or the `filter_error` field of an
 | `Unable to scan the data root <root> for session and dataset markers: <reason>`     | The scan hit a directory it cannot read. Fix the permissions or scan a readable root                             |
 | `Failed to load SessionData: <reason>` (per-entry, status="error")                  | Session marker is corrupt or missing required keys. Repair via `/session-data` or `/session-descriptors`         |
 | `Descriptor file not found at <path>` (per-entry, status="error")                   | The marker loaded, the descriptor did not. Repair via `/session-descriptors`                                     |
-| `Missing required 'session_name' or 'animal' field.` (per-entry, `invalid_entries`) | The key is absent or carries a `null` value. Entries not produced by `get_data_root_overview_tool` often lack it |
+| `Missing required 'session_name' or 'animal' field.` (per-entry, `invalid_entries`) | The key is absent or `null`. Marker-load-failure entries from `get_data_root_overview_tool` lack both            |
 | `filter_sessions_tool` raises instead of returning a response                       | `start_date` or `end_date` is unparsable. Pass `YYYY-MM-DD` or `YYYY-MM-DD HH:MM:SS`                             |
 | `sessions=[]` or `total_eligible=0` (no error, empty result)                        | No markers matched. Verify the search root or filter criteria                                                    |
 | MCP tool call raises at the transport layer                                         | Invoke `/assets-mcp-environment-setup`                                                                           |
@@ -245,8 +256,13 @@ parse_session_timestamp(session_name: str, *, utc_timezone: bool = True) -> date
 | `filter_sessions`              | Takes `(session_name, animal)` tuples, returns a set, and propagates a `ValueError` on an unparsable bound    |
 | `parse_session_timestamp`      | Parses the 7-component `YYYY-MM-DD-HH-MM-SS-microseconds` grammar, returning `None` for any other name        |
 
-`validate_directory` is the contract behind the validation error `forging:dataset-forging` reports for a `project_root`
-that does not exist or is not a directory. Its message string is surfaced verbatim.
+`validate_directory` has no caller in this library or in any downstream Sollertia library. It is a convenience
+validator exported for library code that prefers a message string over an exception, and its
+`Unable to validate the input directory. The path <path> does not exist.` message is never surfaced by any skill. A
+missing project root reaches the user by a different route: `forging:dataset-definition`'s
+`define_forging_dataset_tool` takes a `project_path` and reports the failure as
+`Unable to define the local dataset '<name>'. <reason>`, wrapping the `OSError` that `discover_sessions` raises while
+scanning that root.
 
 ---
 

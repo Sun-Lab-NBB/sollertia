@@ -88,8 +88,9 @@ Every session's contents are partitioned into two top-level subdirectories with 
 
 The absence of `processed_data/` on a freshly acquired session is therefore expected, not an error. For the catalog of
 which pipelines write where, defer to the skills that own the output paths and tracker conventions: the forging plugin's
-processing skills, `cindra@cindra:single-recording-processing`, `cindra@cindra:multi-recording-processing`,
-`ataraxis@communication:log-processing`, and `ataraxis@video:log-processing`.
+processing skills, `cindra:single-recording-processing`, `cindra:multi-recording-processing`,
+`communication:log-processing`, and `video:log-processing`. The `cindra:`, `communication:`, and `video:` entries
+resolve through the cindra and ataraxis marketplaces.
 
 ### Two independent "not-healthy" signals: `nk.bin` (uninitialized) against descriptor `incomplete`
 
@@ -260,10 +261,14 @@ lifecycle statuses across the batch. `counts` always carries all five status key
 
 Each per-session report opens with an `identity` block, holding `project`, `animal`, `session_name`, `session_type`,
 `acquisition_system`, and `experiment_name` read off the loaded `SessionData`, so callers can key off the session's
-identity without a separate `read_session_data_tool` call. A report with `status="error"` carries only `session_path`,
-`status`, and `error_detail`, so callers, and the sibling skills that read `identity.session_type` and
-`identity.acquisition_system` (see `/session-descriptors`, `/session-hardware-state`), MUST gate on `status != "error"`
-before touching `identity` or any inventory list.
+identity without a separate `read_session_data_tool` call. A `status="error"` report comes in two shapes, because the
+status covers two different failures. A path-resolution or `SessionData.load()` failure aborts before the report is
+built, so that entry carries only `session_path`, `status`, and `error_detail`. A descriptor-read failure happens after
+the marker already loaded, so that entry is a complete report, `identity` and both inventory lists included, with
+`error_detail` added alongside them. Callers, and the sibling skills that read `identity.session_type` and
+`identity.acquisition_system` (see `/session-descriptors`, `/session-hardware-state`), MUST therefore gate on the
+presence of the `identity` key rather than on `status != "error"`, which would discard the identity of exactly the
+sessions whose descriptors need repairing.
 
 The read, write, and describe trio for `session_data.yaml` is **file-path based**, symmetric with the equivalent trios
 for descriptors, hardware state, and surgery metadata. The caller supplies the absolute `file_path`, and these tools do
@@ -361,8 +366,9 @@ read at all, so a `None` there reports the absence of a read rather than a stale
    ```
    The report's `status` plus `raw_data_files` inventory tells you whether the session holds valid data and which
    canonical assets are present. This step is the **prerequisite** for any read that touches the marker file directly.
-   If `status` is `uninitialized` or `error`, the marker content is not meaningful, so surface that to the user instead
-   of reading.
+   If `status` is `uninitialized`, or `error` with no `identity` block, the marker content is not meaningful, so
+   surface that to the user instead of reading. An `error` report that does carry `identity` means the marker loaded
+   and the descriptor did not, which is a `/session-descriptors` repair rather than a marker one.
 4. **Read the raw marker YAML** when a caller needs fields that `inspect_sessions_tool` does not project (notably
    `python_version` and `sollertia_experiment_version`):
    ```text
@@ -408,9 +414,9 @@ read at all, so a `None` there reports the absence of a read rather than a stale
    report gives you the same status plus full per-session inventory in one call.
 3. For sessions reported as `uninitialized`, coordinate purging via the experiment plugin's
    `experiment:data-management`, because these have no data of value.
-4. For sessions reported as `incomplete` or `error`, read the per-session `issues` list and hand off to
-   `/session-descriptors`, `/session-hardware-state`, the mesoscope plugin's `mesoscope:mesoscope-vr-snapshots`, or
-   `experiment:data-management` to remediate.
+4. For sessions reported as `incomplete` or `error`, read the per-session `issues` list when the report carries one,
+   and hand off to `/session-descriptors`, `/session-hardware-state`, the mesoscope plugin's
+   `mesoscope:mesoscope-vr-snapshots`, or `experiment:data-management` to remediate.
 
 ### Querying supported session types
 
@@ -435,7 +441,7 @@ acquisition system, because the unscoped form returns every platform session typ
 |------------------------------------|----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
 | `/cli-reference`                   | Reference: the `slsa` commands available while the MCP server is down                                                                                                                                                                  |
 | `/assets-mcp-environment-setup`    | Run first if the MCP server is not connected                                                                                                                                                                                           |
-| `/working-directory`               | Required prerequisite that bootstraps the local working directory the agent uses to resolve project roots                                                                                                                              |
+| `/working-directory`               | Bootstraps the host path records. This skill's tools take absolute paths and read none of them                                                                                                                                         |
 | `/project-hierarchy`               | Owns `get_data_root_overview_tool` for root-wide discovery                                                                                                                                                                             |
 | `/session-discovery`               | Filters the flat `sessions` list from `get_data_root_overview_tool`                                                                                                                                                                    |
 | `/session-descriptors`             | Sibling that owns the per-session descriptor read, write, and schema tools                                                                                                                                                             |
