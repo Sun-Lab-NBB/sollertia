@@ -14,7 +14,7 @@ rather than accumulating a report.
 
 | Check                              | Module                      | Import that runs it                                                   | What it guards                                      |
 |------------------------------------|-----------------------------|-----------------------------------------------------------------------|-----------------------------------------------------|
-| `_assert_registry_coverage()`      | `registries.py`             | `sollertia_forgery.registries`, and every module that reaches it      | The eleven donor registries                         |
+| `_assert_registry_coverage()`      | `registries.py`             | `sollertia_forgery.registries`, and every module that reaches it      | The thirteen donor registries                       |
 | `_assert_dispatch_coverage()`      | `orchestration/dispatch.py` | `sollertia_forgery.orchestration`                                     | The batch dispatch table                            |
 | `_assert_status_column_coverage()` | `managing/manifest.py`      | `sollertia_forgery.managing`                                          | The manifest's per-pipeline status columns          |
 | A system package's own checks      | `<system>/`                 | `sollertia_forgery.registries`, since it imports every system package | Whatever privately keyed table that system declares |
@@ -32,29 +32,31 @@ raises on the first offender, so an extender fixes one gap, re-imports, and read
 
 ### Check 1, a system missing from a registry
 
-The loop iterates a literal tuple of eleven `(registry_name, registered_systems)` pairs and raises on the first whose
+The loop iterates a literal tuple of thirteen `(registry_name, registered_systems)` pairs and raises on the first whose
 `frozenset(AcquisitionSystems) - registered_systems` is non-empty. The order decides which registry the error names.
 
 | Order | Registry named in the message                                                                                       |
 |-------|---------------------------------------------------------------------------------------------------------------------|
 | 1     | `_FORGING_ASSEMBLY_REGISTRY`                                                                                        |
-| 2     | `_RUNTIME_PARSER_REGISTRY`                                                                                          |
-| 3     | `_TWO_PHOTON_DATA_REGISTRY`                                                                                         |
-| 4     | `_VIDEO_TRACKING_REGISTRY`                                                                                          |
-| 5     | `_POSE_PREDICTION_REGISTRY`                                                                                         |
-| 6     | `_MICROCONTROLLER_EVENT_CODE_REGISTRY`                                                                              |
-| 7     | `_MICROCONTROLLER_ELIGIBILITY_REGISTRY`                                                                             |
-| 8     | `_CINDRA_CONFIGURATION_REGISTRY`                                                                                    |
-| 9     | `_MULTI_RECORDING_SESSION_TYPE_REGISTRY`                                                                            |
-| 10    | `_FORGING_ADMISSION_REGISTRY`                                                                                       |
-| 11    | `_MICROCONTROLLER_PARSER_REGISTRY`, reached through `frozenset(system for system, _, _ in ...)` on its 3-tuple keys |
+| 2     | `_ASSEMBLY_GEOMETRY_REGISTRY`                                                                                       |
+| 3     | `_ASSEMBLY_SOURCE_REGISTRY`                                                                                         |
+| 4     | `_RUNTIME_PARSER_REGISTRY`                                                                                          |
+| 5     | `_TWO_PHOTON_DATA_REGISTRY`                                                                                         |
+| 6     | `_VIDEO_TRACKING_REGISTRY`                                                                                          |
+| 7     | `_POSE_PREDICTION_REGISTRY`                                                                                         |
+| 8     | `_MICROCONTROLLER_EVENT_CODE_REGISTRY`                                                                              |
+| 9     | `_MICROCONTROLLER_ELIGIBILITY_REGISTRY`                                                                             |
+| 10    | `_CINDRA_CONFIGURATION_REGISTRY`                                                                                    |
+| 11    | `_MULTI_RECORDING_SESSION_TYPE_REGISTRY`                                                                            |
+| 12    | `_FORGING_ADMISSION_REGISTRY`                                                                                       |
+| 13    | `_MICROCONTROLLER_PARSER_REGISTRY`, reached through `frozenset(system for system, _, _ in ...)` on its 3-tuple keys |
 
 ```text
 Unable to validate donor-registry coverage for {registry_name}. Every acquisition system must register its donated processing and forging assets in this module ('registries.py'), but entries are missing for {missing_names}.
 ```
 
 `missing_names` is `", ".join(sorted(member.name for member in missing_systems))`, so it reports enum member names.
-The eleventh row is how "at least one parser per system" is enforced without a separate check.
+The thirteenth row is how "at least one parser per system" is enforced without a separate check.
 
 ### Check 2, a parseable module that declares no event codes
 

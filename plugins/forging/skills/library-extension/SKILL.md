@@ -2,7 +2,7 @@
 name: library-extension
 description: >-
   Owns the extension path of sollertia-forgery: adding an acquisition system, a session type, a processing stage, a
-  processing pipeline, or an MCP tool. Covers the eleven donor registries, the three import-time coverage checks and
+  processing pipeline, or an MCP tool. Covers the thirteen donor registries, the three import-time coverage checks and
   their verbatim errors, the touch points no check reaches, and the cross-repository ordering the upstream libraries
   impose. Use when wiring a new acquisition system into the registries, adding a processing stage or pipeline, adding an
   slf mcp tool, or when an import-time RuntimeError names a registry, a dispatch table, or a status column.
@@ -26,7 +26,7 @@ checklist before reporting an extension complete.
 ## Scope
 
 **Covers:**
-- Adding an acquisition system, which is one `<system>/` package plus an entry in each of the eleven donor registries
+- Adding an acquisition system, which is one `<system>/` package plus an entry in each of the thirteen donor registries
 - Adding a session type's forging half, which is the admission policy, the assembly routing, the cross-recording
   declaration, the multi-recording resolver, and the dataset columns
 - Adding a processing stage to a pipeline that already exists
@@ -63,17 +63,17 @@ An extension spans up to four repositories, and this library sits at the downstr
 |-----------------------------------------------------------------------|-----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|----------------------------------|
 | `sollertia-shared-assets`                                             | The `AcquisitionSystems` and `SessionTypes` members, the `SYSTEM_SESSION_TYPES` pairing, the `ProcessingTrackers` filenames, and the `ProcessedData` directory and tracker fields | `assets:library-extension`       |
 | `sollertia-experiment`                                                | The acquisition runtime that records the artifacts every donation reads                                                                                                           | `experiment:library-extension`   |
-| `sollertia-forgery`                                                   | The eleven donor registries, the category packages, the dispatch table, the resource model, the `slf` CLI, and the MCP tools                                                      | This skill                       |
+| `sollertia-forgery`                                                   | The thirteen donor registries, the category packages, the dispatch table, the resource model, the `slf` CLI, and the MCP tools                                                    | This skill                       |
 | `cindra`, `ataraxis-video-system`, `ataraxis-communication-interface` | The stages this library delegates in-process, and the job-name constants and resource figures a wrapper reuses rather than mints                                                  | The owning library's maintainers |
 
 ---
 
 ## The registry model
 
-`registries.py` holds eleven module-private registries, ten of them keyed on an `AcquisitionSystems` member and one
-keyed on a `(system, module_type, module_id)` triplet. Each maps a system to the callables and data it donates for
-one processing concern. The module's `__all__` exports the two public donation Protocols, `ForgingAssembler` and
-`MicrocontrollerParser`, and the thirteen `resolve_*` accessors, and exports no registry. Six donation Protocols are
+`registries.py` holds thirteen module-private registries, twelve of them keyed on an `AcquisitionSystems` member and one
+keyed on a `(system, module_type, module_id)` triplet. Each maps a system to the callables and data it donates for one
+processing concern. The module's `__all__` exports the two public donation Protocols, `ForgingAssembler` and
+`MicrocontrollerParser`, and the fifteen `resolve_*` accessors, and exports no registry. Eight donation Protocols are
 declared in total, and two registries hold no callable at all.
 
 | Registry                                 | What a system donates                                                                                   |
@@ -87,10 +87,12 @@ declared in total, and two registries hold no callable at all.
 | `_TWO_PHOTON_DATA_REGISTRY`              | `(session: SessionData) -> Path`                                                                        |
 | `_CINDRA_CONFIGURATION_REGISTRY`         | A `_CindraConfigurationAsset` bundling the single-recording and multi-recording configuration resolvers |
 | `_FORGING_ASSEMBLY_REGISTRY`             | A `_ForgingAssemblyAsset` bundling the per-session `assembler` and its `column_descriptions` mapping    |
+| `_ASSEMBLY_GEOMETRY_REGISTRY`            | `(session: SessionData) -> AssemblyGeometry`, the heights its assembler holds a frame and its sources   |
+| `_ASSEMBLY_SOURCE_REGISTRY`              | `(session: SessionData) -> tuple[int, ...]`, the height its assembler holds each source it reads        |
 | `_FORGING_ADMISSION_REGISTRY`            | `dict[SessionTypes, frozenset[ProcessingPipelines]]`, data rather than a callable                       |
 | `_MULTI_RECORDING_SESSION_TYPE_REGISTRY` | `frozenset[SessionTypes]`, data rather than a callable                                                  |
 
-The key shape of each registry, and the thirteen `resolve_*` accessors through which a pipeline reads them, are
+The key shape of each registry, and the fifteen `resolve_*` accessors through which a pipeline reads them, are
 documented by `/data-processing-design`.
 
 Three rules govern every entry in that table.
@@ -110,14 +112,14 @@ system package, so the reverse import is a cycle rather than a style preference.
 `..shared_assets`, which imports nothing from this library. Nothing enforces the rule, so the circular `ImportError`
 is the enforcement.
 
-Minting a twelfth registry is a separate act from adding an entry to the eleven above. A stage whose input only an
+Minting a fourteenth registry is a separate act from adding an entry to the thirteen above. A stage whose input only an
 acquisition system can supply joins the registry that already names its concern, or mints one. Minting is a donation
 Protocol, a module-private dict, a `resolve_*` accessor, its `__all__` export, and its name in the tuple
 `_assert_registry_coverage()` iterates. That last touch is the one nothing else implies. A registry outside the tuple
 admits a system with no entry, so the seam raises a bare `KeyError` from its accessor at runtime rather than a named
 `RuntimeError` at import. The ordered touch list of each branch is under "Minting or joining a per-system registry" in
 [references/extension-recipes.md](references/extension-recipes.md). `_POSE_PREDICTION_REGISTRY` is the worked pattern
-there for every touch except the coverage test, which omits that registry itself.
+there for every touch, including the coverage test that once omitted it and now names it.
 
 The Mesoscope-VR donations that fill these seams are documented by the `mesoscope:mesoscope-vr-*` skill family, one
 member per seam group. `forging:data-processing-design` carries the registry-to-skill map, and the related-skills table
@@ -157,11 +159,11 @@ work must be human-supervised.
 Three module-scope checks guard this library, and each raises a `RuntimeError` through
 `ataraxis_base_utilities.console.error`, which stops the import at the first offender.
 
-| Check                              | Module                      | Import that runs it                                        | What it guards                                                                                                                                            |
-|------------------------------------|-----------------------------|------------------------------------------------------------|-----------------------------------------------------------------------------------------------------------------------------------------------------------|
-| `_assert_registry_coverage()`      | `registries.py`             | `sollertia_forgery.registries`, and everything reaching it | Every system's entry in each of the eleven registries, every parseable module's event codes, and every declared session type against the upstream pairing |
-| `_assert_dispatch_coverage()`      | `orchestration/dispatch.py` | `sollertia_forgery.orchestration`                          | The dispatch table against `BATCH_PIPELINES`, symmetrically                                                                                               |
-| `_assert_status_column_coverage()` | `managing/manifest.py`      | `sollertia_forgery.managing`                               | `_PIPELINE_STATUS_COLUMNS` against `SESSION_PIPELINES`, symmetrically                                                                                     |
+| Check                              | Module                      | Import that runs it                                        | What it guards                                                                                                                                              |
+|------------------------------------|-----------------------------|------------------------------------------------------------|-------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| `_assert_registry_coverage()`      | `registries.py`             | `sollertia_forgery.registries`, and everything reaching it | Every system's entry in each of the thirteen registries, every parseable module's event codes, and every declared session type against the upstream pairing |
+| `_assert_dispatch_coverage()`      | `orchestration/dispatch.py` | `sollertia_forgery.orchestration`                          | The dispatch table against `BATCH_PIPELINES`, symmetrically                                                                                                 |
+| `_assert_status_column_coverage()` | `managing/manifest.py`      | `sollertia_forgery.managing`                               | `_PIPELINE_STATUS_COLUMNS` against `SESSION_PIPELINES`, symmetrically                                                                                       |
 
 `import sollertia_forgery` alone runs none of them, because the top-level `__init__.py` re-exports no library symbol
 and its `__all__` is empty. `slf --help` runs all three, since `interfaces/entry_points.py` imports
@@ -226,7 +228,7 @@ section of `sollertia-forgery/CLAUDE.md`, and it runs strictly upstream to downs
    fields are all owned upstream. Hand off to `assets:library-extension` and wait for its checklist to complete.
 2. **The moment an acquisition-system member lands upstream, this library stops importing.** Its coverage check
    measures against `frozenset(AcquisitionSystems)`, so every import path reaching `registries.py` fails until the
-   eleven donations are wired. That break is expected and is the checklist for step 3.
+   thirteen donations are wired. That break is expected and is the checklist for step 3.
 3. **Wire the donations here.** Apply the recipe for the scenario until the import gates in the verification
    checklist below all pass.
 4. **The acquisition side must record the data before anything here can process it.** A donation reads artifacts the
@@ -326,7 +328,7 @@ Cross-document references follow the same rule. Cite a README or a CLAUDE.md by 
 |--------------------------------------------------------------|-------------------------------------------------------------------------------------------------------------------------------------------------------|
 | Starting the forgery half before the upstream member lands   | The coverage check measures against `frozenset(AcquisitionSystems)`, so there is nothing to wire against and no error to work from                    |
 | Reading a clean import as a finished extension               | Only registry membership, the dispatch table, and the manifest columns are checked. Fifteen further touch points fail at runtime or silently          |
-| Treating a system that produces no data of a class as exempt | Every system donates an entry to all eleven registries. The null donation is a no-op function, a `None`-returning locator, or an empty frozenset      |
+| Treating a system that produces no data of a class as exempt | Every system donates an entry to all thirteen registries. The null donation is a no-op function, a `None`-returning locator, or an empty frozenset    |
 | Adding a stage and stopping at the pipeline                  | A stage also needs a core allocation, a sizing model with its routing branch, and a `_PIPELINE_JOB_NAMES` entry, none of which any check reaches      |
 | Adding a per-session pipeline without its manifest column    | `_PIPELINE_STATUS_COLUMNS` and the matching `pl.UInt8` column in `_PROJECT_MANIFEST_SCHEMA` are two separate touches, and only the first is checked   |
 | Minting a local job-name string for a dependency's stage     | The dependency exports the constant and its resource figures, and a local copy drifts the moment either is retuned                                    |
