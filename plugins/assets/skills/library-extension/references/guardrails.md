@@ -50,16 +50,17 @@ Pairs each dispatch registry with the enum that keys it and raises when `expecte
 Message, with the registry name and the comma-joined missing member names interpolated:
 
 ```text
-{registry_name} is missing entries for {missing_names}. Every enum member must have a registered dispatch class. See the README's 'Adding New Session Types' / 'Adding New Acquisition Systems' / 'Adding a New Read Asset' sections for the full extension touch list.
+{registry_name} is missing entries for {missing_names}. Every enum member must have a registered dispatch class. See the README's 'Adding New Session Types' / 'Adding New Acquisition Systems' / 'Adding a New Read Asset' / 'Adding a New Credentials Category' sections, or the assets:library-extension skill, for the full extension touch list.
 ```
 
 Two properties of this check decide how far to trust it:
 
 - It is one-directional. Only `expected - actual` is computed, so a stale registry key left behind by a removed enum
   member passes silently and only a missing key is reported.
-- Its README pointer is fixed text shared by all six registries. A missing `CREDENTIALS_FILE_REGISTRY` entry therefore
-  routes the reader to three README sections that do not cover credentials. Use the credentials recipe in
-  [extension-recipes.md](extension-recipes.md) instead.
+- Its README pointer is fixed text shared by all six registries, and it names four README sections plus the
+  `assets:library-extension` skill. A missing `CREDENTIALS_FILE_REGISTRY` entry therefore routes the reader to the
+  README's "Adding a New Credentials Category" section, which the credentials recipe in
+  [extension-recipes.md](extension-recipes.md) extends with the skill and downstream touches.
 
 ### Every acquisition system declares at least one session type
 

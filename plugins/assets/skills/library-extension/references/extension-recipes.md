@@ -17,7 +17,7 @@ touch points no check covers are documented in [guardrails.md](guardrails.md).
 | New `ReadAssets` member                | "Adding a New Read Asset"               |
 | New raw-tree directory                 | None, this file carries the only recipe |
 | New processing pipeline, upstream half | None, this file carries the only recipe |
-| New `CredentialsTypes` member          | None, this file carries the only recipe |
+| New `CredentialsTypes` member          | "Adding a New Credentials Category"     |
 
 ---
 
@@ -144,8 +144,8 @@ Declare `<System>RawData` as `@dataclass(frozen=True, slots=True)`, matching `Me
 the session's `raw_data` directory. `SessionData` calls it to build the runtime-only `system_raw_data` attribute, so
 registering the class is what wires the system into session loading.
 
-The README shows `@dataclass(slots=True)` for this class, which is upstream drift from the only existing implementation.
-Correct the README in the same pull request that adds the system.
+The README's "Adding New Acquisition Systems" Step 2 shows the same `@dataclass(frozen=True, slots=True)` declaration
+for `<System>RawData`, so the two agree and no README correction is owed.
 
 `SYSTEM_RAW_DATA_REGISTRY` is annotated against the private `_SystemRawDataBuilder` Protocol, which is structural typing
 with no runtime enforcement. No import-time check covers `build`, so a missing or misnamed classmethod surfaces as a
@@ -221,15 +221,16 @@ one, enumerating both explicitly rather than lengthening a "currently only X" ch
   per-system runtime skill. Both live in the system's companion plugin rather than in the experiment plugin, and both
   are required deliverables. The assets plugin's generic skills carry pointers that assume the per-system schema skills
   exist, so a system that stops at the code is driveable yet undocumented for every agent that would drive it.
-- `sollertia-forgery` dispatches every per-system behavior through eleven registries in
+- `sollertia-forgery` dispatches every per-system behavior through thirteen registries in
   `src/sollertia_forgery/registries.py`, and the new system needs an entry in each of them before its sessions are
   processed or forged. `forging:library-extension` carries the roster and the donation shape each one expects, and
-  `_assert_registry_coverage()` in that module reports every system a registry omits. Two of the eleven gate the dataset
-  seam outright. `_FORGING_ASSEMBLY_REGISTRY` carries the system's `column_descriptions`, which the agnostic pipeline
-  bakes into the dataset's `data_descriptions.feather` when the dataset is defined, and `_FORGING_ADMISSION_REGISTRY`
-  carries the per-session-type pipeline requirements, so a session type absent from a system's mapping joins no dataset.
-  Hand off to `forging:dataset-definition` for the admission policy and the column-description companion, and to
-  `forging:data-processing-design` for the per-stage processing design behind the remaining entries.
+  `_assert_registry_coverage()` in that module walks all thirteen in one coverage tuple and reports every system a
+  registry omits. Two of the thirteen gate the dataset seam outright. `_FORGING_ASSEMBLY_REGISTRY` carries the system's
+  `column_descriptions`, which the agnostic pipeline bakes into the dataset's `data_descriptions.feather` when the
+  dataset is defined, and `_FORGING_ADMISSION_REGISTRY` carries the per-session-type pipeline requirements, so a session
+  type absent from a system's mapping joins no dataset. Hand off to `forging:dataset-definition` for the admission
+  policy and the column-description companion, and to `forging:data-processing-design` for the per-stage processing
+  design behind the remaining entries.
 - `sollertia-virtual-reality` may need new scene scaffolding when the new system uses Unity.
 
 ---
@@ -454,9 +455,11 @@ frozen contract.
 6. Extend `test_session_data_processed_data_directory_paths` and `test_session_data_processing_tracker_paths` in
    `tests/data_hierarchy/session_data_test.py` with the new directory and tracker.
 
-A tracker written outside a session takes touches 2, 5, and 6 alone, because no fixed per-session path addresses it.
-`ProcessingTrackers.FORGING` lives at the forged dataset root and `ProcessingTrackers.MANIFEST` at the project root, and
-neither carries a `ProcessedData` field.
+A tracker written outside a session takes touches 2 and 5 alone, plus a value assertion in
+`test_processing_trackers_enum_is_string_enum` in `tests/data_hierarchy/session_data_test.py`, because no fixed
+per-session path addresses it and neither test named in touch 6 can assert on it. Both tests resolve a
+`session.processed_data.<field>` attribute, which such a tracker never gains. `ProcessingTrackers.FORGING` lives at the
+forged dataset root and `ProcessingTrackers.MANIFEST` at the project root, and neither carries a `ProcessedData` field.
 
 **Skill touches:**
 
@@ -475,9 +478,10 @@ neither carries a `ProcessedData` field.
 
 ## Adding a new credentials category
 
-The library README carries no section for this scenario, so this recipe is the only one. The import-time failure message
-for a forgotten registry entry routes the reader to the "Adding New Session Types", "Adding New Acquisition Systems",
-and "Adding a New Read Asset" README sections, none of which covers credentials.
+README section: "Adding a New Credentials Category". A credentials category is a class of secret the platform stores on
+the local machine, so every Sollertia library resolves it by name rather than by path. The import-time failure message
+for a forgotten registry entry names that section alongside "Adding New Session Types", "Adding New Acquisition
+Systems", and "Adding a New Read Asset", and points at the assets:library-extension skill as well.
 
 `CREDENTIALS_FILE_REGISTRY` is the second maintainer-curated contract registry and the only registry whose value is a
 canonical filename string rather than a class.
@@ -489,9 +493,10 @@ canonical filename string rather than a class.
    filename is the canonical name the credentials file takes inside the working directory's `credentials` subdirectory,
    and `set_credentials` rejects a source file whose extension differs from it, so choose the extension the external
    service actually issues.
-3. Nothing else. `resolve_credentials_file`, `set_credentials`, `get_credentials`, and
-   `list_supported_credentials_tool`, along with the `slsa configure credentials --category` choice list, all derive
-   their vocabulary from the enum and the registry, so no tool, CLI option, or choice list is edited.
+3. Nothing else. `resolve_credentials_file`, `set_credentials`, and `get_credentials`, the `set_credentials_tool`,
+   `read_credentials_tool`, and `list_supported_credentials_tool` MCP tools, and the `--category` choice lists of
+   `slsa configure credentials` and `slsa get credentials` all derive their vocabulary from the enum and the registry,
+   so no tool, CLI option, or choice list is edited.
 
 **Skill touches:**
 

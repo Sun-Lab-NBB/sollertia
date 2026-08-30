@@ -70,7 +70,7 @@ path goes to `/mesoscope-vr`. A question about running, re-running, or sizing th
 
 ## The two registry seams
 
-Mesoscope-VR fills two of the eleven registries in `sollertia_forgery.registries` from `video_tracking.py`. The
+Mesoscope-VR fills two of the thirteen registries in `sollertia_forgery.registries` from `video_tracking.py`. The
 locator and the tracking pass are separate donations because the pipeline needs the locator before it is willing to
 schedule the pass.
 

@@ -81,7 +81,7 @@ break is the remaining checklist, and it clears one registry at a time.
 ### Step 1: create `src/sollertia_forgery/<system>/`
 
 Mirror the module split of the registered acquisition-system package. Each module donates the callables and the data
-its registry expects, and the signatures are fixed by the six donation Protocols in `registries.py`.
+its registry expects, and the signatures are fixed by the eight donation Protocols in `registries.py`.
 
 | Module                  | What it declares                                                                                                                                                                                                                                                                                                            |
 |-------------------------|-----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
@@ -90,6 +90,7 @@ its registry expects, and the signatures are fixed by the six donation Protocols
 | `video_tracking.py`     | `locate_<system>_pose_predictions(session: SessionData) -> Path \| None` and `process_<system>_video_tracking(session: SessionData, output_directory: Path) -> None`. A system that tracks nothing donates a locator returning `None` and a no-op function                                                                  |
 | `two_photon.py`         | `locate_two_photon_data(session: SessionData) -> Path`, `resolve_single_recording_configuration(session) -> SingleRecordingConfiguration`, `resolve_multi_recording_configuration(session) -> MultiRecordingConfiguration \| None`, and `<SYSTEM>_MULTI_RECORDING_SESSION_TYPES: frozenset[SessionTypes]`                   |
 | `forging.py`            | `assemble_<system>_session(source_session_path: Path, output_path: Path, dataset_name: str) -> None` and `<SYSTEM>_ADMISSION_PIPELINES: dict[SessionTypes, frozenset[ProcessingPipelines]]`                                                                                                                                 |
+| `assembly_sources.py`   | `resolve_<system>_assembly_sources(session: SessionData) -> tuple[int, ...]`. Its companion `resolve_<system>_assembly_geometry(session: SessionData) -> AssemblyGeometry` sits beside the assembler it describes, which in the registered system is a per-sub-dataset module rather than this one                          |
 | `metadata.py`           | The system's dataset-column `StrEnum`, its private per-column description mapping, and `<SYSTEM>_COLUMN_DESCRIPTIONS: dict[str, str]` derived from both                                                                                                                                                                     |
 | Per-sub-dataset modules | The assemblers `<system>/forging.py` routes to. These face no registry, so their shape is the system's own                                                                                                                                                                                                                  |
 
@@ -102,7 +103,7 @@ is the template, and its export list is exactly the import block `registries.py`
 
 ### Step 3: register in `registries.py`
 
-Add the import block for the new package, then add one entry to each of the eleven registries.
+Add the import block for the new package, then add one entry to each of the thirteen registries.
 `_MICROCONTROLLER_PARSER_REGISTRY` takes one entry per parsed hardware module, keyed
 `(AcquisitionSystems.<SYSTEM>, module_type, module_id)`. Every other registry takes exactly one entry keyed on the
 member. `_FORGING_ASSEMBLY_REGISTRY` takes a `_ForgingAssemblyAsset(assembler=..., column_descriptions=...)` and
@@ -260,13 +261,14 @@ edits no consumer, because the stage that reads the registry already imports the
 | 7 | The consumer      | The accessor imported from `..registries` by the stage that reads it, since no category package imports a registry constant                     |
 | 8 | The coverage test | The registry's name added to `_DONOR_REGISTRY_NAMES` in `tests/registry_coverage_test.py`, whose parametrized test empties each one             |
 
-`_POSE_PREDICTION_REGISTRY` and `resolve_pose_prediction_locator` are the worked pattern for touches 1 through 7, since
-that seam is a locator over an artifact a tool outside this library writes. Touch 8 is the one they do not model.
-`_DONOR_REGISTRY_NAMES` in `tests/registry_coverage_test.py` names ten of the eleven registries and omits that one, so
-the worked pattern is itself the standing instance of the gap that touch 8 closes.
+`_POSE_PREDICTION_REGISTRY` and `resolve_pose_prediction_locator` are the worked pattern for all eight touches, since
+that seam is a locator over an artifact a tool outside this library writes. Touch 8 was the one that registry did not
+model for as long as `_DONOR_REGISTRY_NAMES` in `tests/registry_coverage_test.py` omitted it. That tuple now names all
+thirteen registries, and `test_the_guarded_names_are_every_registry_the_module_declares` derives its expectation from
+every `*_REGISTRY` name the module declares, so a registry minted without touch 8 now fails that test.
 
-A new Protocol stays module-private unless a consumer names it in a type annotation outside `registries.py`. Two of
-the six declared today do, which are the public `ForgingAssembler` and `MicrocontrollerParser`.
+A new Protocol stays module-private unless a consumer names it in a type annotation outside `registries.py`. Two of the
+eight declared today do, which are the public `ForgingAssembler` and `MicrocontrollerParser`.
 
 Touch 5 is the one that no other touch implies and that no error reports. A registry left out of the coverage tuple
 accepts a system with no entry, so the seam it opened raises a bare `KeyError` from the accessor at runtime rather

@@ -27,7 +27,7 @@ no single acquisition system's donations. For the concrete instance those patter
 
 **Covers:**
 - The layers of the library, and the one-way import rule between an agnostic worker package and a per-system package
-- The eleven registries, their key shapes, the resolver accessors that read them, and the two public donation
+- The thirteen registries, their key shapes, the resolver accessors that read them, and the two public donation
   Protocols
 - The import-time coverage check, and how to read its `RuntimeError` as the remaining wiring checklist
 - The `PipelineDispatch` table, `BATCH_PIPELINES` membership, and the import-time check that holds the two in step
@@ -111,6 +111,8 @@ accessor rather than by indexing a registry.
 | `_MICROCONTROLLER_EVENT_CODE_REGISTRY`   | `AcquisitionSystems`               | An accessor returning the event codes each parseable module reads     |
 | `_MICROCONTROLLER_ELIGIBILITY_REGISTRY`  | `AcquisitionSystems`               | The modules one loaded session configured for use                     |
 | `_FORGING_ASSEMBLY_REGISTRY`             | `AcquisitionSystems`               | The per-session assembly worker, paired with its column descriptions  |
+| `_ASSEMBLY_GEOMETRY_REGISTRY`            | `AcquisitionSystems`               | The heights its assembler holds a frame and its sources at            |
+| `_ASSEMBLY_SOURCE_REGISTRY`              | `AcquisitionSystems`               | The height its assembler holds each source it reads at                |
 | `_FORGING_ADMISSION_REGISTRY`            | `AcquisitionSystems`               | The pipelines each session type completes before it joins a dataset   |
 | `_CINDRA_CONFIGURATION_REGISTRY`         | `AcquisitionSystems`               | The single-recording and multi-recording configuration resolvers      |
 | `_MULTI_RECORDING_SESSION_TYPE_REGISTRY` | `AcquisitionSystems`               | The session types the system tracks across recordings                 |
@@ -119,9 +121,9 @@ accessor rather than by indexing a registry.
 | `_POSE_PREDICTION_REGISTRY`              | `AcquisitionSystems`               | The locator of the externally produced pose-prediction file           |
 | `_VIDEO_TRACKING_REGISTRY`               | `AcquisitionSystems`               | The pass that reads those predictions and writes the tracking outputs |
 
-Ten registries key on `AcquisitionSystems` alone. `_MICROCONTROLLER_PARSER_REGISTRY` is the only one keyed on a
-three-part tuple, and `resolve_microcontroller_parsers` is what flattens it into the `(module_type, module_id)`
-mapping a pipeline consumes. Three donations carry no callable at all, since `_FORGING_ADMISSION_REGISTRY` holds a
+Twelve registries key on `AcquisitionSystems` alone. `_MICROCONTROLLER_PARSER_REGISTRY` is the only one keyed on a
+three-part tuple, and `resolve_microcontroller_parsers` is what flattens it into the `(module_type, module_id)` mapping
+a pipeline consumes. Three donations carry no callable at all, since `_FORGING_ADMISSION_REGISTRY` holds a
 `dict[SessionTypes, frozenset[ProcessingPipelines]]`, `_MULTI_RECORDING_SESSION_TYPE_REGISTRY` holds a
 `frozenset[SessionTypes]`, and the column-description half of `_FORGING_ASSEMBLY_REGISTRY` is a `dict[str, str]`.
 
@@ -134,6 +136,8 @@ mapping a pipeline consumes. Three donations carry no callable at all, since `_F
 | `resolve_eligible_microcontroller_modules`        | `set[tuple[int, int]]`, taking the loaded session as a second input |
 | `resolve_forging_assembly_worker`                 | `ForgingAssembler`                                                  |
 | `resolve_forging_column_descriptions`             | `dict[str, str]`                                                    |
+| `resolve_assembly_geometry_resolver`              | `_AssemblyGeometryResolver`                                         |
+| `resolve_assembly_source_resolver`                | `_AssemblySourceResolver`                                           |
 | `resolve_forging_admission_pipelines`             | `dict[SessionTypes, frozenset[ProcessingPipelines]]`                |
 | `resolve_single_recording_configuration_resolver` | `Callable[[SessionData], SingleRecordingConfiguration]`             |
 | `resolve_multi_recording_configuration_resolver`  | `Callable[[SessionData], MultiRecordingConfiguration \| None]`      |
@@ -154,7 +158,7 @@ pipeline. A locator or the video-tracking function is reached in two steps, as i
 ### The donation Protocols
 
 Every donated callable is a module-level, picklable function, because the parallel stages dispatch several of them into
-spawned worker processes. `registries.py` exports two of the six Protocols, and the remaining four appear only as the
+spawned worker processes. `registries.py` exports two of the eight Protocols, and the remaining six appear only as the
 return annotations of their accessors.
 
 ```python
@@ -179,12 +183,12 @@ entry, in the form of a no-op tracking function, a pose-prediction locator retur
 `registries.py` ends with a bare call to `_assert_registry_coverage()`, so the checks run on the first import of the
 module, which every pipeline import transitively triggers.
 
-| Check | What it requires                                                                           |
-|-------|--------------------------------------------------------------------------------------------|
-| 1     | Every registered system appears in each of the eleven registries, tested in a fixed order  |
-| 2     | Every module registered for a parser also declares the event codes that parser reads       |
-| 3     | Every session type a system tracks across recordings is a session type that system records |
-| 4     | Every session type a system admits into a dataset is a session type that system records    |
+| Check | What it requires                                                                            |
+|-------|---------------------------------------------------------------------------------------------|
+| 1     | Every registered system appears in each of the thirteen registries, tested in a fixed order |
+| 2     | Every module registered for a parser also declares the event codes that parser reads        |
+| 3     | Every session type a system tracks across recordings is a session type that system records  |
+| 4     | Every session type a system admits into a dataset is a session type that system records     |
 
 Checks 3 and 4 both subtract the per-system session types that `sollertia-shared-assets` declares, since the types a
 system records are that library's to define. Check 4 is deliberately asymmetric, so a declared type the system does
@@ -193,7 +197,7 @@ no dataset.
 
 Read the raised `RuntimeError` as the remaining wiring checklist. Every raise goes through `console.error` and stops
 the import, so one import reports one problem, an extender fixes it, imports again, and reads the next. Discovery
-order is check 1 over its eleven registries, then checks 2, 3, and 4. The first check names the offending systems by
+order is check 1 over its thirteen registries, then checks 2, 3, and 4. The first check names the offending systems by
 enum member name, and the last two name the offending session types by enum value.
 
 ```text
@@ -406,7 +410,9 @@ system in one place.
 
 The column-description half of `_FORGING_ASSEMBLY_REGISTRY` and the file name and column rosters every donation writes
 against are documented by `mesoscope:mesoscope-vr-processing-schema`, and the fluorescence sub-assembly the assembly
-worker calls by `mesoscope:mesoscope-vr-fluorescence-alignment`.
+worker calls by `mesoscope:mesoscope-vr-fluorescence-alignment`. No companion skill covers `_ASSEMBLY_GEOMETRY_REGISTRY`
+or `_ASSEMBLY_SOURCE_REGISTRY` yet, so read those two donations from `registries.py` and from the sizing pass in
+`orchestration/footprints.py` that consumes them.
 
 ---
 

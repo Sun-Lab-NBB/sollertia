@@ -249,8 +249,10 @@ animal-level facts.
 
 ### Locating datasets under a data root
 
-1. **Verify prerequisites:** the MCP server is connected (else `/assets-mcp-environment-setup`) and the working
-   directory is configured (else `/working-directory`).
+1. **Verify prerequisites:** the MCP server is connected (else `/assets-mcp-environment-setup`) and the absolute data
+   root path is known. `discover_datasets_tool` takes `root_directory` explicitly and consults no persisted record, so
+   no host record has to be set. When the host persisted a data root, `read_data_root_tool` (owned by
+   `/working-directory`) recalls it.
 2. **Scan the root**, narrowing to one project when the project is known:
    ```text
    discover_datasets_tool(root_directory="<absolute data root>", project="<project name>")
@@ -341,7 +343,7 @@ so prefer `define_forging_dataset_tool` for any dataset a forging run will consu
 |--------------------------------------------|----------------------------------------------------------------------------------------------------------|
 | `/cli-reference`                           | Reference: the `slsa` commands available while the MCP server is down                                    |
 | `/assets-mcp-environment-setup`            | Run first if the MCP server is not connected, and owns the response, write, and schema contracts         |
-| `/working-directory`                       | Required prerequisite, bootstraps the working directory and data root that anchor path resolution        |
+| `/working-directory`                       | Bootstraps the host path records. Dataset discovery takes an explicit `root_directory`                   |
 | `/project-hierarchy`                       | Owns `get_data_root_overview_tool`, whose per-project `dataset_count` this skill's discovery expands     |
 | `/session-discovery`                       | Filters the candidate sessions from which a dataset is defined                                           |
 | `/session-data`                            | Owns the source session marker from which each forged session copy was produced                          |
@@ -353,7 +355,8 @@ so prefer `define_forging_dataset_tool` for any dataset a forging run will consu
 | `forging:dataset-definition`               | Composes and grows datasets under an admission policy, and reports their forging job state               |
 | `forging:dataset-forging`                  | Runs the per-session `data.feather` assembly whose output this container holds                           |
 | `forging:processing-results`               | Owns the processed-data output layout and how a completed stage is verified                              |
-| `mesoscope:mesoscope-vr-processing-schema` | Owns the Mesoscope-VR column roster and the current `SESSION_TYPES_USING_VR_TASK` membership             |
+| `mesoscope:mesoscope-vr-dataset-assembly`  | Owns the current `SESSION_TYPES_USING_VR_TASK` membership behind the `vr_configuration.yaml` rule        |
+| `mesoscope:mesoscope-vr-processing-schema` | Owns the Mesoscope-VR column roster behind the descriptions this dataset's companion carries             |
 
 ---
 

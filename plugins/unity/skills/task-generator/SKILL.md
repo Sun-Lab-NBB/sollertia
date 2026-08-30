@@ -77,8 +77,9 @@ CreateTask.CreateFromTemplate(absoluteTemplatePath, relativeConfigPath, savePath
 │                                              Task.DefaultTrackLength cannot fill segments_per_corridor
 │
 ├── ValidateHandAuthoredAssets               ← Rejects the request, naming every missing path at once, when
-│                                              Floor.mat, Wall.mat, either zone base prefab, or the template's
-│                                              padding prefab is absent — before any asset is written
+│                                              Floor.mat, Wall.mat, either zone base prefab, the template's
+│                                              padding prefab, or _CueShaderReference.mat is absent — before
+│                                              any asset is written
 │
 ├── BuildCuePrefabs(template)                ← Cues/Cue_<name>_<length>cm.prefab  (shared, skip-if-exists)
 │   ├── LoadReferenceCueShader               ← Once per pass, before the cue loop; reads the shader from
@@ -131,7 +132,8 @@ CreateTask.CreateSceneFromTemplate(sceneSavePath, taskPrefabPath, overwriteExist
 
 - **Generation fails loudly, never silently.** All three preflight validators run before any asset is written, and the
   cue and segment builds abort on a missing input rather than degrading. Only three soft failures survive: the cue
-  shader fallback, the segment-length mismatch warning, and the non-fatal missing-task-prefab path.
+  shader fallback (reachable only for a reference material that loads with no shader, because a missing one aborts at
+  the preflight), the segment-length mismatch warning, and the non-fatal missing-task-prefab path.
 - **Cross-template cue-texture preflight runs first**: `ValidateCueDefinitionsAcrossTemplates` enumerates every `*.yaml`
   / `*.yml` under `Assets/InfiniteCorridorTask/Configurations/`, loads each through `ConfigLoader`, and builds a `(cue
   name, length label) → list[(texture, template name)]` map. Any identity that resolves to more than one distinct
@@ -150,8 +152,10 @@ CreateTask.CreateSceneFromTemplate(sceneSavePath, taskPrefabPath, overwriteExist
   the refusal returns before any scene exists to edit. The C# message's own "raise Track Length in Window > Task
   Parameters before generating" tail is misleading for that reason.
 - **`ValidateHandAuthoredAssets` is the single missing-asset gate.** It checks `Materials/Floor.mat`,
-  `Materials/Wall.mat`, both zone base prefabs, and `Prefabs/<padding_prefab_name>.prefab`, reporting every missing path
-  at once, and runs before `CleanGeneratedSegments`.
+  `Materials/Wall.mat`, both zone base prefabs, `Prefabs/<padding_prefab_name>.prefab`, and
+  `Materials/_CueShaderReference.mat`, reporting every missing path at once under `Unable to generate the task. Every
+  hand-authored asset the pipeline references must exist, but these are missing from the project:`, and runs before
+  `BuildCuePrefabs` and `CleanGeneratedSegments`.
 - **Cues are built before the segment wipe.** `BuildCuePrefabs` precedes `CleanGeneratedSegments` because a missing
   texture or a conflicting cached material aborts there, and a wipe that ran first would strand the existing task prefab
   and scene on segments the aborted call is unable to rebuild.
@@ -194,18 +198,27 @@ Every entry below is in `McpBridge.DeleteProtectedPaths` and cannot be deleted v
 | `Materials/Wall.mat`                  | Material   | Shared wall material baked into every generated segment          |
 | `Materials/TargetMat.mat`             | Material   | Renderer material referenced by both hand-authored trigger zones |
 
-A missing entry is handled at one of three severities:
+A missing or broken entry is handled at one of three severities:
 
-- **Aborts before any mutation.** `ValidateHandAuthoredAssets` covers `Floor.mat`, `Wall.mat`, both zone prefabs, and
-  the template's padding prefab, naming every missing path at once. `BuildSegmentPrefabs` keeps its own null guards
-  (`Missing Floor.mat or Wall.mat.`, `Missing StimulusTriggerZone.prefab or OccupancyTriggerZone.prefab`) and
-  `CreateFromTemplate` keeps its late `No padding found at <path>` check, both as defense for direct callers and for a
-  deletion racing the build. Every segment that reports success carries a trigger zone.
+- **Aborts before any mutation.** `ValidateHandAuthoredAssets` covers `Floor.mat`, `Wall.mat`, both zone prefabs, the
+  template's padding prefab, and `_CueShaderReference.mat`, naming every missing path at once under `Unable to generate
+  the task. Every hand-authored asset the pipeline references must exist, but these are missing from the project:`.
+  `BuildSegmentPrefabs` keeps its own null guards (`Unable to build the segment prefabs. Floor.mat and Wall.mat must
+  both exist under <folder>, but at least one of them is missing.` and `Unable to build the segment prefabs.
+  StimulusTriggerZone.prefab and OccupancyTriggerZone.prefab must both exist under <folder>, but at least one of them
+  is missing. Restore both hand-authored zone prefabs before generating.`) and `CreateFromTemplate` keeps its late
+  `error: Unable to assemble the corridor. The padding prefab must exist at '<path>', but it is missing.` check, both
+  as defense for direct callers and for a deletion racing the build. Every segment that reports success carries a
+  trigger zone.
 - **Aborts inside `BuildSegmentPrefabs`.** Beyond the table: a generated cue prefab that a trial's `cue_sequence`
-  references but that is missing from `Cues/` ends the run with `BuildSegmentPrefabs: Missing cue prefab at <path>.`
-- **Degrades with a warning.** `LoadReferenceCueShader` logs a `Debug.LogWarning` for a missing
-  `Materials/_CueShaderReference.mat` and resolves the shader through the fallback chain documented in
-  [references/prefab-anatomy.md](references/prefab-anatomy.md).
+  references but that is missing from `Cues/` ends the run with `Unable to build the segment prefab for trial '<name>'.
+  The cue prefab must exist at '<path>', but it is missing.`
+- **Degrades with a warning.** `LoadReferenceCueShader` logs a `Debug.LogWarning` (`Unable to load the canonical cue
+  shader reference. The material at '<path>' must exist, but it is missing, so the shader falls back to a
+  hand-authored Cue*.mat material or Shader.Find.`) and resolves the shader through the fallback chain documented in
+  [references/prefab-anatomy.md](references/prefab-anatomy.md). Only a `Materials/_CueShaderReference.mat` that loads
+  with a null shader reaches it from `CreateFromTemplate`, because a missing file is already refused by
+  `ValidateHandAuthoredAssets`.
 
 `Materials/TargetMat.mat` sits outside all three paths. The generator never loads it by path, and the table lists it
 only because `DeleteProtectedPaths` protects it.
@@ -231,28 +244,34 @@ stimulus publishes. `read_console_tool` retrieves that error, which names the ba
 `CreateTask` MUST keep all of them unreachable for a fresh task.
 
 - **Corridor-count ceiling.** `Task` allocates one corridor-map entry per permutation, so `len(trial_structures) **
-  vr_environment.segments_per_corridor` must stay at or below `Task.MaximumCorridorCount` (`268435456` = 2^28, the point
-  at which the map's `(float, float)` array reaches the two-gigabyte bound on a single managed array). Exceeding that
-  ceiling logs `Task: template '<name>' declares <n> trials over a corridor depth of <d>, which needs more corridor
-  combinations than the 268435456 entries the corridor map holds.` There is no generation-time counterpart, because
-  `CreateTask` assembles the prefab first.
+  vr_environment.segments_per_corridor` must stay at or below `Task`'s private `MaximumCorridorCount` constant
+  (`268435456` = 2^28, the point at which the map's `(float, float)` array reaches the two-gigabyte bound on a single
+  managed array). Exceeding that ceiling logs `Unable to build the corridor map for template '<name>', which declares
+  <n> trials over a corridor depth of <d>. The corridor combination count must stay at or below the 268435456 entries
+  the map holds, but that combination needs more.` There is no generation-time counterpart, because `CreateTask`
+  assembles the prefab first.
 - **`configPath` must resolve.** An empty `configPath`, or one that does not resolve to a file under
-  `Application.dataPath`, logs `Task: configuration YAML not found. configPath='<p>', resolved='<r>'.` The path is
-  stored project-relative (`InfiniteCorridorTask/Configurations/<template>.yaml`) with leading separators stripped. This
-  bailout fires for a task prefab generated from a template outside `Assets/`. A template that no longer loads fails the
-  same way through the adjacent `Failed to load task template from YAML file '<path>'` bailout.
+  `Application.dataPath`, logs `Unable to load the task configuration. The configPath must resolve to an existing YAML
+  file, but configPath='<p>' resolved to '<r>', which names no file.` The path is stored project-relative
+  (`InfiniteCorridorTask/Configurations/<template>.yaml`) with leading separators stripped. This bailout fires for a
+  task prefab generated from a template outside `Assets/`. A template that no longer loads fails the same way through
+  the adjacent `Unable to load the task template from YAML file '<path>'. The file must hold a valid template, but
+  deserialization failed with: <msg>.` bailout.
 - **Track length must cover the corridor depth.** When maze generation yields fewer segments than
-  `segments_per_corridor`, `Task` logs `Task: trackLength <n> is too short for template '<name>'. Maze generation
-  produced <m> segments, but segments_per_corridor requires at least <d>. ... Raise Track Length in Window > Task
-  Parameters.` `ValidateTrackLengthCoversCorridor` is the generation-time gate that keeps this unreachable at the
-  default track length, and a track length lowered by hand via `/task-parameters` can still trip it.
-- **Sequence exhaustion ends the session.** When the animal runs past the last generated segment, `Task` logs `Animal
-  ran through all generated segments. Raise Track Length in Window > Task Parameters to cover a longer run.` and
-  disables itself mid-run. This is a track-length budgeting concern, not a generation defect.
-- **Corridor key out of range.** When the encoded corridor key falls outside the corridor map, `Task.Update` logs `Task:
-  Corridor key '<k>' out of bounds [0, <n>). The key stays out of range for every later frame, so the Task is disabled
-  to prevent runtime errors.` and disables itself. A correctly assembled prefab keeps the key in range for every
-  permutation, so this fires only on a hand-edited corridor map or a mismatched trial count.
+  `segments_per_corridor`, `Task` logs `Unable to start the task for template '<name>'. Maze generation must produce at
+  least <d> segments to fill one corridor, but trackLength <n> produced <m>. The shortest segment measures <l> Unity
+  units. Raise Track Length in Window > Task Parameters.` `ValidateTrackLengthCoversCorridor` is the generation-time
+  gate that keeps this unreachable at the default track length, and a track length lowered by hand via
+  `/task-parameters` can still trip it.
+- **Sequence exhaustion ends the session.** When the animal runs past the last generated segment, `Task.Update` logs
+  `Unable to advance to the next corridor. The generated segment sequence must extend past the current segment index,
+  but the animal ran through every generated segment. Raise Track Length in Window > Task Parameters to cover a longer
+  run.` and disables itself mid-run. This is a track-length budgeting concern, not a generation defect.
+- **Corridor key out of range.** When the encoded corridor key falls outside the corridor map, `Task.Update` logs
+  `Unable to read the current corridor. The corridor key must fall within [0, <n>), but it is <k>. The key stays out of
+  range for every later frame, so the Task is disabled to prevent runtime errors.` and disables itself. A correctly
+  assembled prefab keeps the key in range for every permutation, so this fires only on a hand-edited corridor map or a
+  mismatched trial count.
 
 Per-lap zone reset is driven from the same corridor advance rather than from any in-segment trigger volume.
 `Task.ResetZoneStates()` walks the `IResettable[]` that `Task.FindResettableZones()` collected at `Start`.
@@ -347,9 +366,10 @@ Apply all four skills' bullets in order. The pipeline-side touches owned here:
    `transitions` probability checks.
 2. Add a new `string.Equals(trial.triggerType, "<new>", StringComparison.Ordinal)` branch in `BuildSegmentPrefabs` and a
    corresponding `Place<New>Zone` helper following the pattern of `PlaceInteractionZone` / `PlaceCollisionZone` /
-   `PlaceOccupancyZone`. The branch chain ends in a fatal `else` (`BuildSegmentPrefabs: Unable to place a trigger zone
-   for trial '<name>'. ...`), so a literal added to `ConfigLoader` without a matching branch here fails the build loudly
-   rather than saving a zoneless segment. Add a matching member to the standalone `TriggerMode` enum in
+   `PlaceOccupancyZone`. The branch chain ends in a fatal `else` (`Unable to place a trigger zone for trial '<name>'.
+   The trigger_type must be one of interaction, collision, occupancy_disarm, occupancy_arm, or occupancy_trigger, but
+   the template declares '<t>'.`), so a literal added to `ConfigLoader` without a matching branch here fails the build
+   loudly rather than saving a zoneless segment. Add a matching member to the standalone `TriggerMode` enum in
    `Assets/InfiniteCorridorTask/Scripts/TriggerMode.cs` (namespace `SL.Tasks`), **appending** rather than inserting,
    because `Interaction` must stay ordinal 0 so an unconfigured prefab field defaults to it. Assign it to
    `StimulusTriggerZone.triggerMode` from the `Place<New>Zone` helper, and add a `case` to the `switch (triggerMode)`
@@ -472,7 +492,9 @@ Generator Pipeline Compliance:
 - [ ] Every missing hand-authored input still aborts before any asset is written (ValidateHandAuthoredAssets), and
       no code path can save a segment without a trigger zone
 - [ ] Hardcoded asset paths (Prefabs/, Cues/, Materials/, Textures/) are unchanged, or every call site is updated
-- [ ] LoadReferenceCueShader still falls back through the documented chain when _CueShaderReference.mat is missing
+- [ ] ValidateHandAuthoredAssets still carries _CueShaderReference.mat in its requiredPaths, so a missing file
+      aborts before any mutation, and LoadReferenceCueShader still falls back through the documented chain for a
+      reference material that loads with a null shader
 - [ ] CreateTask → New Task Editor menu and McpBridge.GenerateTask produce identical assets for the same template
 - [ ] CreateSceneFromTemplate runs MainWindow.EnsureControllers so the generated scene contains one GameObject
       per ControllerTypes enum value under the "Controllers" root, and MainWindow.RemoveDefaultMainCamera so it

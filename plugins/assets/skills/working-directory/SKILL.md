@@ -2,9 +2,9 @@
 name: working-directory
 description: >-
   Initializes the local Sollertia working directory, data root, platform credentials, and task templates directory via
-  the sollertia-shared-assets MCP server. Prerequisite for every other assets-plugin skill. Use when setting up
-  Sollertia on a new host, relocating the data root, or when configuration tools fail because the working directory is
-  not set.
+  the sollertia-shared-assets MCP server. First skill to run on a new host, ahead of the other assets-plugin skills.
+  Use when setting up Sollertia on a new host, relocating the data root, or when configuration tools fail because the
+  working directory is not set.
 user-invocable: false
 ---
 
@@ -55,14 +55,17 @@ the long-term storage tier where session data lives. Setting the working directo
 ```
 
 The working directory path is persisted under `platformdirs.user_data_dir(appname="sollertia_data",
-appauthor="sollertia")`, so it survives across CLI invocations and MCP sessions on the same host, and other MCP tools
-resolve their default paths against this directory. That application directory holds three plain-text records, each
-containing exactly one path string: `working_directory_path.txt`, `data_root_path.txt`, and
-`task_templates_directory_path.txt`. Every getter reads its record back with `rstrip("\r\n")`, so only line terminators
-are stripped. A directory name ending in a space survives intact, and a record holding nothing but a newline is rejected
-as empty. The three settings are fully independent, with no precedence, no fallback, and no inheritance between them.
-The data root is not derived from the working directory or the reverse. No environment variable and no CLI argument
-overrides any of the three records.
+appauthor="sollertia")`, so it survives across CLI invocations and MCP sessions on the same host. The consumers that
+resolve a path against this record are the credentials toolset, which joins the `credentials/` subdirectory under it,
+the two tools that report the record itself, `read_working_directory_tool` and
+`get_platform_environment_status_tool`, and the `slsa get directory` CLI reader that prints it. No session, dataset,
+template, or experiment tool consults it, because each of those takes an explicit path. That application directory
+holds three plain-text records, each containing exactly one path string: `working_directory_path.txt`,
+`data_root_path.txt`, and `task_templates_directory_path.txt`. Every getter reads its record back with
+`rstrip("\r\n")`, so only line terminators are stripped. A directory name ending in a space survives intact, and a
+record holding nothing but a newline is rejected as empty. The three settings are fully independent, with no
+precedence, no fallback, and no inheritance between them. The data root is not derived from the working directory or
+the reverse. No environment variable and no CLI argument overrides any of the three records.
 
 ### configuration/
 
@@ -195,7 +198,7 @@ per supported credentials category:
 
 | Component                  | `required` | When the host needs it                                                              |
 |----------------------------|------------|-------------------------------------------------------------------------------------|
-| `working_directory`        | `True`     | Always. Every other slsa workflow assumes the working directory is set              |
+| `working_directory`        | `True`     | Anchors the credentials directory, and is the only component `overall_ok` gates on  |
 | `data_root`                | `False`    | Only when defaulting project creation, discovery, or inventory to a persisted root  |
 | `task_templates_directory` | `False`    | Authoring task templates, and creating any experiment session of a VR-task type     |
 | `google_credentials`       | `False`    | Only when reading subject metadata from or writing water-restriction logs to Sheets |
@@ -334,7 +337,8 @@ whole Sollertia lifecycle and names the phase that follows working-directory set
 
 ### Working directory
 
-- **New host:** Always, because no other configuration skill can run until the working directory is set.
+- **New host:** Always, because the working directory anchors the credentials directory and is the one component
+  `get_platform_environment_status_tool` marks `required=True`.
 - **Relocating the working directory:** Step 2 to point at the new location. Note that relocating the working directory
   does **not** migrate the configuration files inside it. The user must either move those files manually or re-author
   them via `experiment:acquisition-system-design` and `forging:server-configuration`.
@@ -394,8 +398,9 @@ configured", and it is the only one of the three that interpolates the offending
 
 ## Related skills
 
-This skill is a prerequisite for **every** other skill in the `assets` plugin. The relationships below summarize where
-each downstream skill picks up after the working directory is set.
+This skill is the bootstrap step for the `assets` plugin, but not every downstream skill resolves a persisted record.
+The table below names the record each one actually reads. A skill marked `None` resolves none of them, because it works
+from explicit absolute paths or from library source, and it runs with every one of these records unset.
 
 | Skill                                  | Relationship                                                                      |
 |----------------------------------------|-----------------------------------------------------------------------------------|
@@ -404,18 +409,18 @@ each downstream skill picks up after the working directory is set.
 | `experiment:pipeline`                  | (owns the canonical lifecycle phase order; return there once bootstrap completes) |
 | `experiment:acquisition-system-design` | Working directory                                                                 |
 | `forging:server-configuration`         | Working directory                                                                 |
-| `/library-extension`                   | Working directory                                                                 |
-| `/task-templates`                      | Working directory + task templates directory                                      |
+| `/library-extension`                   | None. A new credentials category lands under `<working-directory>/credentials/`   |
+| `/task-templates`                      | Task templates directory                                                          |
 | `unity:task-prefabs`                   | Templates directory, pointed at Unity `Configurations/`                           |
-| `/experiment-configuration`            | Working directory                                                                 |
-| `/project-hierarchy`                   | Working directory, optionally the persisted data root                             |
-| `/session-discovery`                   | Working directory. The persisted data root supplies the `root_directory` argument |
-| `/session-data`                        | Working directory                                                                 |
-| `/session-descriptors`                 | Working directory                                                                 |
-| `/session-hardware-state`              | Working directory                                                                 |
-| `mesoscope:mesoscope-vr-snapshots`     | Working directory                                                                 |
+| `/experiment-configuration`            | None. Its `template_path` comes from `/task-templates` discovery                  |
+| `/project-hierarchy`                   | Optionally the persisted data root, when `root_directory` is omitted              |
+| `/session-discovery`                   | The persisted data root supplies the `root_directory` argument                    |
+| `/session-data`                        | None. The tools take absolute paths                                               |
+| `/session-descriptors`                 | None. The tools take absolute paths                                               |
+| `/session-hardware-state`              | None. The tools take absolute paths                                               |
+| `mesoscope:mesoscope-vr-snapshots`     | None. The tools take absolute paths                                               |
 | `/data-assets`                         | None. The tools take absolute paths                                               |
-| `/datasets`                            | Working directory                                                                 |
+| `/datasets`                            | None. The tools take absolute paths                                               |
 
 The Google credentials are consumed by the preprocessing-side capture that reads a read asset out of its Google Sheet,
 which `experiment:google-sheets-processing` owns. The `/data-assets` tools themselves take absolute paths and need

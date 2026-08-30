@@ -63,8 +63,8 @@ The column-roster enum definitions themselves (`DatasetColumn`, `BehaviorDataFil
 
 ## Registry seams
 
-Mesoscope-VR fills two of the eleven `sollertia_forgery.registries` seams from `mesoscope_vr/forging.py`, both keyed on
-`AcquisitionSystems.MESOSCOPE_VR`.
+Mesoscope-VR fills two of the thirteen `sollertia_forgery.registries` seams from `mesoscope_vr/forging.py`, both
+keyed on `AcquisitionSystems.MESOSCOPE_VR`.
 
 | Registry                      | Donated value                                                                                                    | Public resolver                                                          |
 |-------------------------------|------------------------------------------------------------------------------------------------------------------|--------------------------------------------------------------------------|

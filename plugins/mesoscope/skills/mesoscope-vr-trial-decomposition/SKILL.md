@@ -124,11 +124,17 @@ carrying that code falls off the end of the chain and is discarded without a war
 it. Teaching this parser a new code means adding a branch here and a matching feather to the `BehaviorDataFiles`
 roster.
 
-Distance-snapshot messages are logged whenever the active VR wall-cue sequence changes, and their float64 values
-become the breakpoints used to stitch multiple cue sequences together (see below). `/mesoscope-vr-runtime`
-describes code `5` differently, as the total traveled distance at Unity-signaled runtime termination. The
-`_DISTANCE_SNAPSHOT_CODE` docstring in `runtime.py` governs the decomposition documented here, and the stitching step
-below depends on that reading, since it consumes one breakpoint per boundary between consecutive cue sequences.
+A distance-snapshot message is logged from exactly one acquisition-side site: the branch that handles Unity signaling
+runtime termination. That branch emergency-pauses the runtime and records the wheel encoder's traveled distance at that
+moment. Resuming afterwards re-arms Unity through the editor bridge, and the restarted game regenerates the VR wall-cue
+sequence, which is why each snapshot marks the boundary between two consecutive cue sequences and why its float64 value
+serves as the breakpoint that stitches them together (see below). The `_DISTANCE_SNAPSHOT_CODE` docstring in
+`runtime.py` states the looser "logged when VR wall cue sequence changes", which names the consequence rather than the
+trigger, so the acquisition-side emitter owned by `/mesoscope-vr-runtime` governs when the message is written. A
+termination the operator resolves by ending the session instead of resuming therefore leaves a trailing breakpoint with
+no following sequence. With a single recorded sequence that surplus breakpoint is ignored, since the truncation check
+runs only for sequences before the last, but with two or more sequences it makes the breakpoint count equal the
+sequence count and trips the `ValueError` described below.
 
 The system-state and runtime-state streams are written to the feathers named by the `SYSTEM_STATE` and
 `RUNTIME_STATE` members of the `BehaviorDataFiles` roster, and the guidance streams use `REINFORCING_GUIDANCE` and
@@ -298,8 +304,8 @@ Runtime message dispatch:
 - [ ] The length test stated as running first, with the reason testing the session type alongside the
       length would misroute a wall-cue sequence into the state-code chain
 - [ ] Code 6 stated as emitted by the acquisition runtime and left undispatched by parse_runtime
-- [ ] Distance snapshot reconciled against /mesoscope-vr-runtime, with the runtime.py docstring
-      named as governing this decomposition
+- [ ] Distance snapshot stated as logged only when Unity signals runtime termination, with the resume that
+      regenerates the cue sequence explaining why each snapshot is a stitching breakpoint
 - [ ] The registry seam named as _RUNTIME_PARSER_REGISTRY, holding (RUNTIME_SOURCE_ID, parse_runtime)
 
 Decomposition and outputs:

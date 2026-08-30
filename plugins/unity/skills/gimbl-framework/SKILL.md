@@ -183,32 +183,40 @@ scene initialized by `MainWindow`.
 - **Connect has a 10000ms timeout**: `Connect()` runs `ConnectAsync` on a `Task.Run`, waits up to 10 seconds
   (`ConnectTimeoutMilliseconds`), and logs an error if the connection has not completed. The method returns either way.
   `MQTTClient` continues running in an unconnected state and `Publish` automatically falls back to the in-process
-  loopback. A broker that actively refuses the connection reports through a `Could not connect to MQTT broker at
-  <ip>:<port>` Debug.LogError that a refused connection extends with `: <inner exception message>`, not via any thrown
-  exception. The matching `Successfully connected to MQTT Broker at: <ip>:<port>` log fires only when `Connect(verbose:
-  true)` is passed, so the default wiring is silent on success.
-- **Raw `IMqttClient` is publicly accessible** as `MQTTClient.Instance.client`. External code can bypass the
-  `MQTTChannel` abstraction and call `PublishAsync` / `SubscribeAsync` directly. This is a deliberate escape hatch for
-  advanced cases, and production code should still go through `MQTTChannel` so the in-process loopback and channel-list
-  bookkeeping stay consistent.
+  loopback. Both failure paths report through a `Debug.LogError` opening with `Unable to connect to the MQTT broker at
+  <ip>:<port>.`, and neither throws out of `Connect()`. A timeout continues `The connection attempt must resolve within
+  10000 milliseconds, but it did not.`, while a broker that actively refuses the connection continues `The broker must
+  accept an MQTT 5.0 connection, but the attempt failed with: <inner exception message>`. The matching `Successfully
+  connected to MQTT Broker at: <ip>:<port>` log fires only when `Connect(verbose: true)` is passed, so the default
+  wiring is silent on success.
+- **There is no raw `IMqttClient` escape hatch**: the MQTTnet handle is the private field `_client`, and `MQTTClient`
+  exposes no accessor for it, so external code cannot call `PublishAsync` / `SubscribeAsync` directly and must route
+  every publish and subscribe through `MQTTChannel`. `Subscribe` and `Publish` are `internal` to the `Sollertia.Gimbl`
+  assembly (widened only to the test assemblies by `Assets/Gimbl/Scripts/AssemblyInfo.cs`), so task and UI scripts in
+  `Sollertia.InfiniteCorridorTask` / `Sollertia.UI` cannot reach them at all. The public surface is `Instance`,
+  `ipAddress`, `port`, `Connect`, `Disconnect`, and `Unsubscribe`. Do not confuse the private handle with the public
+  `MQTTChannel.client` field, which is a `MQTTClient` reference (not an `IMqttClient`) and is what the
+  `channel.client?.Unsubscribe(channel)` teardown snippet below uses. The tests reach `_client` only by reflection,
+  through `PrivateAccess.GetField<IMqttClient>(client, "_client")`.
 - **In-process loopback**: when the broker is unreachable, `Publish` routes the payload directly to in-process
   subscribers on the matching topic so keyboard-only test runs without a broker still reach local listeners (for
-  example, `LickStimulusSpawner`). The first loopback delivery on each topic logs `MQTTClient: broker unreachable, so
-  '<topic>' is delivered to in-process subscribers only ...`, deduplicated per topic via the `_loopbackWarnedTopics`
+  example, `LickStimulusSpawner`). The first loopback delivery on each topic logs a warning opening with `Unable to
+  deliver '<topic>' to the MQTT broker at <ip>:<port>.`, deduplicated per topic via the `_loopbackWarnedTopics`
   set. A console full of these warnings names exactly which topics have no wired experiment-side counterpart, and
   `read_console_tool(level="warning")` collects them without the Console window. Loopback calls `ReceivedMessage`
   synchronously on the publisher's thread, so a typed channel's deserialization `InvalidOperationException` propagates
   back out of the caller's `Send`, not only out of the broker callback.
-- **Lifecycle**: `Awake` first guards against a duplicate. A second `MQTTClient` in the scene logs `MQTTClient: Multiple
-  instances found, using existing instance` and returns without claiming `Instance` or loading any settings, so its
-  `ipAddress` / `port` keep their field initializers. Otherwise `Awake` sets `Instance` and loads `ipAddress` / `port`
-  from `EditorPrefs` (with loopback fallback). `Connect()` is invoked externally by `MQTTConnectorObject.OnEnable()`,
-  which runs after every `Awake` and before any subscriber `Start()` constructs channels (see
-  `Gimbl.MQTTConnectorObject` below). `Start` opens `SessionStart` / `SessionStop` channels and fires `SessionStart`
-  after a 1-second delay (gives downstream subscribers time to attach). `OnApplicationQuit` publishes `SessionStop`,
-  unsubscribes every channel, and disposes the client. `OnDestroy` duplicates the dispose path so scene transitions that
-  bypass quit still release the `IMqttClient`. Both null `Instance` when it still points at the departing component, so
-  `MQTTChannel` construction after teardown throws again.
+- **Lifecycle**: `Awake` first guards against a duplicate. A second `MQTTClient` in the scene logs the warning `Unable
+  to register this MQTTClient as the singleton instance. The active scene must host exactly one MQTTClient component,
+  but another instance is already registered, so that instance remains in use.` and returns without claiming `Instance`
+  or loading any settings, so its `ipAddress` / `port` keep their field initializers. Otherwise `Awake` sets `Instance`
+  and loads `ipAddress` / `port` from `EditorPrefs` (with loopback fallback). `Connect()` is invoked externally by
+  `MQTTConnectorObject.OnEnable()`, which runs after every `Awake` and before any subscriber `Start()` constructs
+  channels (see `Gimbl.MQTTConnectorObject` below). `Start` opens `SessionStart` / `SessionStop` channels and fires
+  `SessionStart` after a 1-second delay (gives downstream subscribers time to attach). `OnApplicationQuit` publishes
+  `SessionStop`, unsubscribes every channel, and disposes the client. `OnDestroy` duplicates the dispose path so scene
+  transitions that bypass quit still release the `IMqttClient`. Both null `Instance` when it still points at the
+  departing component, so `MQTTChannel` construction after teardown throws again.
 - **`Connect()` is re-entrant**: it unhooks `_messageReceivedHandler` from, and disposes, any `IMqttClient` an earlier
   call installed before building the replacement, so a `MQTTConnectorObject` that re-enables repeatedly releases one
   broker handle per disable instead of accumulating them. The reset does not touch the routing list, so existing

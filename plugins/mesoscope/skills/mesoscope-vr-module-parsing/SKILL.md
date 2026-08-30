@@ -110,7 +110,7 @@ accessor, which returns the `(module_type, module_id)` pairs the session configu
 controller's extraction filter from the public `get_module_event_codes()` accessor. That accessor rebuilds its mapping
 on every call, so a caller may mutate the returned dictionary freely without reaching `_MODULE_REGISTRY`.
 
-These three donations fill three of the eleven registry seams in `sollertia_forgery.registries`, and the agnostic
+These three donations fill three of the thirteen registry seams in `sollertia_forgery.registries`, and the agnostic
 pipeline reaches each one through its accessor rather than through the registry itself.
 
 | Registry                                | Mesoscope-VR donation                                    | Accessor                                   |

@@ -44,8 +44,8 @@ checklist before reporting an extension complete.
 
 **Does not cover:**
 - The line-by-line code changes, which the `sollertia-shared-assets` README owns in its "Adding New Session Types",
-  "Adding New Acquisition Systems", "Adding a New Trial Class", "Adding a New Trigger Type", and "Adding a New Read
-  Asset" sections. Read the section the scenario table names before applying any recipe
+  "Adding New Acquisition Systems", "Adding a New Trial Class", "Adding a New Trigger Type", "Adding a New Read Asset",
+  and "Adding a New Credentials Category" sections. Read the section the scenario table names before applying any recipe
 - Per-asset CRUD against registered systems and session types (see `/session-data`, `/session-descriptors`,
   `/session-hardware-state`, `/experiment-configuration`, `/task-templates`, `/data-assets`, and `/datasets`)
 - System-level acquisition runtime configuration, which lives in `sollertia-experiment` (see
@@ -187,7 +187,7 @@ rather than replacing it.
 | New `ReadAssets` member                | "Adding a New Read Asset"               | [Read asset](references/extension-recipes.md#adding-a-new-read-asset)                                                |
 | New raw-tree directory                 | None, the recipe carries the whole flow | [Raw-tree directory](references/extension-recipes.md#adding-a-raw-tree-directory-for-a-new-artifact)                 |
 | New processing pipeline, upstream half | None, the recipe carries the whole flow | [Pipeline surfaces](references/extension-recipes.md#adding-the-session-record-surfaces-of-a-new-processing-pipeline) |
-| New `CredentialsTypes` member          | None, the recipe carries the whole flow | [Credentials category](references/extension-recipes.md#adding-a-new-credentials-category)                            |
+| New `CredentialsTypes` member          | "Adding a New Credentials Category"     | [Credentials category](references/extension-recipes.md#adding-a-new-credentials-category)                            |
 
 ### Reading the Mesoscope-VR reference
 
@@ -250,7 +250,7 @@ checks report one structure at a time.
 
 Read the README section the scenario table names for **every** scenario, then apply the touch list in
 [references/extension-recipes.md](references/extension-recipes.md), which adds the cross-skill and repository-level
-updates on top of each README recipe. Three scenarios have no README section, so their recipes carry the whole flow.
+updates on top of each README recipe. Two scenarios have no README section, so their recipes carry the whole flow.
 Run `python -c "import sollertia_shared_assets"` once the code touches land, then run the test suite, because the
 import-time checks cover the dispatch registries alone and every touch point under "What the checks do not catch" needs
 explicit test coverage.
@@ -315,7 +315,7 @@ sollertia marketplace.
 |--------------------------------------------|------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
 | `/cli-reference`                           | Owns the `slsa configure credentials --category` surface a new registry member widens                                                                                                                                                                                                                                        |
 | `/assets-mcp-environment-setup`            | Owns the MCP response contract every introspection tool returns, and diagnoses the server startup failure an incomplete extension causes                                                                                                                                                                                     |
-| `/working-directory`                       | Bootstraps the working directory and the credentials directory every extension touch point consumes                                                                                                                                                                                                                          |
+| `/working-directory`                       | Bootstraps the credentials directory under which a new `CredentialsTypes` member's file lands                                                                                                                                                                                                                          |
 | `/session-data`                            | Owns the session record a new session type or acquisition system widens                                                                                                                                                                                                                                                      |
 | `/session-descriptors`                     | Owns the generic descriptor placeholder shape a new session type extends                                                                                                                                                                                                                                                     |
 | `/session-hardware-state`                  | Owns the generic hardware-state surface a new acquisition system extends                                                                                                                                                                                                                                                     |

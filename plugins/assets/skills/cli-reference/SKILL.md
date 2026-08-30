@@ -173,9 +173,11 @@ addresses this machine only.
 ### What every command prints
 
 `sollertia_shared_assets/__init__.py` enables the shared console at import, so every `console.echo` in the CLI reaches
-the terminal. Each command prints one human-readable sentence that ends in a full stop, and no command emits JSON or
-any other structured form. `slsa get directory` prints `Working directory: /path/to/directory.`, so a caller parsing
-that output strips the trailing full stop.
+the terminal. Each `get` and `configure` command prints one or two human-readable sentences that end in a full stop,
+and no command emits JSON or any other structured form. `slsa get directory` prints
+`Working directory: /path/to/directory.`, so a caller parsing that output strips the trailing full stop. The
+empty-result branches of `slsa get projects` and `slsa get experiments` add a second sentence naming the remedy, and
+`slsa mcp` prints nothing on the default `stdio` transport, because it disables the console before starting the server.
 
 ### The four `get` readers
 
@@ -231,8 +233,8 @@ resolves the data root from `get_data_root()` and accepts no root override, so i
 The response envelope every tool on this server returns, and the write-validation contract its write tools follow, are
 documented in the `## Response contract` section of `/assets-mcp-environment-setup`.
 
-The `slsa mcp` server registers 66 tools across four modules, `configuration_tools.py`, `data_tools.py`,
-`dataset_tools.py`, and `unity_tools.py`. Ten of them have a CLI counterpart. The other 56 have no CLI surface at all,
+The `slsa mcp` server registers 69 tools across four modules, `configuration_tools.py`, `data_tools.py`,
+`dataset_tools.py`, and `unity_tools.py`. Ten of them have a CLI counterpart. The other 59 have no CLI surface at all,
 so this section carries more weight here than in the sibling CLI references.
 
 ### CLI commands with no exact MCP equivalent
@@ -287,8 +289,8 @@ those operations, and `unity:unity-mcp-environment-setup` owns the relay diagnos
 
 1. **Error surface.** Every CLI failure is a traceback at exit code 1 or a Click usage message at exit code 2, while
    every tool returns a `success` envelope instead of raising.
-2. **Payload richness.** A CLI command prints one sentence, and its paired tool returns the resolved paths and counts
-   the caller would otherwise re-derive.
+2. **Payload richness.** A CLI command prints a sentence or two of prose, and its paired tool returns the resolved
+   paths and counts the caller would otherwise re-derive.
 3. **Reach.** No `slsa` command takes a host, so the CLI addresses this machine alone.
 
 ---

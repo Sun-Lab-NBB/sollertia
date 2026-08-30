@@ -446,7 +446,7 @@ match the durability the user actually wants:
 | Skill                                   | Relationship                                                                      |
 |-----------------------------------------|-----------------------------------------------------------------------------------|
 | `/assets-mcp-environment-setup`         | Run first if the MCP server is not connected. Owns the response contract          |
-| `/working-directory`                    | Required prerequisite that bootstraps the local working directory                 |
+| `/working-directory`                    | Bootstraps the host path records. These tools take absolute paths                 |
 | `/session-data`                         | Owns `SessionData`, `inspect_sessions_tool`, and the session-type list            |
 | `/session-discovery`                    | Resolves raw session roots                                                        |
 | `/session-hardware-state`               | Sibling that owns the hardware-state snapshot, keyed on acquisition system        |

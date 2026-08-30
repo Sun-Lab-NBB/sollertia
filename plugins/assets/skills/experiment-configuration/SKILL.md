@@ -77,15 +77,24 @@ the precise call sequence and tool surface of any specific consumer, defer to th
 ### The state machine
 
 `experiment_states` is a **`dict[str, ExperimentState]`** iterated in **insertion order**. That ordering is the sequence
-in which states fire, and the string keys give each state a stable, human-readable identifier for logs and analysis
-without forcing positional indexing. The key format is set by the target system's `from_task_template` builder rather
-than by the platform, and Mesoscope-VR emits 1-indexed `state_1`, `state_2`, and so on (see
-`mesoscope:mesoscope-vr-experiment-schema`). Each state holds for `state_duration_s` seconds, then control falls through
-to the next state. The session ends when the last state's timer expires.
+in which states fire, and the string keys give each state a stable, human-readable identifier for analysis and for the
+runtime's console output, without forcing positional indexing. The key format is set by the target system's
+`from_task_template` builder rather than by the platform, and Mesoscope-VR emits 1-indexed `state_1`, `state_2`, and so
+on (see `mesoscope:mesoscope-vr-experiment-schema`). Each state holds for `state_duration_s` seconds, then control falls
+through to the next state. The session ends when the last state's timer expires.
 
 The dict-of-named-states shape (rather than a list) lets you add, rename, or reorder states by editing keys and
-re-emitting the YAML, without renumbering downstream references. The keys appear verbatim in the log stream against
-which the analysis pipeline aligns trials.
+re-emitting the YAML. The keys themselves never reach the log stream: the runtime logs only the integer
+`experiment_state_code`, and `sollertia-forgery` joins the `experiment_states` key back in by that code when it builds
+the `runtime_state` column. That join is self-contained within one session, because the forging pipeline reads the
+code-to-name mapping from that session's own frozen `experiment_configuration.yaml` snapshot rather than from the live
+project configuration, so no later edit to the project configuration can disturb a session that has already been
+acquired (amending the session's own snapshot is a separate matter, covered under "Reading the frozen configuration from
+a session" below). The edit that does carry a cost is the rename: the key becomes the user-visible category value of the
+forged dataset's `runtime_state` column, so renaming a state relabels it in every session acquired afterwards and breaks
+label comparability against the sessions acquired before the edit. Renumbering `experiment_state_code` is invisible to
+analysis by comparison, since the code is replaced by its key on the way into the dataset, but the numbering is
+constrained at both ends (see the field description below).
 
 `ExperimentState` declares three required fields with no default (`experiment_state_code`, `system_state_code`,
 `state_duration_s`), `supports_trials` defaulting to `True`, and six guidance counters each defaulting to `0`. The class
@@ -100,9 +109,13 @@ Each `ExperimentState` carries two distinct codes:
 
 - **`experiment_state_code: int`** is the phase's unique integer identifier code, required with no default, and emitted
   into the data log when the state begins so downstream analysis can slice trials by phase. Builders seed it 1-based, so
-  Mesoscope-VR uses `state_index + 1`. Use a human-readable phase name only for the `experiment_states` dict key, never
-  for this field, because a string written here loads silently, since per-field type checking is disabled, and reaches
-  the runtime as a wrong type.
+  Mesoscope-VR uses `state_index + 1`. The 1-based seeding is not incidental: on Mesoscope-VR, code `0` is reserved for
+  the implicit `idle` state that `sollertia-forgery` injects into the code-to-name mapping, so a state numbered `0` is
+  overwritten by `idle` and never appears under its own name in the forged `runtime_state` column. The upper bound on
+  that system is `255`, because the acquisition runtime serializes the code as an unsigned 8-bit value and rejects any
+  code outside `0`-`255`. Use a human-readable phase name only for the `experiment_states` dict key, never for this
+  field, because a string written here loads silently, since per-field type checking is disabled, and reaches the
+  runtime as a wrong type.
 - **`system_state_code`** is the hardware-mode snapshot that the acquisition runtime should install for the duration of
   the state. The valid codes are system-specific, defined by the target system's system-state enum in
   `sollertia-experiment`. Consult that system's schema skill for the accepted values (for Mesoscope-VR, see
@@ -372,7 +385,18 @@ payload on semantic grounds (for Mesoscope-VR, every trial must resolve to a run
 The experiment configuration does not carry the corridor task's spatial data, so cross-template validation (cue
 sequences, zone bounds, trigger-type pairing) is the responsibility of `/task-templates` and its
 `validate_template_tool` on the paired template. At session init the acquisition runtime joins the two by trial name,
-validating that every `trial_structures` key matches a key in the template.
+validating that every trial name the cue-sequence decomposer produces from the template has a matching entry in the
+configuration's `trial_structures`. That check runs in one direction only, so a `trial_structures` key with no template
+counterpart is never flagged at session init. Do not read that as harmless. `sollertia-forgery` enforces the opposite
+direction at processing time: its Mesoscope-VR runtime parser raises a `ValueError` for every trial name the experiment
+configuration declares but the paired template lacks, so an unmatched key survives acquisition and then fails the
+session's processing, after the data is already on disk. Key order is load-bearing as well, in a narrower way. The join
+itself is by name, so the template's own trial ordering is irrelevant, but a name's position in `trial_structures` is
+the canonical trial index the parser writes into the runtime feathers, and the dataset assembly resolves those indices
+back to names through the same enumeration. Both stages read one session's frozen snapshot, so they agree by
+construction. Reordering or inserting into the `trial_structures` of a snapshot already parsed is what breaks that
+agreement, silently relabeling every trial in the resulting dataset. Keep `trial_structures` and the template's trial
+set in one-to-one correspondence by name, and leave the key order of a frozen snapshot alone.
 
 The tool reports three distinct outcomes:
 
@@ -406,9 +430,12 @@ still possible, because `write_experiment_configuration_tool` writes exactly the
 that path may be the frozen snapshot. Confirm the planned write with the user before every such call, and pass
 `overwrite=True` explicitly, because the tool defaults to `overwrite=False` and refuses an existing file otherwise.
 Verify the result by re-reading the snapshot and diffing the returned payload field by field against the payload you
-intended. The amendment is local to the file whose path was passed and does not propagate to the project source
-configuration at `<root>/<project>/configuration/<experiment>.yaml`, so a correction that must apply to both is written
-to each file explicitly.
+intended. Renaming an `experiment_states` key or reordering `trial_structures` is the riskiest amendment of all, because
+the forged dataset's `runtime_state` and `trial_type` labels are resolved through those keys, so an amendment landing
+between two processing stages relabels the session's data rather than correcting it. The amendment is local to the file
+whose path was passed and does not propagate to the project source configuration at
+`<root>/<project>/configuration/<experiment>.yaml`, so a correction that must apply to both is written to each file
+explicitly.
 
 ---
 
