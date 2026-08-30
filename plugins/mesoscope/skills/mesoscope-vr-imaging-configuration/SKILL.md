@@ -52,7 +52,7 @@ demand:
 
 ## Registry seams
 
-`two_photon.py` fills three of the eleven seams in `sollertia_forgery/registries.py`, each keyed on
+`two_photon.py` fills three of the thirteen seams in `sollertia_forgery/registries.py`, each keyed on
 `AcquisitionSystems.MESOSCOPE_VR`:
 
 | Registry                                 | Mesoscope-VR donation                                             | Agnostic accessor                                                                                   |

@@ -284,9 +284,18 @@ a symlink that would otherwise route an out-of-root session past the check, or r
 through a link. A session outside the resolved data root raises `FileNotFoundError` naming both paths. This fences the
 commands to sessions on the host-machine, and in particular keeps them off sessions on long-term storage mounts.
 
-`delete` then purges the session from every acquisition machine and every long-term storage destination, with no
-confirmation prompt and no undo. Never hand this command over without stating that plainly, and prefer
-`delete_session_tool`, which refuses to act until the caller supplies its explicit confirmation value.
+`delete` then delegates to `purge_session`, which removes the session from every acquisition machine and every
+long-term storage destination with no undo. Whether it prompts depends on the `nk.bin` marker. `purge_session` passes
+`require_confirmation=not session_data.raw_data.nk_path.exists()`, and `SessionData.mark_runtime_initialized` clears
+that marker as soon as the acquisition runtime initializes, so every session that carries real data raises the
+interactive `Permanently delete all data for session <session_name>?` prompt, which locks the terminal until the user
+answers and aborts on the default. Only a session that never finished initializing still carries the marker and is
+purged with no prompt at all. Never hand this command over without stating that plainly. `delete_session_tool` does
+not replace this prompt. It adds an argument guard in front of the same `purge_session` call, so once
+`confirm_deletion='yes'` clears that guard the tool reaches the identical prompt. A server process with no
+interactive terminal cannot answer it, and the tool reports the failure as an `Error: ` string, while a server
+started from a terminal blocks on it until someone answers there. Deleting an initialized session therefore belongs
+at a terminal on the host-machine either way.
 
 ### `migrate` requires the target project to exist
 
@@ -341,15 +350,17 @@ and reads nothing back.
 | `configure experiment` | `create_experiment_from_vr_template_tool` | `slsa` | The CLI names the project, the experiment, and the template stem, and resolves each one under the data root and the templates directory, while the tool takes an absolute `file_path` and an absolute `template_path`. The CLI also sets the three trial defaults, and the tool leaves them at the configuration class defaults |
 | `check-bridge`         | `check_mesoscope_bridge_tool`             | `sle`  | The same probe. The CLI swallows every exception into a WARNING at exit 0, while the tool returns an `error` key, and the CLI echoes rather than returning the `reachable` flag                                                                                                                                                 |
 | `preprocess`           | `preprocess_session_tool`                 | `sle`  | The CLI resolves both operands before the data-root check and the tool compares them unresolved. The CLI validates the path through Click and prompts when it is omitted, and raises where the tool returns an `Error: ` string                                                                                                 |
-| `delete`               | `delete_session_tool`                     | `sle`  | The tool refuses to act until the caller passes an explicit confirmation value, and the CLI purges immediately. The same resolve and error-reporting differences as `preprocess` apply                                                                                                                                          |
+| `delete`               | `delete_session_tool`                     | `sle`  | The confirmation argument is the only difference around the purge itself. The tool refuses to act until the caller passes `confirm_deletion`, and both surfaces then call the same `purge_session`, which reaches the same interactive prompt for any session that finished initializing. The same resolve and error-reporting differences as `preprocess` apply  |
 | `migrate`              | `migrate_animal_tool`                     | `sle`  | The same three arguments against the same library call. The CLI names them `-s`, `-d`, and `-a`, and the tool names them `source_project`, `destination_project`, and `animal_id`                                                                                                                                               |
 
 ### The three rules behind the table
 
 1. **Direction of travel.** Every paired command writes or acts, and every unpaired tool reads. An agent asking what
    the rig currently holds has only the MCP path.
-2. **Guard placement.** The CLI's guards are path containment checks, and the tool's guards are explicit confirmation
-   and overwrite arguments. Neither surface carries both.
+2. **Guard placement.** Both surfaces run the same `is_relative_to` containment check, differing only in whether they
+   resolve the operands first, and on `delete` both reach the same interactive terminal prompt inside `purge_session`.
+   Only a guard the caller passes as an argument is MCP-only: `confirm_deletion` on `delete_session_tool` and
+   `overwrite` on `write_system_configuration_tool`.
 3. **Hardware reach.** No command with an MCP equivalent touches hardware during a session, and every command that
    does has no equivalent by design.
 
@@ -371,8 +382,9 @@ diagnoses the `slsa` server.
 | `migrate_animal_tool`                     | `sle`  | `sle mesoscope migrate -s <source> -d <destination> -a <animal>`                |
 
 Two caveats. The `configure system` substitute writes defaults and discards the current hardware parameters, so tell
-the user to copy the existing file aside first. The `delete` substitute carries none of the confirmation the tool
-demands, so obtain the user's explicit go-ahead in the conversation before printing it.
+the user to copy the existing file aside first. The `delete` substitute prompts the user only when the session's
+`nk.bin` marker is already cleared, and purges a session that never finished initializing with no prompt, so obtain
+the user's explicit go-ahead in the conversation before printing it.
 
 Everything else genuinely blocks until the server is back. That covers reading the active system configuration,
 validating it, checking the declared mounts, diffing the camera configurations, describing the configuration schema,
