@@ -315,9 +315,9 @@ You MUST work through this checklist before introducing a new MQTT topic:
 - [ ] Did NOT treat Editor / keyboard-only success as proof of wiring, because `MQTTClient.Publish` loops messages
       in-process when no broker is connected, so a Unity-only topic with no `sollertia-experiment` counterpart
       appears to work locally and drops in production
-- [ ] Grepped the Console for `MQTTClient: broker unreachable, so '<topic>' is delivered to in-process subscribers
-      only and will not reach sollertia-experiment` (`MQTTClient.Publish`), which `MQTTClient` logs once per topic
-      on the first loopback publish, to enumerate every topic that never crossed the process boundary
+- [ ] Grepped the Console for `in-process subscribers only`, the stable fragment of the `Unable to deliver '<topic>'
+      to the MQTT broker at <ip>:<port>` warning (`MQTTClient.Publish`) that `MQTTClient` logs once per topic on the
+      first loopback publish, to enumerate every topic that never crossed the process boundary
 - [ ] Confirmed the experiment-side publisher / subscriber landed in the same release
 ```
 
@@ -351,11 +351,11 @@ likely cause and first check.
 - **Likely cause**: Broker not connected (the publish reaches in-process subscribers only and never crosses to the
   experiment process), or experiment-side subscription not active.
 - **First check**: The scene's connector calls `Connect(verbose: false)` (`MQTTConnectorObject.OnEnable`), so **no
-  success line is printed during a run**. Look instead for `Could not connect to MQTT broker at <ip>:<port>`
-  (`MQTTClient.Connect`), for the once-per-topic warning `MQTTClient: broker unreachable, so '<topic>' is delivered to
-  in-process subscribers only and will not reach sollertia-experiment` (`MQTTClient.Publish`), and for any `MQTT
-  publish failed on '<topic>'` line. Then confirm experiment subscribed to the matching `MQTTTopics.<Name>`. The
-  `Successfully connected to MQTT Broker at: <ip>:<port>` line appears only when the Task Parameters window's Test
+  success line is printed during a run**. Look instead for `Unable to connect to the MQTT broker at <ip>:<port>`
+  (`MQTTClient.Connect`), for the once-per-topic loopback warning `Unable to deliver '<topic>' to the MQTT broker at
+  <ip>:<port>` (`MQTTClient.Publish`), whose stable fragment is `in-process subscribers only`, and for any `Unable to
+  publish to the MQTT topic '<topic>'` line. Then confirm experiment subscribed to the matching `MQTTTopics.<Name>`.
+  The `Successfully connected to MQTT Broker at: <ip>:<port>` line appears only when the Task Parameters window's Test
   Connection button is pressed (`MainWindow.DrawMQTTSection` passes `verbose: true`).
 
 ### Channel constructor throws `InvalidOperationException`
@@ -397,9 +397,9 @@ likely cause and first check.
 
 - **Likely cause**: Expected, because `MQTTClient.Publish` loops messages in-process when the broker is unreachable.
 - **First check**: The in-process loopback is the dev-without-broker path rather than a defect. The Console records it
-  once per topic as `MQTTClient: broker unreachable, so '<topic>' is delivered to in-process subscribers only and will
-  not reach sollertia-experiment` (`MQTTClient.Publish`), so grep for that line to list every topic that stayed
-  inside Unity.
+  once per topic as a warning that begins `Unable to deliver '<topic>' to the MQTT broker at <ip>:<port>`
+  (`MQTTClient.Publish`), so grep for its stable fragment `in-process subscribers only` to list every topic that
+  stayed inside Unity.
 
 ### `RequireInteraction` / `RequireWait` writes have no effect
 

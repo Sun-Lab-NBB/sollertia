@@ -385,9 +385,10 @@ reboot. **You SHOULD** maintain one scene per experimental protocol so the confi
 ```
 
 A `Simulated Linear` keyboard-only run needs **no** broker: when the broker is unreachable, `MQTTClient.Publish` falls
-back to routing the message straight to in-process subscribers on the matching topic and logs one `broker unreachable`
-warning per topic. Only `Interaction` and `Stimulus` are both published and subscribed inside Unity, so they alone can
-be exercised that way.
+back to routing the message straight to in-process subscribers on the matching topic and logs one warning per topic,
+opening `Unable to deliver '<topic>' to the MQTT broker at <ip>:<port>. ... the message reaches in-process subscribers
+only ...` (`MQTTClient.cs`). Only `Interaction` and `Stimulus` are both published and subscribed inside Unity, so they
+alone can be exercised that way.
 
 ---
 
@@ -404,7 +405,7 @@ be exercised that way.
 | Keyboard input has no effect in Play Mode              | Controller dropdown is `Linear`, not `Simulated Linear`                                                                                                         | Swap via the Actor section's Controller dropdown                                                   |
 | Spurious `Interaction` events in session log           | Forgotten `Simulated Linear` selection in a production scene                                                                                                    | Swap back to `Linear`                                                                              |
 | UI indicators never appear                             | `LickStimulusSpawner` canvas / prefab fields unset                                                                                                              | Assign fields in the Inspector (a `Stimulus` with `delivered == false` correctly spawns nothing)   |
-| Task disables itself at `Start`, corridor never builds | `configPath` drifted, and `read_console_tool` shows `Task: configuration YAML not found. configPath='…', resolved='…'`                                          | Regenerate via `/task-prefabs` or fix the path                                                     |
+| Task disables itself at `Start`, corridor never builds | `configPath` drifted, and `read_console_tool(level="error")` logs `Unable to load the task configuration. The configPath must resolve to an existing YAML file` | Regenerate via `/task-prefabs` or fix the path                                                     |
 | Full-screen views open on wrong monitors               | Monitor indices reordered or new monitors attached                                                                                                              | Refresh Monitor Positions, reassign cameras                                                        |
 | `Window → Task Parameters` shows "No Task component"   | Active scene contains no task prefab                                                                                                                            | `create_task_tool(template_name=...)`, or drag a task prefab in                                    |
 | Default `Main Camera` present in a new scene           | The scene was assembled by hand, outside both `InitializeScene` and the `CreateSceneFromTemplate` pass that strips it                                           | Close and reopen `Window → Task Parameters`, which logs the removal                                |

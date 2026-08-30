@@ -199,12 +199,17 @@ assert.
 
 **`McpBridgeTests`** carries the per-tool registration a new bridge tool joins.
 `Dispatch_DeclaredToolName_DoesNotFallThroughToUnknownTool` takes one `[TestCase]` per tool name and currently covers
-thirteen of the eighteen names `McpBridge.Dispatch` handles. Its XML remark states that count and names the four
+thirteen of the eighteen names `McpBridge.Dispatch` handles. Its XML remark states that count and names the five
 exclusions, so the remark is updated alongside the case list. The exclusions are deliberate. `enter_play_mode` would
 strand the Editor in Play Mode for the rest of the run and is covered by `McpBridgePlayModeTests` instead.
 `read_task_parameters`, `write_task_parameters`, and `refresh_monitors` need the `FullScreenViewManager` fixture and are
-covered by `McpBridgeTaskParametersTests`. A new tool joins whichever of the three fixtures its handler's prerequisites
-allow. `DeleteAsset_ProtectedHandAuthoredAsset_RefusesWithoutDeletingIt` takes one `[TestCase]` per entry in
+covered by `McpBridgeTaskParametersTests`. `save_scene` stays in this fixture but out of the case list, because a bare
+dispatch writes whichever scene the run happens to have open, so `SaveScene_DirtiedActiveScene_ClearsTheDirtyFlag`
+drives it against a throwaway scene the fixture stages and deletes, and
+`SaveScene_UntitledActiveScene_ReportsTheMissingAssetPath` drives it against an untitled scene left with no asset path
+to write at all. A new tool joins whichever of the three fixtures its handler's prerequisites allow, and a tool whose
+bare dispatch would mutate the open project follows `save_scene` into a dedicated test that stages its own subject.
+`DeleteAsset_ProtectedHandAuthoredAsset_RefusesWithoutDeletingIt` takes one `[TestCase]` per entry in
 `McpBridge.DeleteProtectedPaths` except the experiment template scene, which
 `IsDeleteAllowed_UnsafeOrUnlistedPath_ReturnsFalse` pins instead, so a new hand-authored asset adds a case to one of the
 two.
@@ -269,8 +274,10 @@ Unity Test Suite Compliance:
       in TriggerModeTests, including the two method names that spell the count and the range
 - [ ] A new ControllerTypes member updated ControllerTests and ships a Gimbl.<MemberName> ControllerObject
       subclass
-- [ ] A new McpBridge.Dispatch case joined the [TestCase] list on McpBridgeTests, McpBridgePlayModeTests, or
-      McpBridgeTaskParametersTests, and the McpBridgeTests remark's covered-tool count was updated
+- [ ] A new McpBridge.Dispatch case gained coverage in McpBridgeTests, McpBridgePlayModeTests, or
+      McpBridgeTaskParametersTests, either as a case on the McpBridgeTests per-tool-name [TestCase] list or, when
+      a bare dispatch would mutate the open project or needs a fixture that list cannot stage, as a dedicated test
+      of its own, and the McpBridgeTests remark's covered-tool count and exclusion list were updated
 - [ ] A new DeleteProtectedPaths entry added a [TestCase] to DeleteAsset_ProtectedHandAuthoredAsset_
       RefusesWithoutDeletingIt
 - [ ] A new trigger_type literal updated the accepted-literal substring in ConfigLoaderTests and gained an

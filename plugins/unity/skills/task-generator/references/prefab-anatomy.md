@@ -44,7 +44,7 @@ Cue_<name>_<length>cm
 ## Cue build internals (`BuildCuePrefabs`)
 
 Shader resolution through `LoadReferenceCueShader` runs once for the whole pass, before the first cue is examined, so
-its missing-reference warning and folder scan fire once per invocation rather than once per cue. The per-cue sequence
+its reference-material warning and folder scan fire once per invocation rather than once per cue. The per-cue sequence
 then runs, in this order:
 
 1. **Resolve the asset stem** `Cue_<name>_<lengthLabel>cm` and derive both the prefab and the material path from it. Cue
@@ -70,10 +70,15 @@ then runs, in this order:
 hand-authored material protected from deletion via `McpBridge.DeleteProtectedPaths`. The shader is Unity's built-in
 `Legacy Shaders/Diffuse`, chosen because it renders both walls of a cue correctly even when the Right wall uses a
 negative geometry scale to mirror its texture. The Standard shader breaks under negative scales and Unlit shaders drop
-lighting altogether. When the reference material is missing, the method logs a `Debug.LogWarning` and falls back through
-a hand-authored `Cue*.mat` heuristic (a `Materials/` material whose filename starts with `Cue` but not `Cue_`), then
-`Shader.Find("Legacy Shaders/Diffuse")`, then `Standard`. The reference material is the canonical source and must be
-restored from version control when missing.
+lighting altogether. When the reference material loads but carries a null shader, the method logs a `Debug.LogWarning`
+and falls back through a hand-authored `Cue*.mat` heuristic (a `Materials/` material whose filename starts with `Cue`
+but not `Cue_`), then `Shader.Find("Legacy Shaders/Diffuse")`, then `Standard`. That null-shader case is the only one
+that reaches the fallback chain from a generation run: `CreateFromTemplate` runs `ValidateHandAuthoredAssets`, whose
+required paths carry `_CueShaderReference.mat`, before it calls `BuildCuePrefabs`, so a *missing* file is refused at
+the preflight rather than degrading to a fallback shader. The warning text itself still reads `must exist, but it is
+missing`, which names the broader condition the method guards rather than the narrower one that can actually trigger
+it here. The reference material is the canonical source and must be restored from version control whenever it goes
+missing or loses its shader.
 
 ---
 

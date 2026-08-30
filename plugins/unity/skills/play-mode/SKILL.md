@@ -114,11 +114,20 @@ is in `edit` before performing mutating Unity operations.
    window means the transition is still running. Conclude that Unity refused entry only once the window expires.
 
    Play Mode entry also connects the scene's `MQTTClient` to the broker configured in the MQTT section
-   (`MQTTConnectorObject.OnEnable`). A failed connection blocks the Editor main thread for up to 10 s and logs `Could
-   not connect to MQTT broker at <ip>:<port>` (`ConnectTimeoutMilliseconds` and `MQTTClient.Connect` in
-   `MQTTClient.cs`). A keyboard-only run needs no broker: `MQTTClient.Publish` falls back to in-process delivery and
-   logs `MQTTClient: broker unreachable, so '<topic>' is delivered to in-process subscribers only ...` once per topic
-   (`MQTTClient.cs`). Treat that warning as expected during an interactive Play Mode run, not as a defect.
+   (`MQTTConnectorObject.OnEnable`). If the active scene hosts no client singleton, the connector logs `Unable to
+   connect to the MQTT broker on enable. ... MQTTClient.Instance is null.` and never attempts the connection
+   (`MQTTConnectorObject.cs`). Otherwise it calls `MQTTClient.Connect`, whose two failure branches both log an error
+   opening `Unable to connect to the MQTT broker at <ip>:<port>.` A connect task that faults continues `... The broker
+   must accept an MQTT 5.0 connection, but the attempt failed with: ...` and typically reports in milliseconds, which
+   is the usual outcome when nothing is bound to the port. A connect task still unresolved when the
+   `ConnectTimeoutMilliseconds` budget expires continues `... The connection attempt must resolve within 10000
+   milliseconds, but it did not.`, having blocked the Editor main thread for the full 10 s, and most often means an
+   unreachable or filtered host. Which network condition lands in which branch is OS network-stack behavior rather
+   than anything `MQTTClient.Connect` guarantees (`MQTTClient.cs`), so read either message as the same outcome: no
+   broker was reached. A keyboard-only run needs no broker: `MQTTClient.Publish` falls back to in-process delivery
+   and logs a warning opening `Unable to deliver '<topic>' to the MQTT broker at <ip>:<port>. ... the message reaches
+   in-process subscribers only ...` once per topic (`MQTTClient.cs`). Treat that warning as expected during an
+   interactive Play Mode run, not as a defect.
 4. **Ask the user to exercise the task:** The developer drives the scene from the Game view with the keyboard.
    `Movement` (forward/back) advances the simulated treadmill and `Jump` (spacebar) publishes a synthetic `Interaction`
    (`SimulatedLinearTreadmill.Update` and `SimulatedLinearTreadmill.GetSimulatedInput`). Claude cannot control animal
@@ -177,7 +186,9 @@ You MUST hand off to the owning skill (`/task-scenes`, `/task-prefabs`) only aft
   IP/port in the MQTT section and broadcast `SessionStart`. Exiting broadcasts `SessionStop` (`MQTTClient.Start` and
   `MQTTClient.OnApplicationQuit`). Trigger zones publish `Stimulus` and `Delay` while playing. If an acquisition
   runtime is attached to that broker, an interactive Play Mode run injects real messages into the live session. Point
-  the MQTT section at an isolated broker, or leave the broker unreachable, before exercising a task interactively.
+  the MQTT section at an isolated broker, or at a closed port, before exercising a task interactively. Entry against a
+  port with no broker behind it can block the Editor main thread until the connect attempt resolves, for up to the full
+  10 s budget.
 - **Task Parameters re-opens on Play Mode entry.** `MainWindow.RegisterAutoOpen` registers an
   `EditorApplication.playModeStateChanged` hook that calls `EnsureWindowOpen` when the editor reaches
   `PlayModeStateChange.EnteredPlayMode`. The exception is a batch-mode Editor, where `RegisterAutoOpen` returns before
@@ -203,8 +214,10 @@ You MUST hand off to the owning skill (`/task-scenes`, `/task-prefabs`) only aft
 | `enter_play_mode_tool` returns `entering_play_mode` while `compiling`            | Script recompile in progress, and Unity will run the transition once it finishes                                   | Wait and re-poll `get_play_state_tool`                                                            |
 | `exit_play_mode_tool` returns `state == "edit"` immediately                      | Editor already in `edit`, and the handler short-circuits with `Not in Play Mode.`                                  | Expected, no further action needed                                                                |
 | A poll fails with `Unable to complete the request to the Unity Editor ...`       | Play Mode entry triggered a domain reload and the Editor main thread is not draining the bridge queue              | Wait for the Editor to settle, then re-poll, because this is not a bridge outage                  |
-| Console logs `Could not connect to MQTT broker at <ip>:<port>`                   | No broker is listening on the configured IP/port, and entry blocked for 10 s first (`ConnectTimeoutMilliseconds`)  | Expected for a keyboard-only run, otherwise fix the IP/port via `/task-parameters`                |
-| Console logs `MQTTClient: broker unreachable, so '<topic>' is ...`               | `MQTTClient.Publish` fell back to in-process delivery (`MQTTClient.cs`)                                            | Expected while playing without a broker, rather than a defect                                     |
+| Console logs `Unable to connect to the MQTT broker on enable ...`                | The active scene hosts no `MQTTClient` component, so `MQTTConnectorObject.OnEnable` returns before connecting      | Open `Window → Task Parameters` to rerun `InitializeScene`, which recreates it (`/scene-setup`)   |
+| Console logs `Unable to connect to the MQTT broker ... failed with: ...`         | The connect task faulted, typically in milliseconds, most often because nothing is bound to the IP/port            | Expected for keyboard-only runs, otherwise start the broker or fix IP/port via `/task-parameters` |
+| Console logs `Unable to connect to the MQTT broker ... must resolve within ...`  | The connect attempt did not resolve within `ConnectTimeoutMilliseconds`, most often an unreachable/filtered host   | Expected without a broker, otherwise check the host address and firewall, then fix the IP/port    |
+| Console logs `Unable to deliver '<topic>' to the MQTT broker ...`                | `MQTTClient.Publish` fell back to in-process delivery, warning once per topic (`MQTTClient.cs`)                    | Expected while playing without a broker, rather than a defect                                     |
 | Active scene is not the one expected                                             | A different scene was opened previously                                                                            | Hand off to `/task-scenes` (`open_scene_tool`)                                                    |
 | All tools fail with `Unable to reach the Unity Editor at http://localhost:8090/` | McpBridge down                                                                                                     | `/unity-mcp-environment-setup`                                                                    |
 

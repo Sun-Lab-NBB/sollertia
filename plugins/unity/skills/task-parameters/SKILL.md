@@ -237,8 +237,9 @@ The post-write snapshot is rendered from the component references the single pre
 it re-reads off those components are current, but anything derived from scene *structure* still describes the pre-write
 scene, which covers `options.actor.controller`, `options.camera_mapping.camera`, and both `visibility.task` flags. A
 write that changes the hierarchy requires a follow-up `read_task_parameters_tool()` before those lists and flags can be
-trusted. The two such writes are `actor.model`, which destroys the previous `Model <name>` child and re-instantiates a
-new one, and `actor.controller`, which can change what `ControllerOutput` list a later read returns.
+trusted. The one such write is `actor.model`, which destroys the previous `Model <name>` child and re-instantiates a
+new one. An `actor.controller` write is not structural, because its setter only re-points the outgoing and incoming
+`ControllerObject.actor` back-references, so the `ControllerOutput` list a later read returns is unchanged.
 
 On error the response is **only** `{"success": false, "error": "..."}`, with no `state`, `options`, or `visibility`
 keys. A rejected write applies nothing, so the failed call reports on exactly the state the preceding
@@ -383,11 +384,13 @@ client and the `EditorPrefs` entry from which a fresh session reloads. `display.
 `PerspectiveProjection` passes `currentBrightness` straight to the display shader, so an out-of-range value writes and
 takes effect silently. `task.track_length` must be strictly positive and finite, so zero and negative values are
 rejected, and that bridge bound is the only check applied here. A `track_length` too short to cover the template's
-corridor still writes successfully. That value then disables the `Task` at the next Play Mode entry with
-`Task: trackLength <n> is too short for template '<name>'.`, which `read_console_tool(level="error")`
-(`/unity-mcp-environment-setup`) surfaces after the run. `/task-generator` owns that runtime contract and
-`ValidateTrackLengthCoversCorridor`, the generation-time gate that keeps it unreachable at the generated value.
-`task.track_seed` must convert to a 32-bit integer.
+corridor still writes successfully. That value then disables the `Task` at the next Play Mode entry with an error
+whose stable prefix is `Unable to start the task for template '<name>'. Maze generation must produce at least <depth>
+segments to fill one corridor, but trackLength <n> produced <m>.`, followed by the shortest segment length and the
+`Raise Track Length in Window > Task Parameters. Disabling Task to prevent runtime errors.` remedy, which
+`read_console_tool(level="error")` (`/unity-mcp-environment-setup`) surfaces after the run. `/task-generator` owns that
+runtime contract and `ValidateTrackLengthCoversCorridor`, the generation-time gate that keeps it unreachable at the
+generated value. `task.track_seed` must convert to a 32-bit integer.
 
 The zone-gated rejection of `require_interaction` and `require_wait` is **intentional**, because a successful write
 guarantees the flag will actually take effect at runtime. The bridge says so verbatim, in `Cannot set

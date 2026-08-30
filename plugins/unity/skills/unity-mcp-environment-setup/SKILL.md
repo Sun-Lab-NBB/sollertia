@@ -139,22 +139,23 @@ them to open it and wait for the project to finish loading.
 In the Unity Console, look for the listener log emitted by `McpBridge`'s static constructor:
 
 ```text
-McpBridge: Listening on http://127.0.0.1:8090/, http://[::1]:8090/, and http://localhost:8090/
+The MCP bridge is listening on http://127.0.0.1:8090/, http://[::1]:8090/, and http://localhost:8090/
 ```
 
 If it is absent:
 - The Editor may still be compiling. Wait for compilation to finish.
 - The `McpBridge` script, or any other script in the project, may have failed to compile. Check the Console for errors
   and ask the user to resolve them.
-- Another process may hold port 8090, in which case the Console carries a `McpBridge: Failed to start HTTP listener:`
-  line followed by the OS-specific exception text. Free the port and reload the project.
+- Another process may hold port 8090. The Console then carries an error whose text begins
+  `Unable to start the MCP bridge HTTP listener.` and ends with the OS-specific exception text that follows
+  `but the bind failed with:`. Free the port and reload the project.
 
 If the listener log **is** present but calls still fail, the listener started and then degraded. Search the Console for
-`McpBridge: Failed to re-arm listener:` or `McpBridge: EndGetContext failed:`, both logged by `OnContextReceived`
-(`McpBridge.cs`). After a re-arm failure the listener accepts no further requests, and that is indistinguishable from
-"listener never started" on the relay side, so restart the Editor. A `McpBridge: Failed to deliver response:` warning
-from `HandleRequest` (`McpBridge.cs`) is benign by comparison: the client gave up on a long call before the bridge
-answered.
+`Unable to re-arm the MCP bridge HTTP listener` or `Unable to capture an incoming bridge request` (the latter names
+`EndGetContext` in its body text), both logged by `OnContextReceived` (`McpBridge.cs`). After a re-arm failure the
+listener accepts no further requests, and that is indistinguishable from "listener never started" on the relay side, so
+restart the Editor. An `Unable to deliver the bridge response.` warning from `HandleRequest` (`McpBridge.cs`) is benign
+by comparison: the client gave up on a long call before the bridge answered.
 
 `McpBridge` is declared `[InitializeOnLoad]` and its static constructor starts the listener on every assembly reload, so
 a missing log line points at an in-progress compile, a compile failure, or a port conflict.
@@ -211,8 +212,8 @@ in the project fails to compile (including a file unrelated to the bridge), the 
 starts. From the MCP side this looks identical to "Editor not running."
 
 - Check the Unity Console for compile errors and fix them first.
-- The listener log will reappear on the next successful reload, and the full three-prefix line is `McpBridge: Listening
-  on http://127.0.0.1:8090/, http://[::1]:8090/, and http://localhost:8090/`.
+- The listener log will reappear on the next successful reload, and the full three-prefix line is `The MCP bridge is
+  listening on http://127.0.0.1:8090/, http://[::1]:8090/, and http://localhost:8090/`.
 
 ### Breaking the McpBridge assembly references
 
@@ -240,10 +241,10 @@ script in the project now compiles into a named assembly, and nothing lands in U
 ### Second Unity instance stealing the port
 
 `HttpListener` claims `localhost:8090` exclusively. If a second Unity Editor starts with the same project path or a copy
-of the repo, its bridge call fails silently in the second Editor's Console. The log line's **prefix** is always
-`McpBridge: Failed to start HTTP listener:`, followed by the OS-specific exception text. That text is typically a
-"conflicts with an existing registration" wording on .NET-Windows, or an "address already in use" / `EADDRINUSE` wording
-on Linux and Mac.
+of the repo, its bridge call fails silently in the second Editor's Console. The log line always begins
+`Unable to start the MCP bridge HTTP listener.`, and the OS-specific exception text follows its
+`but the bind failed with:` clause. That text is typically a "conflicts with an existing registration" wording on
+.NET-Windows, or an "address already in use" / `EADDRINUSE` wording on Linux and Mac.
 
 The MCP tools continue to work against the **first** Editor, which is rarely what the user intended. Close the duplicate
 Editor, because only one Unity Editor may own the bridge at a time.
@@ -297,9 +298,9 @@ Claude.
 ### Unity side
 
 1. **Add the `Dispatch` case.** `Dispatch` (`McpBridge.cs`) is one `switch` expression whose eighteen arms map a wire
-   tool name to a handler, with a `_` arm returning `Error($"Unknown tool: {tool}")`. Add one arm, in the order the
-   README's bridge table lists it. The wire name is snake_case and carries **no** `_tool` suffix, because that suffix
-   belongs to the Python wrapper alone.
+   tool name to a handler, with a `_` arm returning `Error($"Unable to dispatch '{tool}'. It must be a declared bridge
+   tool, but it is not.")`. Add one arm, in the order the README's bridge table lists it. The wire name is snake_case
+   and carries **no** `_tool` suffix, because that suffix belongs to the Python wrapper alone.
 2. **Write the handler.** A handler is `private static string`, takes `Dictionary<string, object> arguments` when the
    tool has inputs and nothing when it does not, and returns `Ok(payload)` or `Error(message)`. `Ok` (`McpBridge.cs`)
    stamps `success = true` onto the payload dictionary, and `Error` (`McpBridge.cs`) emits `{"success": false, "error":
@@ -408,9 +409,10 @@ Unity MCP Environment Compliance:
 - [ ] slsa mcp server is connected (assets:assets-mcp-environment-setup)
 - [ ] No headless test run is holding the project lock (that run requires the Editor closed)
 - [ ] Unity Editor is running with sollertia-virtual-reality open
-- [ ] Unity Console shows "McpBridge: Listening on http://127.0.0.1:8090/, http://[::1]:8090/, and
+- [ ] Unity Console shows "The MCP bridge is listening on http://127.0.0.1:8090/, http://[::1]:8090/, and
       http://localhost:8090/"
-- [ ] Unity Console shows no "Failed to re-arm listener" or "EndGetContext failed" line after that
+- [ ] Unity Console shows no "Unable to re-arm the MCP bridge HTTP listener" or "Unable to capture an incoming
+      bridge request" line after that
 - [ ] curl POST to localhost:8090 returns a JSON success response
 - [ ] get_play_state_tool returns a structured response from Claude
 - [ ] Camera Mapping work only: displayplacer (macOS) or xrandr (Linux) resolves on the host

@@ -211,13 +211,18 @@ destroy work the user had open in the Editor.
 
 | Value of `unsaved_changes` | Behavior                                                                                        |
 |----------------------------|-------------------------------------------------------------------------------------------------|
-| `"save"`                   | Calls `EditorSceneManager.SaveOpenScenes()` first, then switches                                |
+| `"save"`                   | Calls `EditorSceneManager.SaveOpenScenes()` first when the active scene is dirty, then switches |
 | `"discard"`                | Switches immediately, and unsaved edits are dropped silently                                    |
 | Omitted (`None`)           | Returns the dirty-scene error above when the scene is dirty, and no-ops when the scene is clean |
 
-`EditorSceneManager.SaveOpenScenes()` saves **every** open scene, not just the active one. In multi-scene Editor setups,
-expect `unsaved_changes="save"` to write to every dirty scene file. `save_scene_tool` writes the active scene alone and
-leaves it clean, so call it first when the other open scenes hold edits the user wants left unwritten.
+The bridge consults `unsaved_changes` only when the **active** scene is dirty, and ignores the value entirely when the
+active scene is clean. When the policy does run, `EditorSceneManager.SaveOpenScenes()` saves **every** open scene, not
+just the active one, so in multi-scene Editor setups expect `unsaved_changes="save"` to write to every dirty scene file.
+A clean active scene skips that save even when another open scene is dirty. Either way the switch calls
+`EditorSceneManager.OpenScene(scene_path)` in the default `OpenSceneMode.Single`, which closes every other open scene,
+dropping any edits the policy did not just write. `save_scene_tool` writes the active scene alone and leaves it clean,
+so call it first to persist the active scene without writing the others, and warn the user that the switch discards
+those other edits rather than preserving them.
 
 After collecting the user's choice, retry with the value:
 
