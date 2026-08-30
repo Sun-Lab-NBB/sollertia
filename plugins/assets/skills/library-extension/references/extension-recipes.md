@@ -17,7 +17,7 @@ touch points no check covers are documented in [guardrails.md](guardrails.md).
 | New `ReadAssets` member                | "Adding a New Read Asset"               |
 | New raw-tree directory                 | None, this file carries the only recipe |
 | New processing pipeline, upstream half | None, this file carries the only recipe |
-| New `CredentialsTypes` member          | None, this file carries the only recipe |
+| New `CredentialsTypes` member          | "Adding a New Credentials Category"     |
 
 ---
 
@@ -144,8 +144,8 @@ Declare `<System>RawData` as `@dataclass(frozen=True, slots=True)`, matching `Me
 the session's `raw_data` directory. `SessionData` calls it to build the runtime-only `system_raw_data` attribute, so
 registering the class is what wires the system into session loading.
 
-The README shows `@dataclass(slots=True)` for this class, which is upstream drift from the only existing implementation.
-Correct the README in the same pull request that adds the system.
+The README's "Adding New Acquisition Systems" Step 2 shows the same `@dataclass(frozen=True, slots=True)` declaration
+for `<System>RawData`, so the two agree and no README correction is owed.
 
 `SYSTEM_RAW_DATA_REGISTRY` is annotated against the private `_SystemRawDataBuilder` Protocol, which is structural typing
 with no runtime enforcement. No import-time check covers `build`, so a missing or misnamed classmethod surfaces as a
@@ -478,9 +478,10 @@ forged dataset root and `ProcessingTrackers.MANIFEST` at the project root, and n
 
 ## Adding a new credentials category
 
-The library README carries no section for this scenario, so this recipe is the only one. The import-time failure message
-for a forgotten registry entry routes the reader to the "Adding New Session Types", "Adding New Acquisition Systems",
-and "Adding a New Read Asset" README sections, none of which covers credentials.
+README section: "Adding a New Credentials Category". A credentials category is a class of secret the platform stores on
+the local machine, so every Sollertia library resolves it by name rather than by path. The import-time failure message
+for a forgotten registry entry names that section alongside "Adding New Session Types", "Adding New Acquisition
+Systems", and "Adding a New Read Asset", and points at the assets:library-extension skill as well.
 
 `CREDENTIALS_FILE_REGISTRY` is the second maintainer-curated contract registry and the only registry whose value is a
 canonical filename string rather than a class.
@@ -492,9 +493,10 @@ canonical filename string rather than a class.
    filename is the canonical name the credentials file takes inside the working directory's `credentials` subdirectory,
    and `set_credentials` rejects a source file whose extension differs from it, so choose the extension the external
    service actually issues.
-3. Nothing else. `resolve_credentials_file`, `set_credentials`, `get_credentials`, and
-   `list_supported_credentials_tool`, along with the `slsa configure credentials --category` choice list, all derive
-   their vocabulary from the enum and the registry, so no tool, CLI option, or choice list is edited.
+3. Nothing else. `resolve_credentials_file`, `set_credentials`, and `get_credentials`, the `set_credentials_tool`,
+   `read_credentials_tool`, and `list_supported_credentials_tool` MCP tools, and the `--category` choice lists of
+   `slsa configure credentials` and `slsa get credentials` all derive their vocabulary from the enum and the registry,
+   so no tool, CLI option, or choice list is edited.
 
 **Skill touches:**
 
