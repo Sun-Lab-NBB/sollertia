@@ -76,7 +76,8 @@ alternative for `RequireInteraction` / `RequireWait`), and `/play-mode` (mid-run
 - **Subscription QoS vs publish QoS**: The `qosLevel` constructor parameter on `MQTTChannel` (default `2`) is the
   **subscription** QoS only. The **publish** QoS is hardcoded to `MqttQualityOfServiceLevel.ExactlyOnce` inside
   `MQTTClient.Publish` and cannot be lowered per-channel. A "QoS mismatch" symptom from `sollertia-experiment` therefore
-  points at the experiment-side publisher's QoS, not the Unity channel constructor.
+  points at the experiment-side publisher, which `MQTTCommunication` fixes at QoS 0 with no way to raise it, rather than
+  at the Unity channel constructor.
 
 For the `MQTTChannel` / `MQTTChannel<T>` class API, the MQTT 5.0 protocol requirement, the in-process loopback fallback,
 the `JsonUtility`-needs-public-fields constraint, and the `MQTTClient` lifecycle (`MQTTClient.Awake` →
@@ -386,7 +387,9 @@ likely cause and first check.
 
 - **Likely cause**: Experiment-side publisher running below QoS 2 (Unity publish is hardcoded `ExactlyOnce`, and Unity
   subscribe defaults to QoS 2).
-- **First check**: Inspect the broker's retained messages and the experiment-side publisher's QoS setting.
+- **First check**: The experiment-side QoS is fixed rather than configurable. `sollertia-experiment` builds its
+  `MQTTCommunication` instance without a QoS argument, and that class hardcodes `qos=0` on both publish and subscribe,
+  so the experiment half is always QoS 0. Inspect the broker's retained messages and its own delivery limits instead.
 
 ### Unity receives its own `Stimulus` publication
 
