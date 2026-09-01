@@ -238,8 +238,12 @@ hierarchy are donated per system.
 Two conditions gate the run, and each raises `FileNotFoundError` naming the resolved directory. The directory must
 exist, otherwise the session has no calcium-imaging data to process. The tree beneath it must carry a
 `cindra_parameters.json` file (`cindra.PARAMETERS_FILENAME`), found with `discover_marker_files`, because every system
-that produces two-photon data writes it at acquisition time so the cindra pipeline can recover the recording's
-acquisition metadata.
+that produces two-photon data must write it into that directory before the session reaches this library, so the cindra
+pipeline can recover the recording's acquisition metadata. On Mesoscope-VR the writer is preprocessing rather than the
+acquisition runtime. `_preprocess_mesoscope_directory` emits `cindra_parameters.json` into `raw_data/mesoscope_data`,
+beside `frame_invariant_metadata.json` and the LERC-recompressed frame stacks, so a session that has not been
+preprocessed carries none, and `experiment:data-management` owns that step. The pipeline's `FileNotFoundError` message
+phrases that requirement as writing the file at acquisition time.
 
 The session's cindra configuration is materialized by this pipeline rather than supplied. `_resolve_configuration` takes
 the configuration the donated resolver returns, overrides exactly three fields on it, the data path, the output path,
