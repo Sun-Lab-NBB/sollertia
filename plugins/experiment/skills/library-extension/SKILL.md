@@ -117,14 +117,12 @@ not. The `ZaberAxis`, `ZaberDevice`, and `ZaberConnection` hierarchy (`cross_sys
 
 ## The interfaces seams
 
-The `interfaces/` package registers MCP tools and CLI commands through two mechanisms that behave differently, and
-the asymmetry between them is the seam agents most often miss.
-
-MCP registration is **discovered**. `_register_tool_modules()` globs `*_tools.py` inside `interfaces/` in `sorted()`
-order and imports every match, so `@mcp.tool()` decorators register purely as an import side effect
-(`interfaces/mcp_server.py`). A new system drops `interfaces/<system>_tools.py` into that directory, imports `mcp`
-from `.mcp_instance` (`interfaces/mcp_instance.py`), and edits nothing else. The `_tools.py` suffix is
-load-bearing, and the call uses `glob` rather than `rglob`, so the module must sit directly in `interfaces/`.
+The `interfaces/` package registers MCP tools and CLI commands through two mechanisms that behave differently, and that
+asymmetry is the seam agents most often miss. MCP registration is **discovered**. `_register_tool_modules()` globs
+`*_tools.py` inside `interfaces/` in `sorted()` order and imports every match, so `@mcp.tool()` decorators register as
+an import side effect (`interfaces/mcp_server.py`). A new system drops `interfaces/<system>_tools.py` into that
+directory, imports `mcp` from `.mcp_instance` (`interfaces/mcp_instance.py`), and edits nothing else. The `_tools.py`
+suffix is load-bearing, and the `glob` call, not `rglob`, requires the module to sit directly in `interfaces/`.
 
 CLI registration is **hand-edited**. `_register_subcommands()` carries one explicit import and one `add_command` call
 per group, and a third group requires editing that function (`interfaces/entry_points.py`). The group module
@@ -132,12 +130,11 @@ itself is new work: it declares its own `CONTEXT_SETTINGS`, because the constant
 imported, following the pattern of `CONTEXT_SETTINGS` and the `get` group in `interfaces/get.py`.
 
 Three further pieces of the package are reused unchanged. `run_server` handles both transports
-(`interfaces/mcp_server.py`). The `write_yaml_validated` and `read_yaml` helpers take any `YamlConfig`
-subclass as their `validator_cls`, while `serialize` accepts any value, `describe_dataclass` any dataclass type, and
-`probe_writable` a directory path (`interfaces/mcp_instance.py`). The hardware-agnostic
-discovery surface serves every system, meaning the `get` group in `interfaces/get.py` and the seven tools in
-`interfaces/get_tools.py`. The private helpers of a system's own tool module are re-implemented rather than imported,
-because they are typed against one system's configuration.
+(`interfaces/mcp_server.py`). In `interfaces/mcp_instance.py`, `write_yaml_validated` and `read_yaml` take any
+`YamlConfig` subclass as their `validator_cls`, `serialize` accepts any value, `describe_dataclass` any dataclass type,
+and `probe_writable` a directory path. The hardware-agnostic discovery surface serves every system, meaning the `get`
+group in `interfaces/get.py` and the seven tools in `interfaces/get_tools.py`. A system's own tool module re-implements
+its private helpers rather than importing them, because they are typed against one system's configuration.
 
 ---
 
@@ -249,6 +246,7 @@ Column `Counterpart` names the paired obligation in another repository.
 | 25  | Session-file constants                            | manual, re-declare                           | private module constants, `_ZABER_POSITIONS_FILENAME` through `_MESOSCOPE_SYSTEM_CONFIGURATION_FILENAME` in `interfaces/mesoscope_vr_tools.py`                                                                                                                | none                                                                                                                                                                                                   |
 | 26  | Hardware-agnostic discovery CLI and tools         | automatic, reused unchanged                  | the `get` command group in `interfaces/get.py` and the seven tools in `interfaces/get_tools.py`                                                                                                                                                               | none                                                                                                                                                                                                   |
 | 26a | Sphinx API documentation entry                    | manual, one block                            | a `.. automodule:: sollertia_experiment.<system>` section in `docs/source/api.rst`, following its "Mesoscope-VR Acquisition System" section                                                                                                                   | none. Omit it and the new package renders no API documentation                                                                                                                                         |
+| 26b | README acquisition-system section                 | manual, one section plus one ToC line        | a top-level `## <System> Data Acquisition System` section in `sollertia-experiment/README.md`, following its "Mesoscope-VR Data Acquisition System" section, plus a matching entry in its "Table of Contents" section                                         | none. The README's "Data Acquisition Systems" section states each supported system gets its own section                                                                                                |
 | 27  | The VR task package                               | automatic, composed                          | the `__all__` list of `vr_task/__init__.py`, consumer obligations in `/vr-driver-interface`                                                                                                                                                                   | unity: a scene carrying a `"Linear"` controller and a running Editor                                                                                                                                   |
 | 28  | The runtime controller                            | **manual, human-in-the-loop**                | scaffolded from the worked example, per "The acquisition engine is a human-in-the-loop rewrite" above                                                                                                                                                         | none                                                                                                                                                                                                   |
 | 29  | slmc: a new firmware module                       | manual, ten steps                            | `slmc/src/<name>_module.h`, wired into the target block of `slmc/src/main.cpp` as an `#include`, an instantiation, and a `modules[]` entry                                                                                                                    | sle: a matching `ModuleInterface` carrying the same type, id, codes, and parameter order                                                                                                               |
@@ -282,12 +280,11 @@ module scope, and add the typed `get_system_configuration()` accessor plus the z
 ### Step 3: Hardware interface layer
 
 Reuse the eight `ModuleInterface` subclasses (`cross_system/module_interfaces.py`) and the Zaber hierarchy
-(`cross_system/zaber_bindings.py`). The camera layer has no shared wrapper: a system composes the upstream
+(`cross_system/zaber_bindings.py`). The camera layer has no shared wrapper, so a system composes the upstream
 `ataraxis-video-system` `VideoSystem` into its own binding class, following `VideoSystems` in
-`mesoscope_vr/binding_classes.py`, with conventions from `video:camera-interface`. Hand off to
-`/microcontroller-interface` for the paired-module conventions, and to
-[references/slmc-seams.md](references/slmc-seams.md) for the firmware seam, only when the rig needs hardware that none
-of them covers.
+`mesoscope_vr/binding_classes.py`, with conventions from `video:camera-interface`. When the rig needs hardware none of
+them covers, hand off to `/microcontroller-interface` for the paired-module conventions and to
+[references/slmc-seams.md](references/slmc-seams.md) for the firmware seam.
 **Gate:** every module the system needs has a wrapper with a matching firmware counterpart.
 
 ### Step 4: Binding classes and orchestrator
@@ -321,7 +318,9 @@ they compose (`cross_system/data_preprocessing.py`).
 Author `interfaces/<system>.py` with its own `CONTEXT_SETTINGS` and command group, add the import and the
 `add_command` call inside `_register_subcommands`, and author `interfaces/<system>_tools.py`, which registers itself.
 Add a `.. automodule:: sollertia_experiment.<system>` block to `docs/source/api.rst`, following its
-"Mesoscope-VR Acquisition System" section.
+"Mesoscope-VR Acquisition System" section, and a `## <System> Data Acquisition System` section carrying the system's
+assembly instructions to `sollertia-experiment/README.md`, following its "Mesoscope-VR Data Acquisition System"
+section, plus the matching "Table of Contents" entry.
 **Gate:** `sle <system> --help` prints and the new tools appear on `sle mcp`.
 
 ### Step 8: Agentic assets
@@ -418,11 +417,9 @@ Every other entry resolves inside the sollertia marketplace.
 
 Every citation in this skill, and in every edit made to it, names the asset rather than the line the asset occupies.
 Line numbers drift as unrelated code above them moves, and a drifted citation points at the wrong asset while still
-reading as authoritative.
-
-Naming the asset means naming the module plus one of the identifiers it declares: a class, a method, a function, a
-dataclass field, an enum, an enum member, a constant, a C++ template parameter, or a config key. The module path alone
-suffices when the whole module is the subject.
+reading as authoritative. Naming the asset means naming the module plus one of the identifiers it declares: a class, a
+method, a function, a dataclass field, an enum, an enum member, a constant, a C++ template parameter, or a config key.
+The module path alone suffices when the whole module is the subject.
 
 | Rejected                         | Correct                                                  |
 |----------------------------------|----------------------------------------------------------|
@@ -475,6 +472,7 @@ sollertia-experiment side:
       with the human supervisor rather than inferred
 - [ ] The runtime writes the session descriptor, the system-configuration snapshot, and hardware_state.yaml
 - [ ] docs/source/api.rst carries an automodule block for the new system package
+- [ ] README.md carries a '<System> Data Acquisition System' section and its Table of Contents entry
 
 sollertia-micro-controllers side (only when firmware changed):
 - [ ] Every new module declares kCustomStatusCodes from 51 and kModuleCommands from 1

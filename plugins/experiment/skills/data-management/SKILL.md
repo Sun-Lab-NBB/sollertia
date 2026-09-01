@@ -40,12 +40,15 @@ only registered acquisition system, and `mesoscope:mesoscope-vr-runtime` owns it
 
 ## MCP server requirements
 
-This skill uses the single `sollertia-experiment` MCP server (`sle mcp`). If it is unavailable, run
-`/experiment-mcp-environment-setup`.
+This skill uses the `sollertia-experiment` MCP server (`sle mcp`) for the session-lifecycle operations and the
+`sollertia-shared-assets` MCP server (`slsa mcp`) for session-type discovery, the per-session `uninitialized` flag, and
+project creation. If a required server is unavailable, run `/experiment-mcp-environment-setup` or
+`assets:assets-mcp-environment-setup`.
 
-| Server                 | CLI command | Purpose                                               |
-|------------------------|-------------|-------------------------------------------------------|
-| `sollertia-experiment` | `sle mcp`   | Session preprocessing, deletion, and animal migration |
+| Server                    | CLI command | Purpose                                                                                                                                                                                                                                      |
+|---------------------------|-------------|----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| `sollertia-experiment`    | `sle mcp`   | Session preprocessing, deletion, and animal migration                                                                                                                                                                                        |
+| `sollertia-shared-assets` | `slsa mcp`  | Session-type vocabulary (`list_supported_session_types_tool`, `list_session_type_support_tool`), the per-session `uninitialized` flag (`get_data_root_overview_tool`, `inspect_sessions_tool`), and project creation (`create_project_tool`) |
 
 ---
 

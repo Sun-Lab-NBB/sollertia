@@ -114,6 +114,10 @@ mode. Every such function follows the same shape:
    and into a discarded temporary directory when it performs maintenance.
 4. Drive the state transitions and the per-cycle runtime loop for the session's lifetime.
 5. Tear down in the reverse order on completion or interrupt.
+6. Purge the session when the uninitialized-session marker survives teardown. The purge runs after the data logger has
+   stopped, so the raw-data directory is flushed and released before deletion, and it removes the session from the host
+   and from every configured destination with no confirmation prompt, leaving no partial session behind from an aborted
+   bring-up.
 
 These functions are the only supported surface for starting a session, and direct construction of the orchestrator
 from notebooks or scripts is not supported. Modes that perform maintenance rather than recording, such as
@@ -165,8 +169,12 @@ bounded step per concern, so no single concern can starve the others:
   commands.
 - **Auxiliary tasks**: any system-specific per-cycle bookkeeping, such as external-acquisition sync.
 
-Keeping each step bounded per cycle is the core latency contract. The loop must return promptly so the keepalive to
-every microcontroller subsystem stays within its interval, as covered by `/acquisition-system-design`.
+Keeping each step bounded per cycle is the core latency contract for the operator-facing surfaces, meaning the
+visualizer repaint, the control-UI response, and the pause and terminate reaction. It is not what keeps the
+microcontroller keepalive alive, because each `MicroControllerInterface` sends its keepalive and detects its timeout
+from its own daemon communication process, so a blocking main loop cannot lapse it (see `/acquisition-system-design`).
+The cycle method is also not required to return on every pass, because while the runtime is paused it loops in place,
+holding control away from the per-mode logic function until the operator resumes or terminates.
 
 ### Typed-event dispatch from hardware subsystems
 
@@ -205,9 +213,9 @@ runtime whose `start()` never completed tears down through a dedicated emergency
 session is flagged as uninitialized from the moment it exists
 (`sollertia-shared-assets/src/sollertia_shared_assets/data_hierarchy/session_data.py`). The per-mode logic function
 calls `session_data.mark_runtime_initialized()` once the hardware is up and the session is ready to acquire, and that
-call unlinks the marker (`session_data.py`). An aborted initialization therefore leaves the marker in place, and the
-marker gates snapshot writing, preprocessing, and purge confirmation downstream. The session hierarchy that holds the
-marker is owned by `assets:session-data`.
+call unlinks the marker (`session_data.py`). An aborted initialization therefore leaves the marker in place, the marker
+makes the logic function purge the session during its own teardown, and it gates snapshot writing, preprocessing, and
+purge confirmation downstream. The session hierarchy that holds the marker is owned by `assets:session-data`.
 
 ---
 
@@ -222,17 +230,20 @@ that names an experiment also requires the experiment-configuration snapshot, an
 conditional snapshots at session creation (`session_data.py`), which leaves the descriptor and the system-configuration
 snapshot for the runtime itself to write.
 
-Beyond the required set, a runtime also freezes the configuration of every active hardware module into the session as
-`hardware_state.yaml`, so downstream processing can interpret the raw data without the acquisition host
-(the `hardware_state_path` field of `RawData` in `session_data.py`). The parsing class is dispatched per acquisition
+Beyond the required set, a mode that drives the full hardware stack also freezes the configuration of every active
+hardware module into the session as `hardware_state.yaml`, so downstream processing can interpret the raw data without
+the acquisition host (the `hardware_state_path` field of `RawData` in `session_data.py`). The write happens inside the
+orchestrator's `start()`, so a reduced-hardware mode that skips the orchestrator writes no hardware-state record, and
+its absence for that session type is expected rather than a defect. The parsing class is dispatched per acquisition
 system through `HARDWARE_STATE_REGISTRY` in `registries.py`, and the import-time `_assert_registry_coverage` check in
 that module requires every registered system to have an entry. Authoring and registering that dataclass is
 `assets:library-extension` work, and `assets:session-hardware-state` reads and validates the record the runtime
 writes.
 
 Nothing in sollertia-experiment verifies that a runtime wrote these files. A missing asset surfaces only when a health
-check or a downstream consumer asks for it, so treat the three writes as part of the runtime contract. See
-`/system-health-check`.
+check or a downstream consumer asks for it, so treat the descriptor and system-configuration writes as part of every
+runtime's contract, and the hardware-state write as part of the contract of every mode that drives the full hardware
+stack. See `/system-health-check`.
 
 ---
 
@@ -430,11 +441,14 @@ Runtime pattern compliance, reader-judged:
 - [ ] Per-mode logic functions follow the standard shape (SessionData, descriptor, orchestrator, loop, teardown)
 - [ ] System state and runtime state are distinct axes, each logged with its own code
 - [ ] System-state methods drive the binding classes into the target configuration and log the transition
-- [ ] The per-cycle loop has one bounded step per hardware subsystem, and the keepalive interval is never exceeded
+- [ ] The per-cycle loop has one bounded step per hardware subsystem, and no step blocks the operator-facing surfaces
 - [ ] Asynchronous subsystems surface typed events, and the orchestrator dispatches on event kind
 - [ ] Every teardown step of a multi-asset shutdown is wrapped in run_shutdown_step
 - [ ] mark_runtime_initialized() is called once the session is ready to acquire, and never earlier
-- [ ] The runtime writes the session descriptor, the system-configuration snapshot, and hardware_state.yaml
+- [ ] Teardown purges the session when the uninitialized-session marker survives, after the logger has stopped, and
+      hands off to preprocessing otherwise
+- [ ] The runtime writes the session descriptor and the system-configuration snapshot, plus hardware_state.yaml for
+      every mode that drives the full hardware stack
 - [ ] The runtime starts paused and services a pre-start checkpoint before acquisition begins
 - [ ] High-stakes operator prompts use request_required_confirmation
 - [ ] The descriptor is built by the logic function and updated with runtime results at session end

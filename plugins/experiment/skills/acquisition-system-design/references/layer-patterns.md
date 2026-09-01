@@ -232,8 +232,10 @@ numbers.
 - `Path()`, the empty path, is the default for any filesystem field. It reads as not configured, and the deployment sets
   it to enable the feature that consumes it. The on-demand mount report marks an unset long-term-storage root as not
   configured and reports it as ok. An optional read-only path, such as a stored camera configuration or an external
-  tool's project path, is reported the same way. An unset path reads as not configured with an ok status, and a set path
-  is checked for existence and readability rather than writability.
+  tool's project path, is reported the same way. An unset optional path reads as not configured with an ok status, and a
+  set path is checked for existence and readability rather than writability. An unset path the system requires instead
+  reads as not configured with a not-ok status, because the empty `Path()` resolves to the current working directory and
+  would otherwise pass the mount report's write probe.
 - A serial-port default SHOULD be a representative USB device path for the reference platform, such as a `/dev/tty*`
   entry on Linux or a `COMx` entry on Windows. The value is OS-specific and every deployment is expected to override it.
 
@@ -458,10 +460,15 @@ keyword-argument name conceptually (allowing for unit-suffix differences):
 | `<role>_<parameter>`          | `<device>_<parameter>`    | A rename to the wrapper's own device noun is allowed |
 | `<parameter>`                 | `<parameter>`             | Exact match, the default                             |
 
-The wrapper constructors these fields feed live in `cross_system/module_interfaces.py`, so their argument names are
-platform material rather than per-system material. When a wrapper changes its constructor signature, the corresponding
-dataclass field's name SHOULD change in the same change set to maintain conceptual agreement. Drift here is allowed and
-causes confusion during debugging.
+Where these wrapper constructors live depends on the subsystem. Microcontroller-section fields feed the
+`ModuleInterface` wrappers in `cross_system/module_interfaces.py`, so their argument names are platform material rather
+than per-system material. Camera-section fields feed `VideoSystem.__init__` in `ataraxis-video-system` (see
+`mesoscope_vr/binding_classes.py`, `camera_index=camera_configuration.face_camera_index`), and motor-section fields feed
+`ZaberConnection.__init__` in `cross_system/zaber_bindings.py`
+(`ZaberConnection(port=zaber_configuration.headbar_port)`). The same naming agreement is checked against those
+constructors instead. When a wrapper changes its constructor signature, the corresponding dataclass field's name SHOULD
+change in the same change set to maintain conceptual agreement. Drift here is allowed and causes confusion during
+debugging.
 
 ### Contract 2: Schema versioning
 

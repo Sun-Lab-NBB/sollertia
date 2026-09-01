@@ -123,14 +123,16 @@ the data root anchors.
 
 ### Phase 2: Network storage mounts
 
-Run the active system's mount sweep, which the active system's skill names. The sweep reads the active configuration
-and validates every network storage location that configuration declares, both the within-system shares and each
-configured long-term storage destination. A system may declare none and run entirely on local storage, in which case
-this phase has nothing to verify. The sweep also reports the platform data root and counts it in its own tallies, so
-an unset data root fails the sweep even when every declared mount is healthy.
+Run the active system's mount sweep, which the active system's skill names. The sweep reads the active configuration and
+validates every network storage location that configuration declares, both the within-system shares and each configured
+long-term storage destination. A system may declare none and run entirely on local storage, in which case this phase has
+nothing to verify. The sweep also reports the platform data root and the read-only input files the configuration
+declares, and counts both in its own tallies, so an unset data root fails the sweep even when every declared mount is
+healthy.
 
-For a path that fails, drill in with the agnostic `check_mount_accessibility_tool(path=...)`. It rejects an empty or
-relative path outright and demands an absolute one (`interfaces/get_tools.py`):
+For a path that fails, drill in with the agnostic `check_mount_accessibility_tool(path=...)`. Apply it only to a
+directory the sweep reports. It rejects an empty or relative path outright and demands an absolute one
+(`interfaces/get_tools.py`):
 
 - `Exists: False` means the path does not exist, so the OS-level mount is not configured. Configure it through the
   host OS's persistent-mount mechanism (see the Mount failures troubleshooting table).
@@ -138,6 +140,18 @@ relative path outright and demands an absolute one (`interfaces/get_tools.py`):
   network storage.
 - `Writable: False` means the write probe failed, and the reported `Error` segment carries the underlying OS error.
   Check share permissions and the mount's ownership and permission options.
+
+The read-only input files the sweep covers, each stored camera GenICam configuration `.yaml` and the DeepLabCut project,
+are checked for existence and read access instead of being write-probed. `check_mount_accessibility_tool` write-probes
+by creating a temporary file inside the path it is given, so pointing it at one of those files reports a failure for a
+perfectly healthy file:
+
+```text
+Writable: False | OK: False | Error: [Errno 20] Not a directory: <file>/.sollertia_experiment_probe_...
+```
+
+Diagnose a failing input file from the sweep's own `error` segment, which reads `File does not exist` or `Not readable`,
+rather than with this tool.
 
 ### Phase 3: Hardware connectivity
 
@@ -228,6 +242,7 @@ If all pass, the system is ready for acquisition.
 | Exists but not a mount | Local directory used | Query the host OS's mount table to confirm the path is a mount |
 | Not writable           | Permission issue     | Check share permissions and ownership/permission mount options |
 | Stale mount            | Network disruption   | Unmount and remount the share with the host OS's mount tooling |
+| Input file unusable    | Missing or no access | Fix the configured path or read permissions, not the mount     |
 
 The symptoms and likely causes are OS-independent, and the resolution mechanics are OS-specific. Resolve the concrete
 commands for the host OS before suggesting fixes, for example `/etc/fstab` entries or systemd mount units and

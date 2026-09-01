@@ -244,13 +244,13 @@ VRTaskDriver(
 | Method / property                      | Purpose                                                                                                                                                                |
 |----------------------------------------|------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
 | `connect()` / `disconnect()`           | Open / close the MQTT connection. `disconnect()` additionally exits Play Mode to stop the active Unity scene and closes the bridge HTTP client (each step best-effort) |
-| `setup()`                              | Bridge-driven start-of-session handshake. See the Setup handshake note below.                                                                                          |
+| `setup()`                              | Bridge-driven start-of-session handshake. Its final step zeroes `state.position` and rebuilds the trial decomposition. See the Setup handshake note below.             |
 | `push_position(absolute_position)`     | Forward the animal's position to Unity as a movement delta (only emits on change)                                                                                      |
 | `push_lick_event()`                    | Publish the generic `Interaction` trigger for the rig's interaction sensor                                                                                             |
 | `set_reinforcing_guidance(*, enabled)` | Toggle reinforcing guidance (publishes `RequireInteraction` = `not enabled`)                                                                                           |
 | `set_aversive_guidance(*, enabled)`    | Toggle aversive guidance (publishes `RequireWait` = `not enabled`)                                                                                                     |
 | `cycle() -> VRTaskEvent`               | Consume the next pending Unity message and return it as a typed event                                                                                                  |
-| `resume_after_unity_restart()`         | Re-arm Unity via the bridge, re-fetch the cue sequence, and clear `terminated`                                                                                         |
+| `resume_after_unity_restart()`         | Re-arm Unity via the bridge, re-fetch and re-decompose the cue sequence, zeroing `state.position` and replacing the decomposition, and clear `terminated`              |
 | `state` (property)                     | The current `VRTaskState`                                                                                                                                              |
 | `cue_sequence_distances` (property)    | Cumulative distance (cm) to complete each decomposed trial                                                                                                             |
 | `trial_names` (property)               | The name of each decomposed trial, in sequence order                                                                                                                   |
@@ -289,8 +289,9 @@ For the decomposition API, the `DecomposedTrials` field table, the three raise c
 ## What a consumer must supply
 
 The package is reusable as-is, so a new acquisition system writes only the items below. Sources:
-`VRTaskDriver.__init__`, `setup`, `push_lick_event`, `_require_bridge`, and `_activate_scene` in `vr_task/driver.py`,
-`load_vr_task_template` in `vr_task/configuration.py`, and `run_shutdown_step` in `cross_system/shutdown_tools.py`.
+`VRTaskDriver.__init__`, `setup`, `push_lick_event`, `resume_after_unity_restart`, `_require_bridge`, `_activate_scene`,
+and `_refresh_cue_sequence` in `vr_task/driver.py`, `load_vr_task_template` in `vr_task/configuration.py`, and
+`run_shutdown_step` in `cross_system/shutdown_tools.py`.
 
 | Requirement                                    | Detail                                                                                                                                                |
 |------------------------------------------------|-------------------------------------------------------------------------------------------------------------------------------------------------------|
@@ -300,6 +301,7 @@ The package is reusable as-is, so a new acquisition system writes only the items
 | A running Unity Editor, same machine           | The bridge is loopback-only and `setup()` blocks until it is reachable                                                                                |
 | A scene carrying a `"Linear"` actor controller | `_activate_scene` raises `UnityBridgeError` otherwise                                                                                                 |
 | A position source in Unity units               | The caller converts encoder counts using the template's `cm_per_unity_unit`                                                                           |
+| A zeroable position source                     | `setup()` and `resume_after_unity_restart()` zero `state.position`, so the caller re-zeroes its own tracker and re-reads `trial_names`                |
 | An interaction-sensor mapping                  | `push_lick_event` publishes the generic `Interaction` topic, the rig names the sensor                                                                 |
 | All actuator dispatch                          | Reward, puff, brake, and emergency pause are consumer code reacting to `VRTaskEvent`                                                                  |
 | Per-trial hardware parameters                  | Joined back by `trial_names` on the consumer side                                                                                                     |
@@ -318,13 +320,17 @@ The runtime orchestrator owns the driver lifecycle. The current worked example i
    gates on a hard-coded `session_type == SessionTypes.MESOSCOPE_EXPERIMENT` rather than reading
    `SESSION_TYPES_USING_VR_TASK`, so a new VR session type must be wired into the orchestrator gate as well as the
    registry.
-2. `start()` calls `connect()`, enables the VR screens, calls `setup()`, then disables the screens.
+2. `start()` calls `connect()`, enables the VR screens, calls `setup()`, then disables the screens. Because `setup()`
+   zeroes `state.position` and rebuilds the decomposition, the orchestrator then zeroes its own distance tracker and
+   re-reads `trial_names` and `cue_sequence_distances`.
 3. Each runtime iteration: the data cycle calls `push_position()` and `push_lick_event()`, and the Unity cycle
    calls `cycle()` and dispatches the returned `VRTaskEvent` (an actuator on `STIMULUS_TRIGGERED`, a brake
    pulse on `TRIGGER_DELAY_REQUESTED`, an emergency pause on `UNITY_TERMINATED`).
 4. Guidance is set through `set_reinforcing_guidance()` and `set_aversive_guidance()` as trial state evolves.
-5. On resume from an emergency pause, `resume_after_unity_restart()` re-arms Unity through the bridge and
-   re-fetches the cue sequence, so the operator does not press the play button.
+5. On resume from an emergency pause, `resume_after_unity_restart()` re-arms Unity through the bridge and re-fetches the
+   cue sequence, so the operator does not press the play button. That call zeroes `state.position` and replaces the
+   decomposition the same way `setup()` does, so the orchestrator again zeroes its own distance tracker and re-reads
+   `trial_names` and `cue_sequence_distances`.
 6. `stop()` calls `disconnect()`.
 
 ---

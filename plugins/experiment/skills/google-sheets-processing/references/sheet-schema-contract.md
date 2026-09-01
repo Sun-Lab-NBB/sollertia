@@ -80,6 +80,14 @@ and stay optional in the implant and injection loops of `SurgeryLog.extract_anim
 Stereotactic coordinates are a single string like `-1.8 AP, 2 ML, .25 DV`, parsed into an
 `(AP, ML, DV)` float tuple. A surgery without coordinates (e.g., training) defaults to `(0, 0, 0)`.
 
+Unlike header and placeholder matching, the axis designators MUST be uppercase. Axis detection is case-insensitive
+(`"AP" in substring.upper()`, `cross_system/google_sheet_tools.py:924`), but the extraction regex
+`([-+]?\d*\.?\d+)\s*(AP|ML|DV)` (line 897) carries no `re.IGNORECASE`, so a cell holding `-1.8 ap, 2 ML, .25 DV` is
+detected as an AP substring, fails extraction, and aborts the whole `extract_animal_data` call with `ValueError: Unable
+to extract the anatomical coordinate value from the input substring -1.8 ap`. Empty and placeholder cells (`n/a`, `--`,
+`---`) are already `None` and never reach the parser. A non-empty, non-placeholder cell containing none of `AP`, `ML`,
+or `DV` is instead read silently as `(0, 0, 0)` with no error.
+
 ### Output: `SurgeryData`
 
 `extract_animal_data()` returns `SurgeryData(subject, procedure, drugs[], implants[], injections[])`.
@@ -87,10 +95,11 @@ Notable per-field parsing: `dob` is combined with a noon time, `date` plus `star
 `surgery_start_us`/`surgery_end_us`, `weight (g)` becomes a `float`, and `cage #` becomes an `int`.
 A blank `surgery quality` cell resolves to `0`. An empty `weight (g)`, `cage #`, or `id` cell is read as `None` and
 raises `TypeError` from the `float()` or `int()` conversion, while a malformed `id`, `weight (g)`, `cage #`, or
-`surgery quality` cell raises `ValueError` from the same conversion. An empty or malformed `date`, `start`, or `end`
-cell raises `ValueError` from `_convert_date_time_to_timestamp`. All of these surface from the argument expressions
-evaluated inside `SurgeryLog.extract_animal_data`, not from the `SubjectData` and `ProcedureData` dataclasses, which
-perform no validation (`cross_system/google_sheet_tools.py`).
+`surgery quality` cell raises `ValueError` from the same conversion. An empty or malformed `dob`, `date`, `start`, or
+`end` cell raises `ValueError` from `_convert_date_time_to_timestamp`, and `dob` is parsed while `SubjectData` is
+assembled, so it aborts before the `date`, `start`, and `end` cells are read. All of these surface from the argument
+expressions evaluated inside `SurgeryLog.extract_animal_data`, not from the `SubjectData` and `ProcedureData`
+dataclasses, which perform no validation (`cross_system/google_sheet_tools.py`).
 
 Each drug tracked by `_SURGERY_LOG_DRUGS` becomes a named `DrugData` record in `drugs[]`, covering
 `Lactated Ringer's Solution`/`lrs`, `Ketoprofen`/`ketoprofen`, `Buprenorphine`/`buprenorphine`, and
@@ -104,11 +113,17 @@ cell is empty was not administered and is excluded from `drugs[]`.
 
 | Structural assumption | Value                                                                                                   |
 |-----------------------|---------------------------------------------------------------------------------------------------------|
-| Tab identity          | One tab per **animal**, with the tab name set to the numeric animal ID (digit-only tabs only).          |
+| Tab identity          | One tab per **animal**, named with the animal ID's unpadded decimal digits (`12`, not `00012`).         |
 | Header row            | Row **2** (differs from the surgery log's row 1).                                                       |
 | Data rows             | Row 3 onward.                                                                                           |
 | Record identity       | The session's date must already exist in the pre-filled **`date` column**. That row is the session row. |
 | Date match format     | Non-zero-padded `M/D/YY` (`%-m/%-d/%y`, e.g. `5/24/26`), matched by exact string equality.              |
+
+Tab discovery is looser than tab addressing. Discovery accepts any digit-only tab whose `int()` equals the animal ID and
+stores the zero-padded form for reporting, but every A1 range is built from the raw animal ID
+(`cross_system/google_sheet_tools.py`, lines 600, 716, and 753). A tab named `00012` therefore clears both construction
+guards and then aborts on the header read with a googleapiclient range error against the nonexistent tab `12`, rather
+than with the `ValueError` that names the tabs the log contains.
 
 ### Required headers
 

@@ -33,7 +33,8 @@ Ten steps, in order.
 7. Keep every multi-stage command non-blocking, driving it through a `get_command_stage()` switch with
    `AdvanceCommandStage()`, `WaitForMicros()`, `CompleteCommand()`, and `AbortCommand()`, as `ScreenModule::Toggle`
    in `slmc/src/screen_module.h` and `TTLModule::SendPulse` in `slmc/src/ttl_module.h` do. Blocking past
-   `kKeepaliveInterval` in `slmc/src/main.cpp`, which is 500 ms, trips the Kernel's emergency reset.
+   `kKeepaliveInterval` in `slmc/src/main.cpp`, which is 500 ms, breaks the keepalive cycle and ends the PC-side
+   runtime, and blocking past twice that interval also trips the Kernel's emergency reset.
 8. Wire the module into `slmc/src/main.cpp`: add the `#include` inside the target's `#ifdef` block, instantiate it
    with a unique `(module_type, module_id)` pair, and append its address to that target's `modules[]` array.
 9. Register the header for documentation: add `src/<name>_module.h` to the `INPUT` list of `slmc/Doxyfile` and a

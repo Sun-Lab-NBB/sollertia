@@ -124,6 +124,32 @@ Reading a failure correctly separates an environment fault from a tool-level ref
 
 You MUST follow these steps in order when MCP tools are unavailable.
 
+### Guard: stop if this is a sollertia-experiment checkout
+
+Run this BEFORE any other step, and before prescribing any `pip install`:
+
+```bash
+grep -l 'name = "sollertia-experiment"' \
+  "$(git rev-parse --show-toplevel 2>/dev/null || pwd)/pyproject.toml" 2>/dev/null
+```
+
+If it prints a path, the working directory is inside a source checkout of the library itself. You MUST stop the
+diagnostic workflow here and hand off to the user. Every resolution below installs the PyPI wheel, which would shadow
+the user's working tree and silently serve stale code to the MCP server.
+
+Tell the user that the developer install path is the one in the repository's `Developers` section. That path is
+`tox -e create` to build the development mamba environment, followed by `tox -e install` to install the checkout into
+it. Every tox task passes the bare base name `sle_dev` to `automation-cli`, which appends the running platform's suffix
+itself, so the environment that exists on disk is `sle_dev_lin` on Linux, `sle_dev_osx` on macOS, and `sle_dev_win` on
+Windows. Pass the bare name to a tox task and to every `automation-cli` command, and the suffixed name to the
+`mamba activate` in step 3.
+
+`tox -e create` installs the runtime and development dependencies and not the library, so an environment built by it and
+never handed to `tox -e install` carries every dependency and no `sle` command. Because the plugin registers the server
+as the bare command `sle mcp`, the client is left with nothing to launch and the server never appears among its tools.
+`tox -e install` resolves it by running `automation-cli install-project --environment-name sle_dev` against that same
+environment. Then stop. Development and contribution workflows are outside this skill's scope.
+
 ### Step 1: Check MCP server status
 
 Use the `/mcp` slash command or inspect available tools to determine whether the `sollertia-experiment` MCP server is
@@ -148,9 +174,11 @@ python --version
 pip list 2>/dev/null | grep sollertia-experiment
 ```
 
-Based on the output, guide the user through the appropriate resolution. The pattern is identical to the ataraxis MCP
-environment setup workflow. See `communication:communication-mcp-environment-setup` (ataraxis marketplace) for the full
-conda, venv, and uv decision tree. The only substitution is the package name:
+Based on the output, guide the user through the appropriate resolution. The conda, venv, and uv decision tree matches
+the one in `communication:communication-mcp-environment-setup` (ataraxis marketplace), so read only its Step 3 branches
+and substitute the package name `sollertia-experiment` for `ataraxis-communication-interface` and the binary name `sle`
+for `axci`. Skip that skill's `ataraxis-communication-interface` checkout guard, which covers a different library, since
+the guard above already covers the sollertia-experiment checkout:
 
 ```bash
 pip install sollertia-experiment
@@ -208,16 +236,16 @@ server on the next session.
 
 ## Common issues and resolutions
 
-| Symptom                                                                   | Cause                                                        | Resolution                                                     |
-|---------------------------------------------------------------------------|--------------------------------------------------------------|----------------------------------------------------------------|
-| `sle: command not found`                                                  | Environment not activated                                    | Activate conda/venv, restart the assistant                     |
-| `sle: command not found`                                                  | sollertia-experiment not installed                           | `pip install sollertia-experiment` in the active environment   |
-| Import error on `sle mcp`                                                 | Version skew with sollertia-shared-assets                    | `pip install --upgrade --force-reinstall sollertia-experiment` |
-| Python version mismatch                                                   | Wrong environment activated                                  | Activate environment with Python >=3.14,<3.15                  |
-| Tool error: "working directory ... has not been set"                      | `slsa` working directory not initialized                     | Run `assets:working-directory` from the assets plugin          |
-| Tool error: "Expected exactly one '*_system_configuration.yaml'"          | Host not bound to an acquisition system, or bound to several | Run `sle <system> configure system`                            |
-| Tool error: "the host-machine belongs to the ... data acquisition system" | Host bound to a different acquisition system                 | Run `sle <system> configure system` to rebind                  |
-| Tool fails with Zaber connection error                                    | Not an environment issue                                     | Check `/zaber-interface` for hardware troubleshooting          |
+| Symptom                                                                   | Cause                                                        | Resolution                                                                                                                          |
+|---------------------------------------------------------------------------|--------------------------------------------------------------|-------------------------------------------------------------------------------------------------------------------------------------|
+| `sle: command not found`                                                  | Environment not activated                                    | Activate conda/venv, restart the assistant                                                                                          |
+| `sle: command not found`                                                  | sollertia-experiment not installed                           | Outside a checkout, `pip install sollertia-experiment`, in a checkout the Guard step's `tox -e create` then `tox -e install`        |
+| Import error on `sle mcp`                                                 | Version skew with sollertia-shared-assets                    | Outside a checkout, `pip install --upgrade --force-reinstall sollertia-experiment`, in a checkout the Guard step's `tox -e install` |
+| Python version mismatch                                                   | Wrong environment activated                                  | Activate environment with Python >=3.14,<3.15                                                                                       |
+| Tool error: "working directory ... has not been set"                      | `slsa` working directory not initialized                     | Run `assets:working-directory` from the assets plugin                                                                               |
+| Tool error: "Expected exactly one '*_system_configuration.yaml'"          | Host not bound to an acquisition system, or bound to several | Run `sle <system> configure system`                                                                                                 |
+| Tool error: "the host-machine belongs to the ... data acquisition system" | Host bound to a different acquisition system                 | Run `sle <system> configure system` to rebind                                                                                       |
+| Tool fails with Zaber connection error                                    | Not an environment issue                                     | Check `/zaber-interface` for hardware troubleshooting                                                                               |
 
 In the two configuration rows, `<system>` is the host's `AcquisitionSystems` value. Resolve it to its owning skill
 through the Supported acquisition systems registry in `/acquisition-system-setup`, which this skill does not duplicate.

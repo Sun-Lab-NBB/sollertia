@@ -15,8 +15,10 @@ user-invocable: false
 > ask them to paste the output back.
 
 **The one exemption** is `--help`. `sle --help` and `sle COMMAND --help` may be run, and no other `sle` invocation is
-exempt. Every `sle get` command opens the host's serial ports, cameras, or the Unity bridge, which is experimenter
-territory. `/experiment-mcp-environment-setup` owns the `sle --help` smoke test.
+exempt. Every `sle get` command except `ports` and `checksum` opens the host's serial ports, cameras, or the Unity
+bridge, which is experimenter territory. The `ports` command only enumerates port names and `checksum` touches no device
+at all, but the CLI is still the experimenter's to run. `/experiment-mcp-environment-setup` owns the `sle --help` smoke
+test.
 
 ---
 
@@ -148,8 +150,8 @@ bind either letter to something else, so quote the long form whenever a command 
 ### How a failure reaches the user
 
 No command body in `interfaces/get.py` is wrapped in a catching decorator, and none carries an `except` handler, so
-every failure the body raises leaves a Python traceback and a non-zero exit. This is the sharpest contrast with the
-tool side, where every agnostic tool returns a string and reports failure with a leading `Error: ` prefix.
+every failure the body raises leaves a Python traceback and a non-zero exit. This is the sharpest contrast with the tool
+side, where every agnostic tool returns a string and all but two report failure with a leading `Error: ` prefix.
 `/acquisition-system-setup` owns that tool-side convention. Ask the user to paste the traceback rather than the status.
 
 | Path                                                   | Mechanism                         | Observable outcome                        |
@@ -181,11 +183,14 @@ line format is the one `video:cli-reference` documents for `axvs check devices`,
 inside each group, so it is never a camera index. Read `index=` instead. An OpenCV group is preceded by a warning that
 the interface resolves no model and no serial number, which recommends `axvs run` for mapping indices to hardware.
 
-One divergence from the `axvs` command matters. `discover_camera_ids` returns the OpenCV cameras alone where the
-GenICam runtime is absent, which is every Intel Mac and every macOS host running Python 3.14. `axvs check devices`
-distinguishes that case with its own `Harvesters camera discovery skipped.` line, and `sle get cameras` does not, so it
-reports an absent runtime and a genuinely empty GenTL bus with the identical `No Harvesters-compatible cameras
-discovered.` warning. Ask for `axvs check devices` whenever the distinction decides the answer.
+One divergence from the `axvs` command matters. `discover_camera_ids` returns the OpenCV cameras alone where the GenICam
+runtime is absent, which is every Intel Mac and every macOS host running Python 3.14. `axvs check devices` distinguishes
+the absent-runtime case with its own `Harvesters camera discovery skipped.` line, and `sle get cameras` does not.
+Neither command distinguishes the third case, a present runtime with no configured CTI file, where `discover_camera_ids`
+catches the `FileNotFoundError` raised by `_get_cti_path` and skips Harvesters discovery silently. The identical `No
+Harvesters-compatible cameras discovered.` warning therefore covers an absent runtime, an unconfigured CTI file, and a
+genuinely empty GenTL bus. Ask for `axvs check devices` to rule out the absent runtime and `axvs cti check` to rule out
+the unconfigured CTI file before reading the warning as an empty bus.
 
 ### `sle get controllers`
 
@@ -286,10 +291,11 @@ over.
 | `get_checksum_tool`       | `sle get checksum -i <string>` |
 
 Three caveats. Every agnostic command prints to a terminal and returns nothing machine-readable, so ask for the output
-pasted verbatim rather than summarized. The three substitutes above touch the host's serial ports and the loopback
-bridge, so hand them over only when no acquisition session is running. When `sle mcp` is down but the `axvs` and `axci`
-servers are up, prefer their discovery tools over `sle get cameras` and `sle get controllers`, because those two
-commands were never the agent path for that hardware.
+pasted verbatim rather than summarized. The first two substitutes above touch the host's serial ports and the loopback
+bridge, so hand those over only when no acquisition session is running. `sle get checksum` touches neither, and is safe
+to run while a session holds the host's ports. When `sle mcp` is down but the `axvs` and `axci` servers are up, prefer
+their discovery tools over `sle get cameras` and `sle get controllers`, because those two commands were never the agent
+path for that hardware.
 
 Everything else genuinely blocks until the server is back. That covers reading a Zaber device's non-volatile memory,
 writing a setting into it, validating a device's configuration against the binding library, and probing a storage path
