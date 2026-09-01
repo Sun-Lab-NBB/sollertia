@@ -72,7 +72,7 @@ the reverse. No environment variable and no CLI argument overrides any of the th
 This skill initializes the `configuration/` subdirectory but never reads or writes its files. The YAMLs inside are owned
 by downstream plugins:
 
-- `<system>_system_configuration.yaml`, one per acquisition system, backed by a per-system configuration class in
+- `<system>_system_configuration.yaml`, exactly one per host machine, backed by a per-system configuration class in
   `sollertia-experiment`. For the current Mesoscope-VR reference system that is `mesoscope_system_configuration.yaml`
   backed by `MesoscopeSystemConfiguration`. Its authoring follows the `experiment:acquisition-system-design` pattern.
 - `server_configuration.yaml`, backed by `ServerConfiguration` in `sollertia-forgery` and authored by the

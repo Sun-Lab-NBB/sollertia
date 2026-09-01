@@ -179,9 +179,11 @@ does not update any sibling copy or flow back to the sheet.
 `surgery_metadata.yaml` is never a required raw asset, and neither the session inventory nor the dataset inventory
 flags its absence. The session copy does not exist until preprocessing runs, so its absence on a session that was
 acquired but not yet preprocessed is normal rather than a sign of corruption. Route that case to
-`experiment:data-management`, which runs preprocessing. A file still missing after preprocessing means the capture
-skipped the animal, so route that case to `experiment:google-sheets-processing`, which owns the capture, rather than to
-a repair write here.
+`experiment:data-management`, which runs preprocessing. A file still missing after preprocessing means the acquisition
+system skipped the surgery snapshot, which it does with a warning when the surgery sheet identifier is unset, and when
+the system has no sheet identifiers set at all. Route that case to `experiment:google-sheets-processing`, which owns the
+gating rules the skip follows, rather than to a repair write here. An animal the surgery sheet does not list aborts
+preprocessing with an error instead of leaving the file quietly missing.
 
 Each preprocessing run rewrites the session copy from the Google Sheet, so a later run replaces any amendment made here
 with `write_data_asset_tool`. Amend the session copy only after preprocessing has produced it, and re-apply the

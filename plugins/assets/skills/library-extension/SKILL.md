@@ -199,7 +199,7 @@ skills that document it in this order, against the three modules of the `<system
 | `mesoscope:mesoscope-vr-session-schema`    | The reference hardware-state snapshot and its per-session-type descriptors                                                                        | `<system>/runtime_data.py`                                    |
 | `mesoscope:mesoscope-vr-experiment-schema` | The reference trial classes, its `TrialKind` discriminator and `_TRIAL_CLASSES` tuple, its trigger-to-trial mapping, and its `from_task_template` | `<system>/experiment_configuration.py`                        |
 | `mesoscope:mesoscope-vr-snapshots`         | The reference raw-data layout the system's path builder produces                                                                                  | `<system>/raw_data.py`                                        |
-| `mesoscope:mesoscope-vr`                   | The sollertia-experiment side of the reference system, where its runtime, configuration, and CLI live                                             | None here. Hand off to `experiment:acquisition-system-design` |
+| `mesoscope:mesoscope-vr`                   | The sollertia-experiment side of the reference system, its configuration and binding classes. Runtime and CLI in `mesoscope:mesoscope-vr-runtime` | None here. Hand off to `experiment:acquisition-system-design` |
 
 Mirror the shape and leave the values behind. Every concrete Mesoscope-VR field name, enum member, and filename stays in
 the mesoscope plugin, and a new system's equivalents are recorded in that system's own schema skill. No such schema

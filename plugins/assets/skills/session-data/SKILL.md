@@ -130,7 +130,7 @@ Every Sollertia session is a directory whose YAML files live **inside `raw_data/
 │   ├── hardware_state.yaml                    # /session-hardware-state
 │   ├── <system-specific raw assets>           # dispatched via SYSTEM_RAW_DATA_REGISTRY, Mesoscope-VR layout -> mesoscope:mesoscope-vr-snapshots
 │   ├── ax_checksum.txt                        # raw_data integrity checksum (experiment:data-management)
-│   ├── checksum_processing_tracker.yaml       # checksum resolution tracker (experiment:data-management)
+│   ├── checksum_processing_tracker.yaml       # checksum resolution tracker (forging:processing-results, written by sollertia-forgery)
 │   ├── nk.bin                                 # uninitialized-session marker (see note below)
 │   ├── behavior_data/                         # DataLogger NPZ archives (raw microcontroller and runtime messages)
 │   └── camera_data/                           # raw camera recordings
