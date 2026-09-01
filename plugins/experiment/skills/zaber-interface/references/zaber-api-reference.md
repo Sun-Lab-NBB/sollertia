@@ -70,6 +70,11 @@ the daisy chain still leaves the already-constructed devices reachable for relea
 commits the current position and blocks every motion command until the motor is unparked, and the operator may need to
 move the stage by hand to free a head-fixed animal (`cross_system/zaber_bindings.py`).
 
+**Raises:** `NoDeviceFoundException` (from `zaber_motion.exceptions`) if the port opens but `detect_devices()` reports
+no Zaber devices. That exception subclasses `MotionLibException(Exception)` rather than `ConnectionError`, so unlike
+`get_zaber_device_settings`, `set_zaber_device_setting`, and `validate_zaber_device_configuration`, which translate
+vendor failures into `ConnectionError`, `connect()` propagates the vendor exception unchanged.
+
 `_release_runtime_assets` isolates each device shutdown through `run_shutdown_step` and closes the port from a
 `finally` block, so one unresponsive controller still leaves the other devices and the port released
 (`cross_system/zaber_bindings.py`). `ZaberConnection.__del__` runs the same release when the instance is still
@@ -731,12 +736,12 @@ class SystemZaberMotors:
 
 ### Key patterns
 
-| Pattern               | Purpose                                         |
-|-----------------------|-------------------------------------------------|
-| Park/unpark guards    | Prevent accidental movement during idle periods |
-| Position restoration  | Maintain consistent animal positioning          |
-| Wait until idle       | Coordinate multi-motor movements                |
-| Destructor disconnect | Ensure proper shutdown on garbage collection    |
+| Pattern              | Purpose                                                                                 |
+|----------------------|-----------------------------------------------------------------------------------------|
+| Park/unpark guards   | Prevent accidental movement during idle periods                                         |
+| Position restoration | Maintain consistent animal positioning                                                  |
+| Wait until idle      | Coordinate multi-motor movements                                                        |
+| Explicit disconnect  | Release the ZaberConnection on teardown, with `ZaberConnection.__del__` as the fallback |
 
 ---
 

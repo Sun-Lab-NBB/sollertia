@@ -31,8 +31,8 @@ conditions to phase-specific skills, and the boundary between configuration-time
   `/experiment-mcp-environment-setup` and `assets:assets-mcp-environment-setup`
 - Authoring system, experiment, or session YAML files. The active system's skill authors the system configuration
   through the `sle mcp` write tool, and the assets plugin skills author experiment and session files
-- The current worked example's run CLI, runtime modes, and session-lifecycle specifics, owned by
-  `mesoscope:mesoscope-vr-runtime`
+- The current worked example's run CLI command and option surface, owned by `mesoscope:mesoscope-vr-cli-reference`
+- The current worked example's runtime modes and session-lifecycle specifics, owned by `mesoscope:mesoscope-vr-runtime`
 - Post-acquisition data processing, owned by the forging plugin
 
 **Handoff rules:** This skill dispatches to phase-specific skills at each stage. Always invoke the relevant skill for
@@ -59,8 +59,9 @@ acquisition is fully deterministic and AI-independent.
 
 The `sle mcp` tool surface holds no tool that starts a recording session. Runtime is launched only through the active
 system's run CLI, `sle <system> run <mode>`, which reads the validated configuration files the AI-assisted phases
-wrote. `AcquisitionSystems` currently holds one member, so Mesoscope-VR is the only registered system, and
-`mesoscope:mesoscope-vr-runtime` owns its run CLI.
+wrote. `AcquisitionSystems` currently holds one member, so Mesoscope-VR is the only registered system,
+`mesoscope:mesoscope-vr-cli-reference` owns its run CLI command and option surface, and `mesoscope:mesoscope-vr-runtime`
+owns what each mode does once it starts.
 
 ---
 
@@ -162,15 +163,21 @@ Every path cited in this phase is relative to `sollertia-shared-assets/src/solle
 ### Phase 6: Runtime acquisition (no AI)
 
 - **Plugin / Skill:** none. The experimenter invokes the active system's run CLI, `sle <system> run <mode>`, directly.
-  The mode roster belongs to the system. For the current worked example, see `mesoscope:mesoscope-vr-runtime`.
+  The mode roster belongs to the system. For the current worked example, see `mesoscope:mesoscope-vr-runtime`. For that
+  command's options, see `mesoscope:mesoscope-vr-cli-reference`.
 - **Actions:** The run CLI reads the validated system and experiment configuration files, dispatches a
   hardware-deterministic acquisition session, and writes raw data and descriptors into the session directory. For a
   session type in `SESSION_TYPES_USING_VR_TASK`, the Unity Editor must be open before launch. The driver blocks and
   prompts the operator until the editor bridge answers, then opens the scene and enters Play Mode itself
   (`VRTaskDriver._require_bridge`, `VRTaskDriver._activate_scene`, and `VRTaskDriver._arm_unity` in
   `vr_task/driver.py`).
-- **Handoff condition:** The session terminates cleanly, and `session_data.yaml` plus the session descriptor that
-  `DESCRIPTOR_REGISTRY` maps to the runtime mode's session type exist on disk (`registries.py`).
+- **Handoff condition:** The session terminates cleanly, meaning `raw_data` no longer carries the `nk.bin`
+  uninitialized-session marker, which `SessionData.mark_runtime_initialized()` removes once the runtime finishes
+  initializing (`data_hierarchy/session_data.py`). `session_data.yaml` and the session descriptor that
+  `DESCRIPTOR_REGISTRY` maps to the runtime mode's session type (`registries.py`) are both written before initialization
+  completes, so their presence alone does not establish this. A session still carrying `nk.bin` is a purge target rather
+  than a preprocessing target. See `assets:session-data` for that marker and for the separate descriptor `incomplete`
+  field.
 - **Skill restriction:** You MUST NOT attempt to run sessions through MCP tools. No MCP tool starts a runtime
   session, and there will not be one.
 
@@ -244,7 +251,7 @@ own system skill, resolved through `/acquisition-system-setup`'s **Supported acq
 |----------------------------------------------------|------------------------------------------------------------------------------------|
 | Set the working directory or credentials           | `assets:working-directory`                                                         |
 | Author the active system's configuration YAML      | that system's skill (for `mesoscope`, `mesoscope:mesoscope-vr`)                    |
-| Author the server (remote transfer) configuration  | `forging:server-configuration`                                                     |
+| Authorize the remote compute server (SSH/SLURM)    | `forging:server-configuration`                                                     |
 | Create a project                                   | `create_project_tool` or `slsa configure project` CLI (`assets:project-hierarchy`) |
 | Author a task template                             | `assets:task-templates`                                                            |
 | Author a per-project experiment configuration      | `assets:experiment-configuration`                                                  |
@@ -284,15 +291,16 @@ own system skill, resolved through `/acquisition-system-setup`'s **Supported acq
 
 ## Related skills
 
-| Skill                            | Relationship                                                                            |
-|----------------------------------|-----------------------------------------------------------------------------------------|
-| `/external-tool-bindings`        | Context: how a tool that cannot share the stack environment is wired in                 |
-| `/cli-reference`                 | Reference: the `sle` commands a phase runs by hand while the server is down             |
-| `/system-design-pipeline`        | The build-time counterpart, hands a finished acquisition system to this pipeline        |
-| `/library-extension`             | Owns the sollertia-experiment and sollertia-micro-controllers seam catalog for a system |
-| `/acquisition-system-setup`      | Resolves the active system to its owning skill and runs the hardware bringup phase      |
-| `mesoscope:mesoscope-vr`         | The current worked example's system skill, receiving Phase 2 and Phase 3                |
-| `mesoscope:mesoscope-vr-runtime` | The current worked example's run CLI, runtime modes, and session lifecycle              |
+| Skill                                  | Relationship                                                                            |
+|----------------------------------------|-----------------------------------------------------------------------------------------|
+| `/external-tool-bindings`              | Context: how a tool that cannot share the stack environment is wired in                 |
+| `/cli-reference`                       | Reference: the `sle` commands a phase runs by hand while the server is down             |
+| `/system-design-pipeline`              | The build-time counterpart, hands a finished acquisition system to this pipeline        |
+| `/library-extension`                   | Owns the sollertia-experiment and sollertia-micro-controllers seam catalog for a system |
+| `/acquisition-system-setup`            | Resolves the active system to its owning skill and runs the hardware bringup phase      |
+| `mesoscope:mesoscope-vr`               | The current worked example's system skill, receiving Phase 2 and Phase 3                |
+| `mesoscope:mesoscope-vr-runtime`       | The current worked example's runtime modes and session lifecycle                        |
+| `mesoscope:mesoscope-vr-cli-reference` | The current worked example's `sle mesoscope` command and option surface                 |
 
 ---
 

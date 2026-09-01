@@ -30,10 +30,16 @@ The Sollertia platform currently uses type codes 1-7.
 **Next unused code:** 8. The "Extending the Library" section of `slmc/README.md` carries the same allocation, and the
 two move together, because the firmware repository owns the codes its targets instantiate.
 
-Nothing in either repository enforces the allocation. The ataraxis `Kernel::ResolveTargetModule` scans `modules[]`
-and returns the first entry whose type and id match, so a duplicated pair leaves the later module permanently
-unaddressable and raises no error, and the Kernel declares no status code for the condition. Confirm a candidate pair
-against the table above and against every target block of `slmc/src/main.cpp` before instantiating it.
+Nothing in slmc or sle enforces the allocation at build time. The ataraxis `Kernel::ResolveTargetModule` scans
+`modules[]` and returns the first entry whose type and id match (`ataraxis-micro-controller/src/kernel.h:683`), so on
+the controller a duplicated pair leaves the later module permanently unaddressable, and the Kernel declares no status
+code for the condition, its only miss code being `kTargetModuleNotFound`. The host catches it instead.
+`MicroControllerInterface.__init__` raises `ValueError` when two `ModuleInterface` instances on one controller share a
+combined type + id code (`interface.py:663-672`), and `_verify_microcontroller_communication`, run when `start()`
+launches the communication process, raises `ValueError` when the board's own module-identification responses contain a
+duplicated type + id pair (`interface.py:973-979`). The collision therefore surfaces as a startup abort rather than as
+silently missing data. Confirm a candidate pair against the table above and against every target block of
+`slmc/src/main.cpp` before instantiating it.
 
 Type 5 is the only type with two instance ids in the current slmc deployment. Its `ACTOR` target instantiates
 `reward_valve` at `(5, 1)` and `gas_puff_valve` at `(5, 2)` (`slmc/src/main.cpp`), so it is the one worked

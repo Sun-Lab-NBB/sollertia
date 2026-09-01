@@ -8,14 +8,16 @@ orchestrator, the session data lifecycle, and the workflow for adding a new runt
 
 ## Per-mode runtime logic functions
 
-Each runtime mode has a top-level function in `mesoscope_vr/data_acquisition.py` that:
+Each session-running mode has a top-level function in `mesoscope_vr/data_acquisition.py` that:
 
 1. Resolves the system configuration through `get_system_configuration()`, verifies the project and the animal's project
    membership through `_verify_project_configured()` and `_verify_animal_project_membership()`, reads the version data
    through `get_version_data()`, and mints the session through
    `SessionData.create(..., acquisition_system=AcquisitionSystems.MESOSCOPE_VR)`.
 2. Builds the session-specific descriptor from default values, then the previous same-type session's parameters when one
-   exists, then the per-flag CLI overrides, in that order. `experiment_logic` additionally loads the
+   exists, then the per-flag CLI overrides, in that order. `window_checking_logic` builds
+   `WindowCheckingDescriptor(experimenter=..., incomplete=True)` from defaults alone, taking no parameter overrides and
+   inheriting nothing from a previous session. `experiment_logic` additionally loads the
    `MesoscopeExperimentConfiguration` from `raw_data.experiment_configuration_path` through its `from_yaml()` builder.
 3. Builds the hardware assets the mode needs. `lick_training_logic`, `run_training_logic`, and `experiment_logic`
    construct `MesoscopeVRSystem`, which owns and starts its own `DataLogger`. `window_checking_logic` and
@@ -31,6 +33,12 @@ Each runtime mode has a top-level function in `mesoscope_vr/data_acquisition.py`
    `run_training_logic` and `experiment_logic` add it to the budget so a pause extends the session, with only
    `experiment_logic` zeroing it between experiment states.
 6. Tears down in a `finally` block that isolates each step and purges a session whose marker survives.
+
+The orchestrator members these loops call are tabulated in [`../SKILL.md`](../SKILL.md), "MesoscopeVRSystem
+orchestrator".
+
+`maintenance_logic()` runs none of steps 1, 2, or 4. It takes no arguments, resolves only `get_system_configuration()`
+(`data_acquisition.py:1340`), and mints no `SessionData` and no descriptor.
 
 Current functions:
 
@@ -66,14 +74,18 @@ The runtime both consumes and completes the descriptor:
   the session can be preprocessed even if the runtime terminates unexpectedly (`MesoscopeVRSystem.__init__` in
   `mesoscope_vr/system_controller.py`).
 - During runtime it records runtime-discovered values into the descriptor in place. Those are the dispensed and
-  pause-dispensed water volumes, the pre-filled experimenter-delivered water volume, the `incomplete` flag, and, for
-  run-training sessions, the final speed and duration thresholds the operator sets through the control GUI
-  (`update_visualizer_thresholds()` and `_generate_session_descriptor()` in `mesoscope_vr/system_controller.py`).
-- At session end `_generate_session_descriptor()` calls `finalize_session_descriptor(...)`, which collects the
-  experimenter notes through a blocking terminal prompt and, for window-checking sessions, a 0 to 3 cranial-window
-  quality rating. It stores both on the descriptor, writes the completed descriptor to the session's `raw_data`
-  directory, and copies it to the animal's persistent directory, where the next session of the same type reads it back
-  (`mesoscope_vr/acquisition_components.py`).
+  pause-dispensed water volumes, the `incomplete` flag, and, for run-training sessions, the final speed and duration
+  thresholds the operator sets through the control GUI (`update_visualizer_thresholds()` and
+  `_generate_session_descriptor()` in `mesoscope_vr/system_controller.py`).
+- At session end `_generate_session_descriptor()` calls `finalize_session_descriptor(...)`
+  (`mesoscope_vr/acquisition_components.py`), which runs two blocking terminal prompts. Window-checking sessions are
+  prompted for the 0 to 3 cranial-window quality rating, stored as `surgery_quality`. Every other session type is shown
+  the session water summary and prompted for the total water the animal should receive, defaulting to the previous
+  session's received total (falling back to `_DEFAULT_TOTAL_WATER_VOLUME_ML` when no prior session recorded one), and
+  the surplus over the session-dispensed volume, clamped at zero, is stored as `experimenter_given_water_volume_ml`. It
+  then collects the experimenter notes into `experimenter_notes`, writes the completed descriptor to the session's
+  `raw_data` directory, and copies it to the animal's persistent directory, where the next session of the same type
+  reads it back.
 
 ---
 

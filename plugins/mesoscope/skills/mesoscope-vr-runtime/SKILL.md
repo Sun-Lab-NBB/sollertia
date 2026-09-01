@@ -103,6 +103,34 @@ four for the video systems, one for the central process, and one for the GUI. `_
 together decide whether frame acquisition began. Class statics set the mesoscope frame-checking window
 `_mesoscope_frame_delay = 300` ms, the `_speed_calculation_window = 50` ms, and the logging `_source_id = 1`.
 
+### Consumer API
+
+The per-mode logic functions reach the orchestrator through these members alone. Every other attribute is private.
+
+| Member                                                                        | Kind     | Purpose                                                                              |
+|-------------------------------------------------------------------------------|----------|--------------------------------------------------------------------------------------|
+| `start()`                                                                     | method   | Runs the semi-interactive sequence that prepares every asset and begins acquisition   |
+| `stop()`                                                                      | method   | Stops all components and external assets, then ends the session's data acquisition    |
+| `runtime_cycle()`                                                             | method   | Carries out one pass of every cyclic runtime task. Loops in place while paused        |
+| `change_runtime_state(new_state)`                                             | method   | Updates and logs the acquired session's runtime stage code                            |
+| `idle()`                                                                      | method   | Switches the system to the idle state                                                 |
+| `rest()`                                                                      | method   | Switches the system to the rest state                                                 |
+| `run()`                                                                       | method   | Switches the system to the run state                                                  |
+| `lick_train()`                                                                | method   | Switches the system to the lick training state                                        |
+| `run_train()`                                                                 | method   | Switches the system to the run training state                                         |
+| `resolve_reward(reward_size, tone_duration)`                                  | method   | Delivers or simulates a water reward, returning whether water was actually dispensed  |
+| `update_visualizer_thresholds(speed_threshold, duration_threshold)`           | method   | Updates the running speed and epoch duration thresholds the visualizer draws          |
+| `publish_runtime_thresholds(speed_threshold, duration_threshold)`             | method   | Publishes those same thresholds to the runtime control GUI                            |
+| `setup_reinforcing_guidance(initial_guided_trials, recovery_mode_threshold, recovery_guided_trials)` | method | Configures guidance for reinforcing (water reward) trials              |
+| `setup_aversive_guidance(initial_guided_trials, recovery_mode_threshold, recovery_guided_trials)`    | method | Configures guidance for aversive (gas puff) trials                     |
+| `terminated`                                                                  | property | Returns True once the system has entered the termination state                        |
+| `running_speed`                                                               | property | Returns the animal's current running speed in centimeters per second                  |
+| `speed_modifier`                                                              | property | Returns the modifier applied to the run training speed threshold                      |
+| `duration_modifier`                                                           | property | Returns the modifier applied to the run training duration threshold                   |
+| `dispensed_water_volume`                                                      | property | Returns the total water volume, in microliters, dispensed during the current runtime  |
+
+The five state methods carry their own section below. `descriptor` is the one public attribute, cached at construction.
+
 ### Construction
 
 `__init__(session_data, session_descriptor, experiment_configuration=None)` resolves the system configuration through
@@ -141,6 +169,17 @@ Each method is convergent and unconditional. It issues every actuator and monito
 re-logs the state on re-entry, rather than checking whether the system already sits there. The short-circuit lives one
 layer down, in the per-actuator wrappers, where a setter such as `BrakeInterface.set_state` returns early when the
 request matches its own cached state (`cross_system/module_interfaces.py`).
+
+### Reward resolution
+
+`resolve_reward(reward_size: float = 5.0, tone_duration: int = 300) -> bool` is the public reward entry point, and every
+automated reward path goes through it. It delivers the water and returns `True` while `_unconsumed_reward_count` sits
+below the descriptor's `maximum_unconsumed_rewards`, and otherwise simulates the reward with the buzzer alone and
+returns `False`. A configured maximum of 0 removes the limit, so every request delivers water. The counter increments on
+each delivery and resets whenever the animal licks, so an animal that consumes its water is never gated.
+`lick_training_logic` (`mesoscope_vr/data_acquisition.py`) calls the method for every reward and ignores the returned
+flag, while `run_training_logic` branches on it, advancing the water progress bar only when water actually left the
+valve.
 
 ### Start and stop ordering
 
@@ -209,11 +248,15 @@ sync, and exit. On exit it closes the valve, folds the pre-start water into `_pa
 separately, holding the completed trial count, the per-trial cumulative distances, per-type guided-trial and
 consecutive-failure counters, per-type recovery thresholds, the in-flight outcome flags, and the `trial_structures`
 mapping. `trial_completed(traveled_distance)` reports `False` once every decomposed trial is consumed, and
-`advance_trial()` returns the updated per-type failure count. `setup_reinforcing_guidance()` and
-`setup_aversive_guidance()` configure guidance, and `_refresh_trial_state_from_vr_decomposition()` rebuilds the
-per-trial parameter arrays from the ordered trial names the `VRTaskDriver` produces by decomposing the active Unity cue
-sequence. `_build_trial_parameter_arrays(trial_names)` raises `ValueError` when a decomposed name matches no configured
-trial structure. Adding a trial-tracking dimension means extending `TrialState` and updating the stimulus handling in
+`advance_trial()` returns the updated per-type failure count. The dataclass declares only those two methods and
+`is_current_trial_aversive()`, and every other method named in this section belongs to `MesoscopeVRSystem`. The
+orchestrator's own `setup_reinforcing_guidance()` and `setup_aversive_guidance()` (`mesoscope_vr/system_controller.py`)
+write the guidance counters into this dataclass and mirror the resulting state into the control GUI, and
+`experiment_logic` calls them as `system.setup_reinforcing_guidance(...)` per experiment state. The orchestrator's
+`_refresh_trial_state_from_vr_decomposition()` rebuilds the per-trial parameter arrays from the ordered trial names the
+`VRTaskDriver` produces by decomposing the active Unity cue sequence, and its
+`_build_trial_parameter_arrays(trial_names)` raises `ValueError` when a decomposed name matches no configured trial
+structure. Adding a trial-tracking dimension means extending `TrialState` and updating the stimulus handling in
 `_unity_cycle()`.
 
 ### Log message codes
@@ -252,7 +295,9 @@ The `STIMULUS_TRIGGERED` dispatch runs five steps in order:
 
 - Resolves the trial position from `_resolved_stimulus_count`.
 - Discards an event past the decomposed trial count, with a warning.
-- Delivers the puff or the reward when `delivered` is set.
+- Delivers the puff directly through `gas_puff_valve.deliver_puff()` when `delivered` is set, but routes the reward
+  through `resolve_reward()`, which sounds the tone without dispensing water once `_unconsumed_reward_count` reaches the
+  descriptor's `maximum_unconsumed_rewards`.
 - Decrements the per-type guided counter.
 - Reports the outcome to the visualizer.
 
@@ -367,10 +412,14 @@ run-training speed bounds at 0.1 to 5.0 cm/s and the duration bounds at 0.05 to 
 effective thresholds to these bounds and the GUI constrains its spin boxes to them, so an out-of-range request is
 silently clamped rather than rejected.
 
-The orchestrator and the visualizer read four `SharedMemoryArray`-backed properties off the binding classes,
-`lick.lick_count`, `valve.delivered_volume`, `wheel_encoder.absolute_position`, and `wheel_encoder.traveled_distance`.
-Each read is safe from the main process because a communication subprocess owns the write side. See
-`experiment:microcontroller-interface` for the wrapper lifecycle behind that pattern.
+The orchestrator reads five `SharedMemoryArray`-backed properties off the binding classes, `lick.lick_count`,
+`valve.delivered_volume`, `wheel_encoder.absolute_position`, `wheel_encoder.traveled_distance`, and
+`mesoscope_frame.pulse_count`, the last of which it reads in `_start_mesoscope()`, `_stop_mesoscope()`, and
+`_mesoscope_cycle()`. The visualizer reads none of them itself, because `BehaviorVisualizer.__init__()` takes no
+arguments and receives every derived value through the orchestrator's `add_lick_event()`, `add_valve_event()`,
+`add_puff_event()`, `update_running_speed()`, and `add_trial_outcome()` calls. Each read is safe from the main process
+because a communication subprocess owns the write side. See `experiment:microcontroller-interface` for the wrapper
+lifecycle behind that pattern.
 
 ### Maintenance runtime
 

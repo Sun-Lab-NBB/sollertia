@@ -207,10 +207,13 @@ several planes or two channels would carry part of its surplus at the tail inste
 
 The surviving count falls below cindra's frame count when the duration filter has rejected real frames whose TTL
 signal briefly fell outside the tolerance window. The stage then delegates to `_align_pulses_to_scanimage`, which
-consumes the unfiltered `paired_pulses` table rather than the filtered one. ScanImage writes one entry per acquired
-TIFF to `frame_variant_metadata.npz`, making its per-frame timestamps the authoritative record of which TTL rising
-edges correspond to real frames. Pulses matching no ScanImage frame within tolerance are dropped as noise, typically
-the electrical glitches captured while the mesoscope arms.
+consumes the unfiltered `paired_pulses` table rather than the filtered one. sollertia-experiment's
+`_preprocess_mesoscope_directory` parses the per-frame ScanImage metadata out of each acquired TIFF page's
+`ImageDescription` tag, concatenates the rows across every valid session stack, and writes one entry per frame to
+`frame_variant_metadata.npz`, making those per-frame timestamps the authoritative record of which TTL rising edges
+correspond to real frames. The archive is a `sle mesoscope preprocess` product rather than a ScanImage output, so
+`experiment:data-management` covers regenerating it. Pulses matching no ScanImage frame within tolerance are dropped as
+noise, typically the electrical glitches captured while the mesoscope arms.
 
 The fallback resolves the metadata archive at `raw_data_path / mesoscope_data / frame_variant_metadata.npz`
 (`MesoscopeDirectories.MESOSCOPE_DATA` is `mesoscope_data`, and the filename constant is
@@ -220,17 +223,30 @@ exactly `expected_frame_count` rows.
 
 Three ScanImage metadata keys are read from the archive:
 
-| Constant                            | Key value                | Meaning                                                                                                                                         |
-|-------------------------------------|--------------------------|-------------------------------------------------------------------------------------------------------------------------------------------------|
-| `_SCANIMAGE_FRAME_NUMBER_KEY`       | `frameNumberAcquisition` | Per-frame counter. It increases with acquisition time within one acquisition and restarts at one for each further acquisition a session records |
-| `_SCANIMAGE_FRAME_TIMESTAMP_KEY`    | `frameTimestamps_sec`    | Per-frame ScanImage clock timestamps in seconds                                                                                                 |
-| `_SCANIMAGE_ACQUISITION_NUMBER_KEY` | `acquisitionNumbers`     | Per-frame acquisition index. Substituted with `np.zeros_like(frame_numbers)` when the archive omits it                                          |
+| Constant                            | Key value                | Meaning                                                                                                |
+|-------------------------------------|--------------------------|--------------------------------------------------------------------------------------------------------|
+| `_SCANIMAGE_FRAME_NUMBER_KEY`       | `frameNumberAcquisition` | Per-frame counter, renumbered by preprocessing into a session-global 1..N sequence                     |
+| `_SCANIMAGE_FRAME_TIMESTAMP_KEY`    | `frameTimestamps_sec`    | Per-frame ScanImage clock timestamps in seconds, rewritten by preprocessing into a monotonic series    |
+| `_SCANIMAGE_ACQUISITION_NUMBER_KEY` | `acquisitionNumbers`     | Per-frame acquisition index. Substituted with `np.zeros_like(frame_numbers)` when the archive omits it |
 
-The archive is stored in TIFF-page-concatenation order, which interleaves frames across stack files, so the fallback
-restores chronological order with `np.lexsort((frame_numbers, acquisitions))`. The acquisition number is the primary
-key and the frame counter the secondary key, precisely because the counter restarts at one per acquisition. The
-sorted `frameTimestamps_sec` values then convert to microseconds as `int64`. NPZ archives do not support memory
-mapping, so a context manager keeps the archive open only long enough to copy the arrays out.
+Raw ScanImage restarts both the frame counter and the elapsed-time clock at every stop and resume, and
+sollertia-experiment removes both restarts before it writes the archive. It renumbers `frameNumberAcquisition` as
+`np.arange(1, frame_count + 1)` (`data_preprocessing.py:1086`) and rewrites `frameTimestamps_sec` into a session-global
+monotonic series that replaces each true pause with one median frame period, an interval its own comment calls an
+understatement of the pause (`data_preprocessing.py:1089-1103`). The archived timestamps therefore equal the raw
+ScanImage clock only within a single uninterrupted acquisition, and archives written by older preprocessing may still
+carry the restarts.
+
+sollertia-experiment builds the archive in acquisition order. It natsorts the stacks by their `_acquisition#_stack#`
+names, concatenates each stack's metadata block in ascending starting-frame order (`data_preprocessing.py:1064`), then
+derives `acquisitionNumbers` as a cumulative sum over the detected restart boundaries (`data_preprocessing.py:1107`).
+Both lexsort keys are therefore monotonically non-decreasing in the archive, so the
+`np.lexsort((frame_numbers, acquisitions))` the fallback applies is an identity permutation on a well-formed archive and
+guards against an out-of-order one rather than correcting the expected one. The acquisition number is the primary key
+and the frame counter the secondary key, because the counter restarts at one per acquisition in raw ScanImage metadata,
+the shape sollertia-forgery's constant docstring still describes and current sollertia-experiment preprocessing no
+longer produces. The sorted `frameTimestamps_sec` values then convert to microseconds as `int64`. NPZ archives do not
+support memory mapping, so a context manager keeps the archive open only long enough to copy the arrays out.
 
 The entry-count equality is a one-to-one check between ScanImage entries and cindra frames. It holds while the
 recording delivers one cindra sample per ScanImage frame, which the reference Mesoscope-VR configuration guarantees
@@ -266,6 +282,14 @@ The fallback returns a DataFrame with `frame` (the matched pulse's original `pul
 rising-edge microsecond timestamp), sorted by `frame`, containing exactly `expected_frame_count` rows. `time_us` is
 cast back to `np.uint64`, the width the primary path emits, so the forged feather's timestamp column carries one
 dtype whichever path aligned the session.
+
+The single-offset model holds only for a session that recorded one uninterrupted acquisition. Preprocessing compressed
+each stop and resume pause to one median frame period while the TTL log kept the true pause, and the anchor search spans
+only the first `_SCANIMAGE_ANCHOR_SEARCH_LIMIT` pulses and therefore anchors on the first acquisition, so every frame
+after a restart sits earlier than its pulse by the compressed interval, far beyond the 50 ms tolerance. Those pulses are
+dropped as noise and the fallback aborts at the `keep_pulse.sum() != expected_frame_count` check with the "matching
+produced N pulses, but cindra reports M frames" ValueError. That message on a session known to have been stopped and
+resumed points at this compression rather than at a noisy TTL log.
 
 ---
 

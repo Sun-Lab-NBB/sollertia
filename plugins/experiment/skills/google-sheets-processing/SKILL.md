@@ -139,8 +139,10 @@ recognizable and what a custom processor must reproduce:
 1. **Construction validates, then caches.** The constructor authenticates, fetches the header row, builds a
    `header → column-letter` map, and asserts every required header is present and the target record exists. A malformed
    sheet *shape* fails **at construction**, before any extract or update call. Cell-*value* parse problems are not
-   caught there, because `extract_animal_data` raises `ValueError` from the `int()`, `float()`, and
-   `_convert_date_time_to_timestamp` conversions when a row's cells are empty or malformed.
+   caught there. `_replace_empty_values` turns an empty or placeholder cell into `None`, so `extract_animal_data`
+   raises `TypeError` from `int()` / `float()` on an empty `id`, `weight (g)`, or `cage #` cell, `ValueError` from
+   those same conversions on a non-empty but malformed cell, and `ValueError` from `_convert_date_time_to_timestamp`
+   when a `dob`, `date`, `start`, or `end` cell is empty or malformed.
 2. **Authentication is service-account based.** `Credentials.from_service_account_file` is scoped to
    `https://www.googleapis.com/auth/spreadsheets` and builds a `sheets`/`v4` service with
    `cache_discovery=False`, because the discovery cache is unsupported by the installed oauth2client version
@@ -215,18 +217,23 @@ seam catalog a new acquisition system composes, see `/library-extension`.
 
 ## Error model
 
-Processors report failures through `console.error(message=…, error=ValueError)`, which logs and
-raises. Construction is atomic, so a processor either constructs cleanly or aborts.
+Processors report their own validation failures through `console.error(message=…, error=ValueError)`, which logs and
+raises. Transport and authorization failures instead surface as the `googleapiclient.errors.HttpError` the API call
+raises, and nothing in this library catches it, so it propagates out of preprocessing unchanged. Construction is
+atomic, so a processor either constructs cleanly or aborts.
 
-| Symptom                                              | Cause                                                                             |
-|------------------------------------------------------|-----------------------------------------------------------------------------------|
-| `ValueError` naming missing headers                  | The sheet's header row lacks a required column, from schema drift or a wrong tab. |
-| `ValueError`: animal not in the `id` column / no tab | The target animal has no surgery row or no water-log tab.                         |
-| `ValueError`: empty header or ID column              | The tab is empty or points at the wrong project or animal.                        |
-| `ValueError`: date row not found (`WaterLog`)        | The session's date row is absent, or its date format differs from `M/D/YY`.       |
-| `ValueError`: invalid session timestamp              | The `session_date` passed to `WaterLog` is not a valid session name.              |
-| `FileNotFoundError` during preprocessing             | A sheet identifier is set but the host credentials file has not been set.         |
-| Malformed cell on extract (`float()`/`int()`/date)   | A weight, cage, date, or time cell is empty or non-numeric.                       |
+| Symptom                                              | Cause                                                                                                                                                                           |
+|------------------------------------------------------|---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| `ValueError` naming missing headers                  | The sheet's header row lacks a required column, from schema drift or a wrong tab.                                                                                               |
+| `ValueError`: animal not in the `id` column / no tab | The target animal has no surgery row or no water-log tab.                                                                                                                       |
+| `ValueError`: empty header or ID column              | The project tab's header row is empty, or the water-log sheet has no digit-named animal tabs.                                                                                   |
+| `ValueError`: date row not found (`WaterLog`)        | The session's date row is absent, or its date format differs from `M/D/YY`.                                                                                                     |
+| `ValueError`: invalid session timestamp              | The `session_date` passed to `WaterLog` is not a valid session name.                                                                                                            |
+| `googleapiclient.errors.HttpError` (authorization)   | The target sheet was never shared with the service-account email (see Prerequisites), so the credentials file grants no access to it.                                           |
+| `googleapiclient.errors.HttpError` (bad range)       | `SurgeryLog` was given a `project_name` with no matching tab. `__init__` reads `'{project_name}'!1:1` with no existence check, so the API call fails instead of a `ValueError`. |
+| `FileNotFoundError` during preprocessing             | A sheet identifier is set but the host credentials file has not been set.                                                                                                       |
+| `TypeError` on extract (`int()`/`float()`)           | An `id`, `weight (g)`, or `cage #` cell is empty, so `_replace_empty_values` resolves it to `None` before the conversion.                                                       |
+| `ValueError` on extract (`int()`/`float()`/date)     | A non-empty `id`, `weight (g)`, `cage #`, or `surgery quality` cell is malformed, or a `dob`, `date`, `start`, or `end` cell is empty or malformed.                             |
 
 A preprocessing or migration run surfaces these as the failure of the operation that invoked the processor, so
 resolve the sheet and re-run. See `/data-management` for the lifecycle-level handling.

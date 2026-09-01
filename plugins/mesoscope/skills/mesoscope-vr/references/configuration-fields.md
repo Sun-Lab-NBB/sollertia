@@ -415,8 +415,8 @@ echoed into the error.
 ## Field-naming convention
 
 Field naming follows the "Field naming convention" rule of `experiment:acquisition-system-design`, in its
-`references/layer-patterns.md`. The `<unit>` suffixes in use across the Mesoscope-VR schema are `adc`, `us`, `ms`, `cm`,
-`g_cm`, and `pulse`.
+`references/layer-patterns.md`. The `<unit>` suffixes in use across the Mesoscope-VR schema are `adc`, `us`, `ms`, `um`,
+`cm`, `g_cm`, and `pulse`.
 
 ---
 

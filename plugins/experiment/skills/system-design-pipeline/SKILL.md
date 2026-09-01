@@ -135,8 +135,11 @@ half 2, because half 2 names the files each of them touches.
 - **Cross-plugin handoffs:**
   - `communication:microcontroller-setup` to discover controllers and verify MQTT
   - `video:camera-setup` to discover and exercise cameras
-- **Handoff condition:** Every new `Module` + `ModuleInterface` pair round-trips commands and data against connected
-  hardware through the ataraxis MCP servers. Reused catalog modules need no new code.
+- **Handoff condition:** Every new `Module` + `ModuleInterface` pair round-trips a `set_parameters` / `send_command`
+  call against connected hardware from a Python REPL, per `/microcontroller-interface`'s verification checklist. The
+  ataraxis MCP servers confirm only that the controller enumerates (`list_microcontrollers_tool`) and that the MQTT
+  broker answers (`check_mqtt_broker_tool`), and neither carries a command-send tool. Reused catalog modules need no
+  new code.
 
 ### Phase 3: Acquisition runtime
 
@@ -212,14 +215,16 @@ half 2, because half 2 names the files each of them touches.
 
 ### Phase 7: Subprocess tools (optional)
 
-- **Plugin / Skill:** `/acquisition-system-design` owns the external-tool configuration section and the subprocess
-  launch pattern.
-- **Actions:** When the system runs a tool whose dependencies conflict with the acquisition stack, keep that tool in
-  its own environment and launch it from preprocessing as a subprocess. Add a configuration section holding the
-  environment name, the tool's project path, and its runtime parameters. Gate the launch on the session types that
-  acquire the accompanying data, and join the subprocess before the transfer to long-term storage, so a failure
-  retains the local session copy. What a given system launches, and with which flags, belongs to that system. See
-  `mesoscope:mesoscope-vr`.
+- **Plugin / Skill:** `/external-tool-bindings` owns the binding convention, the admission test that decides whether
+  the tool registers or binds, the artifact contract, and the ordered workflow for adding a binding.
+  `/acquisition-system-design` owns the acquisition-system configuration layer that hosts the tool's configuration
+  section.
+- **Actions:** Run the admission test in `/external-tool-bindings` before writing any binding code. When the system
+  runs a tool whose dependencies conflict with the acquisition stack, keep that tool in its own environment and launch
+  it from preprocessing as a subprocess. Add a configuration section holding the environment name, the tool's project
+  path, and its runtime parameters. Gate the launch on the session types that acquire the accompanying data, and join
+  the subprocess before the transfer to long-term storage, so a failure retains the local session copy. What a given
+  system launches, and with which flags, belongs to that system. See `mesoscope:mesoscope-vr`.
 - **Manual host configuration:** An environment name and a tool project path are host-specific, and the system's
   configuration-validation and mount-check tools cannot confirm an environment name. You MUST set and confirm both by
   hand on every host that runs the tool.
@@ -315,7 +320,8 @@ skills. The `video:`, `communication:`, and `microcontroller:` entries resolve t
 | Add a Zaber motor subsystem                                    | `/zaber-interface`                                |
 | Integrate the system's primary instrument (bespoke driver)     | `/acquisition-system-design`                      |
 | Design the system's static composition                         | `/acquisition-system-design`                      |
-| Implement the runtime loop, modes, CLI, MCP module             | `/acquisition-system-runtime`                     |
+| Implement the runtime loop, modes, and CLI                     | `/acquisition-system-runtime`                     |
+| Author the per-system `interfaces/<system>_tools.py` module    | `/acquisition-system-design`                      |
 | Couple the runtime to the Unity VR task                        | `/vr-driver-interface`                            |
 | Author the corridor task template                              | `assets:task-templates`                           |
 | Run the editor pipeline that generates the task prefab         | `unity:task-generator`                            |
@@ -326,6 +332,7 @@ skills. The `video:`, `communication:`, and `microcontroller:` entries resolve t
 | Register a new external read asset                             | `assets:library-extension` / `assets:data-assets` |
 | Register a new external-service credential category            | `assets:library-extension`                        |
 | Author the per-system instance / runtime skills                | `/acquisition-system-design`                      |
+| Decide whether an outside tool registers or binds, and bind it | `/external-tool-bindings`                         |
 | Design the downstream processing for the new system            | `forging:data-processing-design`                  |
 | Configure a host and run the first session                     | `/pipeline`                                       |
 
@@ -347,8 +354,8 @@ other entry resolves inside the sollertia marketplace.
 | `communication:microcontroller-interface` | Owns the `ModuleInterface` and `MicroControllerInterface` mechanics in Phase 2                |
 | `video:camera-interface`                  | Owns the `VideoSystem` interface authoring in Phase 2                                         |
 | `/zaber-interface`                        | Owns the Zaber motor subsystem in Phase 2                                                     |
-| `/acquisition-system-design`              | Owns Phase 3 static composition and the per-package deliverables manifest                     |
-| `/acquisition-system-runtime`             | Owns Phase 3 runtime loop, modes, CLI, and MCP tool module                                    |
+| `/acquisition-system-design`              | Owns Phase 3 static composition, the deliverables manifest, and the MCP tool module           |
+| `/acquisition-system-runtime`             | Owns Phase 3 runtime loop, modes, and the CLI surface pattern                                 |
 | `/vr-driver-interface`                    | Owns the host-side VR task driver that couples the runtime to the Unity scene in Phase 3      |
 | `assets:task-templates`                   | Owns the corridor task template in Phase 4                                                    |
 | `unity:task-generator`                    | Owns the editor pipeline that generates the task prefab in Phase 4                            |
@@ -357,6 +364,7 @@ other entry resolves inside the sollertia marketplace.
 | `unity:unity-tests`                       | Owns the Unity Test Framework suite that verifies Phase 4                                     |
 | `/google-sheets-processing`               | Owns the external data-service processors in Phase 5                                          |
 | `assets:data-assets`                      | Reads and amends the on-disk read assets a processor emits                                    |
+| `/external-tool-bindings`                 | Owns the register-versus-bind admission test and the binding workflow in Phase 7              |
 | `forging:data-processing-design`          | Owns the downstream agnostic-versus-per-system processing design in Phase 8                   |
 | `/acquisition-system-setup`               | Resolves a built system to its owning instance skill during operation                         |
 
@@ -376,7 +384,8 @@ System build orchestration:
 - [ ] `import sollertia_shared_assets` succeeds and the system appears in list_supported_acquisition_systems_tool
 - [ ] Every seam in the /library-extension catalog is marked reuse-as-is or author-in-Phase-N
 - [ ] Phase 3's hardware-defined decisions were settled with the human supervisor rather than inferred
-- [ ] Every new hardware module pair is verified against hardware through the ataraxis MCP servers
+- [ ] Every new hardware module pair enumerates through communication:microcontroller-setup after flashing
+- [ ] Every new hardware module pair round-trips a set_parameters / send_command call from a Python REPL
 - [ ] The sle CLI group was registered by hand in entry_points.py, since only the MCP seam is automatic
 - [ ] The experiment configuration's unity_scene_name resolves to a real task template and scene
 - [ ] If the system integrates an external data service, its processor round-trips and (for reads) snapshots to disk

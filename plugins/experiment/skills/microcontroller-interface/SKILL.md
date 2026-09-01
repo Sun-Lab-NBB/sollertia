@@ -223,7 +223,11 @@ Before writing a new firmware module, evaluate whether you actually need new fir
    double the firmware module's complexity. At that point, fork the module class.
 
 The reuse-first preference exists because adding a firmware module forces a firmware rebuild and firmware reflash on
-every consumer of that module, while adding a Python wrapper is a Python-only change.
+every consumer of that module, while adding a Python wrapper avoids writing a new firmware class. A wrapper is a
+Python-only change only when it re-roles a module instance the target already carries at the same `module_type` and
+`module_id`. A wrapper that drives a new physical instance still needs its own instantiation and `modules[]` entry in
+that target's `slmc/src/main.cpp` block, and a reflash of that one board, as `GasPuffValveInterface` at (5, 2) did
+(`slmc/src/main.cpp:49`, `:51`).
 
 ### Workflow: adding a paired Module + Interface
 
@@ -276,9 +280,17 @@ every consumer of that module, while adding a Python wrapper is a Python-only ch
 
 ### Workflow: adding a wrapper for an existing firmware module
 
-Same as above, skipping steps 2 and 6's `slmc` version bump. The new wrapper takes the existing `module_type` and the
-next-available `module_id`. Update the registry in [`references/module-catalog.md`](references/module-catalog.md) to
-show the additional instance id, and add a new wrapper subsection to the corresponding catalog block.
+Same as above, skipping step 2's new-header bullet and its Doxygen and Sphinx entries. The new wrapper takes the
+existing `module_type`, and how much firmware work remains depends on which instance it drives. A wrapper that drives a
+new physical instance still needs step 2's `slmc/src/main.cpp` bullet, so add a second instantiation of the existing
+module class at the next-available `module_id` under the target block, add it to that block's `modules[]` array, reflash
+that board, and bump the slmc version alongside the sle version, because `MicroControllerInterface` raises `ValueError`
+during its module identification handshake when an interface's combined type and id code has no matching hardware module
+instance (`interface.py:981-989`). A wrapper that instead re-roles an already-instantiated module skips step 2 and step
+6's slmc version bump entirely, reuses that instance's `module_id`, and MUST NOT be registered on the same
+`MicroControllerInterface` as the wrapper it shares that id with, which raises `ValueError` for the duplicated type and
+id pair (`interface.py:663-672`). Update the registry in [`references/module-catalog.md`](references/module-catalog.md)
+to show the additional instance id, and add a new wrapper subsection to the corresponding catalog block.
 
 ---
 

@@ -1,6 +1,6 @@
 {
   "name": "experiment",
-  "version": "2.4.1",
+  "version": "2.4.2",
   "description": "Provides acquisition-system design, hardware interface, runtime, and library-extension skills for sollertia-experiment and sollertia-micro-controllers, the system-agnostic core a companion plugin such as mesoscope extends. Includes MCP bindings for hardware discovery, system configuration, and session management, plus a reference for the human-facing sle command-line interface.",
   "repository": "https://github.com/Sun-Lab-NBB/sollertia",
   "license": "Apache-2.0",
