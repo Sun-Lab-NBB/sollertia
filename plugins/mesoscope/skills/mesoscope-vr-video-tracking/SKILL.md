@@ -58,6 +58,8 @@ consumer, and the two live in different libraries.
   by `/mesoscope-vr-dataset-assembly`.
 - The mesoscope fluorescence clock that serves as the experiment-session reference time. Owned by
   `/mesoscope-vr-fluorescence-alignment`.
+- The `_ASSEMBLY_GEOMETRY_REGISTRY` and `_ASSEMBLY_SOURCE_REGISTRY` sizing donations that call
+  `resolve_reference_clock_samples` and `count_camera_source_samples`. Owned by `forging:data-processing-design`.
 - The donation protocols and the import-time coverage check that bind these functions to their registries. Owned by
   `forging:data-processing-design`.
 
@@ -83,8 +85,12 @@ Job discovery calls the locator to decide whether a session supports a tracking 
 `orchestration/footprints.py` calls it again to charge the job the prediction file's byte count. A single donation
 covering both would force discovery to load and parse the predictions merely to decide whether to schedule work.
 
-`video_dataset.py` fills no registry of its own. Both of its functions are reached through the Mesoscope-VR assembly
-worker registered in `_FORGING_ASSEMBLY_REGISTRY`, which `/mesoscope-vr-dataset-assembly` owns.
+`video_dataset.py` fills no registry of its own. `assemble_video_dataset` and `resolve_slowest_camera_clock` are
+reached through the Mesoscope-VR assembly worker registered in `_FORGING_ASSEMBLY_REGISTRY`, which
+`/mesoscope-vr-dataset-assembly` owns. Its two other public functions, `resolve_reference_clock_samples` and
+`count_camera_source_samples`, are reached through the sizing donations instead. `resolve_mesoscope_assembly_geometry`
+in `training_dataset.py` calls the first and `resolve_mesoscope_assembly_sources` in `assembly_sources.py` calls the
+second, registered in `_ASSEMBLY_GEOMETRY_REGISTRY` and `_ASSEMBLY_SOURCE_REGISTRY`.
 
 ---
 
@@ -345,9 +351,10 @@ Experiment sessions use the mesoscope fluorescence clock instead, so this resolv
 `assemble_training_dataset`.
 
 For each camera source with a present timestamp feather, it requires at least `_MINIMUM_CLOCK_FRAMES`, which is two,
-and computes `duration_seconds` from the first and last timestamps. Both endpoints are cast to float before
-subtracting, since the timestamps are unsigned and their difference would wrap on an out-of-order feather. A
-non-positive duration disqualifies the camera. The mean rate is the frame count divided by that duration, and the
+and computes `duration_seconds` from the first and last timestamps. Both endpoints are pulled one at a time through a
+pushed-down one-row slice and arrive as Python integers, whose difference cannot wrap the way the unsigned timestamp
+column's would, so an out-of-order feather states a negative span and is dropped rather than read as the slowest clock.
+A non-positive duration disqualifies the camera. The mean rate is the frame count divided by that duration, and the
 camera with the lowest mean rate wins, its timestamps returned verbatim.
 
 The slowest camera is chosen because every other data source can be interpolated onto its coarser grid without
@@ -373,7 +380,7 @@ the sollertia marketplace.
 | `experiment:external-tool-bindings`    | Owns the binding convention behind the externally produced prediction file                  |
 | `/mesoscope-vr`                        | Producer: owns the acquisition-side `video_tracking` section and the `slvt infer` call      |
 | `/mesoscope-vr-processing-schema`      | Owns the `VideoDataFiles` filename roster and the `DatasetColumn` rows these columns become |
-| `/mesoscope-vr-dataset-assembly`       | Downstream: calls both `video_dataset.py` functions and chooses the reference clock         |
+| `/mesoscope-vr-dataset-assembly`       | Downstream: calls the assembly-side `video_dataset.py` pair and chooses the reference clock |
 | `/mesoscope-vr-fluorescence-alignment` | Owns the mesoscope fluorescence clock used as the experiment-session reference time         |
 | `forging:batch-processing`             | Owns the video pipeline jobs, including the tracking job that invokes this donation         |
 | `forging:processing-results`           | Owns the processed-data layout in which these feathers are located                          |

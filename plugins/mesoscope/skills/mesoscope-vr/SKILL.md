@@ -77,7 +77,8 @@ classes and drives the system state machine. The orchestrator is documented in `
 | Out-of-band device driver                   | `MesoscopeDriver`, an MQTT client for the ScanImagePC (`mesoscope_vr/mesoscope_driver.py`)     |
 | VR task configuration seam                  | `assets.vr_task`, consumed by `VRTaskDriver` and reused for mesoscope broker discovery         |
 | Runtime orchestrator                        | `MesoscopeVRSystem` (`mesoscope_vr/system_controller.py`), see `/mesoscope-vr-runtime`         |
-| Per-system CLI group and MCP tool module    | `sle mesoscope` and `interfaces/mesoscope_vr_tools.py`, see `/mesoscope-vr-runtime`            |
+| Per-system CLI group                        | `sle mesoscope`, see `/mesoscope-vr-cli-reference`                                             |
+| Per-system MCP tool module                  | `interfaces/mesoscope_vr_tools.py`, see `/mesoscope-vr-runtime`                                |
 
 The acquisition engine is written per system by design rather than derived from a runtime base class, and this package
 is the worked example from which a new system's engine is scaffolded. `experiment:library-extension` owns that design
@@ -154,7 +155,7 @@ the file resolves to `<working_directory>/configuration/mesoscope_system_configu
 Creating the file (`create_system_configuration_file()`), resolving its path (`get_system_configuration_path()`), and
 loading it are handled by the shared `cross_system` helpers, following the pattern in
 `experiment:acquisition-system-design`. The CLI entry point for authoring is `sle mesoscope configure system`, which
-takes no options and whose full surface belongs to `/mesoscope-vr-runtime`.
+takes no options and whose full surface belongs to `/mesoscope-vr-cli-reference`.
 
 ### Experiment configuration files
 

@@ -355,8 +355,10 @@ and reads nothing back.
 
 ### The three rules behind the table
 
-1. **Direction of travel.** Every paired command writes or acts, and every unpaired tool reads. An agent asking what
-   the rig currently holds has only the MCP path.
+1. **Direction of travel.** Every paired command writes or acts, and every unpaired tool reads, except
+   `write_session_zaber_positions_tool` and `write_session_mesoscope_positions_tool`, which repair the per-session
+   position snapshots that the unpaired `run` runtimes write during a session. An agent asking what the rig currently
+   holds has only the MCP path.
 2. **Guard placement.** Both surfaces run the same `is_relative_to` containment check, differing only in whether they
    resolve the operands first, and on `delete` both reach the same interactive terminal prompt inside `purge_session`.
    Only a guard the caller passes as an argument is MCP-only: `confirm_deletion` on `delete_session_tool` and
