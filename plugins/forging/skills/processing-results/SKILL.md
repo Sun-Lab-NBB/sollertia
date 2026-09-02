@@ -14,8 +14,9 @@ user-invocable: false
 Documents every artifact the pipelines write, the tracker each one records against, and the procedure that separates a
 real success from a vacuous one. This skill owns no MCP tools.
 
-**The server ships no output-verification tool and no feather-query tool.** Nothing on it opens a feather, counts its
-rows, or checks its schema. Verification runs through the breakdowns of `read_project_jobs_tool`,
+**The server ships no output-verification tool and no feather-query tool.** Nothing on it opens a pipeline's output
+feather, counts its rows, or checks its schema, and the read tools open only the stored record artifacts.
+Verification runs through the breakdowns of `read_project_jobs_tool`,
 owned by `/project-state`, and of `get_processing_status_tool`, owned by `/batch-processing`. The forging jobs the
 project job artifact never carries are covered by `read_dataset_state_tool`, owned by `/dataset-definition`. Read the
 record with those tools first, then read the bytes by hand.
@@ -130,7 +131,7 @@ donated parsers and workers, so their filenames and column schemas belong to tha
     │   ├── {camera}_energy.feather                     video.motion_energy.compute_camera_motion_energy
     │   └── <the acquisition system's pose-tracking tables>
     └── cindra/                                         <- the imaging library owns everything below this point
-        ├── single_recording_tracker.yaml               written by the imaging library, read by this one
+        ├── single_recording_tracker.yaml               registered by two_photon.pipeline, recorded on by cindra
         ├── configuration.yaml                          the one file this library writes here, two_photon.pipeline
         ├── acquisition_parameters.yaml
         ├── combined_metadata.npz                       the combination stage's completion marker
@@ -284,10 +285,12 @@ A camera's timestamp job that appears in the discovered universe but not in the 
 a name that resolves to several archives. Its energy job stays possible because that stage reads only the recording.
 ### The two-photon pipeline
 
-The imaging library writes everything under `processed_data/cindra` and records the four stages on
-`single_recording_tracker.yaml`. This library writes exactly one file there itself, `configuration.yaml`, and only
-when the run persists it, overriding three fields and leaving everything else as the acquisition system's resolver
-returned it.
+The imaging library writes the arrays and images under `processed_data/cindra` and records the four stages on
+`single_recording_tracker.yaml`. This library writes two files there itself. It materializes `configuration.yaml` when
+the run persists it, overriding three fields and leaving everything else as the acquisition system's resolver returned
+it, and it registers the four stages on `single_recording_tracker.yaml` through the tracker's own alignment before any
+stage runs, which is what creates that file. The tracker's presence is therefore evidence that the pipeline was
+invoked, not that a stage completed.
 
 Two files are completion markers worth more than a directory listing, because each is written atomically after the
 arrays it describes. `combined_metadata.npz` marks the combination stage, and `tracking_template_masks.npz` under the

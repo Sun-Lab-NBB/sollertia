@@ -410,9 +410,9 @@ system in one place.
 
 The column-description half of `_FORGING_ASSEMBLY_REGISTRY` and the file name and column rosters every donation writes
 against are documented by `mesoscope:mesoscope-vr-processing-schema`, and the fluorescence sub-assembly the assembly
-worker calls by `mesoscope:mesoscope-vr-fluorescence-alignment`. No companion skill covers `_ASSEMBLY_GEOMETRY_REGISTRY`
-or `_ASSEMBLY_SOURCE_REGISTRY` yet, so read those two donations from `registries.py` and from the sizing pass in
-`orchestration/footprints.py` that consumes them.
+worker calls by `mesoscope:mesoscope-vr-fluorescence-alignment`. `_ASSEMBLY_GEOMETRY_REGISTRY` and
+`_ASSEMBLY_SOURCE_REGISTRY` have no companion skill of their own and are owned here, so read those two donations from
+this skill, from `registries.py`, and from the sizing pass in `orchestration/footprints.py` that consumes them.
 
 ---
 

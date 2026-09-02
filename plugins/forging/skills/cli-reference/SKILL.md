@@ -356,7 +356,8 @@ documented in the `## Response contract` section of `/forging-mcp-environment-se
 - `slf mcp` starts the server, so it is CLI-only by definition.
 - `slf omp` has no tool and cannot usefully have one, since writing the link normally needs sudo and the failure it
   prevents aborts every pipeline the tools drive. An agent hitting that error hands the operator a shell command.
-- `slf manifest print` renders two fixed human views to the terminal. No tool returns the experimenter notes view.
+- `slf manifest print` renders two fixed human views to the terminal. No tool renders either view, though
+  `read_project_manifest_tool` with `detailed=True` returns the underlying `notes` field per session.
 
 ### MCP tools with no CLI equivalent
 

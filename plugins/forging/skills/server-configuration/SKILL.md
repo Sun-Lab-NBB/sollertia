@@ -78,10 +78,12 @@ holds no directory for the project. Point it at the data root itself, never at a
 
 **`environment`** is the one shared conda environment on the server that every remote job activates before invoking the
 `slf` CLI. `Job.__init__` writes `eval $(conda shell.bash hook)`, `conda init bash`, and `source activate` for the named
-environment as the preamble of every SLURM script, and `environment_command` and `environment_commands` in
-`orchestration/hosts.py` wrap every other remote step in the same activation. All pipelines share that single
-environment, so it must hold `sollertia-forgery` and every processing library the pipelines drive. A name that does not
-resolve on the server passes submission and fails the job.
+environment as the preamble of every SLURM script. `environment_command` and `environment_commands` in
+`orchestration/hosts.py` wrap every `slf` invocation issued over SSH in an equivalent activation, running
+`eval "$(conda shell.bash hook)" && source activate <environment>` inside `bash -lc`. The scheduler and filesystem
+commands the transport issues, such as `sbatch`, `sacct`, `squeue`, and `find`, run outside it because they need no
+environment. All pipelines share that single environment, so it must hold `sollertia-forgery` and every processing
+library the pipelines drive. A name that does not resolve on the server passes submission and fails the job.
 
 `get_server_configuration` accepts a configuration only when all five fields are non-empty, and it checks nothing else.
 Reachability, the validity of `root`, and the existence of the named environment are never verified locally, so the

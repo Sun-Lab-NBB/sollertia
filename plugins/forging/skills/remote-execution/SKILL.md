@@ -319,8 +319,12 @@ time, and one `RemoteSubmission` per accepted allocation.
 **The ledger write sits in a `finally` block.** A submission the scheduler rejects partway through still records every
 allocation it accepted, and a re-submitted job replaces its earlier entry rather than duplicating it.
 
-**A batch leaves the ledger only through closure.** `orchestration/closure.py::close_settled_batches` retires a batch
-when every one of its allocations reached a terminal state, the status query actually observed every one of them, and
+**A batch leaves the ledger only through closure.** Three calls run it. A status read closes what it observed
+settled, a remote cancellation closes the batches it cancelled so a cancelled run leaves the same durable outcome
+a completed one does, and a submission closes every batch that settled while the new one was being prepared, so
+the ledger sheds finished work without waiting for a poll. `orchestration/closure.py::close_settled_batches`
+retires a batch when every one of its allocations reached a terminal state, the status query actually observed every
+one of them, and
 `close_batch` succeeded for every prepared identifier the submission covered. An allocation the status map does not
 cover counts as unfinished, so a partial query never retires a batch it did not fully observe. A closure that raises
 is logged as a warning and the batch stays outstanding, so the next query can try again.
@@ -349,14 +353,17 @@ Only the `slurm` executor scheme is honored, and a record naming any other schem
 ## The remote job script
 
 `server/job.py` composes one shell script per allocation and `Server.submit_job` uploads it, marks it executable, and
-submits it. The script carries exactly six unconditional SBATCH directives, in this order.
+submits it. The batch directory is `<server data root>/processing_batches/<batch_id>`, and it holds each allocation's
+`.sh` script alongside its `.out` and `.err` logs. A submission naming several prepared batches writes all of their
+scripts and logs into the directory of the first identifier, and the ledger entry records every identifier it covered.
+The script carries exactly six unconditional SBATCH directives, in this order.
 
 ```text
 #!/bin/bash
 #SBATCH --cpus-per-task=<cores>
-#SBATCH --job-name=<index>-<sanitized name>
-#SBATCH --output=<batch directory>/<name>.out
-#SBATCH --error=<batch directory>/<name>.err
+#SBATCH --job-name=<NNNN>-<unit>-<job name>-<specifier>
+#SBATCH --output=<batch directory>/<NNNN>-<unit>-<job name>-<specifier>.out
+#SBATCH --error=<batch directory>/<NNNN>-<unit>-<job name>-<specifier>.err
 #SBATCH --mem=<gigabytes>G
 #SBATCH --time=<[D-]HH:MM:SS>
 [#SBATCH --dependency=afterok:<id>[:<id>…]]
@@ -371,8 +378,14 @@ set -eo pipefail
 <one slf command>
 ```
 
-The two conditional directives appear together whenever the job names a prerequisite. Every upstream allocation
-identifier joins one `afterok:` prefix separated by colons. The kill directive turns a dependency that can never be
+The name leads with the job's submission index zero-padded to four digits, joins the unit name, the job name, and
+the specifier with hyphens, and replaces every character outside `A-Za-z0-9._-` with an underscore. The script,
+the stdout log, and the stderr log all carry that one name.
+
+The two conditional directives appear together whenever this submission holds an allocation for one of the job's
+prerequisites, newly queued or adopted. A prerequisite that already succeeded stays on the descriptor and
+contributes no dependency, because nothing in this submission runs it. Every upstream allocation identifier joins
+one `afterok:` prefix separated by colons. The kill directive turns a dependency that can never be
 satisfied into a terminal state a status query can report, rather than a queue entry that waits forever. No other
 directive is ever emitted, so a partition, an account, a QOS, a node count, and a GPU request are all outside what this
 library expresses.
@@ -388,7 +401,9 @@ there instead. The script removes itself through an exit trap rather than a trai
 the status of the work it ran and the scheduler sequences dependents on the truth.
 
 **Each script runs the same `slf` command a local run would.** The command renderer is the dispatch table both backends
-share, so a job runs the same stage at the same width whichever way it is executed. That is why a pipeline is proven on
+share, so a job runs the same stage whichever way it is executed. A local dispatch additionally caps each job's width
+at what this machine's core budget supplies, while a remote allocation requests the width the plan recorded. That is
+why a pipeline is proven on
 one session locally before a project-wide remote batch. A defect in the stage reproduces on this machine in one job,
 where the tracker, the error message, and the output are all directly readable. The alternative is a wave of failed
 allocations whose only diagnostics are log files on the server.
@@ -402,7 +417,7 @@ allocations whose only diagnostics are log files on the server.
 | Where a run's state lives         | A process-global that dies with the server            | The ledger plus the scheduler, both surviving a restart           |
 | Concurrent batches                | Exactly one, a second dispatch is refused             | Unbounded, the ledger tracks many at once                         |
 | Budget arguments on execute       | `core_budget_override` and `memory_budget_mb` honored | Both ignored, each job requests its own allocation                |
-| Wall time on execute              | Ignored                                               | `walltime_minutes`, at the job script's own default               |
+| Wall time on execute              | Ignored                                               | `walltime_minutes`, defaulting to 480 when non-positive           |
 | Concurrency ceilings              | Enforced by the admission engine                      | Never expressed to the scheduler                                  |
 | A job already recorded as running | Rerun, since the record describes a dead pool         | Adopted, with dependents wired to the live allocation             |
 | Progress source                   | The processing trackers                               | The scheduler alone, no tracker is opened from this machine       |
@@ -436,7 +451,8 @@ is outstanding before cleaning anything on the server.
 
 An authentication failure is fatal on the first attempt, while any other connection failure retries thirty times at two
 second intervals before the transport reports the server unreachable. Both surface through whichever tool opened the
-connection.
+connection. The transport authenticates with the stored password on paramiko's default port and accepts an unrecognized
+host key rather than prompting, so a headless job never hangs on a first connection to a rebuilt server.
 
 ---
 

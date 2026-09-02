@@ -84,9 +84,10 @@ pipeline's job for the same session. `managing.checksum.run_checksum_processing_
 `ataraxis_data_structures.calculate_directory_checksum` and compares the result against the digest stored in
 `ax_checksum.txt` (`RawDataFiles.CHECKSUM`).
 
-`managing.checksum._CHECKSUM_EXCLUDED_FILES` holds exactly three names, the checksum file itself,
-`ProcessingTrackers.CHECKSUM`, and that tracker's lock filename, which is derived from `ProcessingTracker.lock_path` so
-the two cannot disagree. Excluding them keeps the tracker's own presence from altering the value it records.
+sollertia-shared-assets' `CHECKSUM_EXCLUDED_FILES`, which this pipeline imports rather than restates, holds
+exactly three names, the checksum file itself, `ProcessingTrackers.CHECKSUM`, and that tracker's lock filename,
+which is derived from `ProcessingTracker.lock_path` so the two cannot disagree. Excluding them keeps the tracker's
+own presence from altering the value it records.
 
 **The tracker sits under the acquired data, not beside an output.** `shared_assets.pipelines._SESSION_TRACKER_LOCATIONS`
 binds this pipeline to `session.raw_data.checksum_tracker_path`, and its notes give the reason. This pipeline verifies
@@ -296,8 +297,10 @@ the original session in the project hierarchy rather than a copy under the datas
 ### The required raw assets and the described columns
 
 `SessionData.required_raw_assets` is the single source of truth for which assets a session must carry, and assembly
-enforces it over the three files it re-exports. The session descriptor is always required, the experiment configuration
-when the session names an experiment, and the VR configuration when the session type uses a VR task. A required but
+enforces it over the three files it re-exports. The session descriptor and the system configuration snapshot are
+always required, the experiment configuration when the session names an experiment, and the VR configuration when the
+session type uses a VR task. Assembly checks only the three assets it re-exports, so an absent system configuration
+is required by the policy without being caught there. A required but
 absent asset raises `FileNotFoundError` before any expensive work begins, naming the filename and the path where it was
 expected.
 

@@ -292,11 +292,11 @@ The dependency bounds a skewed environment violates:
 | Dependency                         | Required bound    | Triage note                                                                  |
 |------------------------------------|-------------------|------------------------------------------------------------------------------|
 | `mcp`                              | `>=2,<3`          | Check first, because `mcp_instance.py` imports `MCPServer` from `mcp.server` |
-| `sollertia-shared-assets`          | `>=10.0.0rc3,<11` | rc3 is the first release exporting the per-system session registry           |
-| `ataraxis-data-structures`         | `>=7.1,<8`        | 7.1 first exports the log-archive, marker, and worker-thread helpers         |
+| `sollertia-shared-assets`          | `>=10,<11`        | 10.0.0 first exports the shared checksum exclusion set                       |
+| `ataraxis-data-structures`         | `>=7.1,<8`        | 7.1 first exports the atomic and direct write helpers                       |
 | `ataraxis-video-system`            | `>=5.1,<6`        | 5.1 first exports the layout the video pipeline resolves against             |
-| `ataraxis-communication-interface` | `>=7.1,<8`        | 7.1 first exports the serial protocol and prototype enums                    |
-| `cindra`                           | `>=2.0.0rc6,<3`   | rc6 first exports the pipeline data records                                  |
+| `ataraxis-communication-interface` | `>=7.1,<8`        | 7.1 first answers the archive estimator with a `JobSizing` record            |
+| `cindra`                           | `>=2.0.0,<3`      | 2.0.0 first states the re-measured stage worker allocations                  |
 
 `slf --help` hides the traceback behind a generic failure. Reproduce it directly:
 
