@@ -104,7 +104,7 @@ Left at cindra defaults: `file_io.data_path`, `file_io.output_path`, and the `ru
 | `DiffeomorphicRegistration` | `scale_sampling`                  | `30`                               |
 | `DiffeomorphicRegistration` | `speed_factor`                    | `3`                                |
 | `DiffeomorphicRegistration` | `repeat_registration`             | `False`                            |
-| `ROITracking`               | `threshold`                       | `0.5`                              |
+| `ROITracking`               | `threshold`                       | `0.75`                             |
 | `ROITracking`               | `mask_prevalence`                 | `50`                               |
 | `ROITracking`               | `pixel_prevalence`                | `50`                               |
 | `ROITracking`               | `step_sizes`                      | `(200, 200)`                       |
