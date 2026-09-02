@@ -55,6 +55,12 @@ Every agnostic tool returns a plain string, and most report failure with a leadi
 that convention, and `/acquisition-system-setup` owns the divergence, so read it before treating a non-`Error:` return
 as a fault.
 
+Two of the checks below also reach an operator working with no agent at the keyboard, because the active system's own
+command group carries them as commands. On Mesoscope-VR they are `sle mesoscope check-mounts` for the Phase 2 mount
+sweep and `sle mesoscope validate-config` for the Phase 4 validator, the second of which adds the DeepLabCut project
+check to the same per-path report. `mesoscope:mesoscope-vr-cli-reference` owns both, and both are the experimenter's to
+run, so print one for the user rather than running it yourself.
+
 Every other tool this skill calls belongs to the active system's own tool module, `interfaces/<system>_tools.py`, whose
 tools register as an import side effect of the `*_tools.py` glob run by `_register_tool_modules()` in
 `interfaces/mcp_server.py`. Phase 0 resolves which module that is, and the active system's skill names the tools inside
@@ -194,13 +200,14 @@ configuration and diffs it against the stored YAML. On a mismatch, hand off to `
 or re-baseline, and to `video:camera-setup` for the GenICam dump and restore mechanics.
 
 Each third-party-SDK subsystem additionally exposes its own device-level validator.
-`validate_zaber_configuration_tool(port, device_index)` sits in the agnostic tool group and is shared across
-acquisition systems, validating one Zaber device against the settings the binding library requires. It returns
-`Status: VALID|INVALID | Checksum: OK|FAIL | Positions: OK|FAIL`, plus `Errors:` and `Warnings:` segments when either
-is present (`interfaces/get_tools.py`). Which subsystems the active system composes, and the ports, device
-indices, and expected settings each should report, are system-specific, so hand off to the active system's skill and
-to `/zaber-interface` for the per-device Zaber semantics. A system that composes no such subsystem has nothing further
-to validate here.
+`validate_zaber_configuration_tool(port, device_index)` sits in the agnostic tool group and is shared across acquisition
+systems, validating one Zaber device against the settings the binding library requires. It returns `Port: {port} |
+Index: {device_index} | Device: {device_label} | Axis: {axis_label}` ahead of `Status: VALID|INVALID | Checksum: OK|FAIL
+| Positions: OK|FAIL`, plus `Errors:` and `Warnings:` segments when either is present, where the index is the zero-based
+`device_index` the call passed in and an unset label prints as `(not set)` (`interfaces/get_tools.py`). Which subsystems
+the active system composes, and the ports, device indices, and expected settings each should report, are
+system-specific, so hand off to the active system's skill and to `/zaber-interface` for the per-device Zaber semantics.
+A system that composes no such subsystem has nothing further to validate here.
 
 For a session that is about to be recorded, confirm the raw assets that session will be required to carry.
 `SessionData.required_raw_assets()` is the single source of truth
@@ -276,23 +283,24 @@ microcontroller, Zaber, and MQTT failure modes.
 
 Entries prefixed `video:` and `communication:` resolve through the ataraxis marketplace.
 
-| Skill                                 | Relationship                                                                          |
-|---------------------------------------|---------------------------------------------------------------------------------------|
-| `/cli-reference`                      | Reference: the `sle get` commands behind these hardware checks                        |
-| `/acquisition-system-setup`           | Owns the full hardware-discovery sweep and the supported-systems registry             |
-| `mesoscope:mesoscope-vr`              | The current worked example's skill, resolved by Phase 0 on a host running that system |
-| `/library-extension`                  | Owns the seams a new acquisition system fills before this sweep can resolve it        |
-| `/vr-driver-interface`                | Owns the shared Unity editor bridge check (`check_unity_bridge_tool`)                 |
-| `unity:unity-mcp-environment-setup`   | Editor-side McpBridge listener diagnostic when the Editor is open but unreachable     |
-| `/experiment-mcp-environment-setup`   | Run first if the `sle mcp` server is not connected                                    |
-| `/pipeline`                           | Phase 5 (pre-session health check) is owned by this skill                             |
-| `assets:working-directory`            | Fixes data-root, credentials, and templates-directory prerequisites                   |
-| `assets:session-data`                 | Owns the session hierarchy and the `SessionData` marker Phase 4 reads                 |
-| `assets:library-extension`            | Owns the `required_raw_assets` policy and the `SESSION_TYPES_USING_VR_TASK` claim     |
-| `assets:project-hierarchy`            | Confirms the recording project exists                                                 |
-| `video:camera-setup`                  | CTI and video runtime requirement deep-dives                                          |
-| `communication:microcontroller-setup` | Microcontroller manifest and discovery deep-dives                                     |
-| `/zaber-interface`                    | Owns per-device Zaber discovery and validation semantics                              |
+| Skill                                  | Relationship                                                                          |
+|----------------------------------------|---------------------------------------------------------------------------------------|
+| `/cli-reference`                       | Reference: the `sle get` commands behind these hardware checks                        |
+| `/acquisition-system-setup`            | Owns the full hardware-discovery sweep and the supported-systems registry             |
+| `mesoscope:mesoscope-vr`               | The current worked example's skill, resolved by Phase 0 on a host running that system |
+| `mesoscope:mesoscope-vr-cli-reference` | Owns `sle mesoscope check-mounts` and `sle mesoscope validate-config`, the CLI path   |
+| `/library-extension`                   | Owns the seams a new acquisition system fills before this sweep can resolve it        |
+| `/vr-driver-interface`                 | Owns the shared Unity editor bridge check (`check_unity_bridge_tool`)                 |
+| `unity:unity-mcp-environment-setup`    | Editor-side McpBridge listener diagnostic when the Editor is open but unreachable     |
+| `/experiment-mcp-environment-setup`    | Run first if the `sle mcp` server is not connected                                    |
+| `/pipeline`                            | Phase 5 (pre-session health check) is owned by this skill                             |
+| `assets:working-directory`             | Fixes data-root, credentials, and templates-directory prerequisites                   |
+| `assets:session-data`                  | Owns the session hierarchy and the `SessionData` marker Phase 4 reads                 |
+| `assets:library-extension`             | Owns the `required_raw_assets` policy and the `SESSION_TYPES_USING_VR_TASK` claim     |
+| `assets:project-hierarchy`             | Confirms the recording project exists                                                 |
+| `video:camera-setup`                   | CTI and video runtime requirement deep-dives                                          |
+| `communication:microcontroller-setup`  | Microcontroller manifest and discovery deep-dives                                     |
+| `/zaber-interface`                     | Owns per-device Zaber discovery and validation semantics                              |
 
 ---
 

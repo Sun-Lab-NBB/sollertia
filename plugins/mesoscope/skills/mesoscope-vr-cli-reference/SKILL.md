@@ -1,7 +1,7 @@
 ---
 name: mesoscope-vr-cli-reference
 description: >-
-  Documents the human-facing `sle mesoscope` command group. Covers all fourteen Click nodes and all thirty-three
+  Documents the human-facing `sle mesoscope` command group. Covers all sixteen Click nodes and all thirty-three
   options with their short form, long form, type, default, and required or flag status, the MCP tool each command maps
   to, and the per-command failure modes. Use when a user asks what an `sle mesoscope` command or option does, or when
   a run or maintenance command must be prepared for an experimenter. Use it also when the MCP server is unavailable
@@ -62,16 +62,17 @@ You MUST explain and prepare these commands, print the exact command line the ex
 one. This holds even when the user asks you to start a session for them.
 
 Your own path for everything that has an MCP equivalent is the MCP tool. Reach for `check_mesoscope_bridge_tool`,
-`preprocess_session_tool`, `delete_session_tool`, and `migrate_animal_tool` rather than printing the paired command,
-and print a command line only for a surface no tool covers, or after the server is confirmed unrecoverable.
+`check_system_mounts_tool`, `validate_system_configuration_tool`, `preprocess_session_tool`, `delete_session_tool`, and
+`migrate_animal_tool` rather than printing the paired command, and print a command line only for a surface no tool
+covers, or after the server is confirmed unrecoverable.
 
 ---
 
 ## Command surface
 
-The group declares fourteen Click nodes: the `mesoscope` group, the `configure` and `run` subgroups, and eleven leaf
-commands. `interfaces/entry_points.py::_register_subcommands` attaches the group to the top-level `sle` group, so
-every node below is reached as `sle mesoscope ...`. Every node lives in `interfaces/mesoscope_vr.py`.
+The group declares sixteen Click nodes, those being the `mesoscope` group, the `configure` and `run` subgroups, and
+thirteen leaf commands. `interfaces/entry_points.py::_register_subcommands` attaches the group to the top-level `sle`
+group, so every node below is reached as `sle mesoscope ...`. Every node lives in `interfaces/mesoscope_vr.py`.
 
 | Click node                           | Kind    | Purpose                                                               | MCP equivalent                            |
 |--------------------------------------|---------|-----------------------------------------------------------------------|-------------------------------------------|
@@ -81,6 +82,8 @@ every node below is reached as `sle mesoscope ...`. Every node lives in `interfa
 | `sle mesoscope configure experiment` | command | Builds an experiment configuration from a named task template         | `create_experiment_from_vr_template_tool` |
 | `sle mesoscope maintain`             | command | Opens the hardware maintenance GUI. Acquires no data                  | None, and none is possible                |
 | `sle mesoscope check-bridge`         | command | Probes the ScanImagePC `runAcquisition` MQTT control loop             | `check_mesoscope_bridge_tool`             |
+| `sle mesoscope check-mounts`         | command | Verifies every filesystem path the active configuration declares      | `check_system_mounts_tool`                |
+| `sle mesoscope validate-config`      | command | Validates the active configuration and its DeepLabCut project         | `validate_system_configuration_tool`      |
 | `sle mesoscope run`                  | group   | Parses the four session identifiers its four subcommands share        | None, dispatch only                       |
 | `sle mesoscope run window-checking`  | command | Runs the cranial window quality session                               | None, and none is possible                |
 | `sle mesoscope run lick-training`    | command | Runs the lick training session                                        | None, and none is possible                |
@@ -131,9 +134,9 @@ The three duration and volume options carry no short form at all, so the long fo
 defaulted option declares `show_default=True`, so `--help` prints the value above. `-f` reaches the library as its
 `overwrite` argument and is the only way to replace an existing file.
 
-### `sle mesoscope maintain` and `sle mesoscope check-bridge`
+### `sle mesoscope maintain`, `check-bridge`, `check-mounts`, and `validate-config`
 
-Neither command declares an option. Both take their entire input from the active system configuration file.
+None of the four declares an option. Each takes its entire input from the active system configuration file.
 
 ### `sle mesoscope run` group options
 
@@ -226,8 +229,10 @@ means `--project` on both `configure experiment` and the `run` group, and `-e` m
 
 ### How a failure reaches the user
 
-Only `check-bridge` catches anything, so every other failure leaves a Python traceback and a non-zero exit. The message
-text identifies the fault, so ask the user to paste the traceback rather than the exit status.
+Three commands catch. `check-bridge` catches every exception its probe raises, and `check-mounts` and `validate-config`
+each catch every exception the configuration load raises. All three echo a WARNING and return at exit 0. Every other
+failure leaves a Python traceback and a non-zero exit, and the message text identifies the fault, so ask the user to
+paste the traceback rather than the exit status.
 
 | Path                                                                | Mechanism                                  | Observable outcome                        |
 |---------------------------------------------------------------------|--------------------------------------------|-------------------------------------------|
@@ -235,6 +240,7 @@ text identifies the fault, so ask the user to paste the traceback rather than th
 | A `run` subcommand missing an identifier the group did not receive  | `click.UsageError` through `console.error` | Usage message naming the omission, exit 2 |
 | Any guard inside a command body                                     | `console.error` raises the named class     | Traceback, non-zero exit                  |
 | `check-bridge` meeting any exception at all                         | Caught, echoed at WARNING level            | Warning line, exit 0                      |
+| A configuration load failing in `check-mounts` or `validate-config` | Caught, echoed at WARNING level            | Warning line, exit 0                      |
 
 `console.error(message=..., error=X)` raises `X` after logging it, so every guard named in this section terminates the
 command. There is no version option, no verbosity option, and no dry-run option anywhere on this surface.
@@ -268,6 +274,32 @@ includes a missing or wrong-system configuration file and a broker that refuses 
 and the command returns at exit code 0. A successful probe echoes the returned status at SUCCESS when reachable and at
 WARNING when not. The user therefore sees two visually similar warnings for two different faults, so ask for the message
 text. An unreachable bridge means the operator has not launched `runAcquisition` on the ScanImagePC.
+
+### `check-mounts` and `validate-config` read the configuration and nothing else
+
+Both commands load the active system configuration and report on it, so neither opens a serial port, a camera, or the
+MQTT broker, and both are safe to hand to a user at any point in a session's life. A host whose active configuration
+belongs to another acquisition system fails at that load, and so does a host that carries no configuration file at all.
+Each command catches that failure, echoes `Unable to check the Mesoscope-VR filesystem paths. {exception}` or
+`Unable to validate the Mesoscope-VR system configuration. {exception}` at WARNING level, and returns at exit code 0,
+while the paired tools return `{"error": ...}` carrying the loader's `TypeError`. A script gating on the exit status
+therefore reads a failed load as a healthy rig, so read the echoed line rather than the exit code.
+
+`check-mounts` verifies every filesystem path the configuration declares, covering the platform data root, the mesoscope
+acquisition directory, every configured long-term storage destination, the two stored camera GenICam configuration
+files, and the DeepLabCut project. Directories are write-probed, and the read-only input files are checked for existence
+and read access instead. An optional path left unset reports as not configured and still passes, while an unset
+`filesystem.mesoscope_directory` reports as both not configured and failed, because this acquisition system requires it,
+and an unset platform data root fails the sweep on its own.
+
+`validate-config` runs that same per-path report, turns every failing path into one entry of an issue list, then adds
+the DeepLabCut project check. That check reads the project's `config.yaml` and confirms its `Task` field carries the
+eye-tracking token, because DeepLabCut embeds the field verbatim in the scorer string it appends to every prediction
+filename, and session preprocessing accepts a prediction only when the filename carries the token. A project whose
+`Task` omits the token aborts the transfer to long-term storage at the very end of a session's preprocessing, so running
+this command before the day's first session turns that late failure into an early one. The check runs only on a project
+path that is set and resolves, because an unset or unreadable project is already an issue the path report raised. No
+finding from either command alters any acquisition behavior.
 
 ### The `run` group defers its own requirements
 
@@ -322,15 +354,13 @@ than handing the command to a user.
 
 ### MCP tools with no CLI equivalent
 
-The Mesoscope-VR tool module registers fifteen tools, of which five pair with a command. The remaining ten have no CLI
-surface at all. `configure experiment` pairs with a tool on the `slsa` server instead, which brings the divergence
-table below to six rows.
+The Mesoscope-VR tool module registers fifteen tools, of which seven pair with a command. The remaining eight have no
+CLI surface at all. `configure experiment` pairs with a tool on the `slsa` server instead, which brings the divergence
+table below to eight rows.
 
 | Tool                                        | What the CLI cannot do                                                  |
 |---------------------------------------------|-------------------------------------------------------------------------|
 | `read_system_configuration_tool`            | Read the active system configuration back as a structured payload       |
-| `validate_system_configuration_tool`        | Report the configuration's validity and its per-path mount status       |
-| `check_system_mounts_tool`                  | Report every declared filesystem path with a reachable and failed count |
 | `verify_camera_configuration_tool`          | Diff each camera's live GenICam nodes against its stored configuration  |
 | `describe_system_configuration_schema_tool` | Return the recursive field description of the configuration dataclasses |
 | `read_session_zaber_positions_tool`         | Read a session's stored Zaber motor positions                           |
@@ -344,21 +374,24 @@ and reads nothing back.
 
 ### Where a paired command and tool differ
 
-| CLI command            | Nearest MCP tool                          | Server | Divergence                                                                                                                                                                                                                                                                                                                      |
-|------------------------|-------------------------------------------|--------|---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
-| `configure system`     | `write_system_configuration_tool`         | `sle`  | The CLI writes defaults only, takes no payload and no overwrite guard, and unbinds the host from every other system. The tool takes a full payload, validates it, and refuses an existing file unless `overwrite` is true                                                                                                       |
-| `configure experiment` | `create_experiment_from_vr_template_tool` | `slsa` | The CLI names the project, the experiment, and the template stem, and resolves each one under the data root and the templates directory, while the tool takes an absolute `file_path` and an absolute `template_path`. The CLI also sets the three trial defaults, and the tool leaves them at the configuration class defaults |
-| `check-bridge`         | `check_mesoscope_bridge_tool`             | `sle`  | The same probe. The CLI swallows every exception into a WARNING at exit 0, while the tool returns an `error` key, and the CLI echoes rather than returning the `reachable` flag                                                                                                                                                 |
-| `preprocess`           | `preprocess_session_tool`                 | `sle`  | The CLI resolves both operands before the data-root check and the tool compares them unresolved. The CLI validates the path through Click and prompts when it is omitted, and raises where the tool returns an `Error: ` string                                                                                                 |
-| `delete`               | `delete_session_tool`                     | `sle`  | The confirmation argument is the only difference around the purge itself. The tool refuses to act until the caller passes `confirm_deletion`, and both surfaces then call the same `purge_session`, which reaches the same interactive prompt for any session that finished initializing. The same resolve and error-reporting differences as `preprocess` apply  |
-| `migrate`              | `migrate_animal_tool`                     | `sle`  | The same three arguments against the same library call. The CLI names them `-s`, `-d`, and `-a`, and the tool names them `source_project`, `destination_project`, and `animal_id`                                                                                                                                               |
+| CLI command            | Nearest MCP tool                          | Server | Divergence                                                                                                                                                                                                                                                                                                                                                       |
+|------------------------|-------------------------------------------|--------|------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| `configure system`     | `write_system_configuration_tool`         | `sle`  | The CLI writes defaults only, takes no payload and no overwrite guard, and unbinds the host from every other system. The tool takes a full payload, validates it, and refuses an existing file unless `overwrite` is true                                                                                                                                        |
+| `configure experiment` | `create_experiment_from_vr_template_tool` | `slsa` | The CLI names the project, the experiment, and the template stem, and resolves each one under the data root and the templates directory, while the tool takes an absolute `file_path` and an absolute `template_path`. The CLI also sets the three trial defaults, and the tool leaves them at the configuration class defaults                                  |
+| `check-bridge`         | `check_mesoscope_bridge_tool`             | `sle`  | The same probe. The CLI swallows every exception into a WARNING at exit 0, while the tool returns an `error` key, and the CLI echoes rather than returning the `reachable` flag                                                                                                                                                                                  |
+| `preprocess`           | `preprocess_session_tool`                 | `sle`  | The CLI resolves both operands before the data-root check and the tool compares them unresolved. The CLI validates the path through Click and prompts when it is omitted, and raises where the tool returns an `Error: ` string                                                                                                                                  |
+| `delete`               | `delete_session_tool`                     | `sle`  | The confirmation argument is the only difference around the purge itself. The tool refuses to act until the caller passes `confirm_deletion`, and both surfaces then call the same `purge_session`, which reaches the same interactive prompt for any session that finished initializing. The same resolve and error-reporting differences as `preprocess` apply |
+| `migrate`              | `migrate_animal_tool`                     | `sle`  | The same three arguments against the same library call. The CLI names them `-s`, `-d`, and `-a`, and the tool names them `source_project`, `destination_project`, and `animal_id`                                                                                                                                                                                |
+| `check-mounts`         | `check_system_mounts_tool`                | `sle`  | The same sweep. The CLI echoes each path's verdict and the pass and fail tally as status lines, and the tool returns `system_name`, the per-path `paths` report, and the `summary` counts as a payload. The CLI also swallows a configuration-load failure into a WARNING at exit 0, while the tool returns an `error` key                                       |
+| `validate-config`      | `validate_system_configuration_tool`      | `sle`  | The same validation. The CLI echoes the verdict and each issue as status lines, and the tool returns `valid`, the `issues` list, and the same per-path `paths` report. The CLI also swallows a configuration-load failure into a WARNING at exit 0, while the tool returns an `error` key                                                                        |
 
 ### The three rules behind the table
 
-1. **Direction of travel.** Every paired command writes or acts, and every unpaired tool reads, except
-   `write_session_zaber_positions_tool` and `write_session_mesoscope_positions_tool`, which repair the per-session
-   position snapshots that the unpaired `run` runtimes write during a session. An agent asking what the rig currently
-   holds has only the MCP path.
+1. **Direction of travel.** Every unpaired tool reads, except `write_session_zaber_positions_tool` and
+   `write_session_mesoscope_positions_tool`, which repair the per-session position snapshots that the unpaired `run`
+   runtimes write during a session. Among the paired commands, `check-mounts` and `validate-config` read while every
+   other one writes or acts, and both of them echo their verdict rather than returning it, so an agent asking for the
+   structured state of the rig still has only the MCP path.
 2. **Guard placement.** Both surfaces run the same `is_relative_to` containment check, differing only in whether they
    resolve the operands first, and on `delete` both reach the same interactive terminal prompt inside `purge_session`.
    Only a guard the caller passes as an argument is MCP-only: `confirm_deletion` on `delete_session_tool` and
@@ -379,6 +412,8 @@ diagnoses the `slsa` server.
 | `write_system_configuration_tool`         | `sle`  | `sle mesoscope configure system`, then edit the written file by hand            |
 | `create_experiment_from_vr_template_tool` | `slsa` | `sle mesoscope configure experiment -p <project> -e <experiment> -t <template>` |
 | `check_mesoscope_bridge_tool`             | `sle`  | `sle mesoscope check-bridge`                                                    |
+| `check_system_mounts_tool`                | `sle`  | `sle mesoscope check-mounts`                                                    |
+| `validate_system_configuration_tool`      | `sle`  | `sle mesoscope validate-config`                                                 |
 | `preprocess_session_tool`                 | `sle`  | `sle mesoscope preprocess -sp <session>`                                        |
 | `delete_session_tool`                     | `sle`  | `sle mesoscope delete -sp <session>`, after stating that it purges every copy   |
 | `migrate_animal_tool`                     | `sle`  | `sle mesoscope migrate -s <source> -d <destination> -a <animal>`                |
@@ -388,10 +423,10 @@ the user to copy the existing file aside first. The `delete` substitute prompts 
 `nk.bin` marker is already cleared, and purges a session that never finished initializing with no prompt, so obtain
 the user's explicit go-ahead in the conversation before printing it.
 
-Everything else genuinely blocks until the server is back. That covers reading the active system configuration,
-validating it, checking the declared mounts, diffing the camera configurations, describing the configuration schema,
-and reading or writing the per-session Zaber positions, mesoscope positions, and configuration snapshot. Say so
-plainly rather than improvising a substitute out of a shell command.
+Everything else genuinely blocks until the server is back. That covers reading the active system configuration as a
+structured payload, diffing the camera configurations, describing the configuration schema, and reading or writing the
+per-session Zaber positions, mesoscope positions, and configuration snapshot. Say so plainly rather than improvising a
+substitute out of a shell command.
 
 ---
 
@@ -407,6 +442,7 @@ plainly rather than improvising a substitute out of a shell command.
 | `/mesoscope-vr-session-schema`                | Owns the descriptor and hardware-state schemas the descriptor tools carry                       |
 | `/mesoscope-vr-snapshots`                     | Owns the Zaber and mesoscope-objective position schemas the position tools carry                |
 | `experiment:data-management`                  | Owns the preprocessing, transfer, and purge primitives the three data commands run              |
+| `experiment:system-health-check`              | Owns the pre-flight sweep that `check-mounts` and `validate-config` report into                 |
 | `assets:assets-mcp-environment-setup`         | Owns `slsa` server recovery and the response contract its tools follow                          |
 | `assets:experiment-configuration`             | Owns `create_experiment_from_vr_template_tool`, the tool that pairs with `configure experiment` |
 | `assets:task-templates`                       | Owns the task templates `configure experiment` instantiates through `-t`                        |

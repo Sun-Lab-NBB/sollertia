@@ -303,13 +303,14 @@ status, so the feature that consumes it is skipped. A path the system writes to 
 writability. A path the system REQUIRES is instead rejected outright when it is left at `Path()`, short-circuited before
 any existence or write probe and reported as not configured with a not-ok status. The empty `Path()` resolves to the
 current working directory, which exists and is usually writable, so a required field that reached the write probe would
-pass it and let the runtime write into that directory. *Worked example:* `_filesystem_paths_report` in
-`interfaces/mesoscope_vr_tools.py` short-circuits `filesystem.mesoscope_directory` this way, while unset optional
-storage roots and input files in the same report fall through to the not-configured-but-ok branch. A path the system
-only reads, such as a stored device configuration or an external tool's project file, is checked for existence and
-readability instead, because a write probe would reject a valid read-only input. Sections outside the filesystem section
-contribute their own paths to the same report, so the check covers every declared path rather than one section. For the
-current worked example, see `mesoscope:mesoscope-vr`.
+pass it and let the runtime write into that directory. *Worked example:* `build_filesystem_paths_report` in
+`mesoscope_vr/system_health.py` short-circuits `filesystem.mesoscope_directory` this way, while unset optional storage
+roots and input files in the same report fall through to the not-configured-but-ok branch. That builder lives in the
+acquisition system's own package rather than in its tool module, so `check_system_mounts_tool` and the `sle mesoscope
+check-mounts` command call the one implementation. A path the system only reads, such as a stored device configuration
+or an external tool's project file, is checked for existence and readability instead, because a write probe would reject
+a valid read-only input. Sections outside the filesystem section contribute their own paths to the same report, so the
+check covers every declared path rather than one section. For the current worked example, see `mesoscope:mesoscope-vr`.
 
 ---
 

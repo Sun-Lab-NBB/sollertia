@@ -75,28 +75,32 @@ Without the MCP server, `sle get zaber` runs the same scan and prints the same t
 
 **Expected output from `get_zaber_devices_tool()`:**
 ```text
-+--------------+--------------+-------+---------+-----------+-----------+--------------+
-|     Port     |   Device Num |    ID |  Label  |   Name    |   Axis ID |  Axis Label  |
-+==============+==============+=======+=========+===========+===========+==============+
-| /dev/ttyUSB0 |            1 | 30341 | StageA  | X-LDA025A |         1 |      Z       |
-+--------------+--------------+-------+---------+-----------+-----------+--------------+
-| /dev/ttyUSB0 |            2 | 30341 | StageA  | X-LDA025A |         1 |      Y       |
-+--------------+--------------+-------+---------+-----------+-----------+--------------+
-| /dev/ttyUSB0 |            3 | 30341 | StageA  | X-LDA025A |         1 |      X       |
-+--------------+--------------+-------+---------+-----------+-----------+--------------+
-|              |              |       |         |           |           |              |
-+--------------+--------------+-------+---------+-----------+-----------+--------------+
++--------------+---------+-------+---------+-----------+-----------+--------------+
+|     Port     |   Index |    ID |  Label  |   Name    |   Axis ID |  Axis Label  |
++==============+=========+=======+=========+===========+===========+==============+
+| /dev/ttyUSB0 |       0 | 30341 | StageA  | X-LDA025A |         1 |      Z       |
++--------------+---------+-------+---------+-----------+-----------+--------------+
+| /dev/ttyUSB0 |       1 | 30341 | StageA  | X-LDA025A |         1 |      Y       |
++--------------+---------+-------+---------+-----------+-----------+--------------+
+| /dev/ttyUSB0 |       2 | 30341 | StageA  | X-LDA025A |         1 |      X       |
++--------------+---------+-------+---------+-----------+-----------+--------------+
+|              |         |       |         |           |           |              |
++--------------+---------+-------+---------+-----------+-----------+--------------+
 ```
 
 `StageA` is a placeholder device label. For the labels, the port assignments, and the motor inventory of the current
 worked example, see `mesoscope:mesoscope-vr`.
 
-The port path repeats on every device row, because the formatter rebuilds the port, device number, ID, label, and name
-cells for each discovered device. Cells blank out only across the additional axes of one multi-axis device, so
-single-axis controllers always carry a fully populated row. The formatter also appends one blank row after each port
-section, which separates the sections when several ports report devices. An axis carrying no label prints as `Not Used`
+The `Index` column is **zero-based**: the first device on a port prints `0`, and that printed value is the
+`device_index` argument every configuration tool accepts, so you MUST pass it through unchanged rather than convert it.
+It comes from a zero-based `enumerate` (`_attempt_connection` in `cross_system/zaber_bindings.py`).
+
+The port path repeats on every device row, because the formatter rebuilds the port, index, ID, label, and name cells for
+each discovered device. Cells blank out only across the additional axes of one multi-axis device, so single-axis
+controllers always carry a fully populated row. The formatter also appends one blank row after each port section, which
+separates the sections when several ports report devices. An axis carrying no label prints as `Not Used`
 (`_attempt_connection` in `cross_system/zaber_bindings.py`), and a port that reports no devices prints `No Devices` in
-place of its device number (`_format_device_info` in the same module).
+place of its index (`_format_device_info` in the same module).
 
 > **OS note.** Serial-port paths are OS-specific. This skill shows the Linux form (`/dev/ttyUSB0`). The same port
 > appears as a `COM3`-style name on Windows and as `/dev/tty.usbserial-XXXX` on macOS. Always use the path the
@@ -163,23 +167,23 @@ Use the MCP tool `get_zaber_devices_tool()` to discover connected Zaber motors.
 
 ### Discovery output fields
 
-| Field      | Description                                                          |
-|------------|----------------------------------------------------------------------|
-| Port       | Serial port path (e.g., `/dev/ttyUSB0`)                              |
-| Device Num | Position in daisy-chain (1 = closest to USB)                         |
-| ID         | Hardware device identifier code                                      |
-| Label      | User-assigned label stored in non-volatile memory                    |
-| Name       | Manufacturer model name                                              |
-| Axis ID    | Axis number within the device (always 1 for single-axis controllers) |
-| Axis Label | User-assigned axis label stored in non-volatile memory               |
+| Field      | Description                                                                       |
+|------------|-----------------------------------------------------------------------------------|
+| Port       | Serial port path (e.g., `/dev/ttyUSB0`)                                           |
+| Index      | Zero-based position in daisy-chain (0 = closest to USB), passed as `device_index` |
+| ID         | Hardware device identifier code                                                   |
+| Label      | User-assigned label stored in non-volatile memory                                 |
+| Name       | Manufacturer model name                                                           |
+| Axis ID    | Axis number within the device (always 1 for single-axis controllers)              |
+| Axis Label | User-assigned axis label stored in non-volatile memory                            |
 
 ### Daisy-chain ordering
 
-Motors connected to the same serial port form a daisy-chain. The device number reflects physical position:
+Motors connected to the same serial port form a daisy-chain. The index reflects physical position and counts from zero
+at the port:
 
 ```text
-USB Port ──► Device 1 ──► Device 2 ──► Device 3
-             (index 0)    (index 1)    (index 2)
+USB Port ──► Index 0 ──► Index 1 ──► Index 2
 ```
 
 **Important:** When adding motors, document the expected daisy-chain order in configuration. Misordering causes motors
@@ -232,11 +236,12 @@ Use MCP tools to read and modify Zaber motor configuration stored in non-volatil
 | `get_checksum_tool(input_string)`                                            | Calculate CRC32-XFER checksum |
 
 All five tools return a plain `str`, and each one reports failure through a leading `Error: ` prefix
-(`interfaces/get_tools.py`). `validate_zaber_configuration_tool` returns
-`Status: VALID|INVALID | Checksum: OK|FAIL | Positions: OK|FAIL`, followed by an `Errors:` segment and a `Warnings:`
-segment when the validator produced any (`interfaces/get_tools.py`). Outside the MCP server, `sle get checksum` computes
-the same checksum. Its `-i` / `--input-string` option carries a prompt rather than a required flag, so omitting it makes
-the command ask for the string (the `calculate_crc` command in `interfaces/get.py`).
+(`interfaces/get_tools.py`). `validate_zaber_configuration_tool` opens its report with the validated device's identity,
+`Port: {port} | Index: {device_index} | Device: {device_label} | Axis: {axis_label}`, where an unset device or axis
+label prints as `(not set)`, and continues with `Status: VALID|INVALID | Checksum: OK|FAIL | Positions: OK|FAIL`,
+followed by an `Errors:` segment and a `Warnings:` segment when the validator produced any. Outside the MCP server,
+`sle get checksum` computes the same checksum. Its `-i` / `--input-string` option carries a prompt rather than a
+required flag, so omitting it makes the command ask for the string (the `calculate_crc` command in `interfaces/get.py`).
 
 ### Configuration workflow
 
@@ -450,7 +455,7 @@ For the full binding-class skeleton, the key-patterns table, and the configurati
 ### Daisy-chain order mismatch
 
 1. Run `get_zaber_devices_tool()` to see actual order
-2. Compare Device Num with expected configuration
+2. Compare the zero-based `Index` column with expected configuration
 3. Physically reorder cables if necessary
 4. Update configuration to match actual order
 
