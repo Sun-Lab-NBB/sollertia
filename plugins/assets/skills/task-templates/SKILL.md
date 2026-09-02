@@ -3,8 +3,9 @@ name: task-templates
 description: >-
   Authors, modifies, and validates reusable TaskTemplate YAMLs, the Virtual-Reality task asset against which every
   corridor-task session is acquired (VR environment, cue catalog, trial structures with per-trial cue sequences and
-  zones), via the sollertia-shared-assets MCP server. Owns write_template_tool, validate_template_tool, and
-  describe_template_schema_tool. Use when designing or modifying a task template for a VR experiment.
+  zones), via the sollertia-shared-assets MCP server. Owns write_template_tool, delete_template_tool,
+  validate_template_tool, and describe_template_schema_tool. Use when designing or modifying a task template for a VR
+  experiment.
 user-invocable: false
 ---
 
@@ -226,9 +227,8 @@ human-supervised.
 
 ### Deeper field reference
 
-The per-field consumer roles, the firing rule of each of the five `TriggerType` modes, and the rationale behind the
-template's shape live in [references/field-semantics.md](references/field-semantics.md). Read it when authoring a new
-trial structure, picking a trigger mode, or deciding on which side of the template / experiment split a parameter sits.
+The per-field consumer roles, the five `TriggerType` firing rules, and the rationale for the template's shape live in
+[references/field-semantics.md](references/field-semantics.md). Read it when authoring a trial structure.
 
 ---
 
@@ -239,27 +239,20 @@ trial structure, picking a trigger mode, or deciding on which side of the templa
 | `discover_templates_tool`           | Lists all task templates in the configured templates directory                                                                          |
 | `read_template_tool`                | Reads an existing template at an explicit path                                                                                          |
 | `write_template_tool`               | Writes a new template or overwrites an existing one (exclusive to this skill)                                                           |
+| `delete_template_tool`              | Removes one live template from the templates directory (exclusive to this skill)                                                        |
 | `describe_template_schema_tool`     | Returns the field schema for `TaskTemplate` (exclusive to this skill)                                                                   |
 | `validate_template_tool`            | Validates a template against its schema and cross-reference constraints                                                                 |
 | `list_supported_trial_types_tool`   | Enumerates the runtime trial classes the named `acquisition_system`'s experiment configuration declares (requires `acquisition_system`) |
 | `list_supported_trigger_types_tool` | Enumerates the `TriggerType` enum values                                                                                                |
 
-`list_supported_trial_types_tool` is a reference here rather than an owned tool. `/experiment-configuration` owns it and
-the trial-class vocabulary it returns, so hand off there when a caller needs more than the class names.
-
+`list_supported_trial_types_tool` is a reference here rather than an owned tool, and `/experiment-configuration` owns it
+together with the trial-class vocabulary it returns, so hand off there when a caller needs more than the class names.
 `list_supported_trigger_types_tool` is read-only on both sides that call it. This skill owns the trigger-type vocabulary
 as a template uses it, and `/library-extension` calls the same helper to confirm that a newly added `TriggerType` member
 reached the tooling.
 
-`read_template_tool`, `write_template_tool`, and `validate_template_tool` take an explicit `file_path`, and path
-resolution is the caller's responsibility. The canonical home for **live** templates is the directory set via
-`/working-directory`'s `set_task_templates_directory_tool`. `discover_templates_tool()` returns each live template's
-absolute path, which is what you pass to `read_template_tool`, `write_template_tool`, and `validate_template_tool` when
-authoring.
-
-To inspect a per-session **frozen snapshot**, pass the session's `<session>/raw_data/vr_configuration.yaml` path to
-`read_template_tool` or `validate_template_tool`. `write_template_tool` is for the live surface only. Snapshots are
-produced by `SessionData.create()` and must not be overwritten through this tool.
+`read_template_tool`, `write_template_tool`, and `validate_template_tool` each take an explicit `file_path` the caller
+resolves, and `write_template_tool` accepts a live template path alone.
 
 ---
 
@@ -276,14 +269,13 @@ produced by `SessionData.create()` and must not be overwritten through this tool
 discover_templates_tool()
 ```
 
-If a similar template already exists, prefer reading it with `read_template_tool(file_path=...)` and modifying a copy.
-Avoid creating near-duplicates. The response includes each template's absolute `path`, so capture it to pass into
-`read_template_tool`, `write_template_tool`, and `validate_template_tool`.
-
-Discovery lists top-level `*.yaml` files only, so a template saved with a `.yml` suffix never appears even though the
-loader accepts it. A template that fails to load is still listed, carrying an `error` field in place of `cue_count`,
-`trial_count`, and `cue_offset_cm`, and `total_templates` counts it, so a non-zero count is not proof that every
-template loads. The success payload keys are `templates`, `total_templates`, and `templates_directory`.
+If a similar template already exists, prefer reading it with `read_template_tool(file_path=...)` and modifying a copy,
+rather than creating a near-duplicate. The response carries each template's absolute `path`, which is what you pass into
+`read_template_tool`, `write_template_tool`, and `validate_template_tool`. Discovery lists top-level `*.yaml` files
+only, so a template saved with a `.yml` suffix never appears even though the loader accepts it. A template that fails to
+load is still listed, carrying an `error` field in place of `cue_count`, `trial_count`, and `cue_offset_cm`, and
+`total_templates` counts it, so a non-zero count is not proof that every template loads. The success payload keys are
+`templates`, `total_templates`, and `templates_directory`.
 
 ### Step 3: Inspect the schema and enums
 
@@ -294,11 +286,10 @@ list_supported_trigger_types_tool()
 ```
 
 Use the schema and the tool responses as the source of truth, because they pin down the exact strings `trigger_type`
-accepts and the exact class names of the runtime trial variants the target acquisition system supports. This avoids
+accepts and the exact class names of the runtime trial variants the target acquisition system supports, which avoids
 silent typos that slip past YAML syntax but fail at runtime. `list_supported_trial_types_tool` requires an
-`acquisition_system` argument, and the valid values for it come from `list_supported_acquisition_systems_tool`.
-Mesoscope-VR is the only registered system today. The tool returns a `class_name` and a full field schema for each trial
-class, and `/experiment-configuration` owns that surface.
+`acquisition_system` argument whose valid values come from `list_supported_acquisition_systems_tool`, and it returns a
+`class_name` and a full field schema for each trial class, a surface `/experiment-configuration` owns.
 
 ### Step 4: Author the template
 
@@ -318,10 +309,9 @@ Build the template dictionary in this order:
    while `0` is a real duration and is rejected on every trial whatever its trigger type.
 
 Reward sizes, gas-puff durations, experiment states, and the choice of trial class (on Mesoscope-VR,
-`MesoscopeWaterRewardTrial` versus `MesoscopeGasPuffTrial`) are **not** part of the template, and they are added
-per-experiment by `/experiment-configuration`. How often each trial runs is the template's own concern and lives in that
-trial's `transitions` dict. Occupancy dwell time is likewise the template's, carried by the
-`TrialStructure.occupancy_duration_ms` field shared by all three occupancy modes.
+`MesoscopeWaterRewardTrial` versus `MesoscopeGasPuffTrial`) are **not** part of the template, and
+`/experiment-configuration` adds them per-experiment. How often each trial runs is the template's own concern, carried
+by that trial's `transitions` dict, and so is occupancy dwell time, carried by `TrialStructure.occupancy_duration_ms`.
 
 ### Step 5: Write, validate, and re-read
 
@@ -376,12 +366,29 @@ when intentionally replacing an existing template.
   `vr_environment.cue_offset_cm` is finite. Zero and negative are legal for `cue_offset_cm`, because it is an offset.
   `vr_environment.padding_prefab_name` is not validated
 
-`validate_template_tool` reports three outcomes. A missing file returns `success=False` carrying `error`. A load or
-validation failure returns `success=True` with `valid=False` and a single-element `issues` list holding the first
-violated constraint. A pass returns `valid=True` with a `summary` carrying `cue_count`, `trial_count`, and
-`cue_offset_cm`. `__post_init__` stops at the first failure, so fix one issue and re-validate to surface the next. The
-envelope in which this verdict rides is documented in the `## Response contract` section of
-`/assets-mcp-environment-setup`.
+Both tools additionally scan the live catalog for a cue identity declaring more than one texture. An identity is the cue
+name paired with its length rendered as Unity renders it, through a single-precision `ToString("0.##")` label, so a cue
+`A` of `30.0` cm keys as `A at 30cm`. Unity names the generated prefab `Cue_<name>_<label>cm` and reuses the one already
+on disk, so two templates declaring one identity with different textures each render the other's texture. Applying that
+rule at authoring time makes this verdict match the one Unity's `ValidateCueDefinitionsAcrossTemplates` preflight
+reaches at generation time, where a conflict aborts every task in the catalog rather than the one template that
+introduced it. The scan runs only when a templates directory is configured and the target resolves to a direct child of
+it, so a per-session snapshot and a forged-dataset copy receive the schema verdict alone. It reads the `.yaml` and
+`.yml` siblings Unity itself reads, skips the dot-prefixed staging files a killed write leaves behind, and holds the
+file under authoring out by resolved path, so the copy already on disk never conflicts with the incoming version.
+
+`write_template_tool` refuses a conflict through the error envelope, naming the catalog directory and every conflicting
+identity. `validate_template_tool` reports it inside a **success** envelope as `valid=False` with an `issues` list
+carrying one entry per conflicting identity, each prefixed `Cross-template cue-texture conflict.` and naming every
+contributing template stem with the texture it declares. Re-validating the same file cannot clear those entries, because
+the fix lives in a sibling template or in the incoming cue catalog rather than in the constraint the entry names.
+
+`validate_template_tool` reports four outcomes. A missing file returns `success=False` carrying `error`. A load or
+schema failure returns `success=True` with `valid=False` and a single-element `issues` list holding the first violated
+constraint, since `__post_init__` stops at the first failure, so fix one issue and re-validate to surface the next. A
+cross-template cue-texture conflict returns `valid=False` with one entry per conflicting identity. A pass returns
+`valid=True` with a `summary` carrying `cue_count`, `trial_count`, and `cue_offset_cm`. The envelope in which every
+verdict rides is documented in the `## Response contract` section of `/assets-mcp-environment-setup`.
 
 `write_template_tool` re-serializes through the canonical `to_yaml`, so it writes no comments and drops any that a
 rewritten file already carried. Re-apply the mandatory header block and the filename convention owned by
@@ -434,6 +441,17 @@ for instantiating templates into experiment configurations.
 1. List templates with `discover_templates_tool`.
 2. Hand off to `/experiment-configuration` to enumerate consuming experiments per project.
 
+### Retire a template
+
+1. Enumerate the experiment configurations that name the template's stem in `unity_scene_name`, by handing off to
+   `/experiment-configuration` and its `discover_experiments_tool` for every project on the data root.
+2. Repoint or retire each one, because `SessionData.create` resolves `<templates-directory>/<unity_scene_name>.yaml` at
+   session creation, so a stem that no longer resolves blocks the next session of every configuration naming it.
+3. Hand off to `unity:task-prefabs` and its `delete_task_tool` for the generated task prefab and scene, which are
+   separate artifacts on the Unity side.
+4. Call `delete_template_tool` on the live path `discover_templates_tool` reports. It removes that file alone, so the
+   frozen per-session snapshots and forged dataset copies survive and every acquired session stays readable.
+
 ---
 
 ## Related skills
@@ -471,6 +489,7 @@ for instantiating templates into experiment configurations.
 - [ ] write_template_tool succeeded without schema errors
 - [ ] validate_template_tool returned valid=True with no issues
 - [ ] read_template_tool returned the expected content after the write
+- [ ] Before delete_template_tool, confirmed that no experiment configuration still names the removed stem
 - [ ] If the template targets a Unity scene, unity:task-prefabs was invoked for prefab
       generation and validation
 - [ ] If a NEW schema field was added, rather than just a new value, confirmed it is a two-repo mirror change, covering

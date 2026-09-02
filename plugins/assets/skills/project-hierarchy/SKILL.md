@@ -1,21 +1,21 @@
 ---
 name: project-hierarchy
 description: >-
-  Discovers the Sollertia project hierarchy (projects, animals, experiments, subjects, sessions) and creates new
-  projects via the sollertia-shared-assets MCP server. Owns get_data_root_overview_tool (hierarchy discovery) and
-  create_project_tool (project creation). Use when enumerating projects, animals, or sessions, walking the project tree,
-  or creating a project.
+  Discovers the Sollertia project hierarchy (projects, animals, experiments, subjects, sessions) and creates and
+  removes projects via the sollertia-shared-assets MCP server. Owns get_data_root_overview_tool (hierarchy discovery),
+  create_project_tool (project creation), and delete_project_tool (project removal). Use when enumerating projects,
+  animals, or sessions, walking the project tree, or creating or removing a project.
 user-invocable: false
 ---
 
 # Sollertia project hierarchy
 
-Discovers and creates entries in the Sollertia project hierarchy. Project, animal, and session listings come from
-`get_data_root_overview_tool` on the `slsa mcp` MCP server, and new projects are materialized with
-`create_project_tool`. By default, the overview walks every `session_data.yaml` marker under the data root and groups
-results by the identity fields inside each `SessionData`, so stray directories cannot surface as phantom projects or
-animals. Its `directories` strategy additionally surfaces empty project and animal directories that hold no sessions
-yet.
+Discovers, creates, and removes entries in the Sollertia project hierarchy. Project, animal, and session listings come
+from `get_data_root_overview_tool` on the `slsa mcp` MCP server, new projects are materialized with
+`create_project_tool`, and a whole project subtree is removed with `delete_project_tool`. By default, the overview walks
+every `session_data.yaml` marker under the data root and groups results by the identity fields inside each
+`SessionData`, so stray directories cannot surface as phantom projects or animals. Its `directories` strategy
+additionally surfaces empty project and animal directories that hold no sessions yet.
 
 ---
 
@@ -24,6 +24,8 @@ yet.
 **Covers:**
 - Discovering projects, animals, experiments, subjects, and sessions
 - Creating new projects (the `create_project_tool` MCP tool, equivalent to the `slsa configure project` CLI)
+- Removing a project and every animal, session, and experiment configuration under it (the `delete_project_tool` MCP
+  tool, equivalent to the `slsa delete project` CLI)
 - The directory layout of a Sollertia project tree
 - The relationship between projects, animals, sessions, experiments, and subjects
 
@@ -38,8 +40,8 @@ yet.
 - Initial working directory setup (see `/working-directory`)
 
 This skill's discovery tool (`get_data_root_overview_tool`) is read-only and may be called as a **natural share** by any
-other skill that needs to enumerate the hierarchy. Project creation (`create_project_tool`) is a write operation owned
-by this skill.
+other skill that needs to enumerate the hierarchy. Project creation (`create_project_tool`) and project removal
+(`delete_project_tool`) are write operations owned by this skill.
 
 ---
 
@@ -219,10 +221,31 @@ the data root is attributed to no project at all. `discover_datasets_tool` (`/da
 per-dataset identity and membership. The flat `sessions` list is shaped for downstream chaining with
 `filter_sessions_tool` (see `/session-discovery`).
 
+### Deletion (destructive write)
+
+| Tool                  | Purpose                                                                                        |
+|-----------------------|------------------------------------------------------------------------------------------------|
+| `delete_project_tool` | Removes one project directory and everything it holds, gated on an explicit `confirm_deletion` |
+
+`delete_project_tool` removes the whole project subtree under the data root, which is every animal directory, every
+session inside those directories, and every experiment configuration under `configuration/`. Nothing it removes is
+recoverable through this server. The removal reaches the copy on this machine alone, so sessions already transferred to
+a long-term storage destination survive it and become orphans of a project that no longer exists locally.
+
+The tool refuses to act until the caller passes `confirm_deletion` explicitly, which accepts `yes` or `no`. You MUST
+state the consequences above to the user, name the project by its resolved path, and obtain their decision in the
+conversation before retrying the call with `yes`. A `no` value is a refusal that returns `deleted=False` once the data
+root has been resolved, leaving the project tree unread and untouched.
+
+Call `get_data_root_overview_tool` first and report the project's animal count, session count, and `experiment_count`
+back to the user, because those aggregates are what the removal destroys. Hand off to `experiment:data-management` when
+the goal is to keep the data, because `migrate_animal_tool` moves an animal's sessions into another project and leaves
+the source project empty for a removal that costs nothing.
+
 ### Failure modes
 
-Both tools report failures through the MCP response envelope rather than raising. See the `## Response contract` section
-of `/assets-mcp-environment-setup` for the envelope shape and the branching rule.
+Every tool above reports failures through the MCP response envelope rather than raising. See the `## Response contract`
+section of `/assets-mcp-environment-setup` for the envelope shape and the branching rule.
 
 `get_data_root_overview_tool` fails in three ways:
 
@@ -235,9 +258,14 @@ marker scan reports the failure instead of returning the portion of the tree it 
 subtree withholds the entire hierarchy.
 
 `create_project_tool` resolves its root through the same helper and therefore shares the first two messages. It adds one
-failure of its own: when `root_directory` is omitted and the host has no data root configured, the tool returns the
-`get_data_root()` `FileNotFoundError` message verbatim, which names the `slsa configure data-root` CLI command as the
-remedy.
+failure of its own, because when `root_directory` is omitted and the host has no data root configured, the tool returns
+the `get_data_root()` `FileNotFoundError` message verbatim, which names the `slsa configure data-root` CLI command as
+the remedy. `delete_project_tool` resolves its root the same way and shares those messages too, and its root resolution
+runs ahead of the confirmation gate. `get_data_root()` reads the cached record and `resolve_root_directory()` probes the
+path for existence and directory-ness first, so on a host whose data root is unset or missing a withheld
+`confirm_deletion` returns that path failure rather than the confirmation refusal. The gate is settled the moment the
+root resolves, ahead of every read of the project tree, so a withheld or `no` value returns without the project
+directory being inspected, its containment checked, or its animal and configuration counts inventoried.
 
 ### Response shape (partial)
 
@@ -359,7 +387,7 @@ strategy lists it once it holds a session.
 
 | Skill                                   | Relationship                                                                                     |
 |-----------------------------------------|--------------------------------------------------------------------------------------------------|
-| `/cli-reference`                        | Owns the `slsa get projects` and `slsa configure project` commands                               |
+| `/cli-reference`                        | Owns the `slsa get projects`, `slsa configure project`, and `slsa delete project` commands       |
 | `/assets-mcp-environment-setup`         | Run first if the MCP server is not connected                                                     |
 | `/working-directory`                    | Owns the persisted data root that `create_project_tool` uses when `root_directory` is omitted    |
 | `experiment:acquisition-system-runtime` | Creates sessions via `SessionData.create`. Project directories must exist beforehand             |
@@ -380,6 +408,8 @@ strategy lists it once it holds a session.
 - [ ] get_data_root_overview_tool was used for any project / animal / session enumeration
 - [ ] Project creation used create_project_tool (explicit root supported) or slsa configure project (persisted root)
 - [ ] Did not call write_* / set_* tools beyond create_project_tool. Hierarchy discovery remains read-only
+- [ ] Before delete_project_tool, reported the project's animal, session, and experiment counts and obtained the
+      user's explicit decision, then passed confirm_deletion explicitly
 - [ ] Handed off to /experiment-configuration for any experiment authoring
 - [ ] Handed off to /session-data, /session-descriptors, /data-assets, or /datasets for any read
       that goes deeper than the hierarchy itself
