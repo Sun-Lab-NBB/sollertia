@@ -230,17 +230,19 @@ Three ScanImage metadata keys are read from the archive:
 | `_SCANIMAGE_ACQUISITION_NUMBER_KEY` | `acquisitionNumbers`     | Per-frame acquisition index. Substituted with `np.zeros_like(frame_numbers)` when the archive omits it |
 
 Raw ScanImage restarts both the frame counter and the elapsed-time clock at every stop and resume, and
-sollertia-experiment removes both restarts before it writes the archive. It renumbers `frameNumberAcquisition` as
-`np.arange(1, frame_count + 1)` (`data_preprocessing.py:1086`) and rewrites `frameTimestamps_sec` into a session-global
-monotonic series that replaces each true pause with one median frame period, an interval its own comment calls an
-understatement of the pause (`data_preprocessing.py:1089-1103`). The archived timestamps therefore equal the raw
-ScanImage clock only within a single uninterrupted acquisition, and archives written by older preprocessing may still
-carry the restarts.
+sollertia-experiment removes both restarts before it writes the archive. `_preprocess_mesoscope_directory` in
+`data_preprocessing.py` renumbers `frameNumberAcquisition` as `np.arange(1, frame_count + 1)` and rewrites
+`frameTimestamps_sec` into a session-global monotonic series that replaces each true pause with one median frame
+period, an interval its own comment calls an understatement of the pause. The archived timestamps therefore equal the
+raw ScanImage clock only within a single uninterrupted acquisition, and archives written by older preprocessing may
+still carry the restarts.
 
-sollertia-experiment builds the archive in acquisition order. It natsorts the stacks by their `_acquisition#_stack#`
-names, concatenates each stack's metadata block in ascending starting-frame order (`data_preprocessing.py:1064`), then
-derives `acquisitionNumbers` as a cumulative sum over the detected restart boundaries (`data_preprocessing.py:1107`).
-Both lexsort keys are therefore monotonically non-decreasing in the archive, so the
+sollertia-experiment builds the archive in acquisition order. The same function natsorts the stacks by their
+`_acquisition#_stack#` names, concatenates each stack's metadata block in ascending starting-frame order, then
+derives `acquisitionNumbers` as a one-based cumulative sum over the detected restart boundaries. That derivation is
+guarded on at least one restart having been detected, so a session recorded in a single uninterrupted acquisition keeps
+the raw per-frame ScanImage values under that key. Both lexsort keys are therefore monotonically non-decreasing in the
+archive, so the
 `np.lexsort((frame_numbers, acquisitions))` the fallback applies is an identity permutation on a well-formed archive and
 guards against an out-of-order one rather than correcting the expected one. The acquisition number is the primary key
 and the frame counter the secondary key, because the counter restarts at one per acquisition in raw ScanImage metadata,

@@ -418,7 +418,9 @@ live in [`references/column-emission.md`](references/column-emission.md).
 | `InvalidOperationError` | `runtime_dataset.py`                           | A recorded trial type index or runtime state code has no entry in the experiment configuration's mappings  |
 
 `InvalidOperationError` is the Polars exception `replace_strict` raises on an unmapped value, so it surfaces as an
-unmapped code rather than as a missing file. Every other raise here is routed through
+unmapped code rather than as a missing file. The two `FileNotFoundError` rows attributed to `behavior_dataset.py` and
+`runtime_dataset.py` come from `pl.read_ipc` and `YamlConfig.from_yaml` opening a path that is not there, so each
+carries Polars' or Python's own message rather than one this library writes. Every other raise here is routed through
 `ataraxis_base_utilities.console.error`.
 
 ---

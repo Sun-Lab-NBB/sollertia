@@ -42,6 +42,7 @@ values Mesoscope-VR chooses.
 | `Registration`          | `spatial_smoothing_sigma`                  | `1.15`                   |
 | `Registration`          | `temporal_smoothing_sigma`                 | `0.0`                    |
 | `Registration`          | `two_step_registration`                    | `False`                  |
+| `Registration`          | `gpu_batch_size`                           | `0`                      |
 | `Registration`          | `bad_frame_threshold`                      | `1.0`                    |
 | `Registration`          | `normalize_frames`                         | `True`                   |
 | `Registration`          | `registration_metric_principal_components` | `10`                     |
@@ -56,8 +57,8 @@ values Mesoscope-VR chooses.
 | `NonrigidRegistration`  | `signal_to_noise_threshold`                | `1.2`                    |
 | `NonrigidRegistration`  | `maximum_block_offset`                     | `5.0`                    |
 | `ROIDetection`          | `enabled`                                  | `True`                   |
-| `ROIDetection`          | `preclassification_threshold`              | `0.5`                    |
-| `ROIDetection`          | `threshold_scaling`                        | `2.0`                    |
+| `ROIDetection`          | `preclassification_threshold`              | `0.0`                    |
+| `ROIDetection`          | `threshold_scaling`                        | `1.0`                    |
 | `ROIDetection`          | `spatial_highpass_window`                  | `25`                     |
 | `ROIDetection`          | `maximum_overlap`                          | `0.75`                   |
 | `ROIDetection`          | `temporal_highpass_window`                 | `100`                    |
@@ -103,7 +104,7 @@ Left at cindra defaults: `file_io.data_path`, `file_io.output_path`, and the `ru
 | `DiffeomorphicRegistration` | `scale_sampling`                  | `30`                               |
 | `DiffeomorphicRegistration` | `speed_factor`                    | `3`                                |
 | `DiffeomorphicRegistration` | `repeat_registration`             | `False`                            |
-| `ROITracking`               | `threshold`                       | `0.75`                             |
+| `ROITracking`               | `threshold`                       | `0.5`                              |
 | `ROITracking`               | `mask_prevalence`                 | `50`                               |
 | `ROITracking`               | `pixel_prevalence`                | `50`                               |
 | `ROITracking`               | `step_sizes`                      | `(200, 200)`                       |

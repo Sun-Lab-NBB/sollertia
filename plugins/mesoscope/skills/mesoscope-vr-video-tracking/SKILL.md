@@ -355,12 +355,13 @@ and computes `duration_seconds` from the first and last timestamps. Both endpoin
 pushed-down one-row slice and arrive as Python integers, whose difference cannot wrap the way the unsigned timestamp
 column's would, so an out-of-order feather states a negative span and is dropped rather than read as the slowest clock.
 A non-positive duration disqualifies the camera. The mean rate is the frame count divided by that duration, and the
-camera with the lowest mean rate wins, its timestamps returned verbatim.
+camera with the lowest mean rate wins, its timestamps returned verbatim. The comparison is strict, so an exact tie is
+settled in favour of the first camera `_CAMERA_SOURCES` names, which is the face camera.
 
 The slowest camera is chosen because every other data source can be interpolated onto its coarser grid without
 inventing samples between its frames. On success the resolver echoes
-`Resolved the '{slowest_camera}' clock ({slowest_rate:.2f} fps) as the reference clock.` When no camera qualifies it
-raises `FileNotFoundError`:
+`Resolved the '{selection.camera}' clock ({selection.mean_rate:.2f} fps) as the reference clock.` When no camera
+qualifies it raises `FileNotFoundError`:
 
 ```text
 Unable to resolve the reference clock for the training session. No camera timestamp feather with at least two frames
