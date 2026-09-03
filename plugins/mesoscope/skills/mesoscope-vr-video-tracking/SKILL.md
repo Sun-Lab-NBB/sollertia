@@ -82,8 +82,9 @@ schedule the pass.
 | `_VIDEO_TRACKING_REGISTRY`  | `process_mesoscope_video_tracking`  | `resolve_video_tracking`          | The `pose_tracking` job runner              |
 
 Job discovery calls the locator to decide whether a session supports a tracking job at all, and
-`orchestration/footprints.py` calls it again to charge the job the prediction file's byte count. A single donation
-covering both would force discovery to load and parse the predictions merely to decide whether to schedule work.
+`orchestration/footprints.py` calls it again to charge the job the width of the table that file holds, read from the
+table's own row and column counts rather than from the file's size on disk. A single donation covering both would
+force discovery to load and parse the predictions merely to decide whether to schedule work.
 
 `video_dataset.py` fills no registry of its own. `assemble_video_dataset` and `resolve_slowest_camera_clock` are
 reached through the Mesoscope-VR assembly worker registered in `_FORGING_ASSEMBLY_REGISTRY`, which
@@ -355,12 +356,13 @@ and computes `duration_seconds` from the first and last timestamps. Both endpoin
 pushed-down one-row slice and arrive as Python integers, whose difference cannot wrap the way the unsigned timestamp
 column's would, so an out-of-order feather states a negative span and is dropped rather than read as the slowest clock.
 A non-positive duration disqualifies the camera. The mean rate is the frame count divided by that duration, and the
-camera with the lowest mean rate wins, its timestamps returned verbatim.
+camera with the lowest mean rate wins, its timestamps returned verbatim. The comparison is strict, so an exact tie is
+settled in favour of the first camera `_CAMERA_SOURCES` names, which is the face camera.
 
 The slowest camera is chosen because every other data source can be interpolated onto its coarser grid without
 inventing samples between its frames. On success the resolver echoes
-`Resolved the '{slowest_camera}' clock ({slowest_rate:.2f} fps) as the reference clock.` When no camera qualifies it
-raises `FileNotFoundError`:
+`Resolved the '{selection.camera}' clock ({selection.mean_rate:.2f} fps) as the reference clock.` When no camera
+qualifies it raises `FileNotFoundError`:
 
 ```text
 Unable to resolve the reference clock for the training session. No camera timestamp feather with at least two frames

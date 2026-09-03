@@ -161,13 +161,15 @@ A response reports a `totals` block of `jobs`, `widest_job_cores`, `largest_job_
 a `breakdown` per job type, and a `units` list. It adds `total_cores` and `total_memory_mb` for `host="local"`, and
 a `jobs` page with the paging keys whenever a filter is named or the listing is requested.
 
-**Note:** This tool is **not** read-only. Discovery runs exactly as it does for a batch, so the call plans every named
-unit, creates and aligns each unit's tracker, and rewrites the project's plan and state artifacts. Do not describe it
-as free and do not poll it. Its `replan` is hard-wired to `False`, so it never re-estimates a cached figure.
+**Note:** This tool is **not** read-only. Discovery runs exactly as it does for a batch, so the call primes every
+pipeline of every named unit that declares a priming step, plans every named unit, creates and aligns each unit's
+tracker, and rewrites the project's plan and state artifacts. Do not describe it as free and do not poll it. Its
+`replan` is hard-wired to `False`, so it never re-estimates a cached figure.
 
-**Note:** `totals.jobs` counts the dispatchable jobs alone. A job this run could not unblock is absent, and this
-response carries no blocked count at all, so it under-reports what the pipeline still owes. `/batch-processing` owns
-the blocked accounting.
+**Note:** `totals.jobs` counts the dispatchable jobs alone, and the response carries no top-level blocked total. Each
+resolved `units[]` entry does carry a `blocked_count`, and summing that column across the resolved entries gives the
+batch's whole blocked figure, so the outstanding work is `totals.jobs` plus that sum. `/batch-processing` owns the
+per-job blocked listing.
 
 **Note:** `summed_memory_mb` sums every job rather than naming a peak, so it is not a budget. `totals` and `breakdown`
 ignore `job_names`, which narrows only the listing. An empty `job_names` list is a filter matching nothing, which is
@@ -227,6 +229,13 @@ jobs the cache does not hold, so re-running a plan call is cheap and safe.
 `regenerate_plan` is `False`, and the recorded `model_version` equals what `footprints.resolve_model_version()`
 answers now. A cache stamped with a different model version is treated as absent and re-estimated whatever
 `regenerate_plan` asks, so a dependency bump or a retune adopts itself without a flag.
+
+**Planning primes before it sizes.** A pipeline whose job model lives in state a dependency writes has that state
+materialized first, so planning a session carrying two-photon data writes its cindra configuration and per-plane
+bootstrap before anything is sized. Priming is idempotent, but it is a write. A priming failure drops that whole
+pipeline from the plan and is recorded as a pipeline skip, not as an `unsized_jobs` entry, so on a unit whose other
+pipelines planned normally it leaves no trace in the tool response at all. It surfaces only in the message refusing a
+unit no pipeline could plan, and in the `slf plan` console echo.
 
 ---
 
@@ -317,7 +326,7 @@ Every figure is per job, never per type. Two jobs of one type legitimately diffe
 each is estimated from the data it will actually process and a long recording is not charged the same as a short one.
 
 - **A stage this library owns** reports its declared width and a memory figure modeled from that job's own input, such
-  as an archive's message count, a prediction file's size, or a decoded frame's pixel count.
+  as an archive's message count, a prediction table's row and column counts, or a decoded frame's pixel count.
 - **A stage a dependency owns** is sized whole by that dependency's own sizing pass, which answers with both the cores
   and the memory it picked for the job's input. The allocation table restates the dependency's width rather than
   deciding it, and it acts as a **cap** on that type rather than a width every job of the type is raised to.
@@ -338,8 +347,9 @@ changes the identifier and invalidates every cache carrying the old one, which i
 
 Planning uses a **size-then-project** model:
 
-1. **Plan** sizes each named unit, writes its `job_plan.yaml`, and aligns its trackers. This is the pass that reads
-   acquisition data, and it is idempotent: a unit already planned keeps its figures and gains only the jobs it lacks.
+1. **Plan** primes every pipeline of the named unit that declares a priming step, sizes the unit, writes its
+   `job_plan.yaml`, and aligns its trackers. This is the pass that reads acquisition data, and it is idempotent: a unit
+   already planned keeps its figures and gains only the jobs it lacks.
 
 2. **Project** gathers every plan cache under the project root into one feather table. This reads caches alone, so it
    is cheap enough to re-run at will, and the two planning tools already run it for you.
@@ -408,13 +418,14 @@ pipeline and the job, and the value is the reason the pass gave.
 | `<pipeline>/<job_name>`          | The same, for a stage whose specifier is empty, so the key carries no parentheses   |
 | `<pipeline>/all jobs`            | The one-pass sizing for the whole pipeline raised, so each job was then sized alone |
 
-| Symptom                                                    | Cause                                       | Resolution                             |
-|------------------------------------------------------------|---------------------------------------------|----------------------------------------|
-| A unit entry carries `error` and `job_count: 0`            | No pipeline planned any job for it          | Check the unit carries readable inputs |
-| `unsized_jobs` names a job whose input file is missing     | The stage's input was never produced        | Run the upstream pipeline first        |
-| A prepared batch reports a unit as carrying unplanned jobs | The projection has no row for those ids     | Plan that unit, then prepare again     |
-| `read_project_plan_tool` reports no projection             | No unit under the root has been planned     | Plan the units, which reprojects       |
-| A cache is re-estimated despite `regenerate_plan=False`    | The stamped model version no longer matches | Expected. Adopt the new figures        |
+| Symptom                                                    | Cause                                                      | Resolution                             |
+|------------------------------------------------------------|------------------------------------------------------------|----------------------------------------|
+| A unit entry carries `error` and `job_count: 0`            | No pipeline planned any job for it                         | Check the unit carries readable inputs |
+| `unsized_jobs` names a job whose input file is missing     | The stage's input was never produced                       | Run the upstream pipeline first        |
+| A pipeline's jobs are absent with no `unsized_jobs` entry  | Its priming or its job discovery raised, so it was skipped | Ask the user for the `slf plan` echo   |
+| A prepared batch reports a unit as carrying unplanned jobs | The projection has no row for those ids                    | Plan that unit, then prepare again     |
+| `read_project_plan_tool` reports no projection             | No unit under the root has been planned                    | Plan the units, which reprojects       |
+| A cache is re-estimated despite `regenerate_plan=False`    | The stamped model version no longer matches                | Expected. Adopt the new figures        |
 
 A unit that no pipeline could plan is refused with a message naming what each pipeline reported and what each sizing
 pass refused. Read both halves: the first says the unit carries none of the data a pipeline consumes, and the second
@@ -468,6 +479,7 @@ Planning:
 - [ ] regenerate_plan was left False, or the user explicitly asked for a retune
 - [ ] Every units[] entry was reconciled, including each error and each unsized_jobs map
 - [ ] A job absent from the projection was reported as unplanned rather than as free
+- [ ] A pipeline missing from a plan with no unsized_jobs entry was reported as a skip, not as a unit with no such data
 
 Resource model:
 - [ ] Core allocations, ceilings, and reservations were read from read_resource_model_tool, never quoted from memory

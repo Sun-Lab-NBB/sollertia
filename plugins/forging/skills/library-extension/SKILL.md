@@ -27,8 +27,8 @@ checklist before reporting an extension complete.
 
 **Covers:**
 - Adding an acquisition system, which is one `<system>/` package plus an entry in each of the thirteen donor registries
-- Adding a session type's forging half, which is the admission policy, the assembly routing, the cross-recording
-  declaration, the multi-recording resolver, and the dataset columns
+- Adding a session type's forging half, which is the admission policy, the assembly routing, the assembly-source
+  routing, the cross-recording declaration, the multi-recording resolver, and the dataset columns
 - Adding a processing stage to a pipeline that already exists
 - Minting or joining a per-system registry for a stage whose input only an acquisition system can supply
 - Adding a processing pipeline, which is a new `ProcessingPipelines` member and a new category package
@@ -162,8 +162,8 @@ Three module-scope checks guard this library, and each raises a `RuntimeError` t
 | Check                              | Module                      | Import that runs it                                        | What it guards                                                                                                                                              |
 |------------------------------------|-----------------------------|------------------------------------------------------------|-------------------------------------------------------------------------------------------------------------------------------------------------------------|
 | `_assert_registry_coverage()`      | `registries.py`             | `sollertia_forgery.registries`, and everything reaching it | Every system's entry in each of the thirteen registries, every parseable module's event codes, and every declared session type against the upstream pairing |
-| `_assert_dispatch_coverage()`      | `orchestration/dispatch.py` | `sollertia_forgery.orchestration`                          | The dispatch table against `BATCH_PIPELINES`, symmetrically                                                                                                 |
-| `_assert_status_column_coverage()` | `managing/manifest.py`      | `sollertia_forgery.managing`                               | `_PIPELINE_STATUS_COLUMNS` against `SESSION_PIPELINES`, symmetrically                                                                                       |
+| `_assert_dispatch_coverage()`      | `orchestration/dispatch.py` | `sollertia_forgery.orchestration`                          | The dispatch table against `BATCH_PIPELINES`, symmetrically, and every entry's `unit_kind` against the two this library resolves                            |
+| `_assert_status_column_coverage()` | `managing/manifest.py`      | `sollertia_forgery.managing`                               | `_PIPELINE_STATUS_COLUMNS` against `SESSION_PIPELINES`, and every roster that names a status column, all symmetrically                                      |
 
 `import sollertia_forgery` alone runs none of them, because the top-level `__init__.py` re-exports no library symbol
 and its `__all__` is empty. `slf --help` runs all three, since `interfaces/entry_points.py` imports
@@ -172,7 +172,8 @@ and its `__all__` is empty. `slf --help` runs all three, since `interfaces/entry
 **The error is the remaining checklist.** The coverage check reports one problem per import attempt, so an extender
 fixes the registry it names, re-imports, and reads the next. The order is fixed, which makes the sequence of errors a
 worklist rather than a surprise. [references/guardrails.md](references/guardrails.md) carries the verbatim text of
-every message and maps each onto the touch it names. The stems are:
+every message and maps each onto the touch it names. The three checks raise nine stems between them, four from the
+registries, two from the dispatch table, and three from the manifest:
 
 ```text
 Unable to validate donor-registry coverage for <REGISTRY>. Every acquisition system must register ...
@@ -180,7 +181,10 @@ Unable to validate donor-registry coverage for _MICROCONTROLLER_EVENT_CODE_REGIS
 Unable to validate donor-registry coverage for _MULTI_RECORDING_SESSION_TYPE_REGISTRY. Every session type ...
 Unable to validate donor-registry coverage for _FORGING_ADMISSION_REGISTRY. Every session type a system admits ...
 Unable to validate the pipeline dispatch table. Every pipeline named in BATCH_PIPELINES must have ...
+Unable to validate the pipeline dispatch table. Every entry must declare one of ['dataset', 'session'] as ...
 Unable to validate the manifest's pipeline status columns. Every pipeline in SESSION_PIPELINES must declare ...
+Unable to validate the manifest's pipeline status columns. Every status column declared in ...
+Unable to validate the manifest's column rosters. Every roster that lists the manifest's columns must ...
 ```
 
 A message reporting a system interpolates the enum member name, and a message reporting a session type interpolates the
@@ -188,11 +192,13 @@ enum value, so a search for the offending entry uses the spelling carried by the
 
 ### What the checks do not catch
 
-The three checks cover registry membership, the dispatch table, and the manifest columns. Fifteen further touch
-points pass every import, so tests rather than a guardrail cover each one. One of them is silent by design, because
-omitting a recorded session type from the admission mapping is the supported opt-out, and one raises only a bare
-`KeyError` with no message at all. [references/guardrails.md](references/guardrails.md) lists all fifteen, the
-scenario each belongs to, how it surfaces, and where to cover it.
+The three checks cover registry membership, the dispatch table, and the manifest columns together with every roster
+that names one. Seventeen further touch points reach no guardrail, so tests rather than a check cover each one. All but
+one pass every import and fail later or silently, the exception being a dataset column with no description entry, which
+raises a bare `KeyError` with no message at import of the system's own metadata module. One is silent by design, because
+omitting a recorded session type from the admission mapping is the supported opt-out.
+[references/guardrails.md](references/guardrails.md) lists all seventeen, the scenario each belongs to, how it
+surfaces, and where to cover it.
 
 ---
 
@@ -258,7 +264,7 @@ extension checks against it.
 | `/dataset-forging`                         | New system, new session type                  | The reach of the forging pipeline over a system's session types                                                                              |
 | `/batch-processing`                        | New pipeline, new stage                       | The per-pipeline table, and the stages a pipeline dispatches                                                                                 |
 | `/job-planning`                            | New pipeline, new stage                       | The resource model, since a job type reaches the report only through `_PIPELINE_JOB_NAMES`                                                   |
-| `/project-state`                           | New per-session pipeline                      | The manifest status column and the schema column that pipeline adds                                                                          |
+| `/project-state`                           | New per-session pipeline                      | The manifest status column that pipeline adds, and the five rosters that name it                                                             |
 | `/processing-input-format`                 | New pipeline, new system                      | The acquired artifacts a pipeline requires before it runs                                                                                    |
 | `/processing-results`                      | New pipeline, new stage                       | The outputs a stage writes and the directory that owns them                                                                                  |
 | `/cli-reference`                           | New pipeline, new stage flag                  | The `slf` command surface and its option roster                                                                                              |
@@ -303,7 +309,7 @@ which is acquisition-system-agnostic by contract.
 ### Step 5: Verify
 
 Run the verification checklist below. The import gates are the safety net for registry membership, the dispatch table,
-and the manifest columns, and the manual items cover everything the gates do not reach.
+and the manifest columns and their rosters, and the manual items cover everything the gates do not reach.
 
 ### Citing source in a skill edit
 
@@ -324,18 +330,18 @@ Cross-document references follow the same rule. Cite a README or a CLAUDE.md by 
 
 ## Pitfalls
 
-| Pitfall                                                      | Why it bites                                                                                                                                          |
-|--------------------------------------------------------------|-------------------------------------------------------------------------------------------------------------------------------------------------------|
-| Starting the forgery half before the upstream member lands   | The coverage check measures against `frozenset(AcquisitionSystems)`, so there is nothing to wire against and no error to work from                    |
-| Reading a clean import as a finished extension               | Only registry membership, the dispatch table, and the manifest columns are checked. Fifteen further touch points fail at runtime or silently          |
-| Treating a system that produces no data of a class as exempt | Every system donates an entry to all thirteen registries. The null donation is a no-op function, a `None`-returning locator, or an empty frozenset    |
-| Adding a stage and stopping at the pipeline                  | A stage also needs a core allocation, a sizing model with its routing branch, and a `_PIPELINE_JOB_NAMES` entry, none of which any check reaches      |
-| Adding a per-session pipeline without its manifest column    | `_PIPELINE_STATUS_COLUMNS` and the matching `pl.UInt8` column in `_PROJECT_MANIFEST_SCHEMA` are two separate touches, and only the first is checked   |
-| Minting a local job-name string for a dependency's stage     | The dependency exports the constant and its resource figures, and a local copy drifts the moment either is retuned                                    |
-| Registering a closure or a bound method as a donated worker  | The forging assemblers and the module parsers cross a process boundary, so a donation that is not a picklable module-level function fails at dispatch |
-| Adding a per-system section to a skill in this plugin        | Every forging skill is acquisition-system-agnostic. Concrete per-system material belongs in that system's own companion plugin                        |
-| Minting a per-system registry with no coverage-tuple row     | The seam stays unguarded, so a system with no entry raises a bare `KeyError` from the accessor instead of a named `RuntimeError`                      |
-| Planning a new per-session dataset file as a donation        | The re-exported set and `DatasetFiles` are fixed in the agnostic layer, so the artifact folds into `data.feather` or escalates                        |
+| Pitfall                                                      | Why it bites                                                                                                                                                                |
+|--------------------------------------------------------------|-----------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| Starting the forgery half before the upstream member lands   | The coverage check measures against `frozenset(AcquisitionSystems)`, so there is nothing to wire against and no error to work from                                          |
+| Reading a clean import as a finished extension               | Only registry membership, the dispatch table, and the manifest columns and their rosters are checked. Seventeen further touch points fail at runtime or silently            |
+| Treating a system that produces no data of a class as exempt | Every system donates an entry to all thirteen registries. The null donation is a no-op function, a `None`-returning locator, or an empty frozenset                          |
+| Adding a stage and stopping at the pipeline                  | A stage also needs a core allocation, a sizing model with its routing branch, and a `_PIPELINE_JOB_NAMES` entry, none of which any check reaches                            |
+| Adding a per-session pipeline without its manifest column    | The declaring mapping and five further rosters name the column, and `_assert_status_column_coverage()` refuses the import until every one carries it, one message at a time |
+| Minting a local job-name string for a dependency's stage     | The dependency exports the constant and its resource figures, and a local copy drifts the moment either is retuned                                                          |
+| Registering a closure or a bound method as a donated worker  | The forging assemblers and the module parsers cross a process boundary, so a donation that is not a picklable module-level function fails at dispatch                       |
+| Adding a per-system section to a skill in this plugin        | Every forging skill is acquisition-system-agnostic. Concrete per-system material belongs in that system's own companion plugin                                              |
+| Minting a per-system registry with no coverage-tuple row     | The seam stays unguarded, so a system with no entry raises a bare `KeyError` from the accessor instead of a named `RuntimeError`                                            |
+| Planning a new per-session dataset file as a donation        | The re-exported set and `DatasetFiles` are fixed in the agnostic layer, so the artifact folds into `data.feather` or escalates                                              |
 
 ---
 
@@ -396,6 +402,7 @@ You SHOULD proactively invoke this skill when the user mentions any of the follo
 Unable to validate donor-registry coverage for ...
 Unable to validate the pipeline dispatch table ...
 Unable to validate the manifest's pipeline status columns ...
+Unable to validate the manifest's column rosters ...
 Unable to resolve the cores for job type ...
 Unable to size job ... The job type routes to no sizing model ...
 ```
@@ -431,8 +438,9 @@ Code side:
 - [ ] No new per-session file was added to a forged dataset, or the change to reexported_assets and DatasetFiles was
       escalated to the human supervisor rather than worked around
 - [ ] Every touch point under "What the checks do not catch" that this scenario reaches carries a test
-- [ ] A new system or category package has a mirrored tests/ package, and a new registry name was added to
-      _DONOR_REGISTRY_NAMES in tests/registry_coverage_test.py
+- [ ] A new system or category package has a mirrored tests/ package, and a new system was added to the per-system
+      assertions in tests/registry_coverage_test.py
+- [ ] A newly minted registry's name was added to _DONOR_REGISTRY_NAMES in tests/registry_coverage_test.py
 - [ ] docs/source/api.rst carries the section or autodata directive the recipe names
 - [ ] A new *_tools.py module was added to [tool.coverage.run] omit in pyproject.toml
 - [ ] tox -e py314-test and tox -e coverage pass, and tox -e stubs regenerated the checked-in stubs

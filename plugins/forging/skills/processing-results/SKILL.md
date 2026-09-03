@@ -14,8 +14,9 @@ user-invocable: false
 Documents every artifact the pipelines write, the tracker each one records against, and the procedure that separates a
 real success from a vacuous one. This skill owns no MCP tools.
 
-**The server ships no output-verification tool and no feather-query tool.** Nothing on it opens a feather, counts its
-rows, or checks its schema. Verification runs through the breakdowns of `read_project_jobs_tool`,
+**The server ships no output-verification tool and no feather-query tool.** Nothing on it opens a pipeline's output
+feather, counts its rows, or checks its schema, and the read tools open only the stored record artifacts.
+Verification runs through the breakdowns of `read_project_jobs_tool`,
 owned by `/project-state`, and of `get_processing_status_tool`, owned by `/batch-processing`. The forging jobs the
 project job artifact never carries are covered by `read_dataset_state_tool`, owned by `/dataset-definition`. Read the
 record with those tools first, then read the bytes by hand.
@@ -130,12 +131,12 @@ donated parsers and workers, so their filenames and column schemas belong to tha
     │   ├── {camera}_energy.feather                     video.motion_energy.compute_camera_motion_energy
     │   └── <the acquisition system's pose-tracking tables>
     └── cindra/                                         <- the imaging library owns everything below this point
-        ├── single_recording_tracker.yaml               written by the imaging library, read by this one
+        ├── single_recording_tracker.yaml               registered by two_photon.pipeline, recorded on by cindra
         ├── configuration.yaml                          the one file this library writes here, two_photon.pipeline
         ├── acquisition_parameters.yaml
         ├── combined_metadata.npz                       the combination stage's completion marker
         ├── plane_{n}/                                  per virtual plane, with registration and detection outputs
-        └── multi_recording/{dataset}/                  the cross-recording outputs the forging pipeline reads
+        └── multi_recording/{animal}_{dataset}/         lower-cased; the forging pipeline writes then reads these
 ```
 
 Each tracker's `.lock` companion sits beside it, derived from the tracker path by `ProcessingTracker.lock_path`, so it
@@ -192,15 +193,15 @@ the specifier, so a job's identity is reproducible from its name and specifier a
 
 ## Per-pipeline output ownership
 
-| Pipeline          | Tracker on disk                                                               | Output directory it owns              |
-|-------------------|-------------------------------------------------------------------------------|---------------------------------------|
-| `manifest`        | `<project>/manifest_processing_tracker.yaml`                                  | none, it writes two project tables    |
-| `checksum`        | `<session>/raw_data/checksum_processing_tracker.yaml`                         | none                                  |
-| `runtime`         | `processed_data/runtime_data/runtime_processing_tracker.yaml`                 | `processed_data/runtime_data`         |
-| `microcontroller` | `processed_data/microcontroller_data/microcontroller_processing_tracker.yaml` | `processed_data/microcontroller_data` |
-| `video`           | `processed_data/video_data/video_processing_tracker.yaml`                     | `processed_data/video_data`           |
-| `two_photon`      | `processed_data/cindra/single_recording_tracker.yaml`                         | `processed_data/cindra`               |
-| `forging`         | `<dataset>/forging_tracker.yaml`                                              | the whole dataset directory           |
+| Pipeline          | Tracker on disk                                                               | Output directory it owns                                    |
+|-------------------|-------------------------------------------------------------------------------|-------------------------------------------------------------|
+| `manifest`        | `<project>/manifest_processing_tracker.yaml`                                  | none, it writes two project tables                          |
+| `checksum`        | `<session>/raw_data/checksum_processing_tracker.yaml`                         | none                                                        |
+| `runtime`         | `processed_data/runtime_data/runtime_processing_tracker.yaml`                 | `processed_data/runtime_data`                               |
+| `microcontroller` | `processed_data/microcontroller_data/microcontroller_processing_tracker.yaml` | `processed_data/microcontroller_data`                       |
+| `video`           | `processed_data/video_data/video_processing_tracker.yaml`                     | `processed_data/video_data`                                 |
+| `two_photon`      | `processed_data/cindra/single_recording_tracker.yaml`                         | `processed_data/cindra`                                     |
+| `forging`         | `<dataset>/forging_tracker.yaml`                                              | the dataset tree, plus one directory in each source session |
 
 | Pipeline          | Job names, in stage order                                                                  | Specifier of each, in the same order             |
 |-------------------|--------------------------------------------------------------------------------------------|--------------------------------------------------|
@@ -284,15 +285,19 @@ A camera's timestamp job that appears in the discovered universe but not in the 
 a name that resolves to several archives. Its energy job stays possible because that stage reads only the recording.
 ### The two-photon pipeline
 
-The imaging library writes everything under `processed_data/cindra` and records the four stages on
-`single_recording_tracker.yaml`. This library writes exactly one file there itself, `configuration.yaml`, and only
-when the run persists it, overriding three fields and leaving everything else as the acquisition system's resolver
-returned it.
+The imaging library writes the arrays and images under `processed_data/cindra` and records the four stages on
+`single_recording_tracker.yaml`. This library writes two files there itself. It materializes `configuration.yaml` when
+the run persists it, overriding three fields and leaving everything else as the acquisition system's resolver returned
+it, and it registers the four stages on `single_recording_tracker.yaml` through the tracker's own alignment before any
+stage runs, which is what creates that file. The tracker's presence is therefore evidence that the pipeline was
+invoked, not that a stage completed.
 
 Two files are completion markers worth more than a directory listing, because each is written atomically after the
 arrays it describes. `combined_metadata.npz` marks the combination stage, and `tracking_template_masks.npz` under the
 cross-recording directory marks multi-recording discovery. A `.binarizing` or `.registering` marker beside a plane
-binary means the opposite, that the stage died mid-write and the binary must be rebuilt.
+binary means the opposite, that the stage died mid-write and the binary must be rebuilt. That cross-recording
+directory is the forging pipeline's output, and both cleans remove it: `forging` removes it as declared external
+output, and `two_photon` removes it along with this pipeline's own arrays.
 
 **Real against vacuous.** On a freshly acquired session the possible job set equals the universe by design, since
 possibility here states what the session can run rather than what it has already produced. A full universe is
@@ -300,9 +305,33 @@ therefore not evidence of progress, and the tracker decides each stage's turn.
 
 ### The forging pipeline
 
-It owns the whole dataset hierarchy, which is why cleaning it removes every assembled feather in that dataset along
-with the tracker. This is the most destructive operation the tool set offers, and it is irreversible. Prefer resetting
-the jobs, through `/batch-processing`, whenever the failure cause was external.
+It owns the whole dataset hierarchy, and it also owns a directory inside every source session that hierarchy names,
+so cleaning it removes three things rather than two: every assembled feather in the dataset, the tracker beside them,
+and each source session's cross-recording directory for this dataset. This is the most destructive operation the tool
+set offers, it is the only clean that reaches outside the unit it names, and it is irreversible. Prefer resetting the
+jobs, through `/batch-processing`, whenever the failure cause was external.
+
+Two of its three job kinds write outside that hierarchy. `multiday_discovery` and `multiday_extraction` run the
+imaging library against each source session's `processed_data/cindra` directory, so their output lands under every
+source session, in the lower-cased `processed_data/cindra/multi_recording/{animal}_{dataset}`. The forging dispatch
+entry declares those directories as its external output, and a clean resolves every one of them before it removes
+anything, then removes each alongside the dataset hierarchy and the tracker. Cleaning `forging` therefore takes the
+cross-recording output with it, and a later forging run rediscovers every job the dataset can run rather than skipping
+work whose output is gone. The directory is named for this dataset alone, so a session belonging to several datasets
+keeps the sibling directory each of the others owns, and a forging clean leaves that session's single-recording arrays
+in place. A source session that no longer resolves is logged as a warning and passed over, keeping its directory, since
+a clean cannot remove what it cannot locate.
+
+The hazard runs the other way. `two_photon` owns the whole of `processed_data/cindra`, so cleaning it for a source
+session takes that session's single-recording arrays, its `combined_metadata.npz`, and its
+`single_recording_tracker.yaml` along with the cross-recording directory the dataset owns inside it, while the
+dataset's own forging tracker is untouched and still records those jobs as `SUCCEEDED`. A later forging run therefore
+skips them, and an assembly job reading that output fails against the missing directory. No clean regenerates it. Reset
+the animal's forging jobs on the dataset's forging tracker instead, through `/batch-processing`, naming the `job_id`
+that `dataset_state.feather` records for the animal's `multiday_discovery` row and for each of its sessions'
+`multiday_extraction` and `forging` rows. Rebuilding the animal resets those same three job kinds on its behalf. That
+session's own two-photon pipeline has to run again first, since the cross-recording stages read each source session's
+`combined_metadata.npz` and fail against its absence rather than rebuilding it.
 
 Forging jobs never reach `{project}_jobs.feather`, which carries the five per-session pipelines only. They live in the
 dataset's own `dataset_state.feather`, one row per tracked forging job, carrying `scope` so a reader resolves a row's

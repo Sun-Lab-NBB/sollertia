@@ -43,7 +43,7 @@ runtime behavior (state machine, training modes, CLI) to `/mesoscope-vr-runtime`
   `experiment:zaber-interface`, and `communication:microcontroller-interface`
 - Per-session metadata, task templates, and experiment configuration. See `assets:session-data`,
   `assets:task-templates`, and `assets:experiment-configuration`
-- Server transfer configuration. See `forging:server-configuration`
+- The remote compute server's SSH and SLURM access configuration. See `forging:server-configuration`
 
 ---
 
@@ -122,8 +122,7 @@ defined in `mesoscope_vr/system.py`.
 | `video_tracking`   | `MesoscopeVideoTracking`    | DeepLabCut face-camera pose-inference environment and parameters            |
 
 For the full field-by-field registry (every field name, type, default, units, and meaning), see
-[`references/configuration-fields.md`](references/configuration-fields.md). That file is a state snapshot of the
-current Mesoscope-VR schema and MUST be updated whenever any dataclass field is added, removed, or renamed.
+[`references/configuration-fields.md`](references/configuration-fields.md).
 
 ### Registration and package exports
 
@@ -267,11 +266,6 @@ The Mesoscope-VR system uses **two GenICam scientific cameras** (Harvester-manag
 The system IDs are the `system_id` arguments of the two `VideoSystem` instances built by the `VideoSystems`
 constructor (`mesoscope_vr/binding_classes.py`), and they are the DataLogger source IDs the camera logs carry.
 
-### Camera GenICam configuration: verify, dump, restore
-
-The verify / dump / restore workflow for a camera's stored GenICam node configuration is documented in
-[`references/modification-workflows.md`](references/modification-workflows.md).
-
 ### VideoSystems binding class
 
 `VideoSystems` (in `mesoscope_vr/binding_classes.py`) composes the two `VideoSystem` instances.
@@ -401,9 +395,9 @@ of `MesoscopeVRAssets`, and `MesoscopeVideoTracking` are documented field by fie
 [`references/configuration-fields.md`](references/configuration-fields.md).
 
 [`references/modification-workflows.md`](references/modification-workflows.md) documents authoring a configuration on a
-new host, verifying a camera's GenICam configuration, and reindexing or re-porting hardware. It also documents
-recalibrating a module, adding a module to an existing or to a new microcontroller board, adding a camera, and adding a
-Zaber motor group.
+new host, verifying, dumping, and restoring a camera's GenICam configuration, and reindexing or re-porting hardware. It
+also documents recalibrating a module, adding a module to an existing or to a new microcontroller board, adding a
+camera, and adding a Zaber motor group.
 
 ---
 
@@ -467,7 +461,7 @@ inside the sollertia marketplace.
 | `assets:project-hierarchy`                | The on-disk hierarchy within which `MesoscopeData` resolves session paths.                      |
 | `assets:session-hardware-state`           | Generic owner of the `hardware_state.yaml` snapshot whose fields gate each parser.              |
 | `experiment:data-management`              | Transfer and removal workflows that consume the resolved storage destinations.                  |
-| `forging:server-configuration`            | Sibling configuration file for remote storage transfer.                                         |
+| `forging:server-configuration`            | Compute-server SSH and SLURM access for remote slf batches, not storage transfer.               |
 
 ---
 

@@ -90,7 +90,9 @@ negative `start_row` clamps to zero.
 success:                  Boolean flag
 pipeline:                 The pipeline argument
 host:                     The host argument
-units[]:                  One entry per named unit, resolved or unresolved
+units[]:                  One entry per named unit, raw and unprojected, in one of two shapes:
+  resolved:               `unit_path`, `unit_name`, `job_count` (dispatchable jobs), and `blocked_count`
+  unresolved:             `unit_path`, `unit_name`, `error`, and `job_count: 0`, with NO `blocked_count` key
 total_units:              Entries in `units`
 totals:
   jobs:                    Dispatchable jobs alone. Blocked jobs are NOT counted

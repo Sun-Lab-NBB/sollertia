@@ -1,6 +1,6 @@
 # Batch tool responses
 
-The complete return-key tree of the eight tools `/batch-processing` owns, with every conditional key and the condition
+The complete return-key tree of the nine tools `/batch-processing` owns, with every conditional key and the condition
 that produces it. Read this alongside the parameter tables in that skill.
 
 The response envelope every tool on this server returns, and the staged-read contract its read tools follow, are
@@ -110,6 +110,12 @@ walltime_minutes     int, the RESOLVED figure, 480 when the caller passed a non-
 pipelines[]          sorted list over the submissions
 batch_directory      str, a path ON THE SERVER
 adopted_jobs[]       sorted by unit_path then job_id: unit_path, job_id, slurm_job_id
+withheld_jobs[]      ALWAYS present, empty on a run that withheld nothing. One entry per job this run neither
+                     submitted nor adopted: unit_path, job_id, and the executor_id its tracker claims. A job
+                     resolves here when its verdict is running but neither allocation is held, which is a tracker
+                     recorded RUNNING under a non-slurm executor such as pid:, plus every job downstream of one.
+                     Its tracker is NOT cleared, so it is withheld again on every later batch until
+                     reset_processing_jobs_tool returns it to SCHEDULED
 submissions[]        in the order the scheduler accepted them: job_id, slurm_job_id, job_name
 invalid_jobs[]       ONLY when a descriptor failed to build, same shape as the local tree
 ```
@@ -129,7 +135,8 @@ in this process and whether the named batches have recorded outcomes.
 
 ```text
 success              bool
-active               bool, true while the manager thread is alive
+active               bool, true while the manager thread is alive. False here is TERMINAL: the thread ended
+                     and closure recorded no outcome, so the state was never released
 canceled             bool
 status               str, the roll-up label: failed, completed, processing, not_started, or in_progress
 summary
@@ -154,6 +161,11 @@ The per-job unit key is `session_path` even for a dataset unit, and the matching
 so a `forging` batch is filtered by dataset root through a parameter named for sessions. `status` here is a lowercase
 tracker label. `started_at` and `completed_at` are microsecond-precision epoch integers, and `elapsed_seconds` is
 rounded to three decimals and measured to the current moment while a job still runs.
+
+A run reaches this shape with `active: false` when every closure raised or its batches had already been retired, so the
+state stayed installed and no `outcomes` branch was ever taken. Treat it as a finished run whose closure recorded
+nothing: its `summary` carries `total`, `scheduled`, `running`, `succeeded`, and `failed` but no `blocked` or
+`outstanding`, and the batches are confirmed through `list_prepared_batches_tool` and its `outcome_recorded` flag.
 
 **Local, no live run, outcomes found.**
 
@@ -201,33 +213,71 @@ verified_at          int, microsecond-precision epoch
 Both lists are capped while the integer counts always cover the whole batch, so never infer a count from a list length.
 A batch that succeeded on everything it dispatched still reports `complete: false` where it carried blocked jobs.
 
-**Remote.**
+**Remote.** This branch resolves before it reports. It reads the ledger, connects, regenerates and reads each covered
+project's state artifacts, reads scheduler accounting and then the scheduler queue, resolves every covered allocation
+ONCE, closes each batch whose entries ALL prescribe the plain `drop` remediation, and re-reads the ledger to learn what
+that closure left, so a batch that closed on this call is reported as closed rather than as outstanding. The closure is
+a derivation from the verdicts below rather than a second reading, so nothing closes that this response reports as
+still held.
 
 ```text
 success              bool
-batches[]            one entry per covered batch, in ledger order:
+batches[]            one entry per STILL-OUTSTANDING batch, in ledger order. NOT projected, so every key
+                     below is present even when empty:
   batch_id           str
   submitted_at       int, microsecond-precision epoch
+  outstanding_seconds  float rounded to three decimals, or null when submitted_at is not positive
   pipelines[]        sorted list over the batch's submissions
   batch_directory    str, a path ON THE SERVER
   total_jobs         int
-active               bool, true while any allocation is in a non-terminal state
+  progress           str, the batch verdict: progressing, stalled, or awaiting_closure
+  verdicts{}         one count per allocation verdict this batch holds, keyed by the verdict
+  live_allocations   int, the allocations resolving to the running verdict
+  running_allocations[]           those allocations' ids, capped at 50
+  stranded_allocation_count       int, over the WHOLE batch
+  stranded_allocations[]          those allocations' ids, capped at 50
+  unresolvable_allocation_count   int, the allocations whose scheduler_state is gone, WHOLE batch
+  unresolvable_allocations[]      those allocations' ids, capped at 50
+  remedy             str, the instruction for this verdict. It names a tool call on every branch and
+                     quotes 'slf server retire-batch' on the stalled branch ALONE
+stalled_batch_ids[]  ALWAYS present, the batch_id of every entry whose progress reads stalled
+uncovered_batch_ids[]  ALWAYS present, the batch_id of every batch another process recorded WHILE this
+                     read ran. Named rather than resolved, since the records gathered predate them
+active               bool, any(verdict == running) over every covered allocation, so it is set by a held
+                     TRACKER CLAIM, or by a tracker running under a NON-slurm executor, even when every
+                     recorded allocation reads settled or gone
 summary
   total              int
-  <scheduler state>  int, ONLY the states actually observed, sorted by key
+  <scheduler state>  int, ONLY the accounting states actually observed, sorted by key
 breakdown            never elided on this branch:
-  batch_id, pipeline, job_name, status, unit_path
+  batch_id, pipeline, job_name, status, scheduler_state, tracker_status, verdict, unit_path
 outcomes[]           ALWAYS present, empty when nothing settled on this call. Same shape as above
+scheduler_read_error str, ALWAYS present. Empty unless a scheduler record could not be read, in which
+                     case every allocation resolves held
+message              str, present when no covered batch remains outstanding, which this call's own
+                     closure normally caused, and when uncovered_batch_ids is non-empty
 jobs[]               ONLY when a filter is named or include_items=True. Projected:
-  batch_id, job_id, slurm_job_id, pipeline, job_name, specifier, status, unit_name
-  detailed adds:     cores, memory_mb, slurm_job_name, unit_path, output_log, error_log
+  batch_id, job_id, slurm_job_id, pipeline, job_name, specifier, status, scheduler_state,
+  tracker_status, verdict, remediation, unit_name
+  detailed adds:     queued, tracker_executor_id, claimed_allocation, claim_state, cores, memory_mb,
+                     slurm_job_name, unit_path, output_log, error_log
 <paging group>       same condition as jobs
 ```
 
-There is no roll-up `status` label, no `canceled` flag, and no `blocked_jobs` count on this branch. A blocked
-allocation appears as a job whose `status` reads `BLOCKED`. `output_log` and `error_log` are paths on the server and
-are the route to a failed allocation's own diagnostics. Where the ledger holds nothing outstanding, the response is
-`success` plus `active: false` plus a message, and carries no other key.
+`status` is the accounting state, uppercase, while `scheduler_state`, `verdict`, and `remediation` are the resolved
+lowercase values `/remote-execution` defines. `tracker_status` is a ProcessingStatus MEMBER NAME and is dropped from a
+row when the state artifact holds no row for the job, as `specifier`, `claimed_allocation`, and `claim_state` are when
+empty, while `queued: false` survives projection. There is no roll-up `status` label, no `canceled` flag, and no
+`blocked_jobs` count here; a blocked allocation appears as a job whose `status` reads `BLOCKED`. Where the ledger holds
+nothing outstanding at all, the response is `success` plus `active: false` plus a message and carries no other key.
+
+`progress` rests on the resolved verdicts and never on `outstanding_seconds`, which is reported beside it. `active` is
+one flag over every allocation the call covered, and it counts the `running` VERDICT rather than the `held`
+`scheduler_state`, so a job whose tracker claims a held allocation, or one recorded as running under an executor that
+names no scheduler allocation, sets it even where the allocation this ledger recorded reads `settled` or `gone`. A
+stalled batch holds no `running` verdict and so never sets it, while another covered batch that does sets it whatever
+the stalled batch reads. Branch on `stalled_batch_ids` rather than on `active`, and clear each named batch with
+`retire_remote_batches_tool`.
 
 ---
 
@@ -243,8 +293,73 @@ canceled_jobs        int. REMOTE branch only. Counts every allocation the call N
 batch_ids[]          REMOTE branch only. The batches the cancellation covered
 ```
 
-A remote cancel re-queries the scheduler and closes the settled batches before returning, so the covered batches leave
-the ledger and their outcomes become the only remaining answer about them.
+A remote cancel issues the cancellation first, then resolves every named batch exactly as the remote status branch
+does and closes each one whose entries all prescribe the plain `drop` remediation, so a canceled run leaves the same
+durable record a completed one leaves. The scheduler applies a cancellation asynchronously, so an allocation it still
+carries leaves its batch outstanding, and so does a job whose own tracker still claims to be running; both are released
+by `retire_remote_batches_tool`. Each step names its own cause on failure: the cancellation itself reports that nothing
+was cancelled, while a tracker read, an accounting read, or a closure that fails behind an accepted cancellation
+reports that the cancellation still stands and that retrying is safe.
+
+---
+
+## retire_remote_batches_tool
+
+Resolves every allocation exactly as the remote status branch does, then applies the resolved remediation: cancel, but
+only under `force` and then over EVERY allocation those entries leave `held`; reset each `stranded` job to `SCHEDULED`;
+snapshot each named batch; drop the ledger entries.
+
+**The cancelled set is not held to this ledger.** `resolve_live_allocations` unions the recorded allocation of every
+resolution whose `scheduler_state` reads `held` with the `claimed_allocation` of every resolution whose `claim_state`
+reads `held`, and that second one may be an allocation another machine submitted. `force` therefore issues `scancel`
+against work this host never recorded, deliberately, so a tracker is never reset underneath the allocation writing to
+it. Confirm with the user before passing it.
+
+```text
+success              bool
+retired              true, literally, on every success
+batch_ids[]          the identifiers the ledger actually HELD and dropped, IN LEDGER ORDER rather than
+                     caller order. A named identifier the ledger did not hold errors before this point
+total_allocations    int, the allocations the dropped batches held between them
+batches[]            one per dropped batch, in ledger order. NOT projected:
+  batch_id           str
+  covered_batch_ids[]   every prepared batch this one submission dispatched, which is [batch_id] for a
+                     record written before that field existed
+  allocations[]      every scheduler identifier the batch held, UNCAPPED
+  outstanding_seconds   float, or null when the record carries no submission time
+allocations[]        one per RESOLVED allocation of the named batches, UNCAPPED and not projected:
+  batch_id, slurm_job_id, job_id, pipeline, job_name, specifier, unit_name, unit_path
+  scheduler_state    str, held, settled, or gone
+  tracker_status     str, the ProcessingStatus member name, or "" when no row covers the job
+  verdict            str, running, finished, failed, abandoned, or stranded
+  remediation        str, COMPOSED from what actually ran rather than copied from the verdict: none
+                     when the entry was not dropped, cancel_reset_and_drop when the job was reset AND
+                     either of its allocations was cancelled, reset_and_drop when it was reset alone,
+                     and drop otherwise. A cancelled allocation whose job recorded an outcome therefore
+                     reads drop, and the cancelled flag beside it is what names the cancellation
+  cancelled          bool, whether this call issued scancel for it
+  tracker_reset      bool, whether its job was returned to SCHEDULED. True for stranded jobs alone
+  snapshot_recorded  bool, whether closure recorded an outcome for its batch
+  entry_dropped      bool, whether the ledger held and dropped its batch
+cancelled_allocations[]   sorted, de-duplicated ids of every allocation the cancellation named
+reset_jobs           int, the jobs returned to SCHEDULED, counted by unit path and job identifier
+outcomes[]           what closure recorded for each covered batch, same shape as the outcome above.
+                     EMPTY when the batches' prepared documents were already forgotten, since closure
+                     records nothing for a document this host no longer holds
+outcome_directory    str, the LOCAL registry path holding those outcome files and their snapshots
+snapshot_error       str, ALWAYS present. Empty when every snapshot succeeded, otherwise naming the
+                     batches that failed. Non-empty here means the caller passed drop_without_outcome
+message              str, stating how many batches were remediated and that their jobs are unclaimed
+```
+
+The drop is all or nothing across the named batches, while the snapshot is per batch, so a partial snapshot failure
+still reports every outcome it did record. There is no `host` key, since only a remote batch has a ledger entry, and no
+`unknown` list, since an unheld identifier is an error rather than a skipped entry. The error branch covers an
+unreadable or unwritable ledger, an empty ledger, an empty `batch_ids`, an unheld identifier, a failed tracker read, a
+failed accounting read, an allocation that resolves `running` without `force`, a failed cancellation, a failed tracker
+reset, and a failed snapshot without `drop_without_outcome`. An unreachable server resolves every recorded allocation
+as `held`, so it refuses for `force` first and for `drop_without_outcome` after, while a failed tracker read, accounting
+read, cancellation, or reset is reported rather than waived, because each leaves the world unchanged.
 
 ---
 
@@ -269,17 +384,22 @@ message              str, one of exactly two strings, naming either every job ea
 success              bool
 pipeline             str, echoed
 host                 str, echoed
-removed[]            in removal order, unit by unit, tracker before owned directory within each unit:
+removed[]            in removal order, unit by unit. Within one unit: the tracker, then the directory that
+                     unit's pipeline owns, then one entry per external directory that pipeline declares:
   path               str
   removed_bytes      int
-total_paths          int, the length of removed. PATHS, not units. A unit contributes 0, 1, or 2 entries
+total_paths          int, the length of removed. PATHS, not units. A unit contributes 0, 1, or 2 entries plus
+                     one for each external directory it holds, so its entry count is unbounded
 removed_bytes        int, the sum over every entry
 ```
 
 A `checksum` unit contributes at most one entry, its tracker, because that pipeline owns no output directory and its
-stored value stays in place. A `forging` unit's directory entry covers the whole assembled dataset hierarchy. Remote
-figures are parsed from the server-side command's own output, so an unparseable line is dropped and the reported total
-under-counts.
+stored value stays in place. A `forging` unit's directory entry covers the whole assembled dataset hierarchy, and it is
+the one pipeline declaring external directories: one further entry per source session that still resolves, holding the
+cross-recording output that dataset owns inside that session. Every external path is resolved before the unit's first
+removal, so a resolver that fails leaves the unit untouched, and a source session that no longer loads is warned about
+and passed over rather than removed. Remote figures are parsed from the server-side command's own output, so an
+unparseable line is dropped and the reported total under-counts.
 
 ---
 

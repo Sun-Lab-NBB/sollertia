@@ -103,7 +103,7 @@ All four descriptors share three required-or-defaulted fields, but only three of
 | Field                | Type   | Default                           | Meaning                                                                                                                                                                                                                              |
 |----------------------|--------|-----------------------------------|--------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
 | `experimenter`       | `str`  | (required, no default)            | The ID of the experimenter running the session.                                                                                                                                                                                      |
-| `incomplete`         | `bool` | `True`                            | `True` marks the session as incomplete, meaning it ran past initialization but hit a runtime issue and may carry data gaps, so it is held back from unsupervised processing. The runtime flips it to `False` at a clean session end for `lick training`, `run training`, and `mesoscope experiment` only. Window checking leaves it at `True` even on a clean run, as covered under `WindowCheckingDescriptor` below. |
+| `incomplete`         | `bool` | `True`                            | `True` marks the session as incomplete, so it may carry data gaps and is held back from unsupervised processing. The runtime clears it at a clean session end for every session type except `window checking`, which leaves it set.  |
 | `experimenter_notes` | `str`  | `"Replace this with your notes."` | The experimenter's notes made during runtime.                                                                                                                                                                                        |
 
 Every registered descriptor must declare `incomplete`, a platform contract enforced at import and owned by
@@ -182,8 +182,9 @@ Its `incomplete` stays `True` even on a clean run, because `window_checking_logi
 whose `_generate_session_descriptor` (`mesoscope_vr/system_controller.py`) holds the sole `incomplete = False`
 assignment in `sollertia-experiment`, and `finalize_session_descriptor` does not touch the field. Consumers that gate on
 the field therefore see every window-checking session as incomplete, so `slsa` session inspection reports the status
-`incomplete`, and `sollertia-forgery` manifest building drops the session under the default `exclude_incomplete=True`.
-Do not read that value as a failed window-checking session.
+`incomplete`. `sollertia-forgery` does not drop the session: manifest building skips only a session whose `raw_data`
+directory is empty, and records a window-checking session with `complete = 0` rather than omitting it. Do not read that
+value as a failed window-checking session. `forging:project-state` owns the manifest surface itself.
 
 ---
 

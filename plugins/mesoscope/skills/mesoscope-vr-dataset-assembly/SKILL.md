@@ -90,9 +90,8 @@ that must have completed before a session of that type may join a forged dataset
 | `WINDOW_CHECKING`      | `"window checking"`      | absent from the mapping, so the session type joins no dataset   |
 
 A training session records no imaging, so the two-photon pipeline is absent from its requirement. The mapping declares
-pipelines rather than source counts because every pipeline resolves its own job universe from the acquisition
-manifests, so a completed tracker already means every source the session recorded was processed. Admission therefore
-checks which pipelines completed.
+pipelines rather than source counts because every pipeline resolves its own job universe from the acquisition manifests,
+so a completed tracker already means every source the session recorded was processed.
 
 The agnostic gate that reads this mapping, and the two `ValueError` messages it raises for an inadmissible session type
 and for outstanding pipelines, are owned by `forging:dataset-definition`.
@@ -418,7 +417,9 @@ live in [`references/column-emission.md`](references/column-emission.md).
 | `InvalidOperationError` | `runtime_dataset.py`                           | A recorded trial type index or runtime state code has no entry in the experiment configuration's mappings  |
 
 `InvalidOperationError` is the Polars exception `replace_strict` raises on an unmapped value, so it surfaces as an
-unmapped code rather than as a missing file. Every other raise here is routed through
+unmapped code rather than as a missing file. The two `FileNotFoundError` rows attributed to `behavior_dataset.py` and
+`runtime_dataset.py` come from `pl.read_ipc` and `YamlConfig.from_yaml` opening a path that is not there, so each
+carries Polars' or Python's own message rather than one this library writes. Every other raise here is routed through
 `ataraxis_base_utilities.console.error`.
 
 ---
@@ -493,7 +494,6 @@ Assembly claims:
 - [ ] No invented symbols, filenames, tolerances, or event codes, every one derived from the cited source files
 - [ ] Did not redefine the DatasetColumn / BehaviorDataFiles enums or the column-presence matrix, handed off to
       /mesoscope-vr-processing-schema
-- [ ] Did not restate the video sub-dataset or the camera clock internals, handed off to
-      /mesoscope-vr-video-tracking
+- [ ] Did not restate the video sub-dataset or the camera clock internals, handed off to /mesoscope-vr-video-tracking
 - [ ] Did not restate the DatasetData marker, the dataset layout, or the dataset tools, handed off to assets:datasets
 ```

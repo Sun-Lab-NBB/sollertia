@@ -118,16 +118,16 @@ checking disabled and does not reject unrecognized keys, so three things pass si
 as written, a misspelled or unrecognized key is dropped, and a field omitted from the payload is written back at its
 dataclass default. The rejections that do fire are a malformed payload, a field that the class requires and leaves
 without a default, and a `__post_init__` raise. `TaskTemplate`, `Cue`, `TrialStructure`, `VREnvironment`, `SessionData`,
-`MesoscopeExperimentConfiguration`, `MesoscopeWaterRewardTrial`, `MesoscopeGasPuffTrial`, and `DatasetData` define
-`__post_init__` and therefore validate semantically. The four session descriptors, `MesoscopeHardwareState`,
-`ExperimentState`, and `SurgeryData` define none, so for those the write is a shape check only. The response `data` is
-serialized from that reloaded instance rather than echoed from the payload, so a dropped key or an omitted field already
-surfaces in the write response as whatever was actually persisted. Because omissions are silent, every amendment MUST be
-a read-mutate-write of the complete record, and the caller MUST re-read and diff the result against the intended payload
-before reporting success. A persist step that raises returns the error envelope carrying `Unable to persist <Class> to
-<path>: <reason>`, so the re-read guards against an out-of-band writer or a non-raising silent corruption rather than
-against a write failure the tool already reported. The tool also creates any missing parent directories, so a mistyped
-`file_path` writes a stray file into a newly created tree instead of failing.
+`ExperimentState`, `MesoscopeExperimentConfiguration`, `MesoscopeWaterRewardTrial`, `MesoscopeGasPuffTrial`, and
+`DatasetData` define `__post_init__` and therefore validate semantically. The four session descriptors,
+`MesoscopeHardwareState`, and `SurgeryData` define none, so for those the write is a shape check only. The response
+`data` is serialized from that reloaded instance rather than echoed from the payload, so a dropped key or an omitted
+field already surfaces in the write response as whatever was actually persisted. Because omissions are silent, every
+amendment MUST be a read-mutate-write of the complete record, and the caller MUST re-read and diff the result against
+the intended payload before reporting success. A persist step that raises returns the error envelope carrying `Unable to
+persist <Class> to <path>: <reason>`, so the re-read guards against an out-of-band writer or a non-raising silent
+corruption rather than against a write failure the tool already reported. The tool also creates any missing parent
+directories, so a mistyped `file_path` writes a stray file into a newly created tree instead of failing.
 
 ### Schema payload shape
 
@@ -221,9 +221,9 @@ An environment holding mcp 1.x makes `slsa mcp` die at import with
 `index_marker_files`, both of which the library calls.
 
 Tool registration is a pure import side effect of the four `*_tools.py` modules, which the server module globs in
-`sorted()` order at import time. A failure inside any one of them therefore takes down all 69 tools rather than a
-subset. The corollary matters for triage: "some slsa tools are present and others are missing" is never an environment
-fault, so investigate the tool names and the plugin registration instead.
+`sorted()` order at import time. A failure inside any one of them therefore takes down all 72 tools rather than a
+subset. The corollary matters for triage, because "some slsa tools are present and others are missing" is never an
+environment fault, so investigate the tool names and the plugin registration instead.
 
 A failed `slsa --help` prints the full traceback, because the entry point imports every tool module before Click parses
 arguments. The same failure reproduces in isolation, with the CLI layer taken out of the picture:

@@ -17,9 +17,7 @@ and records every job it ran on a per-unit tracker. That shape holds for every a
 between systems arrives as registered data rather than as a branch inside a pipeline.
 
 This skill is a **pattern skill**. It documents the contracts every pipeline in the library shares, and it documents
-no single acquisition system's donations. For the concrete instance those patterns dispatch to, see the
-[Worked example](#worked-example) section. It is the processing-side counterpart of
-`experiment:acquisition-system-design`.
+no single acquisition system's donations.
 
 ---
 
@@ -255,8 +253,8 @@ Work reaches a host as a job, and every pipeline models its jobs the same way.
    `JobExecutionState`, admitting jobs against a core and memory budget and dispatching them onto a shared
    `ProcessPoolExecutor`. The remote engine submits one scheduler allocation per job, each sized from its own
    estimate and sequenced through an `afterok` dependency.
-4. **Close.** `orchestration/closure.close_batch` snapshots what a finished batch's jobs recorded, retires the
-   prepared document, and drops its ledger entry.
+4. **Close.** `orchestration/closure.close_batch` snapshots what a finished batch's jobs recorded, records that
+   outcome beside the batch, and retires the prepared document. It touches no submission ledger.
 
 A job is reported **blocked** rather than dispatched when the run can neither queue its upstream stage nor confirm
 that the stage already succeeded. Blocking propagates to the dependents through a fixed-point pass, so a blocked job
@@ -382,8 +380,8 @@ def merge_event_streams[ScalarT: np.generic](
 ) -> tuple[NDArray[np.uint64], NDArray[ScalarT]]:
 ```
 
-It concatenates both pairs and reorders them on a stable `argsort` of the `uint64` timestamps, which NumPy maps to a
-linear-time radix sort for that key type, returning the sorted timestamps and the values reordered to match.
+It concatenates both pairs and reorders them on a stable `argsort` of the `uint64` timestamps, keeping the first
+stream ahead of the second on ties and returning the sorted timestamps and the values reordered to match.
 
 The remaining microcontroller primitives belong to `ataraxis-communication-interface`. That library owns the extracted
 message schema, the event-code partitioning a parse job runs before dispatching to its donated parser, the typed
@@ -410,9 +408,9 @@ system in one place.
 
 The column-description half of `_FORGING_ASSEMBLY_REGISTRY` and the file name and column rosters every donation writes
 against are documented by `mesoscope:mesoscope-vr-processing-schema`, and the fluorescence sub-assembly the assembly
-worker calls by `mesoscope:mesoscope-vr-fluorescence-alignment`. No companion skill covers `_ASSEMBLY_GEOMETRY_REGISTRY`
-or `_ASSEMBLY_SOURCE_REGISTRY` yet, so read those two donations from `registries.py` and from the sizing pass in
-`orchestration/footprints.py` that consumes them.
+worker calls by `mesoscope:mesoscope-vr-fluorescence-alignment`. `_ASSEMBLY_GEOMETRY_REGISTRY` and
+`_ASSEMBLY_SOURCE_REGISTRY` have no companion skill of their own and are owned here, so read those two donations from
+this skill, from `registries.py`, and from the sizing pass in `orchestration/footprints.py` that consumes them.
 
 ---
 
@@ -436,9 +434,6 @@ This skill is NOT updated when:
 - A job type is retuned in a resource table. The figures live in the source, and a dependency's retune reaches the
   table without an edit.
 - A tool is added to the MCP surface. That belongs to the skill that owns the tool and to `/library-extension`.
-
-When you are unsure whether a change belongs here or in a per-system skill, ask whether it applies to every Sollertia
-acquisition system or only to one. The pattern skill answers "every", and a per-system skill answers "only this one".
 
 ---
 
@@ -497,7 +492,8 @@ Design review of a change to the library:
 - [ ] A new registry is added to the import-time coverage check and its accessor is exported from registries.py
 - [ ] A new batch pipeline is added to BATCH_PIPELINES and given a PipelineDispatch entry in the same change
 - [ ] Every new job type declares its cores in _JOB_CORE_ALLOCATIONS before any unit is planned
-- [ ] A stage delegated to a dependency records its work under that dependency's exported job-name constant
+- [ ] A stage delegated to a dependency records its work under that dependency's exported job-name constant, the
+      cross-recording pair excepted
 - [ ] A stage handing data to another stage writes uncompressed Arrow IPC
 - [ ] The import-time RuntimeError was read as the remaining wiring checklist, one problem per import
 ```

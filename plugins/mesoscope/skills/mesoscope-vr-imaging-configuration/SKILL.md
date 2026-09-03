@@ -68,10 +68,10 @@ session or dataset records, then calls it.
 
 ## Raw calcium-imaging directory
 
-`locate_two_photon_data(session)` returns `session.raw_data_path.joinpath(MesoscopeDirectories.MESOSCOPE_DATA)`, the
-session's `raw_data/mesoscope_data` directory. It checks nothing and raises nothing, because a session that acquired
-no two-photon data still names the path it would have used. The two-photon pipeline screens the directory itself and
-hands the resolved path to cindra as `file_io.data_path`.
+`locate_two_photon_data(session)` returns `session.system_raw_data.mesoscope_data_path`, the session's
+`raw_data/mesoscope_data` directory resolved by shared-assets' own builder. It checks nothing and raises nothing,
+because a session that acquired no two-photon data still names the path it would have used. The two-photon pipeline
+screens the directory itself and hands the resolved path to cindra as `file_io.data_path`.
 
 ---
 

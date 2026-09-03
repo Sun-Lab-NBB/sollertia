@@ -1,6 +1,6 @@
 {
   "name": "forging",
-  "version": "2.1.1",
+  "version": "2.1.2",
   "description": "Provides data processing, job planning, dataset forging, and remote-execution skills for sollertia-forgery, which turns recorded sessions into per-session tables and multi-session datasets. Includes MCP bindings for batch processing, planning, dataset composition, and SLURM submission, plus a reference for the human-facing slf command-line interface.",
   "repository": "https://github.com/Sun-Lab-NBB/sollertia",
   "license": "Apache-2.0",

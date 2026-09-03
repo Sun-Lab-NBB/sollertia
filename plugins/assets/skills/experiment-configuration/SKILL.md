@@ -2,7 +2,7 @@
 name: experiment-configuration
 description: >-
   Authors per-project, per-system experiment configuration YAMLs via the sollertia-shared-assets MCP server. Owns the
-  system-agnostic create, write, and validate tools, the EXPERIMENT_CONFIGURATION_REGISTRY dispatch keyed by
+  system-agnostic create, write, delete, and validate tools, the EXPERIMENT_CONFIGURATION_REGISTRY dispatch keyed by
   AcquisitionSystems, and the generic configuration contract. Use when creating a configuration, customizing per-trial
   parameters, or instantiating a task template. For a system's concrete field schema, defer to its schema skill (for
   Mesoscope-VR, mesoscope:mesoscope-vr-experiment-schema).
@@ -15,31 +15,25 @@ Authors and modifies per-project, system-specific experiment configuration YAML 
 using the `slsa mcp` MCP server. The configuration class is resolved per system through
 `EXPERIMENT_CONFIGURATION_REGISTRY` keyed by `AcquisitionSystems`. Both the registry and the configuration base are
 deliberately extensible, so additional systems contribute their own subclasses, and this skill owns the system-agnostic
-tooling for all of them. This skill is the **exclusive** owner of:
-
-- `write_experiment_configuration_tool`
-- `create_experiment_from_vr_template_tool`
-- `describe_experiment_configuration_schema_tool`
-- `validate_experiment_configuration_tool`
-
-No other skill in the marketplace may call these tools.
+tooling for all of them. This skill is the **exclusive** owner of every tool the MCP tool surface below marks
+`(exclusive)`, and no other skill in the marketplace may call one of them.
 
 Every Sollertia acquisition system runs in Virtual Reality, presenting a Unity task in the linear infinite corridor.
 Therefore, every experiment configuration is seeded from a corridor task template and satisfies one stable contract
 (`experiment_states`, `trial_structures`, `unity_scene_name`, and the `from_task_template` builder). The final form is
-system-specific: each acquisition system contributes its **own** `<System>ExperimentConfiguration` subclass, by
-extending `sollertia-shared-assets` as `/library-extension` describes, that satisfies the contract and expands it with
-its own fields and trial classes. This skill stays generic. For a system's concrete field-level schema, trial classes,
-and trigger-type mapping, read `describe_experiment_configuration_schema_tool` for that system and defer to the system's
-schema skill (for Mesoscope-VR, see `mesoscope:mesoscope-vr-experiment-schema`).
+system-specific, because each acquisition system contributes its **own** `<System>ExperimentConfiguration` subclass by
+extending `sollertia-shared-assets` as `/library-extension` describes, satisfying the contract and expanding it with its
+own fields and trial classes. This skill stays generic, so read `describe_experiment_configuration_schema_tool` for the
+target system and defer to that system's schema skill for its concrete field-level schema, trial classes, and
+trigger-type mapping (for Mesoscope-VR, see `mesoscope:mesoscope-vr-experiment-schema`).
 
 ---
 
 ## Scope
 
 **Covers:**
-- Authoring or repairing a full experiment configuration payload for any acquisition system via
-  `write_experiment_configuration_tool`
+- Authoring, repairing, or removing a full experiment configuration for any acquisition system via
+  `write_experiment_configuration_tool` and `delete_experiment_configuration_tool`
 - Seeding an experiment configuration from a Unity VR task template via `create_experiment_from_vr_template_tool`
 - Experiment state machines (`ExperimentState`, seeded by the resolved subclass's `from_task_template` builder)
 - Schema introspection for experiment configurations
@@ -58,8 +52,7 @@ schema skill (for Mesoscope-VR, see `mesoscope:mesoscope-vr-experiment-schema`).
 
 ## Templates vs. experiment configurations
 
-`/task-templates` owns this boundary and states what a `TaskTemplate` carries. Read the template side there rather
-than here.
+`/task-templates` owns this boundary and states what a `TaskTemplate` carries, so read the template side there.
 
 The configuration side is what this skill owns. An experiment configuration is per-project and system-specific. It
 selects its template by `unity_scene_name` and parameterizes it, contributing the phase-level state machine
@@ -70,9 +63,9 @@ spatial data of its own, so the template defines what is possible and the config
 
 ## How experiment configurations are executed at runtime
 
-An experiment configuration is the contract between the agent-authored definition of what should happen during a session
-and the acquisition runtime that actually conducts that session. The description below is intentionally conceptual. For
-the precise call sequence and tool surface of any specific consumer, defer to the runtime package's own documentation.
+An experiment configuration is the contract between the authored definition of what a session should do and the runtime
+that conducts it. The description below is conceptual, so defer to the runtime package's own documentation for the
+precise call sequence and tool surface of any specific consumer.
 
 ### The state machine
 
@@ -83,25 +76,25 @@ runtime's console output, without forcing positional indexing. The key format is
 on (see `mesoscope:mesoscope-vr-experiment-schema`). Each state holds for `state_duration_s` seconds, then control falls
 through to the next state. The session ends when the last state's timer expires.
 
-The dict-of-named-states shape (rather than a list) lets you add, rename, or reorder states by editing keys and
-re-emitting the YAML. The keys themselves never reach the log stream: the runtime logs only the integer
-`experiment_state_code`, and `sollertia-forgery` joins the `experiment_states` key back in by that code when it builds
-the `runtime_state` column. That join is self-contained within one session, because the forging pipeline reads the
-code-to-name mapping from that session's own frozen `experiment_configuration.yaml` snapshot rather than from the live
-project configuration, so no later edit to the project configuration can disturb a session that has already been
-acquired (amending the session's own snapshot is a separate matter, covered under "Reading the frozen configuration from
-a session" below). The edit that does carry a cost is the rename: the key becomes the user-visible category value of the
-forged dataset's `runtime_state` column, so renaming a state relabels it in every session acquired afterwards and breaks
-label comparability against the sessions acquired before the edit. Renumbering `experiment_state_code` is invisible to
-analysis by comparison, since the code is replaced by its key on the way into the dataset, but the numbering is
-constrained at both ends (see the field description below).
+The dict-of-named-states shape lets you add, rename, or reorder states by editing keys and re-emitting the YAML. The
+keys themselves never reach the log stream, because the runtime logs only the integer `experiment_state_code` and
+`sollertia-forgery` joins the `experiment_states` key back in by that code when it builds the `runtime_state` column.
+That join is self-contained within one session, because the forging pipeline reads the code-to-name mapping from that
+session's own frozen `experiment_configuration.yaml` snapshot rather than from the live project configuration, so no
+later edit to the project configuration disturbs a session already acquired (amending the session's own snapshot is a
+separate matter, covered under "Reading the frozen configuration from a session" below). The edit that does carry a cost
+is the rename, because the key becomes the user-visible category value of the forged dataset's `runtime_state` column,
+so renaming a state relabels it in every session acquired afterwards and breaks label comparability against the sessions
+acquired before. Renumbering `experiment_state_code` is invisible to analysis by comparison, since the code is replaced
+by its key on the way into the dataset, though the numbering is constrained at both ends (see the field description
+below).
 
 `ExperimentState` declares three required fields with no default (`experiment_state_code`, `system_state_code`,
-`state_duration_s`), `supports_trials` defaulting to `True`, and six guidance counters each defaulting to `0`. The class
-declares no `__post_init__` and performs no validation of its own, so a negative `state_duration_s`, a negative counter,
-or a `NaN` duration constructs and serializes successfully. Nothing in the library enforces plausible biological ranges
-for these values, which makes the range check in this skill's verification checklist an agent-side responsibility rather
-than a guarantee the platform provides.
+`state_duration_s`), `supports_trials` defaulting to `True`, and six guidance counters each defaulting to `0`. Its
+`__post_init__` raises `ValueError` when `state_duration_s` is not positive and finite, refusing `0`, a negative
+duration, an infinity, and a `NaN` alike, and again when any of the six guidance counters holds a negative value. The
+check runs on construction, so a hand-authored YAML fails through `from_yaml` as a written payload does. Sign and
+finiteness are its whole reach, so the plausible-range check in the verification checklist stays agent-side.
 
 ### Experiment states vs. system states
 
@@ -109,39 +102,34 @@ Each `ExperimentState` carries two distinct codes:
 
 - **`experiment_state_code: int`** is the phase's unique integer identifier code, required with no default, and emitted
   into the data log when the state begins so downstream analysis can slice trials by phase. Builders seed it 1-based, so
-  Mesoscope-VR uses `state_index + 1`. The 1-based seeding is not incidental: on Mesoscope-VR, code `0` is reserved for
-  the implicit `idle` state that `sollertia-forgery` injects into the code-to-name mapping, so a state numbered `0` is
+  Mesoscope-VR uses `state_index + 1`, and that seeding matters, because on Mesoscope-VR code `0` is reserved for the
+  implicit `idle` state that `sollertia-forgery` injects into the code-to-name mapping, so a state numbered `0` is
   overwritten by `idle` and never appears under its own name in the forged `runtime_state` column. The upper bound on
-  that system is `255`, because the acquisition runtime serializes the code as an unsigned 8-bit value and rejects any
-  code outside `0`-`255`. Use a human-readable phase name only for the `experiment_states` dict key, never for this
-  field, because a string written here loads silently, since per-field type checking is disabled, and reaches the
-  runtime as a wrong type.
+  that system is `255`, because the acquisition runtime serializes the code as an unsigned 8-bit value. Use a
+  human-readable phase name only for the `experiment_states` dict key, never for this field, because a string written
+  here loads silently, since per-field type checking is disabled, and reaches the runtime as a wrong type.
 - **`system_state_code`** is the hardware-mode snapshot that the acquisition runtime should install for the duration of
   the state. The valid codes are system-specific, defined by the target system's system-state enum in
   `sollertia-experiment`. Consult that system's schema skill for the accepted values (for Mesoscope-VR, see
   `mesoscope:mesoscope-vr-experiment-schema`).
 
-The two codes are deliberately decoupled. Two consecutive experiment states can reuse the same system state (so the
-hardware mode does not change between phases) while differing in duration or guidance settings. For example, a "ramp"
-phase and a "performance" phase that share the same active hardware mode but apply different guidance counters. This
-decoupling is why both fields exist on the schema, because collapsing them would force a hardware reconfiguration on
-every phase boundary.
+The two codes are deliberately decoupled, so a "ramp" phase and a "performance" phase reuse one active hardware mode
+while differing in duration or guidance settings. Collapsing the pair would force a hardware reconfiguration on every
+phase boundary, which is why both fields exist on the schema.
 
-`ExperimentState.supports_trials` (default `True`) determines whether trials are executed during this experiment state.
-The downstream forging and analysis pipelines (`sollertia-forgery`) also read it as metadata recording whether a phase
-is *expected* to contain trials, so dataset forging and analysis know whether to look for trial data in that phase. A
+`ExperimentState.supports_trials` (default `True`) determines whether trials are executed during this experiment state,
+and `sollertia-forgery` also reads it as metadata recording whether a phase is *expected* to hold trial data. A
 trial-free phase is realized by choosing a `system_state_code` whose hardware mode drives no trials, with
 `supports_trials` set to `False` to match, so the runtime and the forging side read the phase the same way.
 
 ### The source of the trial sequence
 
 The experiment configuration **never enumerates or schedules trials**, and contributes only the **per-trial-type
-parameters**, meaning the system-specific runtime fields on each trial class. The trial sequence is owned by Unity
-(`sollertia-virtual-reality`): at session init the acquisition runtime requests a cue sequence materialized from the
-template's per-trial `transitions` (see `/task-templates`), then identifies trial boundaries by motif matching against
-each `TrialStructure`. Relative frequencies are encoded in the template's transition probabilities. The runtime joins
-each decomposed trial name back to this configuration's `trial_structures` to attach the per-trial parameters. The
-configuration carries no schedule, only per-trial parameters and the phase-level state machine.
+parameters**, meaning the system-specific runtime fields on each trial class. Unity (`sollertia-virtual-reality`) owns
+the trial sequence, because at session init the acquisition runtime requests a cue sequence materialized from the
+template's per-trial `transitions` (see `/task-templates`), identifies trial boundaries by motif matching against each
+`TrialStructure`, then joins each decomposed trial name back to this configuration's `trial_structures` to attach the
+per-trial parameters. Relative frequencies are encoded in the template's transition probabilities.
 
 ### Guidance is per-state, not per-trial-class
 
@@ -150,11 +138,10 @@ Each `ExperimentState` carries reinforcing and aversive guidance counters (`*_in
 these fields and zeros any prior failure streak. During the state, completed trials count down the guided-trials budget,
 and sustained failure streaks re-engage guidance for a recovery window.
 
-The guidance counters live on `ExperimentState` rather than on the trial classes because guidance behavior is
-fundamentally a **phase-level** decision. A typical training paradigm sweeps through three phases, all reusing the same
-trial classes and the same template. A "ramp" phase carries heavy initial guidance and a low recovery threshold, a
-"performance" phase carries no initial guidance and modest recovery support, and a "no help" phase carries zero on both
-counters. One experiment configuration captures that whole arc by chaining states with different guidance settings.
+The counters live on `ExperimentState` rather than on the trial classes because guidance is a **phase-level** decision.
+One configuration captures a whole training arc by chaining a "ramp" state carrying heavy initial guidance and a low
+recovery threshold, a "performance" state carrying modest recovery support alone, and a "no help" state carrying zero
+on both counters, all three reusing the same trial classes and the same template.
 
 ### The experiment configuration contract
 
@@ -171,14 +158,12 @@ Mesoscope-VR, see `mesoscope:mesoscope-vr-experiment-schema`).
   because every experiment is a state machine.
 - **`trial_structures`** holds the trials the experiment runs, required on every subclass as a per-trial dict whose
   values are the **system's own** runtime trial classes. The task template provides each trial's spatial
-  `TrialStructure` and the configuration pairs it with a runtime trial class by trial name.
+  `TrialStructure`, the configuration pairs it with a runtime trial class by trial name, and
   `list_supported_trial_types_tool` derives the trial list from this field. The platform `trigger_type` taxonomy has
-  **five** modes (`interaction`, `collision`, `occupancy_disarm`, `occupancy_arm`, `occupancy_trigger`). Each
-  acquisition system maps only the **subset** it supports, through its `from_task_template` builder. That builder pairs
-  each supported `trigger_type` with one of its own runtime trial classes, matching the zone prefab Unity instantiates.
-  A `trigger_type` a system does not map raises a clear "not mapped to a runtime trial class" error. Read
-  `describe_experiment_configuration_schema_tool` for the target system to learn its `trial_structures` annotation and
-  trial classes, and the system's schema skill for which `trigger_type` members it maps.
+  **five** modes (`interaction`, `collision`, `occupancy_disarm`, `occupancy_arm`, `occupancy_trigger`), and each
+  acquisition system maps only the **subset** it supports through its `from_task_template` builder, pairing every
+  supported mode with one of its own runtime trial classes that matches the zone prefab Unity instantiates. An unmapped
+  mode raises a clear "not mapped to a runtime trial class" error, and the system's schema skill names the mapped set.
 - **`unity_scene_name`** is a mandatory contract field. It identifies the paired `TaskTemplate` by filename stem and is
   verified against the scene loaded in Unity at session start. `SessionData.create` resolves
   `<templates-directory>/<unity_scene_name>.yaml` to cache the session's VR snapshot, so the value must equal the
@@ -192,13 +177,18 @@ Mesoscope-VR, see `mesoscope:mesoscope-vr-experiment-schema`).
 | Tool                                                  | Purpose                                                                                                            |
 |-------------------------------------------------------|--------------------------------------------------------------------------------------------------------------------|
 | `discover_experiments_tool`                           | Lists experiment configurations under a project                                                                    |
-| `describe_experiment_configuration_schema_tool`       | Returns the field schema for the experiment dataclass                                                              |
+| `describe_experiment_configuration_schema_tool`       | Returns the field schema for the experiment dataclass (exclusive)                                                  |
 | `read_experiment_configuration_tool`                  | Reads an experiment configuration YAML from any canonical location (project source or per-session frozen snapshot) |
 | `write_experiment_configuration_tool`                 | Writes a validated experiment configuration payload for any system, author or repair (exclusive)                   |
+| `delete_experiment_configuration_tool`                | Removes one experiment configuration YAML at an explicit path (exclusive)                                          |
 | `create_experiment_from_vr_template_tool`             | Creates an experiment configuration from a Unity VR task template (exclusive)                                      |
 | `validate_experiment_configuration_tool`              | Validates an experiment configuration YAML (exclusive)                                                             |
 | `list_supported_acquisition_systems_tool`             | Enumerates `AcquisitionSystems`                                                                                    |
 | `list_supported_trial_types_tool(acquisition_system)` | Lists the runtime trial classes the resolved system declares, each with its full field schema                      |
+
+`delete_experiment_configuration_tool` removes one configuration YAML at the `file_path` it is given. Every session
+already acquired keeps its own frozen snapshot and stays readable, while a new session naming the removed experiment can
+no longer be created, because `SessionData.create` copies the project configuration into each experiment session.
 
 `list_supported_trial_types_tool` is experiment-configuration introspection rather than template introspection, so it
 belongs to this skill. It resolves the configuration class through `EXPERIMENT_CONFIGURATION_REGISTRY` and derives its
@@ -387,16 +377,14 @@ sequences, zone bounds, trigger-type pairing) is the responsibility of `/task-te
 `validate_template_tool` on the paired template. At session init the acquisition runtime joins the two by trial name,
 validating that every trial name the cue-sequence decomposer produces from the template has a matching entry in the
 configuration's `trial_structures`. That check runs in one direction only, so a `trial_structures` key with no template
-counterpart is never flagged at session init. Do not read that as harmless. `sollertia-forgery` enforces the opposite
-direction at processing time: its Mesoscope-VR runtime parser raises a `ValueError` for every trial name the experiment
-configuration declares but the paired template lacks, so an unmatched key survives acquisition and then fails the
-session's processing, after the data is already on disk. Key order is load-bearing as well, in a narrower way. The join
-itself is by name, so the template's own trial ordering is irrelevant, but a name's position in `trial_structures` is
-the canonical trial index the parser writes into the runtime feathers, and the dataset assembly resolves those indices
-back to names through the same enumeration. Both stages read one session's frozen snapshot, so they agree by
-construction. Reordering or inserting into the `trial_structures` of a snapshot already parsed is what breaks that
-agreement, silently relabeling every trial in the resulting dataset. Keep `trial_structures` and the template's trial
-set in one-to-one correspondence by name, and leave the key order of a frozen snapshot alone.
+counterpart survives acquisition and then fails the session's processing, where the `sollertia-forgery` Mesoscope-VR
+runtime parser raises a `ValueError` for it after the data is already on disk. Key order is load-bearing in a narrower
+way. The join itself is by name, so the template's own trial ordering is irrelevant, but a name's position in
+`trial_structures` is the canonical trial index the parser writes into the runtime feathers, and the dataset assembly
+resolves those indices back to names through the same enumeration, so reordering or inserting into the
+`trial_structures` of a snapshot already parsed silently relabels every trial in the resulting dataset. Keep
+`trial_structures` and the template's trial set in one-to-one correspondence by name, and leave the key order of a
+frozen snapshot alone.
 
 The tool reports three distinct outcomes:
 
@@ -427,15 +415,13 @@ read_experiment_configuration_tool(
 
 The frozen copy is conventionally immutable once written, and downstream pipelines expect it that way. Amendment is
 still possible, because `write_experiment_configuration_tool` writes exactly the one file its `file_path` names, and
-that path may be the frozen snapshot. Confirm the planned write with the user before every such call, and pass
-`overwrite=True` explicitly, because the tool defaults to `overwrite=False` and refuses an existing file otherwise.
-Verify the result by re-reading the snapshot and diffing the returned payload field by field against the payload you
-intended. Renaming an `experiment_states` key or reordering `trial_structures` is the riskiest amendment of all, because
-the forged dataset's `runtime_state` and `trial_type` labels are resolved through those keys, so an amendment landing
-between two processing stages relabels the session's data rather than correcting it. The amendment is local to the file
-whose path was passed and does not propagate to the project source configuration at
-`<root>/<project>/configuration/<experiment>.yaml`, so a correction that must apply to both is written to each file
-explicitly.
+that path may be the frozen snapshot. Confirm the planned write with the user, pass `overwrite=True` explicitly against
+the tool's `overwrite=False` default, and verify the result by re-reading the snapshot and diffing it field by field
+against the payload you intended. Renaming an `experiment_states` key or reordering `trial_structures` is the riskiest
+amendment of all, because the forged dataset's `runtime_state` and `trial_type` labels resolve through those keys, so an
+amendment landing between two processing stages relabels the session's data rather than correcting it. The write is
+local to the path passed and never reaches the project source configuration at
+`<root>/<project>/configuration/<experiment>.yaml`, so a correction that must apply to both is written to each file.
 
 ---
 
@@ -508,6 +494,6 @@ path has no separate "no class is registered" message.
 - [ ] read_experiment_configuration_tool returned the expected configuration after the write
 - [ ] experiment_states was treated as a dict (string keys), not a list (integer indices)
 - [ ] Field names were taken from describe_experiment_configuration_schema_tool (no invented fields)
-- [ ] Per-trial parameters and state durations are within plausible biological ranges (the library enforces none)
+- [ ] Per-trial parameters and state durations are in plausible biological ranges (only sign and finiteness are checked)
 - [ ] Did not call write_template_tool from this skill
 ```

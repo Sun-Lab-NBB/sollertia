@@ -230,9 +230,9 @@ cue's code together with the cumulative distance at its onset are appended to th
 cases apply:
 
 - **Cue offset on sequence start or restart.** For the first cue after a sequence start or restart, the effective
-  distance to the next cue is `cue_length - cue_offset` rather than the full `cue_length`. The offset accounts for
-  the runtime beginning to record mid-cue. The flag that applies it is reset after each trial truncation so the
-  offset is reapplied at the next restart.
+  distance to the next cue is `cue_length - cue_offset` rather than the full `cue_length`. The offset is the animal's
+  starting position relative to the cue sequence origin, so it enters every corridor already that far into its first
+  cue. The flag that applies it is reset after each trial truncation so the offset is reapplied at the next restart.
 - **Trial truncation.** If adding the next cue's effective distance would exceed the trial's actual distance (the
   trial-end distance minus the previous trial's end distance), the trial was abruptly ended before completion: the
   current cue is recorded, the cumulative distance is snapped to the trial's actual end, and the offset flag is

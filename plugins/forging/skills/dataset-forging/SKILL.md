@@ -10,10 +10,11 @@ user-invocable: false
 
 # Dataset forging
 
-Runs the `forging` batch pipeline, whose processing unit is a dataset rather than a session and whose tracker records
-three job types rather than one. This skill owns no MCP tools of its own. Preparation, execution, monitoring,
-cancellation, reset, and cleaning are owned by `/batch-processing`, which drives `forging` through the same generic
-tools the other five pipelines use, so this skill states only what `forging` does differently.
+Runs the `forging` batch pipeline, whose processing unit is a dataset rather than a session and whose one tracker
+records three job types across two scopes, an animal and a session. This skill owns no MCP tools of its own.
+Preparation, execution, monitoring, cancellation, reset, and cleaning are owned by `/batch-processing`, which drives
+`forging` through the same generic tools the other five pipelines use, so this skill states only what `forging` does
+differently.
 
 ---
 
@@ -26,7 +27,7 @@ tools the other five pipelines use, so this skill states only what `forging` doe
 - The cross-recording stages the pipeline dispatches in process and records under its own job names
 - The prerequisite chain that orders the three job types, and what a blocked forging job means
 - The concurrency ceiling the assembly job type carries
-- The per-session assembly output and the two gates that guard it
+- The per-session assembly output, the two gates that guard it, and how a cross-recording failure is routed
 - What cleaning the `forging` pipeline destroys
 
 **Does not cover:**
@@ -202,9 +203,11 @@ rule that produces it.
    Confirm a forged dataset from the dataset state read and the job breakdowns `/batch-processing` and `/project-state`
    expose, then hand off to `/processing-results` for the outputs themselves.
 
-8. **Route a failure by its stage.** A failed cross-recording job and a failed assembly job have different causes and
-   different remedies, listed in the next section. Reset and re-execute rather than clean, since cleaning this pipeline
-   discards the whole dataset.
+8. **Route a failure by its stage.** An assembly job records its failure on the tracker. A cross-recording job often
+   does not, because its configuration load and its priming both run before the tracker's job context opens, so the
+   fault leaves that job scheduled with no error message. Treat a cross-recording job still reading scheduled after a
+   completed batch as a failure, and route both classes through the failure-modes section below. Reset and re-execute
+   rather than clean, since cleaning this pipeline discards the whole dataset.
 
 ---
 
@@ -212,8 +215,10 @@ rule that produces it.
 
 `session_data_assembly` is the one forging job type that declares a concurrency ceiling.
 `forging/pipeline.py::FORGING_JOB_CONCURRENCY_LIMITS` sets it to `4`, and `orchestration/dispatch.py` folds that
-mapping into `_JOB_CONCURRENCY_LIMITS`, so at most four sessions assemble at once no matter how wide the host is. An
-assembly job holds one core, so the ceiling rather than the core budget sets the width of the pool the stage opens.
+mapping into `_JOB_CONCURRENCY_LIMITS`, so at most four sessions assemble at once on this machine however wide it is.
+An assembly job holds one core, so the ceiling rather than the core budget sets the width of the pool the stage opens.
+The ceiling is the local admission engine's alone and is never expressed to the scheduler, so a remote forging batch is
+bounded by the server's queue instead, which `/remote-execution` covers.
 
 The two cross-recording job types declare no ceiling. Each takes a wide core allocation of its own, read at import from
 the installed cindra distribution, so the core budget already bounds how many run at once. Never quote those widths
@@ -221,17 +226,28 @@ from memory. Read the live figures through `read_resource_model_tool`, which `/j
 
 ---
 
-## Assembly failure modes
+## Failure modes
 
 Every row below is specific to this pipeline. `/batch-processing` owns the generic dispatch and tracker failures.
 
-| Condition                                                         | Where it surfaces                                                      | Remedy                                                                                                 |
-|-------------------------------------------------------------------|------------------------------------------------------------------------|--------------------------------------------------------------------------------------------------------|
-| The named dataset has no marker under the project root            | Preparation, as a `units[*].error` entry inside a successful response  | Define the dataset through `/dataset-definition`                                                       |
-| The dataset carries no `data_descriptions.feather` companion      | Pipeline initialization, before any job runs                           | Recreate the dataset, which writes the companion at creation                                           |
-| The assembler wrote a column the dataset does not describe        | One assembly job, as `ValueError` naming every undescribed column      | The acquisition system's description donation is incomplete, so extend it through `/library-extension` |
-| A source session lacks a shared asset it is required to re-export | One assembly job, as `FileNotFoundError` naming the asset and its path | Restore the source session, since the check runs before any expensive work                             |
-| A dispatched job identifier matches no job of this dataset        | The job, as `ValueError` listing every valid identifier                | Re-read the identifiers from a freshly prepared batch                                                  |
+| Condition                                                                             | Where it surfaces                                                                   | Remedy                                                                                                 |
+|---------------------------------------------------------------------------------------|-------------------------------------------------------------------------------------|--------------------------------------------------------------------------------------------------------|
+| The named dataset has no marker under the project root                                | Preparation, as a `units[*].error` entry inside a successful response               | Define the dataset through `/dataset-definition`                                                       |
+| The dataset carries no `data_descriptions.feather` companion                          | Pipeline initialization, before any job runs                                        | Recreate the dataset, which writes the companion at creation                                           |
+| The assembler wrote a column the dataset does not describe                            | One assembly job, as `ValueError` naming every undescribed column                   | The acquisition system's description donation is incomplete, so extend it through `/library-extension` |
+| A source session lacks a shared asset it is required to re-export                     | One assembly job, as `FileNotFoundError` naming the asset and its path              | Restore the source session, since the check runs before any expensive work                             |
+| A dispatched job identifier matches no job of this dataset                            | The job, as `ValueError` listing every valid identifier                             | Re-read the identifiers from a freshly prepared batch                                                  |
+| An animal carries no `multi_recording_configuration.yaml`                             | Job discovery, as an animal whose jobs are assembly jobs alone                      | Define the dataset again through `/dataset-definition`, which backfills an absent configuration        |
+| The configuration is present but is not a valid multi-recording configuration         | Either cross-recording job, as `FileNotFoundError` before it is recorded as running | Rebuild that animal through `/dataset-definition`, since redefining leaves an existing file alone      |
+| The configuration names fewer than two recordings                                     | Either cross-recording job, as `ValueError` before it is recorded as running        | Add a second session of that animal through `/dataset-definition`, or drop the animal                  |
+| A source session's cindra output holds no combined metadata archive, or holds several | The animal's discovery job, as `FileNotFoundError` or `RuntimeError` from priming   | Restore or re-run that session's `two_photon` pipeline through `/batch-processing`                     |
+| A session name carries no unique identifying component, or contains a colon           | The animal's discovery job, as `RuntimeError` from priming                          | A session-naming fault, so neither redefinition nor a cindra re-run clears it                          |
+
+The last two rows name a source session rather than the configuration, because the recording directories a
+configuration lists are that animal's dataset sessions' cindra output directories rather than paths an author chose. A
+cross-recording fault raises before the tracker's job context opens, since the configuration load and the priming both
+precede it, so the job is left scheduled with no error message rather than recorded as failed. A local run discards
+that exception, and a remote allocation records it in the allocation's error log, which `/remote-execution` owns.
 
 The column gate is the one failure worth understanding rather than merely recognizing.
 `forging/pipeline.py::_forge_session` reads the assembled file's schema after the donated assembler writes it and
@@ -290,7 +306,8 @@ Dataset forging run, tool-settled (read the dataset state through /dataset-defin
 - [ ] The dataset was defined before any batch was prepared
 - [ ] The prepared batch named dataset roots, and named every dataset the run covers
 - [ ] Every blocked entry the preparation reported names a prerequisite the same batch queues
-- [ ] Every tracked job reads succeeded, or reads failed with an error message that was routed by its stage
+- [ ] Every tracked job reads succeeded, or was routed by its stage through the failure-modes table
+- [ ] No cross-recording job still reads scheduled once the batch that queued it has completed
 
 Dataset forging run, agent-judged:
 - [ ] The three job types were reported under their own names, never under the upstream library's names

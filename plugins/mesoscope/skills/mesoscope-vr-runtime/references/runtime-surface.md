@@ -38,7 +38,7 @@ The orchestrator members these loops call are tabulated in [`../SKILL.md`](../SK
 orchestrator".
 
 `maintenance_logic()` runs none of steps 1, 2, or 4. It takes no arguments, resolves only `get_system_configuration()`
-(`data_acquisition.py:1340`), and mints no `SessionData` and no descriptor.
+in `data_acquisition.py`, and mints no `SessionData` and no descriptor.
 
 Current functions:
 

@@ -85,7 +85,7 @@ exception to the `Error:` return convention is `check_unity_bridge_tool`, which 
 leading prefix for a rejected argument. Those two are also the only agnostic tools that carry no `except` handler. The
 mount tool's write probe is the exception, because `probe_writable` catches `OSError` itself and reports it as the
 trailing `Error:` field, so only a non-`OSError` raised inside either tool propagates across the MCP boundary
-(`interfaces/get_tools.py`, `interfaces/mcp_instance.py`).
+(`interfaces/get_tools.py`, `cross_system/filesystem_tools.py`).
 
 ---
 
@@ -208,7 +208,8 @@ Use when the user wants to confirm that the discovered hardware matches the reco
 1. Run hardware discovery (Phases 1 and 2 below).
 2. Hand off to the active acquisition system's skill for a read-only read of the recorded configuration values,
    because that system owns its configuration reader tool.
-3. Compare discovered values against recorded values and report any drift to the user.
+3. Resolve every configured device path to its target first, as the device path convention in Phase 2 directs, then
+   compare discovered values against recorded values and report any drift to the user.
 4. If drift exists, hand off to that same system skill to update the recorded values. Do not edit YAML and do not call
    a configuration writer from this skill.
 
@@ -276,6 +277,19 @@ adapters). On Windows and macOS the path format differs (for example `COMx` on W
 
 Do not confuse these device types when reporting discovered hardware.
 
+A rig may additionally declare a stable `udev` symlink in its system configuration, such as `/dev/sl_actor` pointing at
+`/dev/ttyACM0`, so that a port survives a replug that renumbers it. The discovery tools report the raw enumerated target
+rather than the symlink, so comparing a configured symlink against a discovered target manufactures a discrepancy that
+does not exist. This is a local convention a lab adopts rather than a platform requirement, so a rig that declares raw
+paths is equally correct. Resolve every configured port to its target before any comparison:
+
+```bash
+readlink -f /dev/sl_actor
+ls -l /dev/sl_* /dev/serial/by-id/
+```
+
+Compare the resolved target against the discovered path, and report a discrepancy only when the two targets differ.
+
 ### Phase 3: Report and hand off
 
 After discovery completes, report the discovered hardware to the user as a structured table.
@@ -306,20 +320,21 @@ on the `slf mcp` server.
 
 ## Troubleshooting
 
-| Error                                     | Cause                                  | Solution                                                                              |
-|-------------------------------------------|----------------------------------------|---------------------------------------------------------------------------------------|
-| Camera not found at expected index        | Wrong camera index                     | Re-run `list_cameras_tool()`, hand off to the active system's skill                   |
-| Microcontroller connection failed         | Wrong port, disconnected, or unflashed | Re-run `list_microcontrollers_tool()`, check USB cables, confirm the board is flashed |
-| Board reports an unexpected controller id | Board flashed with another target      | Re-flash the board's own environment, see `/microcontroller-interface`                |
-| Zaber motor not responding                | Wrong port or powered off              | Re-run `get_zaber_devices_tool()`, verify power supply                                |
-| MQTT broker unreachable                   | Broker not running                     | Start Mosquitto or the configured MQTT broker                                         |
-| Unity bridge unreachable                  | Unity Editor not open                  | Open the Unity project in the editor, whose MCP bridge auto-starts                    |
-| FFMPEG not found                          | FFMPEG not installed                   | Install FFMPEG via the OS package manager                                             |
-| GPU not detected                          | NVIDIA driver missing                  | Install NVIDIA driver and restart                                                     |
-| CTI file not configured                   | GenTL producer not registered          | Hand off to `video:camera-setup` to register the CTI file                             |
-| Out-of-process tool fails to start        | Declared environment or path missing   | Create the environment, or fix the path through the active system's skill             |
-| Live camera config differs from stored    | Camera drifted or reconfigured         | Restore via `load_genicam_config_tool`, or re-baseline via `dump_genicam_config_tool` |
-| Stored camera config file not found       | Declared path points at a missing file | Dump a baseline with `dump_genicam_config_tool`, or fix the path through that skill   |
+| Error                                              | Cause                                                           | Solution                                                                              |
+|----------------------------------------------------|-----------------------------------------------------------------|---------------------------------------------------------------------------------------|
+| Camera not found at expected index                 | Wrong camera index                                              | Re-run `list_cameras_tool()`, hand off to the active system's skill                   |
+| Microcontroller connection failed                  | Wrong port, disconnected, or unflashed                          | Re-run `list_microcontrollers_tool()`, check USB cables, confirm the board is flashed |
+| Board reports an unexpected controller id          | Board flashed with another target                               | Re-flash the board's own environment, see `/microcontroller-interface`                |
+| Zaber motor not responding                         | Wrong port or powered off                                       | Re-run `get_zaber_devices_tool()`, verify power supply                                |
+| Configuration names a port discovery never reports | Configured path is a `udev` symlink, or the device is unplugged | Resolve it with `readlink -f`, then re-run the discovery tool for that device type    |
+| MQTT broker unreachable                            | Broker not running                                              | Start Mosquitto or the configured MQTT broker                                         |
+| Unity bridge unreachable                           | Unity Editor not open                                           | Open the Unity project in the editor, whose MCP bridge auto-starts                    |
+| FFMPEG not found                                   | FFMPEG not installed                                            | Install FFMPEG via the OS package manager                                             |
+| GPU not detected                                   | NVIDIA driver missing                                           | Install NVIDIA driver and restart                                                     |
+| CTI file not configured                            | GenTL producer not registered                                   | Hand off to `video:camera-setup` to register the CTI file                             |
+| Out-of-process tool fails to start                 | Declared environment or path missing                            | Create the environment, or fix the path through the active system's skill             |
+| Live camera config differs from stored             | Camera drifted or reconfigured                                  | Restore via `load_genicam_config_tool`, or re-baseline via `dump_genicam_config_tool` |
+| Stored camera config file not found                | Declared path points at a missing file                          | Dump a baseline with `dump_genicam_config_tool`, or fix the path through that skill   |
 
 For configuration-file-level errors (working directory not set, schema validation failures, missing projects), hand off
 to the assets plugin skill that owns the affected asset.
