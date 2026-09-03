@@ -396,13 +396,14 @@ since the last generation. The mirror keeps the project's name, which is why one
 | A local generation fails             | `Unable to generate the state artifacts for '<project_path>'. <exception>`                                    |
 | A remote generation fails            | `Unable to generate the remote state artifacts for '<project_root>'. <exception>`                             |
 
-Four underlying failures arrive wrapped in a generation error's trailing exception text:
+Five underlying failures arrive wrapped in a generation error's trailing exception text:
 
 | Underlying cause                       | What the wrapped exception says                                                                 |
 |----------------------------------------|-------------------------------------------------------------------------------------------------|
 | The project directory does not exist   | `The specified project directory does not exist.`                                               |
 | The project holds no session data      | `The project directory does not contain any session data.`, plus the at-least-one-session floor |
-| A session declares an unsupported type | `An unsupported session type '<type>' was encountered for session '<session>'.`                 |
+| A session declares an unsupported type | `'<type>' is not a valid SessionTypes`, raised while the walk loads the session                 |
+| A session carries no descriptor file   | A bare `[Errno 2] No such file or directory:` naming that session's `session_descriptor.yaml`   |
 | The manifest lock is held              | A `Timeout` on `<project_stem>_manifest.feather.lock` after 20 seconds                          |
 
 A concurrent generation is the ordinary cause of that timeout. Wait for it rather than retrying at once, since the run

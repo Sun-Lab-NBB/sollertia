@@ -82,8 +82,9 @@ schedule the pass.
 | `_VIDEO_TRACKING_REGISTRY`  | `process_mesoscope_video_tracking`  | `resolve_video_tracking`          | The `pose_tracking` job runner              |
 
 Job discovery calls the locator to decide whether a session supports a tracking job at all, and
-`orchestration/footprints.py` calls it again to charge the job the prediction file's byte count. A single donation
-covering both would force discovery to load and parse the predictions merely to decide whether to schedule work.
+`orchestration/footprints.py` calls it again to charge the job the width of the table that file holds, read from the
+table's own row and column counts rather than from the file's size on disk. A single donation covering both would
+force discovery to load and parse the predictions merely to decide whether to schedule work.
 
 `video_dataset.py` fills no registry of its own. `assemble_video_dataset` and `resolve_slowest_camera_clock` are
 reached through the Mesoscope-VR assembly worker registered in `_FORGING_ASSEMBLY_REGISTRY`, which

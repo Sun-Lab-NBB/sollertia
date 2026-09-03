@@ -226,10 +226,12 @@ carried through them in several passes before a dataset is defined.
 ### Phase 9: Define a dataset
 
 - **Plugin / Skill:** `/dataset-definition`
-- **Actions:** Build the dataset hierarchy under the project root with `define_forging_dataset_tool`, then snapshot it
-  with `generate_dataset_state_tool` and read it with `read_dataset_state_tool`. Admission refuses a session whose
-  acquisition system requires a pipeline the session has not completed, which is why Phase 8 precedes this one. An
-  animal the dataset already holds is frozen against widening, and rebuilding it is an explicit request.
+- **Actions:** Build the dataset hierarchy under the project root with `define_forging_dataset_tool`. A definition
+  writes the hierarchy and not the job registry, so the dataset's forging jobs reach its tracker in Phase 10's planning
+  step, and `generate_dataset_state_tool` and `read_dataset_state_tool` report them only from there on. Admission
+  refuses a session whose acquisition system requires a pipeline the session has not completed, which is why Phase 8
+  precedes this one. An animal the dataset already holds is frozen against widening, and rebuilding it is an explicit
+  request.
 - **Handoff condition:** The response reports the session and animal counts the dataset is meant to hold, and
   `list_project_datasets_tool` lists the dataset under its project.
 - **Skip condition:** The hierarchy already covers every session to be forged.

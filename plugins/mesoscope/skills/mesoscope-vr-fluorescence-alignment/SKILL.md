@@ -238,17 +238,16 @@ raw ScanImage clock only within a single uninterrupted acquisition, and archives
 still carry the restarts.
 
 sollertia-experiment builds the archive in acquisition order. The same function natsorts the stacks by their
-`_acquisition#_stack#` names, concatenates each stack's metadata block in ascending starting-frame order, then
-derives `acquisitionNumbers` as a one-based cumulative sum over the detected restart boundaries. That derivation is
-guarded on at least one restart having been detected, so a session recorded in a single uninterrupted acquisition keeps
-the raw per-frame ScanImage values under that key. Both lexsort keys are therefore monotonically non-decreasing in the
-archive, so the
-`np.lexsort((frame_numbers, acquisitions))` the fallback applies is an identity permutation on a well-formed archive and
-guards against an out-of-order one rather than correcting the expected one. The acquisition number is the primary key
-and the frame counter the secondary key, because the counter restarts at one per acquisition in raw ScanImage metadata,
-the shape sollertia-forgery's constant docstring still describes and current sollertia-experiment preprocessing no
-longer produces. The sorted `frameTimestamps_sec` values then convert to microseconds as `int64`. NPZ archives do not
-support memory mapping, so a context manager keeps the archive open only long enough to copy the arrays out.
+`_acquisition#_stack#` names, concatenates each stack's metadata block in ascending starting-frame order, then derives
+`acquisitionNumbers` as a one-based cumulative sum over the detected restart boundaries. That derivation is guarded on
+at least one restart having been detected, so a session recorded in a single uninterrupted acquisition keeps the raw
+per-frame ScanImage values under that key. Both lexsort keys are therefore monotonically non-decreasing in the archive,
+so the `np.lexsort((frame_numbers, acquisitions))` the fallback applies is an identity permutation on a well-formed
+archive and guards against an out-of-order one rather than correcting the expected one. The acquisition number is the
+primary key and the frame counter the secondary key, because the counter restarts at one per acquisition in raw
+ScanImage metadata and in archives written by older preprocessing. The sorted `frameTimestamps_sec` values then convert
+to microseconds as `int64`. NPZ archives do not support memory mapping, so a context manager keeps the archive open only
+long enough to copy the arrays out.
 
 The entry-count equality is a one-to-one check between ScanImage entries and cindra frames. It holds while the
 recording delivers one cindra sample per ScanImage frame, which the reference Mesoscope-VR configuration guarantees

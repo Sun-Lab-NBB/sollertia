@@ -78,8 +78,10 @@ when the path is unset, so a wrong path fails at pre-flight rather than at the e
 
 ### Step 7: Hand off for server configuration
 
-If the user is also setting up remote storage transfer, hand off to the forging plugin's `forging:server-configuration`
-skill. This skill does not write the server configuration file.
+If the user will also run `sollertia-forgery` batches on the remote compute server, hand off to the forging plugin's
+`forging:server-configuration` skill for that server's SSH and SLURM access. That file authorizes compute rather than
+storage: long-term storage transfer is configured by the `filesystem.storage_directories` paths above and driven by
+`experiment:data-management`. This skill does not write the server configuration file.
 
 ---
 

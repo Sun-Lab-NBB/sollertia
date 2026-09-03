@@ -90,9 +90,8 @@ that must have completed before a session of that type may join a forged dataset
 | `WINDOW_CHECKING`      | `"window checking"`      | absent from the mapping, so the session type joins no dataset   |
 
 A training session records no imaging, so the two-photon pipeline is absent from its requirement. The mapping declares
-pipelines rather than source counts because every pipeline resolves its own job universe from the acquisition
-manifests, so a completed tracker already means every source the session recorded was processed. Admission therefore
-checks which pipelines completed.
+pipelines rather than source counts because every pipeline resolves its own job universe from the acquisition manifests,
+so a completed tracker already means every source the session recorded was processed.
 
 The agnostic gate that reads this mapping, and the two `ValueError` messages it raises for an inadmissible session type
 and for outstanding pipelines, are owned by `forging:dataset-definition`.
@@ -495,7 +494,6 @@ Assembly claims:
 - [ ] No invented symbols, filenames, tolerances, or event codes, every one derived from the cited source files
 - [ ] Did not redefine the DatasetColumn / BehaviorDataFiles enums or the column-presence matrix, handed off to
       /mesoscope-vr-processing-schema
-- [ ] Did not restate the video sub-dataset or the camera clock internals, handed off to
-      /mesoscope-vr-video-tracking
+- [ ] Did not restate the video sub-dataset or the camera clock internals, handed off to /mesoscope-vr-video-tracking
 - [ ] Did not restate the DatasetData marker, the dataset layout, or the dataset tools, handed off to assets:datasets
 ```

@@ -113,7 +113,7 @@ the per-animal configuration.
 |-----------------------------------------------|-----------------------------------------------|--------------------------------------------------------------------------------------------------------|
 | `dataset.yaml`                                | `DatasetData.create`, last                    | The marker naming the dataset, its project, its session type, its acquisition system, and its sessions |
 | `data_descriptions.feather`                   | `DatasetData._write_column_descriptions`      | Two `String` columns, `column` and `description`, written once at definition time                      |
-| `forging_tracker.yaml`                        | the forging pipeline                          | Every forging job of the dataset, and what the last run recorded for each                              |
+| `forging_tracker.yaml`                        | `orchestration.planning`, then the run        | Every forging job of the dataset, and what the last run recorded for each                              |
 | `dataset_state.feather`                       | `forging.state.generate_dataset_state`        | One row per tracked forging job, the table `read_dataset_state_tool` serves from                       |
 | `job_plan.yaml`                               | `orchestration.planning`                      | The dataset's plan cache, one entry per planned job                                                    |
 | `<animal>/multi_recording_configuration.yaml` | `forging.pipeline._materialize_multiday_plan` | That animal's recording set, its qualified dataset name, and the progress flag                         |
@@ -225,8 +225,9 @@ animals:        The animal identifiers the dataset covers
 ```
 
 A `remote` definition returns `dataset_name`, `host`, `dataset_path`, and a `message` instead. The hierarchy sits on the
-server, so nothing on this machine can load it to report its shape. Follow with `generate_dataset_state_tool` and
-`read_dataset_state_tool` to see what it now holds.
+server, so nothing on this machine can load it to report its shape. Plan it with `plan_dataset_jobs_tool`, then follow
+with `generate_dataset_state_tool` and `read_dataset_state_tool` to see what it now holds, since the state artifact
+carries a row only for a job that planning registered.
 
 Failures return `Unable to define the local dataset '<name>'. <reason>` or the matching remote form. The resolution
 policy raises before anything is written, so a rejected request leaves the dataset exactly as it stood.
@@ -413,12 +414,14 @@ per-animal configurations, and undoing that means deleting and rebuilding it.
    - An error naming an outstanding pipeline means the session is not yet admissible. See the error routing below.
    - An error naming frozen animals means the request would widen an existing animal. Return to step 3.
 
-5. **Snapshot the job state.** Call `generate_dataset_state_tool(dataset_paths=[dataset_path])` to write the dataset's
-   state artifact, then `read_dataset_state_tool(dataset_path=...)` to confirm the job universe matches the session and
-   animal counts the definition reported, at the scopes `_DATASET_JOB_SCOPES` records.
+5. **Size the jobs.** Call `plan_dataset_jobs_tool(dataset_paths=[dataset_path])`. Planning is what registers a
+   dataset's forging jobs on `forging_tracker.yaml`, so it also has to run before a state snapshot carries a row for
+   them, and `/job-planning` owns what the figures mean.
 
-6. **Size the jobs.** Call `plan_dataset_jobs_tool(dataset_paths=[dataset_path])` when the run needs sizing, which any
-   remote submission does, and read `/job-planning` for what the figures mean.
+6. **Snapshot the job state.** Call `generate_dataset_state_tool(dataset_paths=[dataset_path])` to write the dataset's
+   state artifact, then `read_dataset_state_tool(dataset_path=...)` to confirm the job universe matches the session and
+   animal counts the definition reported, at the scopes `_DATASET_JOB_SCOPES` records. A snapshot taken before the
+   planning pass registers a job holds no row for it, since a definition writes the hierarchy and not the job registry.
 
 7. **Hand off to execution.** Invoke `/dataset-forging` to prepare and dispatch the jobs. Return here only when the
    session set changes or the job state has to be read again.
@@ -486,7 +489,8 @@ Dataset definition:
 - [ ] Create, extend, or rebuild decided against the resolution policy table
 - [ ] recreate_animals versus force_recreate confirmed with the user when either was used
 - [ ] define_forging_dataset_tool returned success with the expected session and animal counts
-- [ ] generate_dataset_state_tool run after the definition and after every forging run
+- [ ] plan_dataset_jobs_tool run after the definition, since planning is what registers the forging jobs
+- [ ] generate_dataset_state_tool run after that planning pass and after every forging run
 - [ ] read_dataset_state_tool confirmed the job universe, with each row's subject read from its scope
 - [ ] scope and job_names filter values taken from the three declared forging job names
 - [ ] Container questions routed to assets:datasets, execution routed to /dataset-forging

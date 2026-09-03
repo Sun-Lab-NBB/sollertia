@@ -350,7 +350,7 @@ per-session pipelines. `forging:server-configuration` owns the remote compute se
 | `mesoscope:mesoscope-vr-runtime`    | Owns the worked example's preprocessing and purge specifics                |
 | `forging:project-state`             | Owns the project manifest downstream processing reads                      |
 | `forging:batch-processing`          | Consumes the transferred raw data                                          |
-| `forging:server-configuration`      | Owns the remote transfer and cloud compute configuration                   |
+| `forging:server-configuration`      | Owns the remote compute server's SSH and SLURM access configuration        |
 
 ---
 

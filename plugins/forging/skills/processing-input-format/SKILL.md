@@ -49,14 +49,14 @@ documented in the `## Response contract` section of `/forging-mcp-environment-se
 Discovery reads names, never data. Each pipeline exposes one function that reads the manifests, indexes the filenames,
 decodes nothing, and writes nothing, so enumerating a unit's jobs costs the same however often it is asked.
 
-| Pipeline          | Unit    | Input root discovery reads                            | Discovery function                               |
-|-------------------|---------|-------------------------------------------------------|--------------------------------------------------|
-| `checksum`        | Session | `raw_data/`                                           | `managing.checksum.discover_checksum_jobs`       |
-| `runtime`         | Session | `raw_data/behavior_data/`                             | `runtime.discover_runtime_jobs`                  |
-| `microcontroller` | Session | `raw_data/behavior_data/`                             | `microcontrollers.discover_microcontroller_jobs` |
-| `video`           | Session | `raw_data/behavior_data/` and `raw_data/camera_data/` | `video.discover_video_jobs`                      |
-| `two_photon`      | Session | the raw imaging directory the registry locates        | `two_photon.discover_two_photon_jobs`            |
-| `forging`         | Dataset | the dataset directory                                 | `forging.discover_forging_jobs`                  |
+| Pipeline          | Unit    | Input root discovery reads                                          | Discovery function                               |
+|-------------------|---------|---------------------------------------------------------------------|--------------------------------------------------|
+| `checksum`        | Session | `raw_data/`                                                         | `managing.checksum.discover_checksum_jobs`       |
+| `runtime`         | Session | `raw_data/behavior_data/`                                           | `runtime.discover_runtime_jobs`                  |
+| `microcontroller` | Session | `raw_data/behavior_data/`                                           | `microcontrollers.discover_microcontroller_jobs` |
+| `video`           | Session | `raw_data/behavior_data/` and `raw_data/camera_data/`               | `video.discover_video_jobs`                      |
+| `two_photon`      | Session | the cindra output directory, then the located raw imaging directory | `two_photon.discover_two_photon_jobs`            |
+| `forging`         | Dataset | the dataset directory                                               | `forging.discover_forging_jobs`                  |
 
 Every directory name above is owned by sollertia-shared-assets and reached only through `SessionData.raw_data`, so no
 pipeline in this library invents a name for the acquired hierarchy.
@@ -241,10 +241,9 @@ exist, otherwise the session has no calcium-imaging data to process. The tree be
 `cindra_parameters.json` file (`cindra.PARAMETERS_FILENAME`), found with `discover_marker_files`, because every system
 that produces two-photon data must write it into that directory before the session reaches this library, so the cindra
 pipeline can recover the recording's acquisition metadata. On Mesoscope-VR the writer is preprocessing rather than the
-acquisition runtime. `_preprocess_mesoscope_directory` emits `cindra_parameters.json` into `raw_data/mesoscope_data`,
-beside `frame_invariant_metadata.json` and the LERC-recompressed frame stacks, so a session that has not been
-preprocessed carries none, and `experiment:data-management` owns that step. The pipeline's `FileNotFoundError` message
-phrases that requirement as writing the file at acquisition time.
+acquisition runtime, so a session that has not been preprocessed carries no parameters file, and
+`experiment:data-management` owns that step. The pipeline's `FileNotFoundError` message phrases that requirement as
+writing the file at acquisition time.
 
 The session's cindra configuration is materialized by this pipeline rather than supplied. `_resolve_configuration` takes
 the configuration the donated resolver returns, overrides exactly three fields on it, the data path, the output path,
@@ -254,7 +253,10 @@ the configuration its preparation step wrote, and refuses with `FileNotFoundErro
 
 Discovery returns the possible subset equal to the universe. Possibility here states what the recording can run rather
 than what it has already produced, so a freshly acquired session reports its whole stage universe and the tracker
-decides each stage's turn.
+decides each stage's turn. Discovery reads the plane count from the acquisition-parameters copy priming writes into the
+session's cindra output directory, and consults the located raw imaging directory only when that copy is absent. That
+fallback does not make the raw directory optional, because priming resolves the configuration, which enforces both gates
+above, and planning primes a session before it discovers that session's jobs, as `/job-planning` documents.
 
 The Mesoscope-VR imaging-directory locator and cindra configuration resolvers that fill this seam are documented by
 `mesoscope:mesoscope-vr-imaging-configuration`.

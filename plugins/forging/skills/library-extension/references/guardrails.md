@@ -12,12 +12,12 @@ rather than accumulating a report.
 
 ## Where each check runs
 
-| Check                              | Module                      | Import that runs it                                                   | What it guards                                      |
-|------------------------------------|-----------------------------|-----------------------------------------------------------------------|-----------------------------------------------------|
-| `_assert_registry_coverage()`      | `registries.py`             | `sollertia_forgery.registries`, and every module that reaches it      | The thirteen donor registries                       |
-| `_assert_dispatch_coverage()`      | `orchestration/dispatch.py` | `sollertia_forgery.orchestration`                                     | The batch dispatch table                            |
-| `_assert_status_column_coverage()` | `managing/manifest.py`      | `sollertia_forgery.managing`                                          | The manifest's per-pipeline status columns          |
-| A system package's own checks      | `<system>/`                 | `sollertia_forgery.registries`, since it imports every system package | Whatever privately keyed table that system declares |
+| Check                              | Module                      | Import that runs it                                                   | What it guards                                       |
+|------------------------------------|-----------------------------|-----------------------------------------------------------------------|------------------------------------------------------|
+| `_assert_registry_coverage()`      | `registries.py`             | `sollertia_forgery.registries`, and every module that reaches it      | The thirteen donor registries                        |
+| `_assert_dispatch_coverage()`      | `orchestration/dispatch.py` | `sollertia_forgery.orchestration`                                     | The batch dispatch table                             |
+| `_assert_status_column_coverage()` | `managing/manifest.py`      | `sollertia_forgery.managing`                                          | The manifest's status columns and their five rosters |
+| A system package's own checks      | `<system>/`                 | `sollertia_forgery.registries`, since it imports every system package | Whatever privately keyed table that system declares  |
 
 `import sollertia_forgery` on its own runs none of them, because the top-level `__init__.py` re-exports no library
 symbol. `slf --help` runs all three, since `interfaces/entry_points.py` imports `interfaces/manage.py`, which imports
@@ -106,27 +106,80 @@ locator returning the path the system would use each satisfy the check.
 
 ## The dispatch-table check
 
-`_assert_dispatch_coverage()` compares `frozenset(_pipeline_dispatch())` against `BATCH_PIPELINES` symmetrically, so
-it catches a member with no entry and an entry naming a non-member alike.
+`_assert_dispatch_coverage()` is the last statement of `orchestration/dispatch.py`. It runs two checks in a fixed
+order and raises on the first offender, so an extender adding a pipeline registers its entry, re-imports, and reads
+the next.
+
+### Check 1, a pipeline with no entry, or an entry naming a non-member
+
+Compares `frozenset(_pipeline_dispatch())` against `BATCH_PIPELINES` symmetrically, so it catches a member with no
+entry and an entry naming a non-member alike.
 
 ```text
 Unable to validate the pipeline dispatch table. Every pipeline named in BATCH_PIPELINES must have a dispatch entry and no entry may name a pipeline outside it, but the sets differ by {sorted(member.value for member in entries ^ BATCH_PIPELINES)}.
 ```
 
+### Check 2, an entry declaring an unknown unit kind
+
+Collects every entry whose `unit_kind` falls outside `_UNIT_KINDS`, the frozenset holding `SESSION_UNIT` and
+`DATASET_UNIT`, and raises naming those pipelines by value. `mislabeled` is sorted, so the message reports every
+offending entry at once rather than the first.
+
+```text
+Unable to validate the pipeline dispatch table. Every entry must declare one of {sorted(_UNIT_KINDS)} as the unit its jobs operate on, but {mislabeled} declare another unit kind.
+```
+
+This reaches a kind outside the pair alone. An entry declaring the wrong one of the two known kinds passes both
+checks, which is why that touch point sits in the table under "What no check covers".
+
 ---
 
 ## The manifest status-column check
 
-`_assert_status_column_coverage()` compares `frozenset(_PIPELINE_STATUS_COLUMNS)` against
-`frozenset(SESSION_PIPELINES)`, also symmetrically. It fires the moment `managing/manifest.py` loads rather than
-partway through a generation pass over a project.
+`_assert_status_column_coverage()` is the last statement of `managing/manifest.py`. It runs two checks and raises on
+the first offender, so an extender adding a status column fixes one roster, re-imports, and reads the next.
+
+### Check 1, a per-session pipeline that declares no status column
+
+Compares `frozenset(_PIPELINE_STATUS_COLUMNS)` against `frozenset(SESSION_PIPELINES)`, symmetrically, so it catches a
+pipeline with no column and a column naming a pipeline no session tracks alike.
 
 ```text
 Unable to validate the manifest's pipeline status columns. Every pipeline in SESSION_PIPELINES must declare a status column and no column may name a pipeline outside it, but the sets differ by {sorted(member.value for member in declared ^ carried)}.
 ```
 
-The column name may differ from the pipeline value, so the mapping's values are not derivable from its keys. The
-matching `pl.UInt8` column in `_PROJECT_MANIFEST_SCHEMA` is a separate touch that this check does not reach.
+### Check 2, a roster that omits a status column or names a column the manifest does not hold
+
+The column name may differ from the pipeline value, so the mapping's values are not derivable from its keys, and five
+further rosters spell the same column out. The check builds a `rosters` mapping over all five and tests each in both
+directions. Every roster must name every status column, and no roster may name a column absent from
+`_PROJECT_MANIFEST_SCHEMA`, which every roster names a subset of.
+
+| Order | Roster named in the message | What it decides                                                    |
+|-------|-----------------------------|--------------------------------------------------------------------|
+| 1     | `_PROJECT_MANIFEST_SCHEMA`  | The manifest artifact's column layout and each column's type       |
+| 2     | `_MANIFEST_ROW_COLUMNS`     | The accumulator the generation pass fills, one list per column     |
+| 3     | `_MANIFEST_SUMMARY_COLUMNS` | The columns `ProjectManifest.print_summary` selects                |
+| 4     | `MANIFEST_AXES`             | The filterable axes, and the axes the manifest breakdown counts    |
+| 5     | `MANIFEST_SEMI_FIELDS`      | The session fields a semi-detail listing carries                   |
+
+```text
+Unable to validate the manifest's pipeline status columns. Every status column declared in _PIPELINE_STATUS_COLUMNS must be named by every roster that lists the manifest's columns, but {roster_name} omits {sorted(missing)}.
+```
+
+```text
+Unable to validate the manifest's column rosters. Every roster that lists the manifest's columns must name only the columns declared in _PROJECT_MANIFEST_SCHEMA, but {roster_name} names {sorted(unknown)}, which the manifest does not hold.
+```
+
+Both directions raise at import, so neither a missing column nor a stale entry survives to a generation pass. The loop
+walks the rosters in the order above and tests a roster's omissions before its stale entries, so the first message an
+extender reads names the earliest roster with either fault. All five rosters live in `managing/manifest.py`, and
+`MANIFEST_AXES` and `MANIFEST_SEMI_FIELDS` are public because `interfaces/management_tools.py` imports them from there
+rather than declaring copies of its own.
+
+A roster that carries no status column by design is deliberately outside the check. Those are `_MANIFEST_DETAIL_FIELDS`
+in `interfaces/management_tools.py`, holding `notes` alone, and the inline column list `ProjectManifest.print_notes`
+selects.
 
 ---
 
@@ -170,23 +223,26 @@ cores in `_JOB_CORE_ALLOCATIONS`.
 
 ## What no check covers
 
-Everything below passes every import and fails later, or silently. Each one is covered by a test rather than by a
-guardrail.
+The seventeen touch points below reach no guardrail and are covered by a test instead. All but one pass every import
+and fail later or silently; a dataset column with no description entry raises at import of the system's own metadata
+module. The manifest's status column is absent from this table, because every roster naming it is checked at import.
 
-| Uncovered touch point                                                 | Scenario        | How the omission surfaces                                                                                    | Where to cover it                              |
-|-----------------------------------------------------------------------|-----------------|--------------------------------------------------------------------------------------------------------------|------------------------------------------------|
-| The assembly-routing branch for a session type                        | Session type    | `ValueError` when the forging pipeline reaches a session of that type                                        | The system package's forging tests             |
-| A type declared cross-recording whose resolver still returns `None`   | Session type    | Silent. Dataset definition writes no multi-recording configuration and the cross-recording jobs never appear | The system package's two-photon tests          |
-| A recorded session type omitted from the admission mapping            | Session type    | Silent by design, since omission is the opt-out                                                              | The system package's admission tests           |
-| A dataset column with no description entry                            | Session type    | A bare `KeyError` at import of the system's metadata module, with no message                                 | The system package's metadata tests            |
-| The job emitted from discovery, and its prerequisite ordering         | Stage           | Silent. The job is never planned, or it runs out of order                                                    | The category package's discovery tests         |
-| The `_JOB_CORE_ALLOCATIONS` entry                                     | Stage, pipeline | `ValueError` during preparation of the unit that resolves the job type                                       | The orchestration dispatch tests               |
-| The sizing model and its routing branch                               | Stage, pipeline | `ValueError` during the sizing pass                                                                          | The orchestration footprint tests              |
-| The execution branch inside the pipeline entry point                  | Stage           | `ValueError` when the job identifier reaches the dispatcher                                                  | The category package's pipeline tests          |
-| The `_PIPELINE_JOB_NAMES` entry                                       | Stage, pipeline | Silent. `read_resource_model_tool` never reports the job type                                                | The interface tests, or a manual tool call     |
-| The CLI stage flag or the `slf process` subcommand                    | Stage, pipeline | The command simply does not exist                                                                            | A manual `slf --help` pass                     |
-| The `_PROJECT_MANIFEST_SCHEMA` column beside a declared status column | Pipeline        | The manifest frame rejects the row, since the schema names no such column                                    | The manifest tests                             |
-| A tool module misnamed or nested below `interfaces/`                  | MCP tool        | The glob never imports it and the tools silently do not exist                                                | A manual tool listing against a started server |
-| A new `*_tools.py` missing from the coverage omit list                | MCP tool        | `tox -e coverage` fails the 100 percent gate                                                                 | The gate itself                                |
-| A system package importing a category package                         | System          | A circular `ImportError` at import. Nothing else checks the layering                                         | The import gate itself                         |
-| A donated worker that is not a picklable module-level function        | System          | The pool fails at pickling time when the stage first dispatches                                              | The system package's worker tests              |
+| Uncovered touch point                                                 | Scenario        | How the omission surfaces                                                                                                | Where to cover it                              |
+|-----------------------------------------------------------------------|-----------------|--------------------------------------------------------------------------------------------------------------------------|------------------------------------------------|
+| The assembly-routing branch for a session type                        | Session type    | `ValueError` when the forging pipeline reaches a session of that type                                                    | The system package's forging tests             |
+| The assembly-source routing for a session type                        | Session type    | `ValueError` during the sizing pass, which drops that session's assembly job from the plan                               | The system package's assembly-source tests     |
+| A type declared cross-recording whose resolver still returns `None`   | Session type    | Silent. Dataset definition writes no multi-recording configuration and the cross-recording jobs never appear             | The system package's two-photon tests          |
+| A recorded session type omitted from the admission mapping            | Session type    | Silent by design, since omission is the opt-out                                                                          | The system package's admission tests           |
+| A dataset column with no description entry                            | Session type    | A bare `KeyError` at import of the system's metadata module, with no message                                             | The system package's metadata tests            |
+| The job emitted from discovery, and its prerequisite ordering         | Stage           | Silent. The job is never planned, or it runs out of order                                                                | The category package's discovery tests         |
+| The `_JOB_CORE_ALLOCATIONS` entry                                     | Stage, pipeline | `ValueError` during preparation of the unit that resolves the job type                                                   | The orchestration dispatch tests               |
+| The sizing model and its routing branch                               | Stage, pipeline | `ValueError` during the sizing pass                                                                                      | The orchestration footprint tests              |
+| The execution branch inside the pipeline entry point                  | Stage           | `ValueError` when the job identifier reaches the dispatcher                                                              | The category package's pipeline tests          |
+| The `_PIPELINE_JOB_NAMES` entry                                       | Stage, pipeline | Silent. `read_resource_model_tool` never reports the job type                                                            | The interface tests, or a manual tool call     |
+| The CLI stage flag or the `slf process` subcommand                    | Stage, pipeline | The command simply does not exist                                                                                        | A manual `slf --help` pass                     |
+| A dispatch entry declaring the wrong one of the two known unit kinds  | Pipeline        | Silent in planning, then a project root resolved one level off, so preparation reports the unit as unresolved            | The preparation and closure tests              |
+| The pipeline roster in the four batch tool docstrings                 | Pipeline        | Silent. The tool accepts the pipeline but no agent is told it exists                                                     | A manual read of the four tool docstrings      |
+| A tool module misnamed or nested below `interfaces/`                  | MCP tool        | The glob never imports it and the tools silently do not exist                                                            | A manual tool listing against a started server |
+| A new `*_tools.py` missing from the coverage omit list                | MCP tool        | `tox -e coverage` fails the 100 percent gate                                                                             | The gate itself                                |
+| A system package importing a category package                         | System          | A circular `ImportError` at import. Nothing else checks the layering                                                     | The import gate itself                         |
+| A donated worker that is not a picklable module-level function        | System          | The pool fails at pickling time when the stage first dispatches                                                          | The system package's worker tests              |

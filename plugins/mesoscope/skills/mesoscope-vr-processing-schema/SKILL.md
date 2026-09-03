@@ -120,7 +120,7 @@ fluorescence assembly for mesoscope experiment sessions and from the behavior as
 | Member            | Value             | Description                                                                                                                                                                                                                     |
 |-------------------|-------------------|---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
 | `TIME_US`         | `time_us`         | Microsecond-precision sample timestamps from the acquisition reference clock                                                                                                                                                    |
-| `ELAPSED_MINUTES` | `elapsed_minutes` | Elapsed time in minutes since the first sample of the session's reference clock. The clock starts during setup, so the clipped dataset's first row carries a value above zero                                                                     |
+| `ELAPSED_MINUTES` | `elapsed_minutes` | Elapsed time in minutes since the first sample of the session's reference clock. The clock starts during setup, so the clipped dataset's first row carries a value above zero                                                   |
 | `BRAKE`           | `brake`           | The running wheel brake engagement at each sample                                                                                                                                                                               |
 | `SCREENS`         | `screens`         | The Virtual Reality display state at each sample                                                                                                                                                                                |
 | `TORQUE_N_CM`     | `torque_N_cm`     | The torque applied by the animal to the running wheel in N·cm at each sample, forced to zero during 'run' periods upstream                                                                                                      |
@@ -253,12 +253,16 @@ Three ordered touches put a new column into a forged `data.feather`, and only th
 |---|---------------------|-------------------------------------------------------------------------------|-------------------------------------------------------------------|
 | 1 | Declare the name    | A `DatasetColumn` member in `metadata.py`, in the group of the emitting stage | Every assembly job that emits the column fails                    |
 | 2 | Describe the column | The matching `_COLUMN_DESCRIPTIONS` entry, keyed by that member               | `KeyError` at import of `sollertia_forgery.mesoscope_vr`          |
-| 3 | Emit the value      | The sub-assembler of that group, owned by `/mesoscope-vr-dataset-assembly`    | A described column no session carries, which the contract permits |
+| 3 | Emit the value      | The group's emission site, tabulated by `/mesoscope-vr-dataset-assembly`      | A described column no session carries, which the contract permits |
 
 Touches 1 and 2 land in the same edit, because the comprehension deriving `MESOSCOPE_COLUMN_DESCRIPTIONS` indexes
 `_COLUMN_DESCRIPTIONS` with every `DatasetColumn` member. Touch 3 sits in a different module that no check reaches, so
-a test covers the emitted value. A column present only under a condition also joins the `DatasetColumn` class docstring
-and the presence table above, both of which state the full condition set.
+a test covers the emitted value. That site is the group's own sub-assembler for four of the five groups. The pupil
+group is the exception, because `assemble_video_dataset` forwards the pupil feather's own columns verbatim, so a pupil
+column is emitted by declaring a `PupilColumn` member and computing its metric in `video_tracking.py`, which
+`/mesoscope-vr-video-tracking` owns, and the extra rule a boolean pupil state flag carries lives with
+`/mesoscope-vr-dataset-assembly`. A column present only under a condition also joins the `DatasetColumn` class
+docstring and the presence table above, both of which state the full condition set.
 
 ### A new column invalidates the datasets already defined
 
@@ -363,7 +367,8 @@ Roster fidelity:
 - [ ] MESOSCOPE_COLUMN_DESCRIPTIONS is the exported asset and the three enumerations are package-internal
 - [ ] The import-time completeness check is described as a bare KeyError from the dict comprehension
 - [ ] A newly added column carries its DatasetColumn member, its _COLUMN_DESCRIPTIONS entry, and its emission site,
-      and the presence condition reached the class docstring and the presence table
+      the last being the group's sub-assembler except for a pupil column, whose site is video_tracking.py, and the
+      presence condition reached the class docstring and the presence table
 - [ ] The rebuild a new column forces on every dataset already defined was stated, and routed to slf forge
       --force-recreate rather than to --recreate-animal
 
