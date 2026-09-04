@@ -134,7 +134,7 @@ what they kept.
 Two mechanisms cover every tool accepting `host='remote'`, and which one runs depends on whether the tool writes.
 **A write regenerates on the server.** `orchestration/hosts.py::RemoteHost` renders the argument vector that calls the
 same function the local host calls in process, an `slf` command line for every write but the dataset definition, chains
-the vectors with `&&`, and ships them through `hosts.py::environment_commands`, which activates the configured conda
+the vectors with `&&`, and ships them through `hosts.py::_environment_commands`, which activates the configured conda
 environment first. A non-zero exit raises, naming the rendered invocation and the server's stderr.
 
 | Tool with `host='remote'`        | Server-side command                                                 |
@@ -434,7 +434,7 @@ session locally before a project-wide remote batch.
 | Cancellation                      | Cooperative, in-flight jobs finish                                          | Queued and running killed alike, dependents cascade                                             |
 | Cleaning guard and failures       | Refused while a batch runs here, and an unloadable unit is warned and kept  | Never refused, and a non-zero server exit raises                                                |
 
-**The cleaning divergence is the dangerous one.** The running-batch guard covers this machine's pool alone, so a remote
+**The cleaning divergence is the dangerous one.** The running-batch guard covers this process's pool alone, so a remote
 clean is accepted while allocations are in flight and will remove the output and the tracker of an allocation still
 running. A `forging` clean removes more than the unit named: the dispatch entry declares an external-output hook that
 `orchestration/maintenance.py::clean_pipeline_output` resolves and removes, so each source session's cross-recording

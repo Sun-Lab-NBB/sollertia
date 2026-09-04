@@ -104,8 +104,8 @@ breakdown:
 total_cores:              Cores a batch may commit on this machine. Present ONLY for `host="local"`
 total_memory_mb:          This machine's physical memory. Present ONLY for `host="local"`
 jobs[]:                   Present only when `job_names` is named or `include_items=True`:
-  job_id, job_name, specifier, cores, memory_mb
-  prerequisite_ids, unit_path, options:   Appended by `detailed=True`
+  job_id, job_name, specifier, unit_path, cores, memory_mb
+  prerequisite_ids, options:              Appended by `detailed=True`
 rows, matched_rows, start_row, next_start_row:   The paging keys, alongside `jobs`
 ```
 

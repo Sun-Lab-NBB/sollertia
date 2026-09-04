@@ -10,7 +10,7 @@ user-invocable: false
 
 # Sollertia forging pipeline
 
-Entry point and router for the forging plugin. This skill owns none of the 26 `slf mcp` tools, and every tool named
+Entry point and router for the forging plugin. This skill owns none of the 27 `slf mcp` tools, and every tool named
 below is invoked through the skill that owns it.
 
 ---
@@ -57,7 +57,7 @@ with it. A batch runs where it was prepared, so the choice is not revisable afte
 |--------------------------------|------------------------------------------------------------------------|---------------------------------------------------|
 | Who runs the jobs              | one process pool the MCP server owns, agent-driven                     | the SLURM scheduler, scheduler-driven             |
 | Lifetime of a running batch    | dies with the MCP server process                                       | outlives it, held by the submission ledger        |
-| Concurrent batches             | one run at a time, over any number of batches, a second run is refused | unbounded, the ledger tracks many at once         |
+| Concurrent batches             | one run per server process, over any number of batches                 | unbounded, the ledger tracks many at once         |
 | Unit paths named to a tool     | paths on this machine                                                  | paths on the server, under its configured root    |
 | Where a read tool reads        | the project directory itself                                           | a mirror of it under the working directory        |
 | Refreshing what a read returns | the generate tools rewrite it in place                                 | generate on the server first, a read never does   |

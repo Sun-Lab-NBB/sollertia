@@ -402,10 +402,10 @@ and are `resolve_page`, `page_fields`, `resolve_detail_limit`, `project_item`, `
 ### Coverage-omit obligation
 
 `[tool.coverage.run]` in `pyproject.toml` sets `branch = true` and lists fifteen `interfaces/` modules in its `omit`
-list one by one rather than by a directory glob, and `[tool.coverage.report]` sets `fail_under = 100`. A new
-`<name>_tools.py` MUST be added to that list. `interfaces/mcp_instance.py`, `interfaces/responses.py`, and
-`interfaces/__init__.py` are deliberately not omitted, so a new non-tool interface helper is either covered by tests
-or added to the list deliberately.
+list one by one rather than by a directory glob, and the test task in `tox.ini` applies the 100% gate through its
+`--cov-fail-under` flag. A new `<name>_tools.py` MUST be added to that list. `interfaces/mcp_instance.py`,
+`interfaces/responses.py`, and `interfaces/__init__.py` are deliberately not omitted, so a new non-tool interface
+helper is either covered by tests or added to the list deliberately.
 
 ### Cross-repository coordination
 

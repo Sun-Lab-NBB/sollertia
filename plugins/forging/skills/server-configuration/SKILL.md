@@ -78,7 +78,7 @@ holds no directory for the project. Point it at the data root itself, never at a
 
 **`environment`** is the one shared conda environment on the server that every remote job activates before invoking the
 `slf` CLI. `Job.__init__` writes `eval $(conda shell.bash hook)`, `conda init bash`, and `source activate` for the named
-environment as the preamble of every SLURM script. `environment_command` and `environment_commands` in
+environment as the preamble of every SLURM script. `environment_command` and `_environment_commands` in
 `orchestration/hosts.py` wrap every `slf` invocation issued over SSH in an equivalent activation, running
 `eval "$(conda shell.bash hook)" && source activate <environment>` inside `bash -lc`. The scheduler and filesystem
 commands the transport issues, such as `sbatch`, `sacct`, `squeue`, and `find`, run outside it because they need no
