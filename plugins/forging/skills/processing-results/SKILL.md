@@ -37,7 +37,8 @@ record with those tools first, then read the bytes by hand.
   `/dataset-definition`.
 - Preparing a batch, executing it, resetting jobs, and cleaning output. Owned by `/batch-processing`.
 - What must exist on disk before a pipeline can run. Owned by `/processing-input-format`.
-- The per-unit plan cache and the resource model behind `cores` and `memory_mb`. Owned by `/job-planning`.
+- The per-unit plan cache and the resource model behind `cores`, `memory_mb`, and `resident_mb`. Owned by
+  `/job-planning`.
 - Every acquisition-system file name, column schema, and session type. Owned by the `mesoscope:mesoscope-vr-*` skill
   family, one member per pipeline, listed in the related-skills table.
 - The upstream log archive formats. Owned by `video:log-input-format` and `communication:log-input-format`.
@@ -98,7 +99,9 @@ through `read_dataset_state_tool`, owned by `/dataset-definition`, and the batch
 
 **Read the bytes by hand** only after that order reports `SUCCEEDED` and its counts look right. Every table this
 library writes is uncompressed Arrow IPC, so `pl.read_ipc_schema` answers a column question from the footer alone and
-`pl.read_ipc` memory-maps the rest.
+`pl.read_ipc` memory-maps the rest. A remote run leaves those bytes on the server, and a remote read mirrors only the
+project's own tables, so bring an output file or directory back with `pull_remote_path_tool`, which
+`/remote-execution` owns, before opening it.
 
 ---
 

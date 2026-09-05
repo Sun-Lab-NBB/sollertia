@@ -55,8 +55,9 @@ Python rather than an MCP call, and `/processing-results` owns the file layout t
 - Both read tools read a stored snapshot and never rescan the session hierarchy, so regenerate before reading whenever
   jobs have run since the last generation.
 - Generation is a whole-project operation. It takes no session list, no animal filter, and no pipeline argument.
-- Never round-trip the `project_path` a read reports back into a tool as a server path, because a remote read reports
-  the local mirror. Take server paths from `discover_remote_project_tool`, which `/remote-execution` owns.
+- A remote read echoes back the `project_path` it was given, so that key names the server. The artifact paths beside
+  it name this machine's mirror instead, so never hand one of those back to a tool as a server path. Take server paths
+  from `discover_remote_project_tool`, which `/remote-execution` owns.
 
 The response envelope every tool on this server returns, and the staged-read contract its read tools follow, are
 documented in the `## Response contract` section of `/forging-mcp-environment-setup`.
@@ -132,8 +133,8 @@ Run generation between execution graphs. A snapshot taken while jobs run is alre
 
 **Return structure:**
 ```text
-project_path:    Project root that was read, the local mirror for a remote project
-manifest_path:   Absolute path to the manifest that was read
+project_path:    Project root the caller named, echoed unchanged for a remote project
+manifest_path:   Absolute path to the manifest that was read, the mirror for a remote project
 total_sessions:  Manifest row count, spanning the project regardless of the filters
 breakdown:       Counts per held value for animal, type, system, complete, integrity,
                  runtime, microcontroller, video, and two_photon
@@ -175,8 +176,8 @@ every question about which job failed, and why, to `read_project_jobs_tool`.
 
 **Return structure:**
 ```text
-project_path:  Project root that was read, the local mirror for a remote project
-jobs_path:     Absolute path to the job artifact that was read
+project_path:  Project root the caller named, echoed unchanged for a remote project
+jobs_path:     Absolute path to the job artifact that was read, the mirror for a remote project
 total_jobs:    Artifact row count, spanning the project regardless of the filters
 breakdown:     Counts per held value for animal, pipeline, job_name, and status
 jobs[]:        animal, session, pipeline, job_name, specifier, status, job_id | filtered or include_items=True
@@ -203,7 +204,7 @@ because that is the identifier a reset targets, so a listing omitting it would n
 
 **Return structure:**
 ```text
-project_path:   Project root that was read, the local mirror for a remote project
+project_path:   Project root the caller named, echoed unchanged for a remote project
 tracker_path:   {project_root}/manifest_processing_tracker.yaml
 manifest_path:  {project_root}/{project_stem}_manifest.feather
 jobs_path:      {project_root}/{project_stem}_jobs.feather
@@ -213,8 +214,8 @@ error_message:  Text the generation job recorded       | present only on a recor
 ```
 
 It reads the tracker alone and rescans nothing, so it answers whether the stored artifacts are trustworthy without
-paying to rebuild them. The `exists` block reports the mirror for a remote project, so a project whose artifacts were
-never generated on the server reports both flags false alongside a `not_started` status.
+paying to rebuild them. The three artifact paths and the `exists` block report the mirror for a remote project, so a
+project whose artifacts were never generated on the server reports both flags false alongside a `not_started` status.
 
 **The `manifest_generation` job.** The manifest pipeline registers exactly one job. `MANIFEST_JOB_NAME` holds the value
 `manifest_generation`, and the specifier is the project directory's stem. The tracker entry is keyed by

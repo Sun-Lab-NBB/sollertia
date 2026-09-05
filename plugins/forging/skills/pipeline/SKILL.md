@@ -10,7 +10,7 @@ user-invocable: false
 
 # Sollertia forging pipeline
 
-Entry point and router for the forging plugin. This skill owns none of the 27 `slf mcp` tools, and every tool named
+Entry point and router for the forging plugin. This skill owns none of the 28 `slf mcp` tools, and every tool named
 below is invoked through the skill that owns it.
 
 ---
@@ -63,9 +63,10 @@ with it. A batch runs where it was prepared, so the choice is not revisable afte
 | Refreshing what a read returns | the generate tools rewrite it in place                                 | generate on the server first, a read never does   |
 | Closing a finished batch       | the manager thread, once the pool drains                               | a remote status read, cancellation, or submission |
 
-Never round-trip a path out of a read response back into a write tool on the remote path. A remote read reports the
-local mirror, so take server paths from `discover_remote_project_tool` or from a generate or plan tool's own response.
-The mechanics of each path are owned by `/batch-processing` and `/remote-execution`.
+A remote read echoes back the `project_path` it was given and reports every artifact path under the local mirror, so
+never round-trip an artifact path into a write tool on the remote path. Take server paths from
+`discover_remote_project_tool` or from a generate or plan tool's own response. The mechanics of each path are owned by
+`/batch-processing` and `/remote-execution`.
 
 ---
 
@@ -315,6 +316,7 @@ Every other entry resolves inside the sollertia marketplace.
 | Prepare, execute, monitor, cancel, reset, or clean       | `/batch-processing`                             |
 | Recover a lost batch identifier                          | `/batch-processing`                             |
 | Read the scheduler's own view of an allocation           | `/remote-execution`                             |
+| Copy a file or directory off the compute server          | `/remote-execution`                             |
 | Learn what must exist on disk before a job can run       | `/processing-input-format`                      |
 | Interpret a pipeline's outputs and its failures          | `/processing-results`                           |
 | Snapshot or read a project's per-session state           | `/project-state`                                |

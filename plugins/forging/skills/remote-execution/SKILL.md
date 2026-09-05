@@ -47,8 +47,9 @@ functions, open an SSH session yourself, or hand-edit the submission ledger or a
 are unavailable, invoke `/forging-mcp-environment-setup`. You MUST confirm a server configuration exists before naming
 `host='remote'`, since every remote path opens an SSH connection built from that record, and you MUST take every
 server-side path from `discover_remote_project_tool` or from a generate or plan response that ran with `host='remote'`,
-because a remote read reports the local mirror. You MUST confirm the wall time and the unit selection with the user
-before submitting, since the scheduler owns the graph once the last job is queued.
+because a remote read reports the mirror under every artifact path key and echoes the caller's own path back only as
+`project_path`. You MUST confirm the wall time and the unit selection with the user before submitting, since the
+scheduler owns the graph once the last job is queued.
 
 ---
 
@@ -64,6 +65,7 @@ before submitting, since the scheduler owns the graph once the last job is queue
 | `execute_jobs_tool`, `forget_prepared_batches_tool`, `read_resource_model_tool` | none                 | A batch runs where it was prepared; the other two are local      |
 | `read_server_configuration_tool`, `write_server_configuration_tool`             | none, always local   | The configuration file lives in this machine's working directory |
 | `discover_remote_project_tool`, `read_scheduler_jobs_tool`                      | none, always remote  | Nothing on this machine can answer either question               |
+| `pull_remote_path_tool`                                                         | none, always remote  | It copies a server file or directory onto this machine           |
 | `retire_remote_batches_tool`                                                    | none, always remote  | The submission ledger records remote allocations alone           |
 
 `batches.py::resolve_batch_host` reads the host off the recorded document, so mixed-host identifiers are refused.
@@ -153,9 +155,10 @@ project's artifacts into `<working directory>/remote_state/<project>` and hands 
 `orchestration/remote.py::sync_project_state` pulls six artifact kinds and skips any the server does not hold: the
 project manifest, the manifest tracker, the project job artifact, the plan projection, and each dataset's marker and
 state table, the last two because the read tools resolve a dataset from its marker. **A read never regenerates**, so
-generate with `host='remote'` first whenever the state must be fresh. The manifest, jobs, plan, and manifest-status
-readers report that mirror as their `project_path`, while `read_dataset_state_tool` and `list_project_datasets_tool`
-echo the caller's argument.
+generate with `host='remote'` first whenever the state must be fresh. Every reader echoes the caller's own server path
+back as its `project_path`, through `host_resolution.py::reported_project_path`, since a write tool takes a server
+path and handing back the mirror would name a machine the caller never named. The artifact keys beside it, such as
+`manifest_path`, `jobs_path`, and `plan_path`, report the mirror the read actually opened.
 
 ---
 
@@ -166,7 +169,7 @@ echo the caller's argument.
 | Confirm the access | `/server-configuration`                                         | The data root and the environment name, with the user                   |
 | Discover the units | `discover_remote_project_tool`                                  | The bare `breakdown`, then the `unit_path` values a filter lists        |
 | Prepare            | `prepare_batch_tool`, `host='remote'`                           | The `batch_id`, since `execute_jobs_tool` takes identifiers and no path |
-| Confirm the size   | `include_job_descriptors=True`, or `inspect_job_resources_tool` | Per-job `cores` and `memory_mb`, and the wall time, with the user       |
+| Confirm the size   | `include_job_descriptors=True`, or `inspect_job_resources_tool` | Per-job `cores` and `resident_mb`, and the wall time, with the user     |
 | Submit             | `execute_jobs_tool` with the confirmed `walltime_minutes`       | `batch_directory`, `submissions`, and `adopted_jobs`                    |
 | Poll               | `get_processing_status_tool`, `host='remote'`                   | `stalled_batch_ids` every time, and the two log paths under `detailed`  |
 | Read the result    | Regenerate on the server, then `/project-state`                 | Or the closure outcome the status tool reports for a settled batch      |
@@ -298,9 +301,10 @@ The third row covers a batch every allocation of which settled and one holding n
 a count per verdict, plus `live_allocations`, `stranded_allocation_count`, and `unresolvable_allocation_count`, each
 beside a list of up to 50 of them while the count covers the batch, and a `remedy`.
 
-**`remedy` quotes an `slf` command on one branch alone.** In `_batch_remedy`, only `stalled` quotes `slf server
-retire-batch -b <id>`; `awaiting_closure` names `retire_remote_batches_tool` and `progressing` names
-`cancel_processing_tool`.
+**`remedy` leads with the retirement wherever closure cannot release the batch.** In `_batch_remedy`, `stalled`
+quotes `retire_remote_batches_tool` and `slf server retire-batch -b <id>`, and so does `awaiting_closure` while any of
+its jobs is stranded, since closure never releases a tracker still claiming an allocation. An `awaiting_closure` batch
+holding none names the status read first, and `progressing` names `cancel_processing_tool`.
 
 **The response-level `active` flag counts verdicts, not scheduler states.** `remote_batch_status` computes
 `any(resolution.verdict == running)` over every covered allocation, so a tracker claim alone sets it, and it is one flag
@@ -409,7 +413,8 @@ the kill directive turns an unsatisfiable dependency into a terminal state a sta
 directive is emitted, so a partition, account, QOS, node count, and GPU request are all unexpressible.
 
 **Resource requests come from the job's own estimate.** `--cpus-per-task` takes the job's core weight and `--mem` its
-memory estimate rounded up to whole gigabytes and floored at one, both from the model `/job-planning` owns, while
+`resident_mb`, which adds the pages a job maps and its shared library image to the anonymous `memory_mb` a local pool
+budgets on, rounded up to whole gigabytes and floored at one. Both come from the model `/job-planning` owns, while
 `--time` takes one figure for the whole submission, `orchestration/remote.py::REMOTE_JOB_WALLTIME_MINUTES`, which is
 480 minutes when the caller names none. **The environment activation sits outside error checking**, since a conda hook
 exports shell state whose exit status says nothing about whether the environment is usable, so `set -eo pipefail` is

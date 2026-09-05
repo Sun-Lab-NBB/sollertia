@@ -55,9 +55,9 @@ that argv into the SBATCH script, so read a rendered job script as this referenc
 
 ## Command surface
 
-The CLI declares twenty-six Click nodes: the root group, four subgroups, and twenty-one leaf commands, entered through
-`slf = "sollertia_forgery.interfaces.entry_points:slf_cli"`. The root group's docstring states the rule that shapes the
-whole surface, that the acquisition system is inferred from the data, so no command takes a system selector.
+The CLI declares twenty-seven Click nodes: the root group, four subgroups, and twenty-two leaf commands, entered
+through `slf = "sollertia_forgery.interfaces.entry_points:slf_cli"`. The root group's docstring states the rule that
+shapes the whole surface, that the acquisition system is inferred from the data, so no command takes a system selector.
 
 | Click node                    | Kind    | Purpose                                                                | MCP equivalent                                |
 |-------------------------------|---------|------------------------------------------------------------------------|-----------------------------------------------|
@@ -87,6 +87,7 @@ whole surface, that the acquisition system is inferred from the data, so no comm
 | `slf server discover`         | command | Prints the sessions the named project holds on the remote server       | `discover_remote_project_tool`                |
 | `slf server batches`          | command | Resolves the outstanding batches and each allocation's verdict         | `get_processing_status_tool`, `host='remote'` |
 | `slf server retire-batch`     | command | Remediates named batches and drops them from the submission ledger     | `retire_remote_batches_tool`                  |
+| `slf server pull`             | command | Copies a file or directory off the compute server onto this machine    | `pull_remote_path_tool`                       |
 
 "The batch pair" means `prepare_batch_tool` and `execute_jobs_tool` taken together, under the named `pipeline` value,
 and every one of those mappings carries the divergences documented below. **Note on `-h`:** the CLI leaves Click's
@@ -232,30 +233,35 @@ A caller holding per-unit identifiers passes one unit per invocation rather than
 
 ### `slf server`
 
-| Command        | Short | Long                     | Type  | Default    | Form                 | Effect                                                                                         |
-|----------------|-------|--------------------------|-------|------------|----------------------|------------------------------------------------------------------------------------------------|
-| `configure`    | `-u`  | `--username`             | `str` | (required) | required             | The username used for server authentication                                                    |
-| `configure`    | `-p`  | `--password`             | `str` | (prompted) | optional             | The password. Prompted with hidden double entry if absent                                      |
-| `configure`    | `-h`  | `--host`                 | `str` | (required) | required             | The host name or IP address of the server                                                      |
-| `configure`    | `-r`  | `--root`                 | `str` | (required) | required             | The absolute remote path to the root Sollertia data directory                                  |
-| `configure`    | `-e`  | `--environment`          | `str` | (required) | required             | The shared remote conda environment holding the library                                        |
-| `print`        | `-j`  | `--job-data`             | flag  | `False`    | flag                 | Displays the accounting history through `sacct`                                                |
-| `print`        | `-q`  | `--queue`                | flag  | `False`    | flag                 | Displays the queue status through `squeue`                                                     |
-| `print`        | `-u`  | `--user`                 | `str` | `None`     | optional             | Filters to one user. `all` covers every user                                                   |
-| `print`        | `-id` | `--job-id`               | `str` | `None`     | optional             | One job to report, in whichever of the two views was requested. Bypasses user and date filters |
-| `print`        | `-st` | `--start-time`           | `str` | `None`     | optional             | Keeps jobs started on or after this date. `-j` view only                                       |
-| `print`        | `-et` | `--end-time`             | `str` | `None`     | optional             | Keeps jobs ended on or before this date. `-j` view only                                        |
-| `discover`     | `-p`  | `--project`              | `str` | (required) | required             | The project whose sessions to discover under the data root                                     |
-| `batches`      | `-b`  | `--batch-id`             | `str` | `()`       | repeatable           | One outstanding batch to report. Omit to report every one                                      |
-| `batches`      | `-a`  | `--allocations`          | flag  | `False`    | flag                 | Adds one row per resolved allocation beneath the batch table                                   |
-| `retire-batch` | `-b`  | `--batch-id`             | `str` | (required) | required, repeatable | One outstanding batch to remediate and drop from the ledger                                    |
-| `retire-batch` | `-f`  | `--force`                | flag  | `False`    | flag                 | Remediates batches holding an allocation that resolves as running, cancelling each one first   |
-| `retire-batch` | `-do` | `--drop-without-outcome` | flag  | `False`    | flag                 | Drops the entries when what their jobs recorded cannot be snapshotted                          |
+| Command        | Short | Long                     | Type   | Default    | Form                 | Effect                                                                                         |
+|----------------|-------|--------------------------|--------|------------|----------------------|------------------------------------------------------------------------------------------------|
+| `configure`    | `-u`  | `--username`             | `str`  | (required) | required             | The username used for server authentication                                                    |
+| `configure`    | `-p`  | `--password`             | `str`  | (prompted) | optional             | The password. Prompted with hidden double entry if absent                                      |
+| `configure`    | `-h`  | `--host`                 | `str`  | (required) | required             | The host name or IP address of the server                                                      |
+| `configure`    | `-r`  | `--root`                 | `str`  | (required) | required             | The absolute remote path to the root Sollertia data directory                                  |
+| `configure`    | `-e`  | `--environment`          | `str`  | (required) | required             | The shared remote conda environment holding the library                                        |
+| `print`        | `-j`  | `--job-data`             | flag   | `False`    | flag                 | Displays the accounting history through `sacct`                                                |
+| `print`        | `-q`  | `--queue`                | flag   | `False`    | flag                 | Displays the queue status through `squeue`                                                     |
+| `print`        | `-u`  | `--user`                 | `str`  | `None`     | optional             | Filters to one user. `all` covers every user                                                   |
+| `print`        | `-id` | `--job-id`               | `str`  | `None`     | optional             | One job to report, in whichever of the two views was requested. Bypasses user and date filters |
+| `print`        | `-st` | `--start-time`           | `str`  | `None`     | optional             | Keeps jobs started on or after this date. `-j` view only                                       |
+| `print`        | `-et` | `--end-time`             | `str`  | `None`     | optional             | Keeps jobs ended on or before this date. `-j` view only                                        |
+| `discover`     | `-p`  | `--project`              | `str`  | (required) | required             | The project whose sessions to discover under the data root                                     |
+| `batches`      | `-b`  | `--batch-id`             | `str`  | `()`       | repeatable           | One outstanding batch to report. Omit to report every one                                      |
+| `batches`      | `-a`  | `--allocations`          | flag   | `False`    | flag                 | Adds one row per resolved allocation beneath the batch table                                   |
+| `retire-batch` | `-b`  | `--batch-id`             | `str`  | (required) | required, repeatable | One outstanding batch to remediate and drop from the ledger                                    |
+| `retire-batch` | `-f`  | `--force`                | flag   | `False`    | flag                 | Remediates batches holding an allocation that resolves as running, cancelling each one first   |
+| `retire-batch` | `-do` | `--drop-without-outcome` | flag   | `False`    | flag                 | Drops the entries when what their jobs recorded cannot be snapshotted                          |
+| `pull`         | `-r`  | `--remote-path`          | `str`  | (required) | required             | The absolute server-side path to the file or directory to copy                                 |
+| `pull`         | `-d`  | `--destination`          | `Path` | (required) | required             | The local directory receiving the copy. Created when it does not exist                         |
 
 The group declares no options. Supplying `-p` skips the prompt and leaks the password into shell history, so hand the
 user `slf server configure` without it. The command guards no existing file, so a repeat call replaces the stored
 configuration outright, and `-u` on `slf server print` defaults to the configured username. `retire-batch` requires
 `-b`, so Click rejects a bare invocation with exit 2 rather than letting the tool's own no-identifier error be reached.
+`pull` lands its copy inside `-d` under the remote path's own final component, creating that directory when it is
+absent, and raises `FileNotFoundError` when the server holds nothing at `-r`. Click rejects a `-d` that already exists
+as a file, since the option accepts a directory alone.
 
 ### Short forms that collide
 
@@ -266,7 +272,8 @@ on `process two-photon`, and `--project` on `server discover`. `-s` expands to `
 expands to `--force` on `omp` and on `server retire-batch`, but `--force-recreate` on `forge`. `-b` expands to
 `--binarize` on `process two-photon` and `--batch-id` on `server batches` and `server retire-batch`. `-a` expands to
 `--animal` on `manifest print` and `--allocations` on `server batches`. `-u` expands to `--username` on
-`server configure` and `--user` on `server print`, and `-r` to `--root` there and `--register` on `process two-photon`.
+`server configure` and `--user` on `server print`, and `-r` to `--root` there, `--remote-path` on `server pull`, and
+`--register` on `process two-photon`.
 
 ---
 
@@ -391,6 +398,7 @@ documented in the `## Response contract` section of `/forging-mcp-environment-se
 | `slf server discover`                  | `discover_remote_project_tool`                    | The CLI prints sessions only, unfiltered and unpaginated. The tool also covers forged datasets and returns the absolute server-side paths                                                                                           |
 | `slf server batches`                   | `get_processing_status_tool`, `host='remote'`     | The same call, with `limit=0`. Without `-a` the CLI prints the batch entries alone, so the per-allocation page a named `-b` produces is computed and never shown                                                                    |
 | `slf server retire-batch`              | `retire_remote_batches_tool`                      | The same call with the same two waivers. The CLI requires `-b` at the parser, and prints the per-allocation remediation table and the outcome directory rather than returning the recorded outcomes                                 |
+| `slf server pull`                      | `pull_remote_path_tool`                           | The same copy. Click rejects a destination that already exists as a file, and the CLI raises `FileNotFoundError` on a path the server holds nothing at, echoing the file count and the megabytes copied where the tool returns them |
 
 ### The three rules behind the table
 
@@ -447,6 +455,7 @@ Confirm the server is genuinely unrecoverable through `/forging-mcp-environment-
 | `discover_remote_project_tool`        | `slf server discover -p <project>`                                           |
 | `get_processing_status_tool`, remote  | `slf server batches`, or `slf server batches -b <batch> -a` for each verdict |
 | `retire_remote_batches_tool`          | `slf server retire-batch -b <batch>`                                         |
+| `pull_remote_path_tool`               | `slf server pull -r <remote-path> -d <destination>`                          |
 
 Three caveats. Every substitute runs one unit on this machine, so a batch spanning many sessions becomes one command
 per session, and a remote batch can be read and remediated but never dispatched from the CLI. `slf clean` carries none
