@@ -1,7 +1,7 @@
 ---
 name: project-state
 description: >-
-  Documents the project state artifacts of sollertia-forgery, the session manifest and the job table published beside
+  Documents the project state artifacts of sollertia-forgery, the session manifest and the job artifact published beside
   it. Covers their column schemas, the one call that writes both, the three widening reads that query them, and the
   query order that establishes whether a batch succeeded. Use when generating or reading a project manifest, when asking
   which sessions finished a pipeline, when investigating why a job failed, or when verifying the outcome of a processing
@@ -12,7 +12,7 @@ user-invocable: false
 # Project state
 
 Reads a project's sessions in one walk and publishes two feather artifacts under one lock, a manifest holding one row
-per session and a job table holding one row per tracked per-session job.
+per session and a job artifact holding one row per tracked per-session job.
 
 This skill is the **exclusive** owner of `generate_project_manifest_tool`, `read_project_manifest_tool`,
 `read_project_jobs_tool`, and `get_manifest_status_tool`. No other skill in the marketplace may document or call these
@@ -26,7 +26,7 @@ four tools.
 - The manifest and the job artifact, their paths, and the one generation call that writes both under one lock
 - The complete manifest schema, one row per session, every column with its Polars dtype
 - The complete job artifact schema, one row per tracked per-session job, every column with its Polars dtype
-- The animal and session key that joins the manifest, the job table, the plan projection, and dataset state
+- The animal and session key that joins the manifest, the job artifact, the plan projection, and dataset state
 - Filters, breakdown axes, and detail fields of both read tools, and the paths they report for a remote project
 - The generation tracker, its single `manifest_generation` job, and the two status vocabularies its reader reports
 - The query order that establishes whether a batch succeeded, which is this plugin's answer to output verification
@@ -37,7 +37,7 @@ four tools.
 - Forging job state, which each dataset records on its own artifact. Owned by `/dataset-definition`.
 - The per-session files each pipeline writes under `processed_data`. Owned by `/processing-results`.
 - The scheduler's own record of a submitted job. Owned by `/remote-execution`.
-- The stored access record a remote host resolves through. Owned by `/server-configuration`.
+- The stored access record through which a remote host resolves. Owned by `/server-configuration`.
 - The `slf manifest` command surface a user runs by hand. Owned by `/cli-reference`.
 - Every acquisition-system-specific file, column, and session type. Owned by `mesoscope:mesoscope-vr-processing-schema`.
 
@@ -107,8 +107,6 @@ on `{project_stem}_manifest.feather.lock`, and publishes the job artifact throug
 manifest. Both renames are atomic but ordered, and readers take no lock, so a reader landing between them at worst holds
 job rows for a session the manifest does not list yet. A join on animal and session drops exactly those rows. The
 reverse order would show a manifest row whose jobs are absent, which reads as a session nothing has processed.
-
-Run generation between execution graphs. A snapshot taken while jobs run is already stale by the time it is read.
 
 ### Manifest read tool
 
@@ -231,8 +229,7 @@ reports its rows, and nothing walks an output directory to confirm that a file l
 the job artifact, read in the order below, and the library itself verifies the same way, checking which pipelines
 completed rather than counting output files.
 
-1. **`generate_project_manifest_tool`**: Refresh both artifacts after the batch's last job retires. A snapshot taken
-   before the batch reports the state the project held then, and carries no indication that it is stale.
+1. **`generate_project_manifest_tool`**: Refresh both artifacts after the batch's last job retires.
 2. **`read_project_jobs_tool`**: Call it bare. The `status` axis of the breakdown counts every tracked job in the
    project by outcome, which is the one number that answers whether the batch succeeded.
 3. **`read_project_jobs_tool`** with `status="FAILED"` and `detailed=True`: List the failures with their
@@ -368,7 +365,7 @@ the tracker holds no entry under the `manifest_generation` identifier. Every oth
 | `date` is null on a manifest row                         | The session name does not follow the acquisition timestamp format         |
 | `error_message` is absent from a listed job              | That job recorded no failure, so the artifact column is null for that row |
 | `total_jobs` is `0` immediately after a generation       | No session in the project carries a tracker holding any job               |
-| A pipeline column is `0` while its jobs read `SUCCEEDED` | The snapshot predates the last job retiring, so regenerate and read again |
+| A pipeline column is `0` while its jobs read `SUCCEEDED` | The snapshot predates the last job retiring                               |
 | A remote read reports a path under `remote_state`        | The read mirrored the server's artifacts onto this machine and read those |
 
 ### Remote reads and the mirror

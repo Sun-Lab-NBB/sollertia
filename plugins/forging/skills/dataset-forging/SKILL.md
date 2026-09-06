@@ -275,20 +275,20 @@ assembled file, and `/batch-processing` owns its arguments and its return tree.
 The `cindra:` entry below resolves through the cindra marketplace. Every other entry resolves inside the sollertia
 marketplace.
 
-| Skill                                      | Relationship                                                              |
-|--------------------------------------------|---------------------------------------------------------------------------|
-| `/batch-processing`                        | Owner: every prepare, execute, monitor, cancel, reset, and clean mechanic |
-| `/dataset-definition`                      | Prerequisite: builds the hierarchy this pipeline resolves its jobs from   |
-| `/job-planning`                            | Upstream: per-dataset planning and the live resource model                |
-| `/processing-input-format`                 | Reference: what a session carries before it joins a dataset               |
-| `/processing-results`                      | Downstream: the assembled outputs and how to read them                    |
-| `/project-state`                           | Reference: project-wide job and manifest artifacts                        |
-| `/remote-execution`                        | Variant: forging a dataset that lives on the compute server               |
-| `/library-extension`                       | Extension: donating an assembler and its column descriptions              |
-| `/pipeline`                                | Context: where dataset forging sits in the end-to-end pipeline            |
-| `assets:session-discovery`                 | Upstream: the session lists a dataset is composed from                    |
-| `mesoscope:mesoscope-vr-processing-schema` | Reference: the Mesoscope-VR columns and their meanings                    |
-| `cindra:multi-recording-processing`        | Reference: the upstream stages this pipeline dispatches in process        |
+| Skill                                      | Relationship                                                                  |
+|--------------------------------------------|-------------------------------------------------------------------------------|
+| `/batch-processing`                        | Owner: every prepare, execute, monitor, cancel, reset, and clean mechanic     |
+| `/dataset-definition`                      | Prerequisite: builds the hierarchy from which this pipeline resolves its jobs |
+| `/job-planning`                            | Upstream: per-dataset planning and the live resource model                    |
+| `/processing-input-format`                 | Reference: what a session carries before it joins a dataset                   |
+| `/processing-results`                      | Downstream: the assembled outputs and how to read them                        |
+| `/project-state`                           | Reference: project-wide job and manifest artifacts                            |
+| `/remote-execution`                        | Variant: forging a dataset that lives on the compute server                   |
+| `/library-extension`                       | Extension: donating an assembler and its column descriptions                  |
+| `/pipeline`                                | Context: where dataset forging sits in the end-to-end pipeline                |
+| `assets:session-discovery`                 | Upstream: the session lists that compose a dataset                            |
+| `mesoscope:mesoscope-vr-processing-schema` | Reference: the Mesoscope-VR columns and their meanings                        |
+| `cindra:multi-recording-processing`        | Reference: the upstream stages this pipeline dispatches in process            |
 
 ---
 

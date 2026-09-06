@@ -156,7 +156,7 @@ parser. Kernel extraction is never configured, because this pipeline consumes no
 
 ### The extraction configuration is an output, not a prerequisite
 
-`microcontrollers.pipeline._materialize_extraction_config` writes `extraction_configuration.yaml`
+`microcontrollers.pipeline._materialize_extraction_configuration` writes `extraction_configuration.yaml`
 (`ataraxis_communication_interface.EXTRACTION_CONFIGURATION_FILENAME`) into
 `session.processed_data.microcontroller_data_path`. It builds the document from the per-controller extraction targets
 the pipeline derives, narrowing `registries.resolve_microcontroller_event_codes` by
@@ -221,9 +221,7 @@ invisible to the job. An absent recording is benign, the job completes with no o
 
 The tracking pass reads an externally produced pose-prediction file that no stage of this library writes.
 `registries.resolve_pose_prediction_locator` resolves it, because the naming of that file belongs to the system that
-produces it, and job discovery consults the locator to decide whether the session supports a tracking job at all. The
-donated tracking function locates its own predictions again and returns without writing when it finds none, so the job
-is safe on every session.
+produces it, and job discovery consults the locator to decide whether the session supports a tracking job at all.
 
 The Mesoscope-VR pose-prediction locator and tracking function that fill this seam are documented by
 `mesoscope:mesoscope-vr-video-tracking`.
@@ -238,8 +236,8 @@ hierarchy are donated per system.
 
 Two conditions gate the run, and each raises `FileNotFoundError` naming the resolved directory. The directory must
 exist, otherwise the session has no calcium-imaging data to process. The tree beneath it must carry a
-`cindra_parameters.json` file (`cindra.PARAMETERS_FILENAME`), found with `discover_marker_files`, because every system
-that produces two-photon data must write it into that directory before the session reaches this library, so the cindra
+`cindra_parameters.json` file (`cindra.PARAMETERS_FILENAME`), found with `discover_marker_files`. Every system that
+produces two-photon data must write it into that directory before the session reaches this library, so the cindra
 pipeline can recover the recording's acquisition metadata. On Mesoscope-VR the writer is preprocessing rather than the
 acquisition runtime, so a session that has not been preprocessed carries no parameters file, and
 `experiment:data-management` owns that step. The pipeline's `FileNotFoundError` message phrases that requirement as
@@ -299,12 +297,11 @@ the original session in the project hierarchy rather than a copy under the datas
 ### The required raw assets and the described columns
 
 `SessionData.required_raw_assets` is the single source of truth for which assets a session must carry, and assembly
-enforces it over the three files it re-exports. The session descriptor and the system configuration snapshot are
-always required, the experiment configuration when the session names an experiment, and the VR configuration when the
-session type uses a VR task. Assembly checks only the three assets it re-exports, so an absent system configuration
-is required by the policy without being caught there. A required but
-absent asset raises `FileNotFoundError` before any expensive work begins, naming the filename and the path where it was
-expected.
+enforces it over the three files it re-exports. The session descriptor and the system configuration snapshot are always
+required, the experiment configuration when the session names an experiment, and the VR configuration when the session
+type uses a VR task. Assembly checks only the three assets it re-exports, so an absent system configuration is required
+by the policy without being caught there. A required but absent asset raises `FileNotFoundError` before any expensive
+work begins, naming the filename and the path where it was expected.
 
 Every column the donated assembler writes into a session's `data.feather` must have a matching description in the
 dataset's `data_descriptions.feather`. The pipeline reads the written file's schema alone and raises `ValueError`
@@ -338,12 +335,10 @@ A bound tool's artifact enters through a locator donated per acquisition system,
 which every other per-system input resolves. The locator takes the loaded session, applies the naming rule that picks
 the artifact out of its directory, and returns the path or `None`.
 
-**The locator gates possibility, not the universe.** A stage whose input is externally produced declares its job in
-the universe unconditionally and appends it to the possible subset only when the locator resolves. `video.pipeline`
-does exactly this for the tracking stage, listing `TRACKING_JOB_NAME` in the universe and appending it to `possible`
-only when `resolve_pose_prediction_locator(system=...)(session=session)` returns a path. An absent artifact therefore
-leaves the job declared and unresolvable, which is the case the readiness rules above describe, rather than failing
-the batch.
+**The locator gates possibility, not the universe.** A stage whose input is externally produced declares its job in the
+universe unconditionally and appends it to the possible subset only when the locator resolves. An absent artifact
+therefore leaves the job declared and unresolvable, which is the case the readiness rules above describe, rather than
+failing the batch. The video pipeline's tracking stage is the worked case, described under Video pipeline input above.
 
 **The donated worker degrades a second time.** The worker locates the artifact again and returns without writing when
 it finds none, so a job that was discovered and then lost its input completes with no output rather than raising. Both
@@ -352,8 +347,7 @@ guards are required, because discovery and execution are separated by the batch.
 **Every system registers a locator, including one that binds nothing.** The registries carrying external-artifact
 locators sit inside `_assert_registry_coverage`, so a system with no bound tool registers a locator that always returns
 `None`, which resolves to a possible subset that never contains the dependent job. The job stays in the universe, as it
-does for every system. Leaving the entry out aborts the import
-instead.
+does for every system. Leaving the entry out aborts the import instead.
 
 **The artifact resolves from the session record.** A locator reads its directory from the session record rather than
 from a literal path, so an artifact written to a scratch directory is invisible to every stage here.
@@ -397,7 +391,7 @@ other entry resolves inside the sollertia marketplace.
 | `/forging-mcp-environment-setup`               | Prerequisite: server connectivity and the response contract                                 |
 | `assets:session-discovery`                     | Upstream: the exclusive producer of the session path lists a batch consumes                 |
 | `experiment:data-management`                   | Upstream: the preprocessing that materializes a session's acquired data                     |
-| `experiment:external-tool-bindings`            | Owner: the binding convention and the producer half this section pairs with                 |
+| `experiment:external-tool-bindings`            | Owner: the binding convention and its producer half                                         |
 | `/library-extension`                           | Downstream: the registries a donated locator joins, and the stage a new artifact kind needs |
 | `mesoscope:mesoscope-vr-processing-schema`     | Reference: the Mesoscope-VR file name and column rosters the seams produce                  |
 | `mesoscope:mesoscope-vr-module-parsing`        | Reference: the Mesoscope-VR event codes, eligibility rules, and parsers                     |

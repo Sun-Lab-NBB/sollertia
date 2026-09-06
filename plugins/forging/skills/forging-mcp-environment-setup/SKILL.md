@@ -188,7 +188,7 @@ the items list.
 |------------------|-----------------------------------------------------------------------------------------|
 | `rows`           | The items this response actually carries                                                |
 | `matched_rows`   | The items matching the caller's filters, before the cap                                 |
-| `start_row`      | The clamped offset this page begins at                                                  |
+| `start_row`      | The clamped offset at which this page begins                                            |
 | `next_start_row` | The `start_row` that retrieves the next page, or `null` when this page ends the matches |
 
 Walk a long result by following `next_start_row` until it is `null`, which the source calls a stronger signal than
@@ -296,11 +296,11 @@ The dependency bounds a skewed environment violates:
 | `mcp`                              | `>=2,<3`          | Check first, because `mcp_instance.py` imports `MCPServer` from `mcp.server` |
 | `sollertia-shared-assets`          | `>=10,<11`        | 10.0.0 first exports the shared checksum exclusion set                       |
 | `ataraxis-data-structures`         | `>=7.1,<8`        | 7.1 first exports the atomic and direct write helpers                        |
-| `ataraxis-video-system`            | `>=5.1,<6`        | 5.1 first exports the layout the video pipeline resolves against             |
+| `ataraxis-video-system`            | `>=5.1,<6`        | 5.1 first exports the layout against which the video pipeline resolves       |
 | `ataraxis-communication-interface` | `>=7.1,<8`        | 7.1 first answers the archive estimator with a `JobSizing` record            |
 | `cindra`                           | `>=2.0.0,<3`      | 2.0.0 first states the re-measured stage worker allocations                  |
 
-`slf --help` hides the traceback behind a generic failure. Reproduce it directly:
+`slf --help` never imports a tool module, so a failure inside one never reaches it. Reproduce that import directly:
 
 ```bash
 python -c "import sollertia_forgery.interfaces.mcp_server"
@@ -308,9 +308,9 @@ python -c "import sollertia_forgery.interfaces.mcp_server"
 
 That command also surfaces the second start-time failure, a `RuntimeError` whose message begins
 `Unable to validate donor-registry coverage for`. `registries.py` runs `_assert_registry_coverage()` at import, and
-every tool module reaches that module through `orchestration/dispatch.py`, so an incomplete acquisition-system
-extension aborts the whole server. Hand that case to `/library-extension`, which owns the registry contracts and the
-extension procedure.
+every tool module reaches that module through `orchestration/dispatch.py`, so an incomplete acquisition-system extension
+aborts the whole server. Hand that case to `/library-extension`, which owns the registry contracts and the extension
+procedure.
 
 ### Step 6: Restart the MCP server
 

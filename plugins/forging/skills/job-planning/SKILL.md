@@ -89,8 +89,9 @@ Both delegate to one private helper and differ only in the parameter name and th
 | `regenerate_plan`                 | `bool`      | `False`    | Keyword-only. Re-estimates figures a cache already holds.        |
 
 A response reports `host`, `total_units`, `total_jobs`, `elapsed_seconds`, and a `units` list whose entries carry
-each unit's `unit_path`, `unit_name`, `job_count`, and `summed_memory_mb`, or its `unit_path` and the `error` that
-stopped it. See [references/tool-responses.md](references/tool-responses.md) for every key and its condition.
+each unit's `unit_path`, `unit_name`, `job_count`, `summed_memory_mb`, and `summed_resident_mb`, or its `unit_path` and
+the `error` that stopped it. See [references/tool-responses.md](references/tool-responses.md) for every key and its
+condition.
 
 **Note:** One unit's failure never aborts the others, so read every entry rather than the totals alone.
 
@@ -111,8 +112,9 @@ generate_project_plan_tool(project_path: str, host: str = "local")
 
 Runs the projection alone, over an empty unit list, then reads the resulting table back and reports its totals.
 
-A response reports `plan_path`, `total_jobs`, `summed_memory_mb`, `largest_job_memory_mb`, `widest_job_cores`, and a
-`pipeline_totals` list holding one entry per unit kind and pipeline pair.
+A response reports `plan_path`, `total_jobs`, `summed_memory_mb`, `largest_job_memory_mb`, `summed_resident_mb`,
+`largest_job_resident_mb`, `widest_job_cores`, and a `pipeline_totals` list holding one entry per unit kind and pipeline
+pair.
 
 **Note:** The per-pipeline count key is `jobs`, not `job_count`. The two planning tools use `job_count` per unit, and
 mixing the two names silently reads a missing key.
@@ -131,7 +133,7 @@ read_project_plan_tool(
 )
 ```
 
-A bare call reports `plan_path`, the same four totals `generate_project_plan_tool` returns, and a `breakdown` over
+A bare call reports `plan_path`, the same six totals `generate_project_plan_tool` returns, and a `breakdown` over
 `unit_kind`, `animal`, `dataset`, `pipeline`, and `job_name`. It lists **no** jobs. Naming any filter, or passing
 `include_items=True`, adds the `jobs` page. `detailed=True` appends `job_id`, `memory_modeled`, and `prerequisite_ids`
 to each listed job, and narrows the default page from 200 rows to 50.
@@ -157,11 +159,12 @@ of the six batch pipelines. `session_paths` names session roots for every sessio
 `forging`. `options` carries exactly one key across the whole library, `regenerate_checksum`, which only the `checksum`
 pipeline reads.
 
-A response reports a `totals` block of `jobs`, `widest_job_cores`, `largest_job_memory_mb`, and `summed_memory_mb`,
-a `breakdown` per job type, and a `units` list. It adds `total_cores` and `total_memory_mb` for `host="local"`, and
-a `jobs` page with the paging keys whenever a filter is named or the listing is requested.
+A response reports a `totals` block of `jobs`, `widest_job_cores`, `largest_job_memory_mb`, `summed_memory_mb`,
+`largest_job_resident_mb`, and `summed_resident_mb`, a `breakdown` per job type, and a `units` list. It adds
+`total_cores` and `total_memory_mb` for `host="local"`, and a `jobs` page with the paging keys whenever a filter is
+named or the listing is requested.
 
-**Note:** This tool is **not** read-only. Discovery runs exactly as it does for a batch, so the call primes every
+**Note:** This tool is **not** read-only. Discovery runs exactly as it does for a batch. The call therefore primes every
 pipeline of every named unit that declares a priming step, plans every named unit, creates and aligns each unit's
 tracker, and rewrites the project's plan and state artifacts. Do not describe it as free and do not poll it. Its
 `replan` is hard-wired to `False`, so it never re-estimates a cached figure.
@@ -234,9 +237,9 @@ answers now. A cache stamped with a different model version is treated as absent
 **Planning primes before it sizes.** A pipeline whose job model lives in state a dependency writes has that state
 materialized first, so planning a session carrying two-photon data writes its cindra configuration and per-plane
 bootstrap before anything is sized. Priming is idempotent, but it is a write. A priming failure drops that whole
-pipeline from the plan and is recorded as a pipeline skip, not as an `unsized_jobs` entry, so on a unit whose other
-pipelines planned normally it leaves no trace in the tool response at all. It surfaces only in the message refusing a
-unit no pipeline could plan, and in the `slf plan` console echo.
+pipeline from the plan and is recorded as a pipeline skip, not as an `unsized_jobs` entry. On a unit whose other
+pipelines planned normally, the failure therefore leaves no trace in the tool response at all. It surfaces only in the
+message refusing a unit no pipeline could plan, and in the `slf plan` console echo.
 
 ---
 
@@ -281,44 +284,9 @@ no `prerequisite_ids` key at all.
 
 ## The resource model
 
-**Read the figures live.** `read_resource_model_tool` reports every declared allocation, ceiling, and reservation at
-zero disk cost, so quote its response rather than any number written down elsewhere. Several allocations are resolved
-at **import time** from the installed dependency that owns the stage, which means they change with a dependency bump
-and no edit in `orchestration/dispatch.py`. A figure copied into a report is stale the moment a dependency moves.
-
-| Term             | Declared in                              | Behavior                                                             |
-|------------------|------------------------------------------|----------------------------------------------------------------------|
-| Core allocation  | `dispatch._JOB_CORE_ALLOCATIONS`         | The cores one job of the type occupies. Read via `resolve_job_cores` |
-| Hard ceiling     | `dispatch._JOB_CONCURRENCY_LIMITS`       | Jobs of the type that may run at once, whatever capacity is idle     |
-| Soft reservation | `dispatch._JOB_CONCURRENCY_RESERVATIONS` | Capacity offered to other work first, then released over the rest    |
-| Host reserve     | `local.RESERVED_CORES`                   | Cores withheld from an auto-resolved core budget                     |
-
-A **ceiling stands however much capacity is idle**. Spare cores and spare memory never lift it, because a type holding
-one is waiting on something capacity does not supply, such as storage bandwidth or decoder throughput.
-
-A **reservation binds only while other jobs can take the room it leaves**. Admission runs a first pass honoring every
-reservation and a second pass without them, so a reserved type widens toward its full parallelism rather than idling
-the host. A type may declare both, and its ceiling then stands in both passes while its reservation stands in the
-first alone. A type declaring neither is bounded by the core and memory budgets alone, which is the normal case and
-is never an error.
-
-`RESERVED_CORES` holds cores back for host-system operations, and it applies **only to a non-positive core budget**.
-An explicit budget is honored up to the machine's logical core count. `read_resource_model_tool` reports the constant
-as `reserved_cores` and reports what remains as `total_cores`.
-
-**A job type declaring neither a core allocation nor a sizing model is a hard error, never a job admitted at a default
-size.** Four assets raise it, at two points in the lifecycle:
-
-| Asset                            | When it fires                       | What it means                                           |
-|----------------------------------|-------------------------------------|---------------------------------------------------------|
-| `dispatch.resolve_job_cores`     | Planning, per unit                  | The type declares no entry in the core allocation table |
-| `footprints.size_session_jobs`   | Planning, per session job           | The type routes to no sizing model                      |
-| `footprints.size_dataset_jobs`   | Planning, per dataset job           | The type routes to no sizing model                      |
-| `local.resolve_core_allocations` | Local execution, over the whole set | Names every unregistered type at once, sorted           |
-
-The refusal text is the same claim each time: a job whose resources nothing resolves cannot be admitted to a batch.
-Adding a stage is therefore an edit to the allocation table and the sizing router together, and `/library-extension`
-owns that seam.
+See [resource-model.md](references/resource-model.md) for the declared core allocations, hard ceilings, soft
+reservations, and `RESERVED_CORES`, along with the assets that refuse a job type declaring neither a core allocation
+nor a sizing model.
 
 ---
 
@@ -330,21 +298,21 @@ each is estimated from the data it will actually process and a long recording is
 - **A stage this library owns** reports its declared width and a memory figure modeled from that job's own input, such
   as an archive's message count, a prediction table's row and column counts, or a decoded frame's pixel count.
 - **A stage a dependency owns** takes both the cores and the memory that dependency's own sizing pass picked for the
-  job's input. The two archive extraction stages carry one addition, because a dependency models the children its
-  stage spawns against its own interpreter while a pool opened here re-imports this package, so the difference is
-  charged for each child the stage opens. The allocation table restates the dependency's width rather than deciding
-  it, and it acts as a **cap** on that type rather than a width every job of the type is raised to.
+  job's input. The two archive extraction stages carry one addition, because a dependency models the children its stage
+  spawns against its own interpreter while a pool opened here re-imports this package. The difference is therefore
+  charged for each child the stage opens. The allocation table restates the dependency's width rather than deciding it,
+  and it acts as a **cap** on that type rather than a width every job of the type is raised to.
 - **No stage answers with a floor.** A job whose input cannot be read raises, and the refusal is recorded in
   `unsized_jobs` while every job beside it stays planned.
 - **Every figure reaches one scale.** `footprints._round_to_gigabyte` raises each result to a whole gigabyte, and the
   package's own models additionally carry a tolerance before that rounding, so the reported memory is what to request.
-- **Every job carries two memory figures.** `memory_mb` is the anonymous memory the job allocates, and it is the term
-  a local process pool is budgeted against. `resident_mb` adds the bytes the job memory-maps and the shared library
-  image every job holds resident, carries its own margin over that sum, and is the term each SLURM allocation
-  requests. Only the two-photon stages that hold a plane binary open, which are `binarization`, `registration`, and
-  `processing`, and the forging pipeline's `multiday_extraction` stage map anything, so every other job's resident
-  figure is its anonymous one raised by the shared image alone. Every reported total counts `memory_mb` alone, so a
-  remote submission is sized from the per-job `resident_mb` a listing carries rather than from the totals beside it.
+- **Every job carries two memory figures.** `memory_mb` is the anonymous memory the job allocates, and it is the term a
+  local process pool is budgeted against. `resident_mb` adds the bytes the job memory-maps and the shared library image
+  every job holds resident, carries its own margin over that sum, and is the term each SLURM allocation requests. Only
+  the two-photon stages that hold a plane binary open, which are `binarization`, `registration`, and `processing`, and
+  the forging pipeline's `multiday_extraction` stage map anything. Every other job's resident figure is therefore its
+  anonymous one raised by the shared image alone. Every totals block reports both terms, so size a remote submission
+  from `summed_resident_mb` and `largest_job_resident_mb` rather than from the anonymous totals.
 
 `footprints.resolve_model_version()` digests every private uppercase constant in `footprints.py` into a
 twelve-character identifier, and that identifier is stamped into each plan cache. Retuning any one of those constants
