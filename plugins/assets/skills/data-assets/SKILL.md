@@ -38,8 +38,7 @@ only registered read asset today. The rest of this skill uses it to illustrate t
 - Adding a **new** read asset, meaning the dataclass, the `ReadAssets` member, and the registry entry, which
   `/library-extension` owns under "Adding a new read asset"
 - Durable corrections to an asset's upstream source. For read assets captured from a Google Sheet, the authoritative
-  source is the sheet. The MCP layer **does not query it at runtime**, and writes here amend only the one on-disk file
-  whose path the caller passes. Edit the upstream source for a fix that should apply to every future capture.
+  source is the sheet. Edit the upstream source for a fix that should apply to every future capture.
 - Propagating an amendment from one copy of the file to another, because copies are independent on disk
 - Partial or per-section updates, because there is no partial-update tool. To change one field, read the current file,
   mutate the returned dict, then write it back whole.
@@ -62,8 +61,7 @@ only registered read asset today. The rest of this skill uses it to illustrate t
 Signatures: `read_data_asset_tool(file_path, data_asset)`,
 `write_data_asset_tool(file_path, data_asset, data_asset_payload, *, overwrite=True)`, and
 `describe_data_asset_schema_tool(data_asset)`. The `file_path` is always the caller's responsibility, and the
-`data_asset` selects the schema. There is no partial-update tool, so to change a single field, read the current file,
-mutate the returned dict, and write it back whole.
+`data_asset` selects the schema.
 
 This skill is where the read pattern for `list_supported_data_assets_tool` is documented and where every other skill
 hands off for it. The tool is read-only, takes no parameters, and lives on the same `slsa mcp` server as the other
@@ -119,7 +117,7 @@ to asking the user:
    `data_asset` argument, and `data_asset_class` is the dataclass resolved from it). With one registered asset today,
    the choice is unambiguous.
 3. **Prompt the user only as a fallback**, when the asset genuinely cannot be inferred and the list does not
-   disambiguate, or when the user is explicitly choosing. Prefer automatic resolution to prompting.
+   disambiguate, or when the user is explicitly choosing.
 
 An invalid `data_asset` returns an error naming the valid `ReadAssets` values, so a wrong guess fails loudly rather than
 silently mis-parsing.
@@ -173,8 +171,7 @@ Prefer the MCP route to path arithmetic on either side. `inspect_sessions_tool` 
 copy under `raw_data_files`, and `inspect_datasets_tool` (`/datasets`) reports each animal's `animal_path` together with
 its `surgery_metadata` artifact entry.
 
-All copies are **snapshots** of the Google Sheet state when their pipeline ran, and none is a live view. A write to one
-does not update any sibling copy or flow back to the sheet.
+All copies are **snapshots** of the Google Sheet state when their pipeline ran, and none is a live view.
 
 `surgery_metadata.yaml` is never a required raw asset, and neither the session inventory nor the dataset inventory
 flags its absence. The session copy does not exist until preprocessing runs, so its absence on a session that was
@@ -222,7 +219,6 @@ amendment affects only the one file whose path is passed.
    intact, as the write contract in `/assets-mcp-environment-setup` requires.
 4. **Write back to the same path:**
    `write_data_asset_tool(file_path="<absolute path>", data_asset="<asset>", data_asset_payload=<mutated dict>)`.
-   `SurgeryData` defines no `__post_init__`, so nothing checks the values themselves.
 5. **Tell the user which copy was amended** and that the change does not propagate to sibling copies or to the upstream
    source.
 
@@ -232,11 +228,9 @@ amendment affects only the one file whose path is passed.
 |-------------------------------------------------------------------------------------|--------------------------------------------------------------------------------------------------|
 | One session's snapshot has a data-entry error, and re-preprocessing is overkill     | `write_data_asset_tool` on the session file                                                      |
 | A dataset's per-animal copy is wrong                                                | `write_data_asset_tool` on the dataset file                                                      |
-| The same field is wrong in both the session snapshot and the dataset copy           | `write_data_asset_tool` against each file separately, because there is no propagation            |
+| The same field is wrong in both the session snapshot and the dataset copy           | `write_data_asset_tool` against each file separately                                             |
 | A field is wrong for the animal itself and should be right for every future capture | Edit the upstream Google Sheet, and the next preprocessing run, plus the forge, captures the fix |
 | Both a past file and future captures need fixing                                    | Do both, using the write tool for the existing file(s) and the source for future captures        |
-
-The MCP layer never pushes an amendment back upstream, and copies stay separate until the next capture.
 
 ---
 

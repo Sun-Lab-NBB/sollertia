@@ -43,9 +43,8 @@ checklist before reporting an extension complete.
 - The cross-skill touch list and the downstream coordination with sollertia-experiment and sollertia-forgery
 
 **Does not cover:**
-- The line-by-line code changes, which the `sollertia-shared-assets` README owns in its "Adding New Session Types",
-  "Adding New Acquisition Systems", "Adding a New Trial Class", "Adding a New Trigger Type", "Adding a New Read Asset",
-  and "Adding a New Credentials Category" sections. Read the section the scenario table names before applying any recipe
+- The line-by-line code changes, which the `sollertia-shared-assets` README owns in the section the scenario table names
+  for each scenario. Read that section before applying any recipe
 - Per-asset CRUD against registered systems and session types (see `/session-data`, `/session-descriptors`,
   `/session-hardware-state`, `/experiment-configuration`, `/task-templates`, `/data-assets`, and `/datasets`)
 - System-level acquisition runtime configuration, which lives in `sollertia-experiment` (see
@@ -121,9 +120,9 @@ mapping the current reference system implements.
 
 The package `__init__.py` imports `registries.py` directly, so all four run on a bare `import sollertia_shared_assets`
 rather than only when `slsa mcp` starts. An extension that misses an entry in one of the six dispatch registries
-therefore fails fast and names the offending registry and member, which is the one class of omission that cannot slip
-through silently. [references/guardrails.md](references/guardrails.md) maps each verbatim `RuntimeError` message onto
-the touch it names.
+therefore fails fast and names the offending registry and member. A missing registry entry is the one class of omission
+that cannot slip through silently. [references/guardrails.md](references/guardrails.md) maps each verbatim
+`RuntimeError` message onto the touch it names.
 
 ### What the checks do not catch
 
@@ -133,8 +132,7 @@ the trigger-to-trial mapping, the `occupancy_types` tuple, and the `_validate_zo
 Four of the remaining six are the `_SystemRawDataBuilder.build` contract, both consequences of
 `SESSION_TYPES_USING_VR_TASK` membership, and the session-record field through which a new session artifact resolves.
 The last two are the `list_processing_trackers_tool` description entry a new `ProcessingTrackers` member needs, and a
-stale registry key left behind by a removed enum member. Membership counts twice because it drives the required-asset
-policy and the `SessionData.create()` gate independently. The stale key passes because the coverage check computes only
+stale registry key left behind by a removed enum member. The stale key passes because the coverage check computes only
 `expected - actual`, and the description entry passes because `interfaces/` carries no test package.
 [references/guardrails.md](references/guardrails.md) carries how each omission surfaces and where to cover it.
 
@@ -174,9 +172,9 @@ into that directory, import `mcp` from `.mcp_instance`, and decorate each functi
 
 ## Extension scenarios
 
-Pick exactly one row, read the README section it names where the row names one, then apply the recipe listed beside it.
-The reference adds the cross-skill and repository-level touches on top of each README recipe, so it completes the recipe
-rather than replacing it.
+Read the README section a row names, where it names one, then apply the recipe listed beside it. The reference adds the
+cross-skill and repository-level touches on top of each README recipe, so it completes the recipe rather than replacing
+it.
 
 | Scenario                               | README section                          | Recipe                                                                                                               |
 |----------------------------------------|-----------------------------------------|----------------------------------------------------------------------------------------------------------------------|
@@ -248,9 +246,6 @@ checks report one structure at a time.
 
 ### Step 2: Apply the code touches
 
-Read the README section the scenario table names for **every** scenario, then apply the touch list in
-[references/extension-recipes.md](references/extension-recipes.md), which adds the cross-skill and repository-level
-updates on top of each README recipe. Two scenarios have no README section, so their recipes carry the whole flow.
 Run `python -c "import sollertia_shared_assets"` once the code touches land, then run the test suite, because the
 import-time checks cover the dispatch registries alone and every touch point under "What the checks do not catch" needs
 explicit test coverage.
@@ -296,13 +291,11 @@ reaches.
 
 ## Pitfalls
 
-| Pitfall                                                       | Why it bites                                                                                                                                                                                                                                                                                                                                       |
-|---------------------------------------------------------------|----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
-| Trusting the import to prove the extension is complete        | The checks cover the six dispatch registries and two contract shapes. Eleven further touch points fail only at load, at session creation, at a tool call, or silently, so run the test suite and the matching `list_supported_*` call                                                                                                              |
-| Changing an existing dataclass schema in place                | On-disk YAML documents written by earlier releases can fail to load. Treat a schema change to a registered dataclass as a migration coordinated through the library's semantic versioning rather than as an extension                                                                                                                              |
-| Reading the schema-change pitfall as barring every widening   | `RawData` and `ProcessedData` are neither `YamlConfig` subclasses nor `SessionData` fields, so no on-disk document carries them and `_build_sub_dataclasses` rebuilds both on every `create()` and `load()`. Appending a field to either is additive, and the recipes for a new read asset, a raw-tree directory, and a processing pipeline own it |
-| Leaving a new session artifact without a session-record field | The artifact passes every import-time check and is served by the generic MCP tools, yet no `session_data` field resolves it, so its producer invents a path literal. Add the enum member, the dataclass field, and its resolution in `build` together                                                                                              |
-| Reading an unmapped trigger as a wiring bug                   | A system maps only the trigger subset it implements, so an unmapped member is a deliberate per-system choice. Record the decision explicitly rather than adding a branch to silence the raise                                                                                                                                                      |
+| Pitfall                                                       | Why it bites                                                                                                                                                                                                                                                                                                                                                                                                                                                  |
+|---------------------------------------------------------------|---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| Changing an existing dataclass schema in place                | On-disk YAML documents written by earlier releases can fail to load. Treat a schema change to a registered dataclass as a migration coordinated through the library's semantic versioning rather than as an extension                                                                                                                                                                                                                                         |
+| Reading the schema-change pitfall as barring every widening   | `RawData` and `ProcessedData` are not `YamlConfig` subclasses, and the `raw_data` and `processed_data` fields that carry them on `SessionData` are declared `init=False` with `YAML_EXCLUDE_METADATA`, so no on-disk document carries them and `_build_sub_dataclasses` rebuilds both on every `create()` and `load()`. Appending a field to either is additive, and the recipes for a new read asset, a raw-tree directory, and a processing pipeline own it |
+| Leaving a new session artifact without a session-record field | The artifact passes every import-time check and is served by the generic MCP tools, yet no `session_data` field resolves it, so its producer invents a path literal. Add the enum member, the dataclass field, and its resolution in `build` together                                                                                                                                                                                                         |
 
 ---
 
@@ -379,21 +372,23 @@ Do NOT invoke this skill for ordinary CRUD against registered systems and sessio
 ## Verification checklist
 
 ```text
-Code side:
+Tool-settled (run `python -c "import sollertia_shared_assets"`, `tox -e coverage`, and `slsa mcp`):
+- [ ] `python -c "import sollertia_shared_assets"` succeeds, which runs all four import-time checks
+- [ ] The new member appears in the matching `list_supported_*` call
+- [ ] A new acquisition system passes a `SessionData.create()` smoke test and gains a `tests/<system>/` package, a
+      `docs/source/api.rst` section, and regenerated `.pyi` stubs
+- [ ] Test suite passes and `slsa mcp` starts cleanly
+
+Code side, reader-judged:
 - [ ] Identified exactly one extension scenario, or applied several sequentially
 - [ ] Read the README section the scenario table names, then applied the matching recipe in
       references/extension-recipes.md
 - [ ] Every new class is exported from its own package __init__.py and re-exported from the top-level __init__.py
       and its __all__
-- [ ] `python -c "import sollertia_shared_assets"` succeeds, which runs all four import-time checks
 - [ ] Every new session artifact carries its enum member, its RawData or ProcessedData field, and that field's
       resolution in the owning build classmethod, so no producer needs a path literal
-- [ ] The new member appears in the matching `list_supported_*` call
 - [ ] Every touch point under "What the checks do not catch" that this scenario reaches carries a test
-- [ ] A new acquisition system passes a `SessionData.create()` smoke test and gains a `tests/<system>/` package, a
-      `docs/source/api.rst` section, and regenerated `.pyi` stubs
 - [ ] The `sollertia-shared-assets` version is bumped (if a new acquisition system)
-- [ ] Test suite passes and `slsa mcp` starts cleanly
 
 Skill side:
 - [ ] Walked the cross-skill touch table and applied every update the scenario names

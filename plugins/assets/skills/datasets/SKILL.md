@@ -157,9 +157,9 @@ pipeline rather than patched from here.
 
 Verification is one-directional. A described column that no session emits passes, because columns are emitted
 conditionally, while a column written into a session's `data.feather` with no matching description is a violation. The
-check reads only the Arrow footer schema of each session's feather, so no session data is materialized, and it
-aggregates every offending column and the sessions that emit it into a single message rather than aborting on the first.
-Run it once the dataset is fully composed, meaning every session's `data.feather` is on disk.
+check reads only the Arrow footer schema of each session's feather, so no session data is materialized. It aggregates
+every offending column and the sessions that emit it into a single message rather than aborting on the first. Run it
+once the dataset is fully composed, meaning every session's `data.feather` is on disk.
 
 The two description tools disagree deliberately about a missing companion, and the disagreement is the point:
 
@@ -311,7 +311,7 @@ owns the VR configuration snapshot. Read the assembled `data.feather` itself thr
 
 ## Library API
 
-Three `DatasetData` members mutate a dataset on disk, and no MCP tool exposes any of them. Python code running where the
+Four `DatasetData` members mutate a dataset on disk, and no MCP tool exposes any of them. Python code running where the
 dataset lives reaches them directly.
 
 | Member                        | Effect                                                                                   |
@@ -319,13 +319,17 @@ dataset lives reaches them directly.
 | `DatasetData.create(...)`     | Builds the whole tree, writes the description companion, then writes the marker last     |
 | `instance.add_sessions(...)`  | Creates the new session directories and rewrites the marker, rolling back on any failure |
 | `instance.remove_animal(...)` | Deletes one animal's directory with everything under it and rewrites the marker          |
+| `instance.save()`             | Rewrites `dataset.yaml` from the live instance, with no screening and no rollback        |
 
 `create()` screens the name, the session type, the acquisition system, the session list, every animal and session
 identifier, and every column-description entry before it creates a single directory, and it refuses a destination that
 already exists. `add_sessions()` refuses a session the dataset already holds and a pair repeated inside one request, and
 it enforces the structural invariants alone, leaving the question of whether a session belongs in the dataset to its
 caller. `remove_animal()` unlinks an animal directory that is a symlink in place, so the tree it targets stays whole,
-and it verifies the directory is gone before rewriting the marker.
+and it verifies the directory is gone before rewriting the marker. `save()` is the unguarded write beneath the other
+three. `create()` publishes the marker through it, and `add_sessions()` and `remove_animal()` reach it through
+`_commit_sessions`, which restores the previous session list when the write fails. Calling it directly persists whatever
+the instance holds and skips every screen above it, so prefer the other three.
 
 The read-only helpers need no MCP round trip either: `animals`, `get_animal()`, `get_sessions_for_animal()`,
 `get_session()`, `column_descriptions()`, `get_column_description()`, and `verify_data_descriptions()`.

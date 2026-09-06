@@ -1,6 +1,6 @@
 {
   "name": "assets",
-  "version": "2.3.1",
+  "version": "2.3.2",
   "description": "Provides configuration, metadata, session-discovery, and dataset skills for sollertia-shared-assets, the asset backbone of the Sollertia platform. Includes MCP bindings for asset authoring and validation, project and session discovery, dataset inspection, and the Unity Editor relay, plus a reference for the human-facing slsa command-line interface.",
   "repository": "https://github.com/Sun-Lab-NBB/sollertia",
   "license": "Apache-2.0",

@@ -195,9 +195,9 @@ Task
 - **Cues** are individual visual panels displayed along the walls of the corridor. They are the smallest unit, and are
   shared across every trial, and every template, that declares the same cue identity, meaning the cue `name` paired with
   its `length_cm`.
-- **Segments are trials.** Each entry in the template's `trial_structures` dict produces exactly one segment. A segment
-  owns its cue sequence and the behavioral element associated with that trial (the stimulus trigger zone, the reward or
-  aversive contingency, etc.).
+- **Segments.** Each entry in the template's `trial_structures` dict produces exactly one segment. A segment owns its
+  cue sequence and the behavioral element associated with that trial (the stimulus trigger zone, the reward or aversive
+  contingency, etc.).
 - **Corridors** are fixed-length windows of segments. The first segment in a corridor is the **active** trial, and it
   drives behavior. The remaining segments are pure visual lookahead, so the animal sees what is coming without yet
   experiencing it. The window length is set by `vr_environment.segments_per_corridor`, and setting it to one collapses
@@ -208,10 +208,11 @@ Task
 
 **Iterative corridor traversal.** At session start, the runtime walks the trial-transition graph to build a flat
 sequence of trials that overshoots the configured track length. It then slides a window the size of the corridor (in
-segments) over that sequence. The current window identifies one corridor from the pre-built catalog, and the animal is
-teleported to that corridor's start. Whenever the animal finishes the first segment of the current corridor, the window
-slides one trial forward and the animal jumps to the corridor whose segment combination matches the new window. Adjacent
-corridors share `segments_per_corridor - 1` segments, so the visible cue sequence stays continuous across teleports.
+segments) over that sequence. The current window identifies one corridor from the pre-built corridor set, and the animal
+is teleported to that corridor's start. Whenever the animal finishes the first segment of the current corridor, the
+window slides one trial forward and the animal jumps to the corridor whose segment combination matches the new window.
+Adjacent corridors share `segments_per_corridor - 1` segments, so the visible cue sequence stays continuous across
+teleports.
 
 The corridor count grows as `trial_count ^ segments_per_corridor`, so raising the lookahead depth is a deliberate choice
 that adds visual context at the cost of an exponentially larger task. Most paradigms use one or two segments per
@@ -286,7 +287,7 @@ list_supported_trigger_types_tool()
 ```
 
 Use the schema and the tool responses as the source of truth, because they pin down the exact strings `trigger_type`
-accepts and the exact class names of the runtime trial variants the target acquisition system supports, which avoids
+accepts and the exact class names of the runtime trial variants the target acquisition system supports. That avoids
 silent typos that slip past YAML syntax but fail at runtime. `list_supported_trial_types_tool` requires an
 `acquisition_system` argument whose valid values come from `list_supported_acquisition_systems_tool`, and it returns a
 `class_name` and a full field schema for each trial class, a surface `/experiment-configuration` owns.
@@ -299,19 +300,17 @@ Build the template dictionary in this order:
    name, cm-per-unity-unit conversion, and cue offset. Every field carries a default, so individual keys may be omitted,
    but the `vr_environment` block itself is required on both the Python and the Unity side.
 2. **Cue catalog.** Define every `Cue`, covering name, uint8 code, length, and required texture filename. A cue name may
-   hold only ASCII letters, digits, and underscores, because the name is embedded in the generated
-   `Cue_<name>_<length>cm` asset filename and in the cue-sequence signature that identifies a trial.
+   hold only ASCII letters, digits, and underscores.
 3. **Trial structures.** Populate the `trial_structures` dict, mapping each trial name to a `TrialStructure`. That
    covers the cue sequence, the stimulus trigger zone start and end, the stimulus location, whether the collision
    boundary is visible, and the trigger type from `list_supported_trigger_types_tool`. It also covers an optional
    `transitions` dict that maps target trial names to probabilities summing to 1.0. Set `occupancy_duration_ms` on every
-   occupancy-mode trial and leave it `None` on every other trial. `None` is how a template says the field is unused,
-   while `0` is a real duration and is rejected on every trial whatever its trigger type.
+   occupancy-mode trial and leave it `None` on every other trial.
 
 Reward sizes, gas-puff durations, experiment states, and the choice of trial class (on Mesoscope-VR,
 `MesoscopeWaterRewardTrial` versus `MesoscopeGasPuffTrial`) are **not** part of the template, and
-`/experiment-configuration` adds them per-experiment. How often each trial runs is the template's own concern, carried
-by that trial's `transitions` dict, and so is occupancy dwell time, carried by `TrialStructure.occupancy_duration_ms`.
+`/experiment-configuration` adds them per-experiment. Occupancy dwell time is the template's own concern, carried by
+`TrialStructure.occupancy_duration_ms`.
 
 ### Step 5: Write, validate, and re-read
 
@@ -366,22 +365,24 @@ when intentionally replacing an existing template.
   `vr_environment.cue_offset_cm` is finite. Zero and negative are legal for `cue_offset_cm`, because it is an offset.
   `vr_environment.padding_prefab_name` is not validated
 
-Both tools additionally scan the live catalog for a cue identity declaring more than one texture. An identity is the cue
-name paired with its length rendered as Unity renders it, through a single-precision `ToString("0.##")` label, so a cue
-`A` of `30.0` cm keys as `A at 30cm`. Unity names the generated prefab `Cue_<name>_<label>cm` and reuses the one already
-on disk, so two templates declaring one identity with different textures each render the other's texture. Applying that
-rule at authoring time makes this verdict match the one Unity's `ValidateCueDefinitionsAcrossTemplates` preflight
-reaches at generation time, where a conflict aborts every task in the catalog rather than the one template that
-introduced it. The scan runs only when a templates directory is configured and the target resolves to a direct child of
-it, so a per-session snapshot and a forged-dataset copy receive the schema verdict alone. It reads the `.yaml` and
-`.yml` siblings Unity itself reads, skips the dot-prefixed staging files a killed write leaves behind, and holds the
-file under authoring out by resolved path, so the copy already on disk never conflicts with the incoming version.
+Both tools additionally scan the configured templates directory for a cue identity declaring more than one texture. An
+identity is the cue name paired with its length rendered as Unity renders it, through a single-precision
+`ToString("0.##")` label, so a cue `A` of `30.0` cm keys as `A at 30cm`. Unity names the generated prefab
+`Cue_<name>_<label>cm` and reuses the one already on disk, so two templates declaring one identity with different
+textures each render the other's texture. Applying that rule at authoring time makes this verdict match the one Unity's
+`ValidateCueDefinitionsAcrossTemplates` preflight reaches at generation time, where a conflict aborts every task in the
+templates directory rather than the one template that introduced it. The scan runs only when a templates directory is
+configured and the target resolves to a direct child of it, so a per-session snapshot and a forged-dataset copy receive
+the schema verdict alone. It reads the `.yaml` and `.yml` siblings Unity itself reads, and skips the dot-prefixed
+staging files a killed write leaves behind. It holds the file under authoring out by resolved path, so the copy already
+on disk never conflicts with the incoming version.
 
-`write_template_tool` refuses a conflict through the error envelope, naming the catalog directory and every conflicting
-identity. `validate_template_tool` reports it inside a **success** envelope as `valid=False` with an `issues` list
-carrying one entry per conflicting identity, each prefixed `Cross-template cue-texture conflict.` and naming every
-contributing template stem with the texture it declares. Re-validating the same file cannot clear those entries, because
-the fix lives in a sibling template or in the incoming cue catalog rather than in the constraint the entry names.
+`write_template_tool` refuses a conflict through the error envelope, naming the templates directory and every
+conflicting identity. `validate_template_tool` reports it inside a **success** envelope as `valid=False` with an
+`issues` list carrying one entry per conflicting identity, each prefixed `Cross-template cue-texture conflict.` and
+naming every contributing template stem with the texture it declares. Re-validating the same file cannot clear those
+entries, because the fix lives in a sibling template or in the incoming cue catalog rather than in the constraint the
+entry names.
 
 `validate_template_tool` reports four outcomes. A missing file returns `success=False` carrying `error`. A load or
 schema failure returns `success=True` with `valid=False` and a single-element `issues` list holding the first violated
@@ -424,8 +425,7 @@ for instantiating templates into experiment configurations.
 4. Write the template back with `write_template_tool` (use `overwrite=True`).
 5. Re-run `validate_template_tool` to confirm the new entry passes cross-reference checks.
 6. Hand off to `/experiment-configuration` if a per-project experiment needs to pair this trial with a runtime trial
-   class (on Mesoscope-VR, `MesoscopeWaterRewardTrial` or `MesoscopeGasPuffTrial`) and set its stimulus parameters. How
-   often the new trial runs is set by the `transitions` dicts in step 3 above, not by the experiment configuration.
+   class (on Mesoscope-VR, `MesoscopeWaterRewardTrial` or `MesoscopeGasPuffTrial`) and set its stimulus parameters.
 
 ### Migrate a template to a new VR scene
 

@@ -11,8 +11,7 @@ user-invocable: false
 # Sollertia working directory setup
 
 Initializes the local Sollertia working directory, the data root, and the supporting credentials files and task
-templates directory used by `sollertia-shared-assets`. This is the first skill to invoke on any host that will run
-Sollertia configuration or runtime tooling.
+templates directory used by `sollertia-shared-assets`.
 
 ---
 
@@ -57,15 +56,14 @@ the long-term storage tier where session data lives. Setting the working directo
 The working directory path is persisted under `platformdirs.user_data_dir(appname="sollertia_data",
 appauthor="sollertia")`, so it survives across CLI invocations and MCP sessions on the same host. The consumers that
 resolve a path against this record are the credentials toolset, which joins the `credentials/` subdirectory under it,
-the two tools that report the record itself, `read_working_directory_tool` and
-`get_platform_environment_status_tool`, and the `slsa get directory` CLI reader that prints it. No session, dataset,
-template, or experiment tool consults it, because each of those takes an explicit path. That application directory
-holds three plain-text records, each containing exactly one path string: `working_directory_path.txt`,
-`data_root_path.txt`, and `task_templates_directory_path.txt`. Every getter reads its record back with
-`rstrip("\r\n")`, so only line terminators are stripped. A directory name ending in a space survives intact, and a
-record holding nothing but a newline is rejected as empty. The three settings are fully independent, with no
-precedence, no fallback, and no inheritance between them. The data root is not derived from the working directory or
-the reverse. No environment variable and no CLI argument overrides any of the three records.
+the two tools that report the record itself, `read_working_directory_tool` and `get_platform_environment_status_tool`,
+and the `slsa get directory` CLI reader that prints it. No session, dataset, template, or experiment tool consults it,
+because each of those takes an explicit path. That application directory holds three plain-text records, each containing
+exactly one path string: `working_directory_path.txt`, `data_root_path.txt`, and `task_templates_directory_path.txt`.
+Every getter reads its record back with `rstrip("\r\n")`, so only line terminators are stripped. A directory name ending
+in a space survives intact, and a record holding nothing but a newline is rejected as empty. The three settings are
+fully independent, with no precedence, no fallback, and no inheritance between them. The data root is not derived from
+the working directory or the reverse. No environment variable and no CLI argument overrides any of the three records.
 
 ### configuration/
 
@@ -112,9 +110,11 @@ sessions.
 The data root path is persisted via `platformdirs`, independently of the working directory. Persisting it lets the
 project-hierarchy and session-discovery workflows resolve the project tree without the caller re-supplying the root each
 time. Its consumers are the `slsa get` CLI commands that resolve against it (`slsa get projects`,
-`slsa get experiments`, `slsa get data-root`). `create_project_tool` also consumes it when its optional `root_directory`
-argument is omitted. `slsa configure project` consumes it as well, resolving the root from `get_data_root()` and
-accepting no override at all.
+`slsa get experiments`, `slsa get data-root`) and the two `slsa delete` commands that build their target path under it
+(`slsa delete experiment`, `slsa delete project`). `create_project_tool`, `delete_project_tool`, and
+`delete_experiment_configuration_tool` also consume it when their optional `root_directory` argument is omitted.
+`slsa configure project` consumes it as well, resolving the root from `get_data_root()` and accepting no override at
+all.
 
 The MCP discovery and inventory tools do **not** default to the persisted root. `get_data_root_overview_tool`,
 `discover_experiments_tool`, and `discover_datasets_tool` all take `root_directory` as a required argument. Reading the
@@ -139,7 +139,7 @@ scan), so this directory is the single source of truth. Keep it pointed at the c
 
 Templates are **project-agnostic**, so the same template can back many per-project experiment configuration instances
 across different projects and even across different hosts. Decoupling the templates directory from the working directory
-lets multiple hosts share the same template set (for example, via a network mount or a synced folder), and lets a single
+lets multiple hosts share one template set, for example over a network mount or a synced folder. It also lets a single
 host maintain one template library that serves all of its projects. Sharing is safe only on a host that never calls
 `unity:task-prefabs` `create_task_tool`, which resolves the template basename inside the Unity project's own
 `Configurations/` folder and ignores this record. You MUST keep the record on the `Configurations/` folder of the local
@@ -196,12 +196,12 @@ matters more for those two.
 computes `overall_ok` from the **required components only**. The report carries one `<category>_credentials` component
 per supported credentials category:
 
-| Component                  | `required` | When the host needs it                                                              |
-|----------------------------|------------|-------------------------------------------------------------------------------------|
-| `working_directory`        | `True`     | Anchors the credentials directory, and is the only component `overall_ok` gates on  |
-| `data_root`                | `False`    | Only when defaulting project creation, discovery, or inventory to a persisted root  |
-| `task_templates_directory` | `False`    | Authoring task templates, and creating any experiment session of a VR-task type     |
-| `google_credentials`       | `False`    | Only when reading subject metadata from or writing water-restriction logs to Sheets |
+| Component                  | `required` | When the host needs it                                                                       |
+|----------------------------|------------|----------------------------------------------------------------------------------------------|
+| `working_directory`        | `True`     | Anchors the credentials directory, and is the only component `overall_ok` gates on           |
+| `data_root`                | `False`    | Only when defaulting project creation, deletion, discovery, or inventory to a persisted root |
+| `task_templates_directory` | `False`    | Authoring task templates, and creating any experiment session of a VR-task type              |
+| `google_credentials`       | `False`    | Only when reading subject metadata from or writing water-restriction logs to Sheets          |
 
 Each per-component dict carries `required`, `configured`, `ok`, and either `path` (when configured) or `error` (when
 not). An optional unset component reports `configured=False` and `ok=False` but does **not** gate `overall_ok`.
@@ -322,11 +322,7 @@ These are the exact commands the library's own `FileNotFoundError` messages name
 | 4    | `slsa configure credentials -c <category> -f <file>` | `slsa get credentials -c <category>` |
 | 5    | `slsa configure templates -d <path>`                 | `slsa get templates`                 |
 
-`configure directory` and `configure data-root` accept non-existent paths (`exists=False`) and create them.
-`configure templates` and `configure credentials --file` require the target to exist already (`exists=True`), and Click
-rejects a missing target before the library is reached. A fifth setter, `slsa configure project -p <name>`, creates a
-project directory under the data root. It resolves that root from `get_data_root()` and accepts no override, so it fails
-on a host that skipped Step 3.
+`/cli-reference` owns the option spellings, the path-existence behavior of each command, and `slsa configure project`.
 
 Once the bootstrap steps above are done, return to `experiment:pipeline`, which owns the canonical phase order for the
 whole Sollertia lifecycle and names the phase that follows working-directory setup.

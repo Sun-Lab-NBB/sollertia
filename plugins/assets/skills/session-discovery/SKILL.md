@@ -11,8 +11,7 @@ user-invocable: false
 # Sollertia session discovery
 
 Discovers and filters Sollertia sessions via the sollertia-shared-assets MCP tools. This skill is domain-agnostic,
-providing the raw discover and filter surface from which any downstream batch skill can chain. For the artifacts each
-processing pipeline requires on disk, see the forging plugin's `forging:processing-input-format`.
+providing the raw discover and filter surface from which any downstream batch skill can chain.
 
 ---
 
@@ -89,10 +88,10 @@ total_projects, total_animals, total_sessions, root_directory
 ```
 
 `status="error"` entries come in two shapes, both owned and documented by `/project-hierarchy`, which also states the
-rule excluding them from the `projects[*]` aggregates. Because `filter_sessions_tool` drops them from `session_paths`,
-a marker or descriptor problem silently shrinks the batch a downstream skill receives. You MUST surface every error
-entry to the user before handing off, reading them from this response rather than from the filtered `sessions` list,
-which does not carry the marker-load-failure shape.
+rule excluding them from the `projects[*]` aggregates. Because `filter_sessions_tool` drops them from `session_paths`, a
+marker or descriptor problem silently shrinks the batch a downstream skill receives. You MUST surface every error entry
+to the user before handing off, reading them from this response and from `filter_sessions_tool`'s `invalid_entries`
+rather than from the filtered `sessions` list, which does not carry the marker-load-failure shape.
 
 ### Session filtering
 
@@ -127,12 +126,11 @@ the pass is skipped and such names survive.
 
 **Return structure:** Structurally identical to the input shape, carrying `sessions`, `session_paths`, `total_sessions`,
 and `total_eligible`. Entries with `status="error"`, and entries carrying no `session_path` key, are excluded from
-`session_paths`. Only the descriptor-failure error shape survives into `sessions`, because it carries `session_name`
-and `animal`. The marker-load-failure shape carries neither, so it is diverted into `invalid_entries` with a
-`filter_error` field before filtering runs, and is counted in neither `sessions` nor `total_sessions`. Surface error
-entries from the `get_data_root_overview_tool` response and from `invalid_entries`, never from the filtered `sessions`
-list alone. `sessions` is sorted by `(session_name, animal, session_path)` and `session_paths` by path. An
-`invalid_entries` key appears when input entries lack the required `session_name` or `animal` fields.
+`session_paths`. Only the descriptor-failure error shape survives into `sessions`, because it carries `session_name` and
+`animal`. The marker-load-failure shape carries neither, so it is diverted into `invalid_entries` with a `filter_error`
+field before filtering runs, and is counted in neither `sessions` nor `total_sessions`. `sessions` is sorted by
+`(session_name, animal, session_path)` and `session_paths` by path. An `invalid_entries` key appears when input entries
+lack the required `session_name` or `animal` fields.
 
 ---
 
@@ -165,9 +163,8 @@ via `/session-data` or `/session-descriptors`.
 
 ### Step 3: Optionally narrow by session type or project (client-side)
 
-`get_data_root_overview_tool` does not accept server-side session-type, project, or animal filters. When the user wants
-to operate only on certain session types or on a specific project or animal, filter the flat `sessions` list client-side
-before step 4:
+Narrowing by session type, project, or animal happens client-side, as **Available tools** states. When the user wants to
+operate only on certain session types or on a specific project or animal, filter the flat `sessions` list before step 4:
 
 ```text
 filtered = [entry for entry in response["sessions"]
@@ -256,13 +253,12 @@ parse_session_timestamp(session_name: str, *, utc_timezone: bool = True) -> date
 | `filter_sessions`              | Takes `(session_name, animal)` tuples, returns a set, and propagates a `ValueError` on an unparsable bound    |
 | `parse_session_timestamp`      | Parses the 7-component `YYYY-MM-DD-HH-MM-SS-microseconds` grammar, returning `None` for any other name        |
 
-`validate_directory` has no caller in this library or in any downstream Sollertia library. It is a convenience
-validator exported for library code that prefers a message string over an exception, and its
+`validate_directory` has no caller in this library or in any downstream Sollertia library. It is a convenience validator
+exported for library code that prefers a message string over an exception, and its
 `Unable to validate the input directory. The path <path> does not exist.` message is never surfaced by any skill. A
-missing project root reaches the user by a different route: `forging:dataset-definition`'s
-`define_forging_dataset_tool` takes a `project_path` and reports the failure as
-`Unable to define the local dataset '<name>'. <reason>`, wrapping the `OSError` that `discover_sessions` raises while
-scanning that root.
+missing project root reaches the user by a different route: `forging:dataset-definition`'s `define_forging_dataset_tool`
+takes a `project_path` and reports the failure as `Unable to define the local dataset '<name>'. <reason>`, wrapping the
+`OSError` that `discover_sessions` raises while scanning that root.
 
 ---
 
@@ -278,7 +274,6 @@ scanning that root.
 | `/session-descriptors`            | Reference: per-session descriptor repair                                                         |
 | `/datasets`                       | Downstream: reads and audits the dataset container once `forging:dataset-definition` composes it |
 | `forging:project-state`           | Downstream: manifest reading and generation                                                      |
-| `forging:batch-processing`        | Downstream: consumes confirmed session_paths                                                     |
 | `forging:batch-processing`        | Downstream: consumes confirmed session_paths                                                     |
 | `forging:dataset-definition`      | Downstream: composes a dataset from the confirmed session names                                  |
 | `forging:dataset-forging`         | Downstream: consumes confirmed session names                                                     |

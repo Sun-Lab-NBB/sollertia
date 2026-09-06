@@ -84,11 +84,11 @@ installed in the active Python environment.
 
 ### Unity tools
 
-The `slsa mcp` server also serves 18 Unity-relay tools, spanning eight families: task creation and deletion, prefab
-inspection and zone cloning, asset listing, deletion, and refresh, scene listing, opening, saving, and inspection, play
-mode, task parameters, monitor refresh, and Console reads. Those tools depend on the Unity Editor running with the
-`McpBridge` plugin loaded. **That diagnostic is owned by `unity:unity-mcp-environment-setup`.** This skill covers the
-slsa CLI and Python environment side of the stack alone.
+The `slsa mcp` server also serves 18 Unity-relay tools, spanning eight families. The families are task creation and
+deletion, prefab inspection and zone cloning, asset listing, deletion, and refresh, scene listing, opening, saving, and
+inspection, play mode, task parameters, monitor refresh, and Console reads. Those tools depend on the Unity Editor
+running with the `McpBridge` plugin loaded. **That diagnostic is owned by `unity:unity-mcp-environment-setup`.** This
+skill covers the slsa CLI and Python environment side of the stack alone.
 
 ---
 
@@ -207,18 +207,16 @@ pip check sollertia-shared-assets 2>&1 | head -20
 
 The dependency bounds a skewed environment violates:
 
-| Dependency                 | Required bound | Triage note                                                                |
-|----------------------------|----------------|----------------------------------------------------------------------------|
-| `mcp`                      | `>=2,<3`       | Check this one first, because mcp 1.x breaks the import outright           |
-| `ataraxis-data-structures` | `>=7.1,<8`     | 7.1 is the first release exporting `atomic_write` and `index_marker_files` |
-| `ataraxis-base-utilities`  | `>=7,<8`       | Supplies `console`, `LogLevel`, and `ensure_directory_exists`              |
-| `ataraxis-time`            | `>=7,<8`       | Supplies `get_timestamp` and `TimestampFormats` used by the data hierarchy |
+| Dependency                 | Required bound | Triage note                                                                                                             |
+|----------------------------|----------------|-------------------------------------------------------------------------------------------------------------------------|
+| `mcp`                      | `>=2,<3`       | Check this one first, because mcp 1.x breaks the import outright                                                        |
+| `ataraxis-data-structures` | `>=7.1,<8`     | 7.1 is the first release exporting `atomic_write` and `index_marker_files`, both of which sollertia-shared-assets calls |
+| `ataraxis-base-utilities`  | `>=7,<8`       | Supplies `console`, `LogLevel`, and `ensure_directory_exists`                                                           |
+| `ataraxis-time`            | `>=7,<8`       | Supplies `get_timestamp` and `TimestampFormats` used by the data hierarchy                                              |
 
 An environment holding mcp 1.x makes `slsa mcp` die at import with
 `ImportError: cannot import name 'MCPServer' from 'mcp.server'`, because the server module imports `MCPServer` and mcp
-1.x named that class `FastMCP`. Remedy that skew with `pip install --upgrade 'mcp>=2,<3'`. The
-`ataraxis-data-structures` floor is `7.1` rather than `7` because 7.1 is the first release exporting `atomic_write` and
-`index_marker_files`, both of which the library calls.
+1.x named that class `FastMCP`.
 
 Tool registration is a pure import side effect of the four `*_tools.py` modules, which the server module globs in
 `sorted()` order at import time. A failure inside any one of them therefore takes down all 72 tools rather than a
@@ -270,10 +268,10 @@ failure, so hand that case off to `unity:unity-mcp-environment-setup` as well. T
 | `Unable to reach the Unity Editor`    | McpBridge / Editor offline               | See `unity:unity-mcp-environment-setup`    |
 | `did not answer within 30 seconds`    | Editor busy or scene cache cleared       | See `unity:unity-mcp-environment-setup`    |
 
-The two path getters each raise `FileNotFoundError` in three conditions, not one. Those three conditions are the
-following: the cached path record does not exist (`as it has not been set`), the record exists but is empty
-(`as the cached path record is empty`), and the record names a directory that no longer exists on disk.
-`assets:working-directory` owns the full taxonomy and the repair procedure for all three.
+The two path getters each raise `FileNotFoundError` in three conditions. The cached path record does not exist
+(`as it has not been set`), the record exists but is empty (`as the cached path record is empty`), or the record names a
+directory that no longer exists on disk. `assets:working-directory` owns the full taxonomy and the repair procedure for
+all three.
 
 ---
 

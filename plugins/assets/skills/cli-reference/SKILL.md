@@ -3,9 +3,9 @@ name: cli-reference
 description: >-
   Documents the human-facing slsa command-line interface of the sollertia-shared-assets library. Covers the root group,
   the get, configure, and delete subgroups, every leaf command and option with its short form, long form, type, default,
-  and effect, the MCP tool each command maps to, and the tool families the CLI leaves entirely unexposed. Use when a
-  user asks what an slsa command or option does, or when the MCP server is unavailable and the user must be told what to
-  run by hand.
+  and effect, the MCP tool to which each command maps, and the tool families the CLI leaves entirely unexposed. Use when
+  a user asks what an slsa command or option does, or when the MCP server is unavailable and the user must be told what
+  to run by hand.
 user-invocable: false
 ---
 
@@ -22,7 +22,7 @@ is exempt. `/assets-mcp-environment-setup` owns that exemption.
 ## Scope
 
 **Covers:**
-- The complete `slsa` command surface: every Click node, its purpose, and the MCP tool it maps to
+- The complete `slsa` command surface: every Click node, its purpose, and the MCP tool to which it maps
 - Every declared option: short form, long form, type, default, required, flag, or repeatable status, and effect
 - Per-command failure modes, the exception each raises, and the exit code the user observes
 - Which CLI commands have no MCP equivalent, which MCP tool families have no CLI equivalent, and where paired
@@ -161,8 +161,8 @@ Every one of them declares `path_type=Path`, so the command body receives a `pat
 | `experiment` | `-e`  | `--experiment` | `str`  | (required) | required | The experiment configuration to remove |
 | `project`    | `-p`  | `--project`    | `str`  | (required) | required | The project to remove                  |
 
-The three name options are plain `str`, and each command checks its own names against `NAME_COMPONENT_PATTERN` before it
-joins them onto the data root, so a name carrying a separator or a `..` entry is refused with a `ValueError` rather than
+The three name options are plain `str`. Each command checks its own names against `NAME_COMPONENT_PATTERN` before
+joining them onto the data root, so a name carrying a separator or a `..` entry raises a `ValueError` instead of
 resolving to a nested animal or session directory. `--file` is the only `click.Path` on the group, and it declares
 `path_type=Path` like the other four.
 
@@ -181,7 +181,7 @@ Quote the long form anyway when handing a command to a user, because the same sh
 No command body is wrapped in a catching decorator, and every library guard raises through
 `ataraxis_base_utilities.console.error`, which raises whether or not the console is enabled. A guard failure therefore
 leaves a Python traceback and exit code 1, so ask the user to paste the traceback rather than the status. The one exit-1
-path that carries no traceback is the confirmation `slsa delete project` blocks on, which prints `Aborted!` alone.
+path that carries no traceback is the confirmation on which `slsa delete project` blocks, which prints `Aborted!` alone.
 
 | Path                                                                        | Mechanism                        | Observable outcome    |
 |-----------------------------------------------------------------------------|----------------------------------|-----------------------|
@@ -193,8 +193,7 @@ path that carries no traceback is the confirmation `slsa delete project` blocks 
 | A template path outside the templates directory, or carrying another suffix | `console.error`, uncaught        | Traceback, exit 1     |
 | A withheld confirmation on `slsa delete project`                            | `click.confirm(abort=True)`      | `Aborted!`, exit 1    |
 
-There is no version option, no verbosity option, no dry-run option, and no host option anywhere on the surface. `slsa`
-addresses this machine only.
+There is no version option, no verbosity option, and no dry-run option anywhere on the surface.
 
 ### What every command prints
 
@@ -228,11 +227,12 @@ directly under the data root in natural sort order. `/project-hierarchy` owns th
 false-positive cost of the directory one. Finding nothing is not an error, and the command prints a line naming
 `slsa configure project` as the remedy.
 
-`slsa get experiments` builds a `ProjectData` view and globs `configuration/*.yaml` under it. The view is a path
-grammar that does not require the project to exist, and `experiment_configs()` returns an empty tuple when the
-configuration directory is absent, so a misspelled project name reports the empty-result message rather than failing.
-That message names the acquisition system's own CLI as the way to create a configuration, because this library
-authors none.
+`slsa get experiments` builds a `ProjectData` view and globs `configuration/*.yaml` under it. The view is a path grammar
+that does not require the project to exist, and `experiment_configs()` returns an empty tuple when the configuration
+directory is absent, so a misspelled project name reports the empty-result message rather than failing. That message
+names the acquisition system's own CLI as the way to create a configuration, because the `slsa` CLI authors none. The
+MCP server does, through `write_experiment_configuration_tool` and `create_experiment_from_vr_template_tool`, which
+`/experiment-configuration` owns.
 
 Both commands resolve the data root through `get_data_root()`, so both raise `FileNotFoundError` on a host that never
 ran `slsa configure data-root`.
@@ -261,12 +261,12 @@ resolves the data root from `get_data_root()` and accepts no root override, so i
 `slsa delete template` and `slsa delete experiment` each remove one authored YAML, and `slsa delete project` removes a
 whole project subtree, which is every animal directory, every session under it, and every experiment configuration the
 project holds. Each command confines its own removal. `slsa delete template` resolves the supplied path and the
-configured templates directory, then refuses a path that is the directory itself or lies outside it, refuses a suffix
-other than `.yaml` or `.yml`, and refuses a resolved path that is not a file, so the per-session frozen
-`vr_configuration.yaml` snapshot stays out of reach. `slsa delete experiment` and `slsa delete project` check every name
-they receive against `NAME_COMPONENT_PATTERN` before joining it onto the data root, which keeps a separator-bearing name
-from resolving to an animal or session subtree. Each refusal is a `ValueError` or a `FileNotFoundError` through
-`console.error`, so it reaches the user as a traceback at exit code 1.
+configured templates directory. It then refuses a path that is the directory itself or lies outside it, refuses a suffix
+other than `.yaml` or `.yml`, and refuses a resolved path that is not a file. The per-session frozen
+`vr_configuration.yaml` snapshot therefore stays out of reach. `slsa delete experiment` and `slsa delete project` check
+every name they receive against `NAME_COMPONENT_PATTERN` before joining it onto the data root, which keeps a
+separator-bearing name from resolving to an animal or session subtree. Each refusal is a `ValueError` or a
+`FileNotFoundError` through `console.error`, so it reaches the user as a traceback at exit code 1.
 
 `slsa delete project` then blocks on its own `click.confirm` prompt, which defaults to no and aborts. Answering anything
 but yes, and reaching end-of-file on stdin, both print `Aborted!` and exit 1 with the project untouched, so the command
@@ -275,8 +275,8 @@ cannot complete unattended in a script or a non-TTY session. After the removal i
 warning and returns. `slsa delete template` and `slsa delete experiment` carry no prompt of their own, so state the
 consequences and obtain the user's decision before printing either one.
 
-`delete_project_tool` refuses to act until the caller passes `confirm_deletion` explicitly, accepting `yes` or `no`, so
-an agent asked to remove a project states those consequences, names the project by its resolved path, and obtains the
+`delete_project_tool` refuses to act until the caller passes `confirm_deletion` explicitly, accepting `yes` or `no`.
+When asked to remove a project, you MUST state those consequences, name the project by its resolved path, and obtain the
 user's decision before retrying the call with `yes`. `/project-hierarchy` owns the project removal semantics, and
 `/task-templates` and `/experiment-configuration` own the two authored-asset removals and the downstream references each
 one leaves dangling.
@@ -322,10 +322,10 @@ reach. The task template and experiment configuration families each additionally
 project family the CLI already covers, so no row above carries it. Every other tool in these eleven families is
 unreachable from the CLI.
 
-The Unity family spans task creation and deletion, prefab inspection and zone cloning, asset listing and deletion,
-scene listing, opening, and inspection, play mode, task parameters, and monitor refresh. `unity:task-generator`,
-`unity:task-prefabs`, `unity:zone-prefabs`, `unity:task-scenes`, `unity:play-mode`, and `unity:task-parameters` own
-those operations, and `unity:unity-mcp-environment-setup` owns the relay diagnostic.
+The Unity family spans task creation and deletion, prefab inspection and zone cloning, asset listing, deletion, and
+refresh, scene listing, opening, saving, and inspection, play mode, task parameters, monitor refresh, and Console reads.
+`unity:task-generator`, `unity:task-prefabs`, `unity:zone-prefabs`, `unity:task-scenes`, `unity:play-mode`, and
+`unity:task-parameters` own those operations, and `unity:unity-mcp-environment-setup` owns the relay diagnostic.
 
 ### Where a paired command and tool differ
 
@@ -348,9 +348,9 @@ those operations, and `unity:unity-mcp-environment-setup` owns the relay diagnos
 
 ### The three rules behind the table
 
-1. **Error surface.** Every CLI failure is a traceback at exit code 1, a Click usage message at exit code 2, or
-   the bare `Aborted!` at exit code 1 that `slsa delete project` prints on a withheld confirmation, while every
-   tool returns a `success` envelope instead of raising.
+1. **Error surface.** Every CLI failure is a traceback at exit code 1, a Click usage message at exit code 2, or the bare
+   `Aborted!` at exit code 1 that `slsa delete project` prints on a withheld confirmation. Every tool returns a
+   `success` envelope instead of raising.
 2. **Payload richness.** A CLI command prints a sentence or two of prose, and its paired tool returns the resolved
    paths and counts the caller would otherwise re-derive.
 3. **Reach.** No `slsa` command takes a host, so the CLI addresses this machine alone.
@@ -383,16 +383,17 @@ the configured task templates directory and carry a `.yaml` or `.yml` suffix. `s
 `--project` and `-e` / `--experiment` as plain names, and `slsa delete project` takes `-p` / `--project` the same way,
 each name being a single path component of ASCII letters, digits, and underscores. Obtain the user's explicit go-ahead
 before printing the project command, because it removes every animal, session, and experiment configuration under the
-named project, and tell them it prompts for a second confirmation that aborts at exit code 1 unless they answer yes.
+named project. Tell them it prompts for a second confirmation that aborts at exit code 1 unless they answer yes.
 
 Two caveats. `slsa get projects` answers the project listing alone, so an animal or session question has no CLI
 substitute. `slsa configure project` takes no root override, so a host whose data root is unset must run
 `slsa configure data-root` first.
 
-Everything else genuinely blocks until the server is back. That covers the platform environment status report, every
-authoring, validation, and schema operation on task templates and experiment configurations, every registry listing,
-session discovery, inspection, and filtering, every session data, descriptor, hardware state, read asset, and dataset
-operation, and every Unity Editor relay operation. Say so plainly rather than improvising a substitute.
+Everything else genuinely blocks until the server is back. That covers the platform environment status report and every
+authoring, validation, and schema operation on task templates and experiment configurations. It also covers every
+registry listing, session discovery, inspection, and filtering, every session data, descriptor, hardware state, read
+asset, and dataset operation, and every Unity Editor relay operation. Say so plainly rather than improvising a
+substitute.
 
 ---
 
@@ -423,7 +424,7 @@ Tool-settled (run `rg -n '.{121,}' <file>` and `wc -l <file>`):
 Answering a CLI question, reader-judged:
 - [ ] Answered from this skill or from slsa COMMAND --help, never from memory
 - [ ] Quoted the long option form, and never presented -h as a help alias
-- [ ] Named the MCP tool the command maps to, or said plainly that none exists
+- [ ] Named the MCP tool to which the command maps, or said plainly that none exists
 - [ ] Invoked no slsa command other than --help
 
 Handing a user a CLI command, reader-judged:

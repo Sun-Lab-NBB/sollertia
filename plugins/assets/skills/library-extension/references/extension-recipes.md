@@ -227,10 +227,10 @@ one, enumerating both explicitly rather than lengthening a "currently only X" ch
   `_assert_registry_coverage()` in that module walks all thirteen in one coverage tuple and reports every system a
   registry omits. Two of the thirteen gate the dataset seam outright. `_FORGING_ASSEMBLY_REGISTRY` carries the system's
   `column_descriptions`, which the agnostic pipeline bakes into the dataset's `data_descriptions.feather` when the
-  dataset is defined, and `_FORGING_ADMISSION_REGISTRY` carries the per-session-type pipeline requirements, so a session
-  type absent from a system's mapping joins no dataset. Hand off to `forging:dataset-definition` for the admission
-  policy and the column-description companion, and to `forging:data-processing-design` for the per-stage processing
-  design behind the remaining entries.
+  dataset is defined, and `_FORGING_ADMISSION_REGISTRY` carries the per-session-type pipeline requirements, per the
+  session-type recipe above. Hand off to `forging:dataset-definition` for the admission policy and the
+  column-description companion, and to `forging:data-processing-design` for the per-stage processing design behind the
+  remaining entries.
 - `sollertia-virtual-reality` may need new scene scaffolding when the new system uses Unity.
 
 ---
@@ -304,8 +304,8 @@ The full extension is split four ways, and each skill owns its slice:
 3. Classify the new member for geometry validation in `TaskTemplate._validate_zone_positions`, also in the same module.
    That method sets `validates_zone = trigger_value != TriggerType.COLLISION.value` and
    `validates_boundary = trigger_value != TriggerType.OCCUPANCY_TRIGGER.value`, so every member other than those two
-   validates the trigger zone, the stimulus boundary, and their relative ordering. A collision-style member left out
-   of that classification raises spurious geometry errors on every legitimate template that uses it.
+   validates the trigger zone, the stimulus boundary, and their relative ordering. A collision-style member left out of
+   that classification raises spurious geometry errors on every legitimate template that uses it.
 4. For each system that supports the new member, add the matching branch to that system's `from_task_template`,
    instantiating the runtime trial class to which the trigger resolves. A system that leaves the member unmapped raises
    the "not mapped to a runtime trial class" error for it, which is the intended unsupported-on-this-system signal
@@ -493,10 +493,10 @@ canonical filename string rather than a class.
    filename is the canonical name the credentials file takes inside the working directory's `credentials` subdirectory,
    and `set_credentials` rejects a source file whose extension differs from it, so choose the extension the external
    service actually issues.
-3. Nothing else. `resolve_credentials_file`, `set_credentials`, and `get_credentials`, the `set_credentials_tool`,
-   `read_credentials_tool`, and `list_supported_credentials_tool` MCP tools, and the `--category` choice lists of
-   `slsa configure credentials` and `slsa get credentials` all derive their vocabulary from the enum and the registry,
-   so no tool, CLI option, or choice list is edited.
+3. Nothing else. Every credentials consumer derives its vocabulary from the enum and the registry, so no tool, CLI
+   option, or choice list is edited. That covers `resolve_credentials_file`, `set_credentials`, and `get_credentials`,
+   the `set_credentials_tool`, `read_credentials_tool`, and `list_supported_credentials_tool` MCP tools, and the
+   `--category` choice lists of `slsa configure credentials` and `slsa get credentials`.
 
 **Skill touches:**
 

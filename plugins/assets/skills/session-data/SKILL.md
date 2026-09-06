@@ -17,10 +17,8 @@ and the file-path based `read_session_data_tool`, `write_session_data_tool`, and
 trio, and no other skill in the marketplace may call these. It also owns the read pattern for
 `list_supported_session_types_tool` and `list_processing_trackers_tool`, which other skills defer to here.
 
-The **primary** on-disk `session_data.yaml` copy is authored by the acquisition runtime via `SessionData.create` at
-session start. `write_session_data_tool` exists for agent-driven **repair** of a corrupted or partially missing marker,
-and sits outside the normal acquisition flow. The inventory side of "which descriptors and assets exist for a session"
-is part of `inspect_sessions_tool`'s report, and no separate discover-descriptors tool exists.
+The inventory side of "which descriptors and assets exist for a session" is part of `inspect_sessions_tool`'s report,
+and no separate discover-descriptors tool exists.
 
 ---
 
@@ -60,8 +58,7 @@ per-session-type descriptor, the frozen system and experiment configurations, ha
 the raw acquired data itself.
 
 The acquisition runtime is the only authorized creator of a session. The only write path this skill owns is
-`write_session_data_tool`, which repairs a corrupted or partially missing marker on a session that already exists on
-disk.
+`write_session_data_tool`.
 
 ### How sessions are named
 
@@ -172,12 +169,13 @@ session root, while a genuinely corrupt marker is fixed by a `write_session_data
 ### Path-resolution sub-dataclasses on `SessionData`
 
 Python code that needs a per-session file path should read it from the `SessionData` instance's sub-dataclass attributes
-rather than concatenating filenames by hand. The shared-assets library packages every canonical session filename and
-directory into three enums (`RawDataFiles`, `Directories`, `ProcessingTrackers`) and dispatches them onto three
-runtime-only sub-dataclasses populated by `SessionData._build_sub_dataclasses()` (called from both `create` and `load`).
-Five of the seven `ProcessingTrackers` members are dispatched onto a session sub-dataclass field. The two that are not
-are `ProcessingTrackers.FORGING`, which lives at the forged dataset root, and `ProcessingTrackers.MANIFEST`, which lives
-at the project root:
+rather than concatenating filenames by hand. The shared-assets library packages every system-agnostic session filename
+and directory into three enums (`RawDataFiles`, `Directories`, `ProcessingTrackers`) and dispatches them onto two of the
+three runtime-only sub-dataclasses populated by `SessionData._build_sub_dataclasses()` (called from both `create` and
+`load`). The third sub-dataclass draws on the acquisition system's own filename and directory enums instead, dispatched
+through `SYSTEM_RAW_DATA_REGISTRY`. Five of the seven `ProcessingTrackers` members are dispatched onto a session
+sub-dataclass field. The two that are not are `ProcessingTrackers.FORGING`, which lives at the forged dataset root, and
+`ProcessingTrackers.MANIFEST`, which lives at the project root:
 
 - **`instance.raw_data` (`RawData`)** holds the system-agnostic raw assets: `session_data_path`,
   `session_descriptor_path`, `surgery_metadata_path`, `hardware_state_path`, `system_configuration_path`,
@@ -191,9 +189,9 @@ at the project root:
   per-frame camera timestamps extracted from the camera log archives and the re-packaged pose-estimation output, so a
   single field serves the whole video stage. The raw-side `behavior_data_path` on `RawData` and the processed-side
   `runtime_data_path` here are separate fields on separate sub-dataclasses. Cindra fields live here (not under a
-  system-specific sub-dataclass) because cindra is reusable by any photometry-data-generating acquisition system. Only
-  cindra's single-recording stage is addressed here. Its multi-recording outputs are written once per dataset inside a
-  dataset-named directory that no fixed per-session path reaches, so the library declares no field for them and
+  system-specific sub-dataclass) because cindra is reusable by any neural-imaging-data-generating acquisition system.
+  Only cindra's single-recording stage is addressed here. Its multi-recording outputs are written once per dataset
+  inside a dataset-named directory that no fixed per-session path reaches, so the library declares no field for them and
   sollertia-forgery resolves them through cindra's own `resolve_dataset_path`.
 - **`instance.system_raw_data`** holds the acquisition-system-specific raw assets, dispatched from
   `SYSTEM_RAW_DATA_REGISTRY` keyed by `acquisition_system`. Each system registers its `<System>RawData` builder in
@@ -265,10 +263,10 @@ identity without a separate `read_session_data_tool` call. A `status="error"` re
 status covers two different failures. A path-resolution or `SessionData.load()` failure aborts before the report is
 built, so that entry carries only `session_path`, `status`, and `error_detail`. A descriptor-read failure happens after
 the marker already loaded, so that entry is a complete report, `identity` and both inventory lists included, with
-`error_detail` added alongside them. Callers, and the sibling skills that read `identity.session_type` and
-`identity.acquisition_system` (see `/session-descriptors`, `/session-hardware-state`), MUST therefore gate on the
-presence of the `identity` key rather than on `status != "error"`, which would discard the identity of exactly the
-sessions whose descriptors need repairing.
+`error_detail` added alongside them. Callers MUST therefore gate on the presence of the `identity` key rather than on
+`status != "error"`. Gating on the status discards the identity of exactly the sessions whose descriptors need
+repairing, and the sibling skills that read `identity.session_type` and `identity.acquisition_system` gate the same way
+(see `/session-descriptors`, `/session-hardware-state`).
 
 The read, write, and describe trio for `session_data.yaml` is **file-path based**, symmetric with the equivalent trios
 for descriptors, hardware state, and surgery metadata. The caller supplies the absolute `file_path`, and these tools do
@@ -282,11 +280,9 @@ status. Then reach for `read_session_data_tool` only when the raw YAML payload (
 is where the read pattern is documented and where other skills should hand off when they need them. Both are read-only
 and may also be called as natural shares. `list_processing_trackers_tool` is the canonical reference for the seven
 `ProcessingTrackers` members, covering the checksum, runtime, microcontroller, video, two-photon, forging, and manifest
-pipelines. Five of the seven resolve to a field on a session sub-dataclass. `ProcessingTrackers.FORGING` resolves at the
-forged dataset root and `ProcessingTrackers.MANIFEST` at the project root, so neither appears in a session's
-`raw_data_files` or `processed_data_subdirs` inventory. Cindra's multi-recording tracker has no member here, because
-cindra writes one copy per dataset in a lowercased dataset-named directory, and only inside that dataset's main
-recording, so no fixed per-session path addresses it.
+pipelines. Five of the seven resolve to a field on a session sub-dataclass, so neither `ProcessingTrackers.FORGING` nor
+`ProcessingTrackers.MANIFEST` appears in a session's `raw_data_files` or `processed_data_subdirs` inventory (see
+"Path-resolution sub-dataclasses on `SessionData`"). Cindra's multi-recording tracker has no member here.
 
 ### Repairing a marker with `write_session_data_tool`
 
@@ -331,8 +327,6 @@ write_session_data_tool(
 
 ## Session lifecycle status
 
-A Sollertia session moves through a small set of lifecycle states.
-
 ### Status values
 
 `inspect_sessions_tool` (and `get_data_root_overview_tool`) collapse the flag combination into a single `status` enum
@@ -365,10 +359,9 @@ read at all, so a `None` there reports the absence of a read rather than a stale
    inspect_sessions_tool(session_paths=["<absolute session root>"])
    ```
    The report's `status` plus `raw_data_files` inventory tells you whether the session holds valid data and which
-   canonical assets are present. This step is the **prerequisite** for any read that touches the marker file directly.
-   If `status` is `uninitialized`, or `error` with no `identity` block, the marker content is not meaningful, so
-   surface that to the user instead of reading. An `error` report that does carry `identity` means the marker loaded
-   and the descriptor did not, which is a `/session-descriptors` repair rather than a marker one.
+   canonical assets are present. If `status` is `uninitialized`, or `error` with no `identity` block, the marker content
+   is not meaningful, so surface that to the user instead of reading. An `error` report that does carry `identity` means
+   the marker loaded and the descriptor did not, which is a `/session-descriptors` repair rather than a marker one.
 4. **Read the raw marker YAML** when a caller needs fields that `inspect_sessions_tool` does not project (notably
    `python_version` and `sollertia_experiment_version`):
    ```text
@@ -399,9 +392,9 @@ read at all, so a `None` there reports the absence of a read rather than a stale
    list_processing_trackers_tool()
    ```
    Match each `processed_data_subdirs` entry from step 1 against the tracker filename its owning pipeline writes there,
-   which is how a `processed_data/` subdirectory resolves back to the stage responsible for it.
-   `ProcessingTrackers.FORGING` and `ProcessingTrackers.MANIFEST` do not live under a session, so neither appears in the
-   report.
+   which is how a `processed_data/` subdirectory resolves back to the stage responsible for it. Neither
+   `ProcessingTrackers.FORGING` nor `ProcessingTrackers.MANIFEST` appears in the report (see "Path-resolution
+   sub-dataclasses on `SessionData`").
 
 ### Batch lifecycle audit across a data root
 

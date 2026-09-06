@@ -1,8 +1,8 @@
 ---
 name: project-hierarchy
 description: >-
-  Discovers the Sollertia project hierarchy (projects, animals, experiments, subjects, sessions) and creates and
-  removes projects via the sollertia-shared-assets MCP server. Owns get_data_root_overview_tool (hierarchy discovery),
+  Discovers the Sollertia project hierarchy (projects, animals, experiments, sessions) and creates and removes projects
+  via the sollertia-shared-assets MCP server. Owns get_data_root_overview_tool (hierarchy discovery),
   create_project_tool (project creation), and delete_project_tool (project removal). Use when enumerating projects,
   animals, or sessions, walking the project tree, or creating or removing a project.
 user-invocable: false
@@ -14,20 +14,20 @@ Discovers, creates, and removes entries in the Sollertia project hierarchy. Proj
 from `get_data_root_overview_tool` on the `slsa mcp` MCP server, new projects are materialized with
 `create_project_tool`, and a whole project subtree is removed with `delete_project_tool`. By default, the overview walks
 every `session_data.yaml` marker under the data root and groups results by the identity fields inside each
-`SessionData`, so stray directories cannot surface as phantom projects or animals. Its `directories` strategy
-additionally surfaces empty project and animal directories that hold no sessions yet.
+`SessionData`. Its `directories` strategy additionally surfaces empty project and animal directories that hold no
+sessions yet.
 
 ---
 
 ## Scope
 
 **Covers:**
-- Discovering projects, animals, experiments, subjects, and sessions
+- Discovering projects, animals, experiments, and sessions
 - Creating new projects (the `create_project_tool` MCP tool, equivalent to the `slsa configure project` CLI)
 - Removing a project and every animal, session, and experiment configuration under it (the `delete_project_tool` MCP
   tool, equivalent to the `slsa delete project` CLI)
 - The directory layout of a Sollertia project tree
-- The relationship between projects, animals, sessions, experiments, and subjects
+- The relationship between projects, animals, sessions, and experiments
 
 **Does not cover:**
 - Authoring per-project experiment configuration YAMLs (see `/experiment-configuration`, and for the Mesoscope-VR
@@ -50,8 +50,12 @@ other skill that needs to enumerate the hierarchy. Project creation (`create_pro
 A **project** is the top-level scientific grouping of acquired data: a logical container for **all sessions belonging to
 one research investigation**, organized by animal. Every session, every experiment configuration, and every per-animal
 calibration artifact is anchored to exactly one project. Project names are arbitrary strings chosen by the experimenter,
-commonly the project abbreviation used in templates, such as `MaalstroomicFlow` or `StateSpaceOdyssey`. The only
-slsa-side constraint is that the project name matches the `project_name` field inside each session's `SessionData`.
+commonly the project abbreviation used in templates, such as `MaalstroomicFlow` or `StateSpaceOdyssey`. One slsa-side
+constraint is that the project name matches the `project_name` field inside each session's `SessionData`. The other
+binds the deletion surface alone, because `delete_project_tool`, `slsa delete project`, and the project-name argument of
+`slsa delete experiment` refuse a name that does not match `NAME_COMPONENT_PATTERN` (`^[A-Za-z0-9_]+$`). Creation and
+discovery apply no such screen, so a hyphenated, dotted, or spaced name can be created and then never removed through
+this server or the CLI.
 
 A project bundles three kinds of state that this skill covers:
 
@@ -114,16 +118,16 @@ Per-project experiment YAMLs live under `configuration/`. Each session's `sessio
 `<session>/raw_data/`, and each animal directory can additionally hold a `persistent_data/` subdirectory that outlives
 the individual sessions beside it.
 
-Each subject (animal) is expected to belong to **exactly one project at a time**. An animal that surfaces under multiple
-project entries in `get_data_root_overview_tool` output is an error state. Remediation, meaning migrating a subject from
-one project to another, is owned by the `experiment:data-management` skill, which exposes the migration tool that
-transfers all the animal's session data from the source project to the destination project.
+Each animal is expected to belong to **exactly one project at a time**. An animal that surfaces under multiple project
+entries in `get_data_root_overview_tool` output is an error state. Remediation, meaning migrating an animal from one
+project to another, is owned by the `experiment:data-management` skill, which exposes the migration tool that transfers
+all the animal's session data from the source project to the destination project.
 
 The project-to-animal binding is determined by the `project_name` field inside each session's `SessionData` rather than
 by directory placement. `get_data_root_overview_tool` groups the `projects` list by `SessionData.project_name`, and the
 `animals` list under each project reflects every animal with at least one session naming that project. An animal whose
 sessions name different projects appears under every one of those projects, and a healthy data root has each animal
-under exactly one project. Subject-level metadata (surgery, implants, drugs, injections) is owned by `/data-assets` and
+under exactly one project. Animal-level metadata (surgery, implants, drugs, injections) is owned by `/data-assets` and
 is outside the scope of this skill.
 
 Datasets are a higher-level grouping that aggregates sessions across animals **within a single project**. The
@@ -168,8 +172,8 @@ so the agent-facing path remains the client-side scan of `projects[*].animals[*]
 Project enumeration has **two strategies that disagree on empty projects**:
 
 - **Markers (authoritative, default).** Buckets projects by the `project_name` inside each discovered
-  `session_data.yaml`. Only projects that hold at least one session surface, so stray directories cannot appear as
-  phantom projects.
+  `session_data.yaml`. Only projects and animals that hold at least one session surface, so stray directories cannot
+  appear as phantom projects or animals.
 - **Directories.** Walks the project / animal directory layout directly, so it also surfaces freshly created projects,
   and projects whose sessions have been migrated to long-term storage, that hold no sessions. This is what the
   `slsa get projects` CLI command uses. It pays for that reach with a false-positive cost. Every non-hidden directory
@@ -194,8 +198,7 @@ under the default `markers` strategy, because it holds no session markers yet, a
 |-------------------------------|-------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
 | `get_data_root_overview_tool` | Builds the project → animal → session hierarchy from `SessionData` contents, with per-project aggregate counts (animals, sessions-by-type, lifecycle status, `experiment_count`, `dataset_count`) and a flat `sessions` list for downstream filtering |
 
-`get_data_root_overview_tool` accepts a `strategy` argument, defaulting to `markers`, or `directories` to also surface
-empty project and animal directories, as the two-strategies section above describes.
+`get_data_root_overview_tool` accepts a `strategy` argument, described under the two-strategies section above.
 
 ### Creation (write)
 
@@ -261,11 +264,17 @@ subtree withholds the entire hierarchy.
 failure of its own, because when `root_directory` is omitted and the host has no data root configured, the tool returns
 the `get_data_root()` `FileNotFoundError` message verbatim, which names the `slsa configure data-root` CLI command as
 the remedy. `delete_project_tool` resolves its root the same way and shares those messages too, and its root resolution
-runs ahead of the confirmation gate. `get_data_root()` reads the cached record and `resolve_root_directory()` probes the
-path for existence and directory-ness first, so on a host whose data root is unset or missing a withheld
-`confirm_deletion` returns that path failure rather than the confirmation refusal. The gate is settled the moment the
-root resolves, ahead of every read of the project tree, so a withheld or `no` value returns without the project
-directory being inspected, its containment checked, or its animal and configuration counts inventoried.
+runs ahead of the confirmation gate. Ahead of even that, the tool screens `project_name` against
+`NAME_COMPONENT_PATTERN`, and a name carrying anything else returns `Unable to delete the project '<project>'. The
+project name must be a single path component containing only ASCII letters, digits, and underscores, because it is
+joined onto the data root as the project directory name.` `get_data_root()` reads the cached record and
+`resolve_root_directory()` probes the path for existence and directory-ness first, so on a host whose data root is unset
+or missing a withheld `confirm_deletion` returns that path failure rather than the confirmation refusal. The gate is
+settled the moment the root resolves, ahead of every read of the project tree. A withheld or `no` value therefore
+returns without the project directory being inspected, its containment checked, or its animal and configuration counts
+inventoried. Two more refusals remain once the root resolves and the gate passes. The first is `Unable to delete the
+project '<project>'. No project directory exists at <path>.` The second is `Unable to delete the project '<project>'.
+The project must resolve to a directory nested under the data root <root>, but it resolves to <path>.`
 
 ### Response shape (partial)
 
@@ -333,8 +342,7 @@ chaining `sessions` into `filter_sessions_tool` MUST additionally expect entries
    get_data_root_overview_tool(root_directory="<absolute path to data root>")
    ```
 3. **Read the response:**
-   - `projects[*]` is the authoritative project list. A project appears only when at least one session names it, so
-     stray directories at the root cannot masquerade as projects.
+   - `projects[*]` is the authoritative project list. A project appears only when at least one session names it.
    - `projects[*].animals[*]` holds animals per project, each with `session_paths` and status counts.
    - `sessions` is the flat list suitable for chaining into `filter_sessions_tool`.
 
@@ -364,8 +372,8 @@ chaining `sessions` into `filter_sessions_tool` MUST additionally expect entries
    ```
 2. **Scan `projects[*].animals[*].id` across projects.** Any animal that appears under more than one project is an error
    state. Flag those IDs to the user and hand off to the experiment plugin's `experiment:data-management` to migrate the
-   subject if needed.
-3. **Hand off to `/data-assets`** to read individual subject records (surgery, implants, injections, drugs).
+   animal if needed.
+3. **Hand off to `/data-assets`** to read individual animal records (surgery, implants, injections, drugs).
 
 ### Bootstrap a new project
 

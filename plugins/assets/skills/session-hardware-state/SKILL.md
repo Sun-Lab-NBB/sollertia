@@ -16,9 +16,7 @@ server. This skill is the **exclusive** owner of `write_session_hardware_state_t
 
 Hardware-state snapshots are treated as **standalone records** keyed on their schema, meaning the hardware-state
 dataclass that matches a given `AcquisitionSystems` value. The tools operate on whatever absolute `file_path` the caller
-supplies, and they do not care whether that path points at a raw session snapshot or an ad-hoc location. The caller is
-responsible for resolving the path and supplying `acquisition_system` so the right dataclass is used to parse or
-validate the file.
+supplies, and they do not care whether that path points at a raw session snapshot or an ad-hoc location.
 
 Every acquisition system stores its hardware-module parameters under the same canonical filename
 (`hardware_state.yaml`). Each system defines its own schema dataclass, registered in `HARDWARE_STATE_REGISTRY` against
@@ -48,8 +46,8 @@ to write this snapshot, and `mesoscope:mesoscope-vr-runtime` is the current work
 **Does not cover:**
 - Partial or per-field updates. The write tool validates and replaces the **full** payload. To change one field, read
   the current file, mutate the returned dict, then write it back whole.
-- Resolving the canonical path for you. The caller, or a collaborating skill, supplies the absolute `file_path`, and
-  this skill only reads and writes.
+- Resolving the canonical path or the acquisition system for you. The caller, or a collaborating skill, supplies the
+  absolute `file_path` and the `acquisition_system`, and this skill only reads and writes.
 - Reading the `SessionData` marker (see `/session-data`)
 - Reading or writing per-session descriptors (see `/session-descriptors`)
 - Reading or writing the Zaber motor position snapshot (`zaber_positions.yaml`) or the mesoscope objective position
@@ -109,9 +107,8 @@ local to the one file whose path was passed and does not flow back to any siblin
 | `describe_session_hardware_state_schema_tool` | Returns the hardware-state schema for a given acquisition system (exclusive). `acquisition_system` is required       |
 
 All three tools take an explicit `acquisition_system` and dispatch on it through `HARDWARE_STATE_REGISTRY` to select the
-matching dataclass, so class selection is the caller's responsibility. `read_session_hardware_state_tool` and
-`write_session_hardware_state_tool` additionally take `file_path`, and path resolution is also the caller's
-responsibility.
+matching dataclass. `read_session_hardware_state_tool` and `write_session_hardware_state_tool` additionally take
+`file_path`.
 
 `acquisition_system` is the `AcquisitionSystems` string value and never the enum member name, and the two differ, as in
 `MESOSCOPE_VR = "mesoscope"`. `list_supported_acquisition_systems_tool` returns `{value, name}` pairs of which only
@@ -128,16 +125,6 @@ registry, and the import-time coverage check guarantees that every member carrie
 the two lists match today. The resolver still carries a separate "No class is registered for" branch for the case where
 they stop matching.
 
-Path-resolution hand-offs:
-- Raw session snapshot: `/project-hierarchy` plus `/session-discovery` for session roots, then `/session-data`
-  (`inspect_sessions_tool`) for the `raw_data_files` entry.
-- Ad-hoc location: the user supplies the path directly.
-
-If you do not know the acquisition system for a given file and it is a raw session snapshot, hand off to
-`/session-data`. Call `inspect_sessions_tool` on the session root and read `identity.acquisition_system` from the
-report, or read the marker directly with `read_session_data_tool(file_path="<session>/raw_data/session_data.yaml")`. For
-ad-hoc paths, the caller supplies `acquisition_system` directly.
-
 `write_session_hardware_state_tool` also accepts `hardware_state_payload: dict[str, Any]` (the full record) and a
 keyword-only `overwrite: bool = True`. What a write tool actually validates is documented in the `## Response contract`
 section of `/assets-mcp-environment-setup`, and hardware state is the sharpest case in the plugin.
@@ -146,10 +133,15 @@ reads downstream as "this hardware module was not used". A field missing from th
 acquisition record as a false claim rather than as a visible gap. There is no partial-update tool.
 
 On success, `read_session_hardware_state_tool` and `write_session_hardware_state_tool` both return the same four payload
-keys: `data` (the serialized record, which for the write tool is the reloaded instance rather than an echo of the input,
-per the `## Response contract` section of `/assets-mcp-environment-setup`), `file_path`, `acquisition_system` (the
-echoed input), and `hardware_state_class` (the resolved dataclass name, useful for confirming the dispatch picked the
-class you expected).
+keys:
+
+| Key                    | Meaning                      | Note                                                                                                                                                  |
+|------------------------|------------------------------|-------------------------------------------------------------------------------------------------------------------------------------------------------|
+| `data`                 | The serialized record        | For the write tool, the reloaded instance rather than an echo of the input, per the `## Response contract` section of `/assets-mcp-environment-setup` |
+| `file_path`            | The hardware-state file path |                                                                                                                                                       |
+| `acquisition_system`   | The echoed input             |                                                                                                                                                       |
+| `hardware_state_class` | The resolved dataclass name  | Useful for confirming the dispatch picked the class you expected                                                                                      |
+
 `describe_session_hardware_state_schema_tool` returns `acquisition_system` (the echoed input) and `schema` (the
 dataclass field schema), and `acquisition_system` is required with no default.
 
@@ -228,9 +220,9 @@ conventionally immutable once written, so confirm with the user before every wri
        overwrite=True,  # the default, set to False to refuse-on-existing
    )
    ```
-7. **Diff the write response, then re-read and diff again. This step is mandatory, not a formality:** the write tool's
-   `data` is not an echo of your input but the reloaded record, per the `## Response contract` section of
-   `/assets-mcp-environment-setup`, so a key the payload omitted already surfaces in the write response at its schema
+7. **Diff the write response, then re-read and diff again. This step is mandatory, not a formality:** The write tool's
+   `data` is the reloaded record rather than an echo of your input, per the `## Response contract` section of
+   `/assets-mcp-environment-setup`. A key the payload omitted therefore surfaces in the write response at its schema
    default, which is `None` under `MesoscopeHardwareState`. Compare that `data` field by field against the payload you
    intended before doing anything else. Then re-read the file:
    ```text
