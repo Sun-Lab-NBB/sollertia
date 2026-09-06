@@ -25,8 +25,9 @@ every `ModuleInterface` subclass in `src/sollertia_experiment/cross_system/modul
 
 The wrapper's `__init__` exposes **calibration and policy parameters as regular parameters that call sites pass by
 keyword**, and fixes the contract identity inside the `super().__init__(...)` call. Constructors carry no `*` separator.
-True keyword-only syntax is reserved for the binary state setters described under [Public-method
-patterns](#public-method-patterns). What is fixed versus caller-supplied varies by field:
+True keyword-only syntax is used by the binary state setters and by the `set_parameters` wrappers exposing boolean
+report flags, both described under [Public-method patterns](#public-method-patterns). What is fixed versus
+caller-supplied varies by field:
 
 - **`module_type` is always hardcoded.** This is an architectural decision: a wrapper class is permanently bound to one
   firmware module type, and the caller never supplies it.
@@ -108,10 +109,10 @@ The ataraxis `ModuleInterface` base declares three abstract methods, `initialize
 
 **`initialize_local_assets()` is a project-local convention rather than part of the upstream `ModuleInterface` ABC.**
 Five wrappers define it, `EncoderInterface`, `LickInterface`, `MesoscopeFrameTTLInterface`, `WaterValveInterface`, and
-`GasPuffValveInterface` (`cross_system/module_interfaces.py`). The acquisition system's own
-binding class calls it explicitly, once each managed `MicroControllerInterface.start()` has spawned its communication
-subprocess, so the parent process connects while the subprocesses already hold their own connections. No base-class
-default exists, so a wrapper that skips the method leaves the parent unable to read its tracker.
+`GasPuffValveInterface` (`cross_system/module_interfaces.py`). The acquisition system's own binding class calls it
+explicitly, once each managed `MicroControllerInterface.start()` has spawned its communication subprocess, so the parent
+process connects while the subprocesses already hold their own connections. No base-class default exists, so a wrapper
+that skips the method leaves the parent unable to read its tracker.
 
 Wrappers without shared memory, meaning `BrakeInterface`, `TorqueInterface`, and `ScreenInterface`, omit
 `initialize_local_assets()` and leave both remote-asset methods as `return` no-ops. A binding class calls
@@ -166,6 +167,7 @@ _ZERO_UINT64  = np.uint64(0)
 _ZERO_FLOAT64 = np.float64(0.0)
 _ZERO_UINT32  = np.uint32(0)
 _FALSE: np.bool_ = np.bool_(0)
+_TRUE: np.bool_ = np.bool_(1)
 _MAXIMUM_BRAKING_STRENGTH: np.uint8 = np.uint8(255)
 ```
 
@@ -179,11 +181,13 @@ A fixed non-zero numpy argument reused in a `send_parameters` tuple follows the 
 
 **Typed `set_parameters` wrapper** (mandatory): expose every parameter-struct field as a named argument carrying the
 firmware field name and its numpy type. The base ataraxis skill asks for a keyword-only wrapper around
-`send_parameters()` once a struct holds two or more fields. sle keeps the named arguments and drops the `*` separator,
-so call sites pass by keyword while the signature stays callable positionally. Five wrappers carry one,
-`EncoderInterface`, `LickInterface`, `TorqueInterface`, `MesoscopeFrameTTLInterface`, and `ScreenInterface`
-(`cross_system/module_interfaces.py`). The three remaining wrappers, `BrakeInterface`, `WaterValveInterface`, and
-`GasPuffValveInterface`, route every parameter write through their own domain methods instead.
+`send_parameters()` once a struct holds two or more fields. sle keeps the named arguments and preserves the `*`
+separator only on the wrappers exposing boolean report flags. `EncoderInterface` and `TorqueInterface` therefore stay
+keyword-only, while the other typed wrappers drop it and stay callable positionally. Five wrappers carry a typed
+`set_parameters`, `EncoderInterface`, `LickInterface`, `TorqueInterface`, `MesoscopeFrameTTLInterface`, and
+`ScreenInterface` (`cross_system/module_interfaces.py`). The three remaining wrappers, `BrakeInterface`,
+`WaterValveInterface`, and `GasPuffValveInterface`, route every parameter write through their own domain methods
+instead.
 
 ```python
 def set_parameters(

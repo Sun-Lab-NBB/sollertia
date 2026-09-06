@@ -132,7 +132,7 @@ processing assume every module reports an initial state, so omitting this leaves
 (e.g., `_valve_tracker[2]`) unsynchronized with the firmware.
 
 For input-side modules, the initial-state report uses a zero-magnitude payload (e.g., `kRotatedCW, 0` on
-`EncoderModule`) to establish a baseline that subsequent delta-threshold logic can compare against.
+`EncoderModule`) to establish a baseline against which subsequent delta-threshold logic compares.
 
 ---
 
@@ -228,8 +228,8 @@ The module `#include` directives sit inside the selected branch, so a target com
 the block and is target-agnostic, consuming whichever `kControllerID` and `modules[]` the selected branch defined.
 
 A PlatformIO environment in `platformio.ini` supplies the target macro through its `build_flags`. The environments are
-named `<board>_<target>` and extend a shared, non-buildable `[<board>_base]` template that holds every field common to
-them, so `pio run` without `-e` compiles every target and fails on a break in a target other than the one being
+named `<board>_<target>` and extend a shared, non-buildable `[<board>_base]` template holding every field common to
+them. `pio run` without `-e` then compiles every target and fails on a break in a target other than the one being
 flashed. Adding a target therefore means adding both an `#elif defined` block and its matching environment.
 
 This is the slmc-general pattern for supporting multiple controller boards from one firmware codebase. The current slmc
@@ -273,9 +273,9 @@ monitor speed 115200, so Teensy 4.1 is the only board family slmc targets today.
 means a second non-`env:` template plus one environment per target macro.
 
 `lib_deps` holds three caret-pinned entries: `inkaros/ataraxis-transport-layer-mc@^4.0.2`,
-`inkaros/ataraxis-micro-controller@^4.0.3`, and `paulstoffregen/Encoder@^1.4.4`. A new third-party library is added
-here with the same caret pin. `slmc` ships no `library.json`, because it is a firmware project rather than a PlatformIO
-library, so `automation:platformio-config`'s `lib_deps` mirroring rule has nothing to mirror into.
+`inkaros/ataraxis-micro-controller@^4.0.3`, and `paulstoffregen/Encoder@^1.4.4`. A new third-party library is added here
+with the same caret pin. `slmc` ships no `library.json`, because it is a firmware project rather than a PlatformIO
+library, so `automation:platformio-config`'s `lib_deps` mirroring rule does not apply.
 
 ---
 

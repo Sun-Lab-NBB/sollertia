@@ -1,15 +1,15 @@
 # VR task event and trial model
 
-Carries the typed-event vocabulary `cycle()` surfaces and the cue-sequence decomposition that turns Unity's flat wall-
-cue array into a trial sequence. Loaded on demand from `vr-driver-interface`'s SKILL.md, which owns the driver surface
-these two models travel over. Paths are relative to `src/sollertia_experiment/`.
+Carries the typed-event vocabulary `cycle()` surfaces and the cue-sequence decomposition that turns Unity's flat
+wall-cue array into a trial sequence. Loaded on demand from `vr-driver-interface`'s SKILL.md, which owns the driver
+surface these two models travel over. Paths are relative to `src/sollertia_experiment/`.
 
 ---
 
 ## Event model
 
-`cycle()` consumes **at most one** MQTT message per call and returns a typed `VRTaskEvent`. The
-asynchronous Unity messages it surfaces are enumerated by `VRTaskEventKind` (`IntEnum`):
+`cycle()` consumes **at most one** MQTT message per call and returns a typed `_VRTaskEvent`. The asynchronous Unity
+messages it surfaces are enumerated by `VRTaskEventKind` (`IntEnum`):
 
 | Kind                      | Value | Source topic                        | Meaning / caller action                                               |
 |---------------------------|-------|-------------------------------------|-----------------------------------------------------------------------|
@@ -23,14 +23,14 @@ asynchronous Unity messages it surfaces are enumerated by `VRTaskEventKind` (`In
 playing and the MQTT client connected, so `cycle()` keeps returning `NONE` while the corridor stops advancing.
 `unity:task-generator` catalogues those bailouts, and `read_console_tool` at `level="error"` reads the logged error.
 
-`VRTaskEvent` (frozen slots dataclass) carries `kind: VRTaskEventKind` plus `delay_ms: int = 0`, populated only for
+`_VRTaskEvent` (frozen slots dataclass) carries `kind: VRTaskEventKind` plus `delay_ms: int = 0`, populated only for
 `TRIGGER_DELAY_REQUESTED`. Three further fields are populated only for `STIMULUS_TRIGGERED` and parsed from the
 `Stimulus` payload: `trial_name: str = ""`, `delivered: bool = True`, and `cause: StimulusCause = BEHAVIOR`, where
 `StimulusCause` is an exported `StrEnum` of `behavior` and `guidance`. Every no-event cycle returns the shared
 frozen `_NO_EVENT` singleton (`vr_task/driver.py`), and a handshake topic consumed during `cycle()` resolves
 to `NONE`, because the setup sequence handles those instead.
 
-`VRTaskState` (slots dataclass, the driver's `state` property) is the single source of truth shared between
+`_VRTaskState` (slots dataclass, the driver's `state` property) is the single source of truth shared between
 the setup handshake and per-cycle events:
 
 | Field                          | Type             | Default | Purpose                                        |

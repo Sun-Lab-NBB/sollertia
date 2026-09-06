@@ -3,7 +3,7 @@ name: vr-driver-interface
 description: >-
   Documents the Virtual Reality task driver subsystem: the VRTaskDriver class and its configuration, the MQTT topic
   contract with the Unity game engine, the editor MCP Bridge it drives for scene activation and Play Mode control, the
-  per-cycle VRTaskEvent model, and the cue-sequence trial decomposition. Use when modifying Unity coupling, the editor
+  per-cycle _VRTaskEvent model, and the cue-sequence trial decomposition. Use when modifying Unity coupling, the editor
   bridge, adding an MQTT topic or VR task event, or wiring a new acquisition system to Unity.
 user-invocable: false
 ---
@@ -25,7 +25,7 @@ implemented in `sollertia-virtual-reality`.
 - `UnityBridgeClient`, the editor MCP Bridge HTTP client that opens scenes, binds the actor's motion controller,
   and controls Play Mode
 - The `_VRTaskMQTTTopics` contract, meaning every topic, its payload shape, and its direction
-- `VRTaskEventKind` / `VRTaskEvent`, the typed events `cycle()` surfaces, and the `VRTaskState` they share
+- `VRTaskEventKind` / `_VRTaskEvent`, the typed events `cycle()` surfaces, and the `_VRTaskState` they share
   with the setup handshake
 - Cue-sequence trial decomposition (`DecomposedTrials`, `CachedMotifDecomposer`, `decompose_cue_sequence`)
 - What a consumer acquisition system must supply to drive the package
@@ -51,9 +51,9 @@ implemented in `sollertia-virtual-reality`.
 
 ## Subsystem role
 
-The VR task driver is the platform-general VR subsystem, parallel to `/microcontroller-interface` (microcontrollers)
-and `/zaber-interface` (motors). The module docstring of `vr_task/__init__.py` names it
-acquisition-system-agnostic, and an acquisition system's runtime orchestrator composes it.
+The VR task driver is the platform-general VR subsystem, parallel to `/microcontroller-interface` (microcontrollers) and
+`/zaber-interface` (motors). The module docstring of `vr_task/__init__.py` names it acquisition-system-agnostic, and an
+acquisition system's runtime orchestrator composes it.
 
 An orchestrator builds the driver only for the session types that run the linear infinite corridor task.
 `SESSION_TYPES_USING_VR_TASK` (`sollertia-shared-assets/src/sollertia_shared_assets/registries.py`) declares that
@@ -84,16 +84,16 @@ The `communication:microcontroller-interface` skill referenced below lives in th
 | Task-templates directory the loader reads                            | `assets:working-directory`                |
 | Runtime that consumes this driver                                    | `mesoscope:mesoscope-vr-runtime`          |
 
-The driver builds on `ataraxis_communication_interface.MQTTCommunication` and only documents the
-Sollertia VR contract layered on top.
+The driver builds on `ataraxis_communication_interface.MQTTCommunication` and only documents the Sollertia VR contract
+layered on top.
 
 ---
 
 ## Package exports
 
 The `__all__` list of `vr_task/__init__.py` holds six names: `StimulusCause`, `UnityBridgeClient`,
-`VRTaskConfiguration`, `VRTaskDriver`, `VRTaskEventKind`, and `load_vr_task_template`. `VRTaskEvent`,
-`VRTaskState`, `UnityBridgeError`, `DecomposedTrials`, `CachedMotifDecomposer`, `decompose_cue_sequence`, and
+`VRTaskConfiguration`, `VRTaskDriver`, `VRTaskEventKind`, and `load_vr_task_template`. `_VRTaskEvent`,
+`_VRTaskState`, `UnityBridgeError`, `DecomposedTrials`, `CachedMotifDecomposer`, `decompose_cue_sequence`, and
 `_VRTaskMQTTTopics` carry no package-level export, so an importer reaches each one through its defining submodule.
 
 ---
@@ -135,8 +135,8 @@ live in the `TaskTemplate` that `load_vr_task_template(unity_scene_name)` resolv
 `load_vr_task_template` (`vr_task/configuration.py`) resolves the task-templates directory that the
 `slsa configure templates` CLI persists, then expects `<unity_scene_name>.yaml` inside it. A missing directory or an
 unset directory setting raises `FileNotFoundError` from the `get_task_templates_directory` resolver
-(`sollertia-shared-assets/src/sollertia_shared_assets/configuration/configuration_utilities.py`), and a
-missing template file raises `FileNotFoundError` through `console.error` listing the sorted available stems.
+(`sollertia-shared-assets/src/sollertia_shared_assets/configuration/configuration_utilities.py`), and a missing template
+file raises `FileNotFoundError` through `console.error` listing the sorted available stems.
 
 The loader validates existence only. `TaskTemplate.__post_init__` owns every content check, covering cue-code and
 cue-name uniqueness, the trial-name pattern, cue references, transitions, trigger types, zone bounds, and cue-sequence
@@ -195,7 +195,7 @@ reachability.
 
 | Method                                    | Bridge tool             | Purpose                                                        |
 |-------------------------------------------|-------------------------|----------------------------------------------------------------|
-| `list_scenes()`                           | `list_scenes`           | All project scene paths and the active scene path              |
+| `_list_scenes()`                          | `list_scenes`           | All project scene paths and the active scene path              |
 | `open_scene(scene_path, unsaved_changes)` | `open_scene`            | Open a scene (the driver takes the default `save` policy)      |
 | `get_active_controller()`                 | `read_task_parameters`  | The motion controller bound to the active scene's actor        |
 | `set_active_controller(controller_name)`  | `write_task_parameters` | Bind a motion controller to the actor, returns the bound name  |
@@ -210,18 +210,18 @@ reachability.
 `enter_play_mode()` only presses the editor's play button. The MQTT `SessionStart` message remains the authoritative
 "Unity is armed and connected" signal, so `setup()` still waits for it after arming. A dedicated reachability check is
 surfaced to pre-flight through the `sle get unity` CLI command (`get_unity_bridge` in `interfaces/get.py`) and the
-`check_unity_bridge_tool` MCP tool (`interfaces/get_tools.py`), both of which build a bare
-`UnityBridgeClient` (see `/system-health-check`, `/acquisition-system-setup`).
+`check_unity_bridge_tool` MCP tool (`interfaces/get_tools.py`), both of which build a bare `UnityBridgeClient` (see
+`/system-health-check`, `/acquisition-system-setup`).
 
 ---
 
 ## Event model
 
-`cycle()` consumes **at most one** MQTT message per call and returns a typed `VRTaskEvent`, whose `kind` is a
-`VRTaskEventKind` member and whose remaining fields are populated per kind. `VRTaskState`, the driver's `state`
+`cycle()` consumes **at most one** MQTT message per call and returns a typed `_VRTaskEvent`, whose `kind` is a
+`VRTaskEventKind` member and whose remaining fields are populated per kind. `_VRTaskState`, the driver's `state`
 property, is the single source of truth shared between the setup handshake and per-cycle events.
 
-For the event-kind table, the `VRTaskEvent` field set, and the `VRTaskState` field table, see
+For the event-kind table, the `_VRTaskEvent` field set, and the `_VRTaskState` field table, see
 [`references/event-model.md`](references/event-model.md).
 
 ---
@@ -241,19 +241,19 @@ VRTaskDriver(
 
 `VRTaskDriver.__init__` performs no network I/O (`vr_task/driver.py`), so `connect()` is a separate call.
 
-| Method / property                      | Purpose                                                                                                                                                                |
-|----------------------------------------|------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
-| `connect()` / `disconnect()`           | Open / close the MQTT connection. `disconnect()` additionally exits Play Mode to stop the active Unity scene and closes the bridge HTTP client (each step best-effort) |
-| `setup()`                              | Bridge-driven start-of-session handshake. Its final step zeroes `state.position` and rebuilds the trial decomposition. See the Setup handshake note below.             |
-| `push_position(absolute_position)`     | Forward the animal's position to Unity as a movement delta (only emits on change)                                                                                      |
-| `push_lick_event()`                    | Publish the generic `Interaction` trigger for the rig's interaction sensor                                                                                             |
-| `set_reinforcing_guidance(*, enabled)` | Toggle reinforcing guidance (publishes `RequireInteraction` = `not enabled`)                                                                                           |
-| `set_aversive_guidance(*, enabled)`    | Toggle aversive guidance (publishes `RequireWait` = `not enabled`)                                                                                                     |
-| `cycle() -> VRTaskEvent`               | Consume the next pending Unity message and return it as a typed event                                                                                                  |
-| `resume_after_unity_restart()`         | Re-arm Unity via the bridge, re-fetch and re-decompose the cue sequence, zeroing `state.position` and replacing the decomposition, and clear `terminated`              |
-| `state` (property)                     | The current `VRTaskState`                                                                                                                                              |
-| `cue_sequence_distances` (property)    | Cumulative distance (cm) to complete each decomposed trial                                                                                                             |
-| `trial_names` (property)               | The name of each decomposed trial, in sequence order                                                                                                                   |
+| Method / property                      | Purpose                                                                                                                                                                                           |
+|----------------------------------------|---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| `connect()` / `disconnect()`           | Open / close the MQTT connection. `disconnect()` additionally exits Play Mode to stop the active Unity scene and closes the bridge HTTP client (each step best-effort)                            |
+| `setup()`                              | Bridge-driven start-of-session handshake. Its final step zeroes `state.position` and rebuilds the trial decomposition. See the Setup handshake note below.                                        |
+| `push_position(absolute_position)`     | Forward the animal's position to Unity as a movement delta (only emits on change)                                                                                                                 |
+| `push_lick_event()`                    | Publish the generic `Interaction` trigger for the rig's interaction sensor                                                                                                                        |
+| `set_reinforcing_guidance(*, enabled)` | Toggle reinforcing guidance (publishes `RequireInteraction` = `not enabled`)                                                                                                                      |
+| `set_aversive_guidance(*, enabled)`    | Toggle aversive guidance (publishes `RequireWait` = `not enabled`)                                                                                                                                |
+| `cycle() -> _VRTaskEvent`              | Consume the next pending Unity message and return it as a typed event                                                                                                                             |
+| `resume_after_unity_restart()`         | Re-arm Unity via the bridge, re-publish both tracked guidance modes, re-fetch and re-decompose the cue sequence, zeroing `state.position` and replacing the decomposition, and clear `terminated` |
+| `state` (property)                     | The current `_VRTaskState`                                                                                                                                                                        |
+| `cue_sequence_distances` (property)    | Cumulative distance (cm) to complete each decomposed trial                                                                                                                                        |
+| `trial_names` (property)               | The name of each decomposed trial, in sequence order                                                                                                                                              |
 
 Every instance attribute is underscore-private, so the `state`, `cue_sequence_distances`, and `trial_names`
 properties are the whole read surface (`vr_task/driver.py`).
@@ -303,7 +303,7 @@ and `_refresh_cue_sequence` in `vr_task/driver.py`, `load_vr_task_template` in `
 | A position source in Unity units               | The caller converts encoder counts using the template's `cm_per_unity_unit`                                                                           |
 | A zeroable position source                     | `setup()` and `resume_after_unity_restart()` zero `state.position`, so the caller re-zeroes its own tracker and re-reads `trial_names`                |
 | An interaction-sensor mapping                  | `push_lick_event` publishes the generic `Interaction` topic, the rig names the sensor                                                                 |
-| All actuator dispatch                          | Reward, puff, brake, and emergency pause are consumer code reacting to `VRTaskEvent`                                                                  |
+| All actuator dispatch                          | Reward, puff, brake, and emergency pause are consumer code reacting to `_VRTaskEvent`                                                                 |
 | Per-trial hardware parameters                  | Joined back by `trial_names` on the consumer side                                                                                                     |
 | Display power sequencing                       | The caller enables the VR screens before `setup()` and disables them after                                                                            |
 | An interactive terminal operator               | `setup()` blocks on `wait_for_enter` prompts for bridge retry, Play-Mode arming retry, scene-name retry, display verification, and cue-sequence retry |
@@ -324,13 +324,14 @@ The runtime orchestrator owns the driver lifecycle. The current worked example i
    zeroes `state.position` and rebuilds the decomposition, the orchestrator then zeroes its own distance tracker and
    re-reads `trial_names` and `cue_sequence_distances`.
 3. Each runtime iteration: the data cycle calls `push_position()` and `push_lick_event()`, and the Unity cycle
-   calls `cycle()` and dispatches the returned `VRTaskEvent` (an actuator on `STIMULUS_TRIGGERED`, a brake
+   calls `cycle()` and dispatches the returned `_VRTaskEvent` (an actuator on `STIMULUS_TRIGGERED`, a brake
    pulse on `TRIGGER_DELAY_REQUESTED`, an emergency pause on `UNITY_TERMINATED`).
 4. Guidance is set through `set_reinforcing_guidance()` and `set_aversive_guidance()` as trial state evolves.
-5. On resume from an emergency pause, `resume_after_unity_restart()` re-arms Unity through the bridge and re-fetches the
-   cue sequence, so the operator does not press the play button. That call zeroes `state.position` and replaces the
-   decomposition the same way `setup()` does, so the orchestrator again zeroes its own distance tracker and re-reads
-   `trial_names` and `cue_sequence_distances`.
+5. On resume from an emergency pause, `resume_after_unity_restart()` re-arms Unity through the bridge, re-publishes both
+   guidance modes, and re-fetches the cue sequence, so the operator does not press the play button. The guidance
+   re-publication is required because a fresh Play Mode session reloads the interaction and wait requirements from the
+   task prefab. That call zeroes `state.position` and replaces the decomposition the same way `setup()` does, so the
+   orchestrator again zeroes its own distance tracker and re-reads `trial_names` and `cue_sequence_distances`.
 6. `stop()` calls `disconnect()`.
 
 ---
@@ -366,7 +367,7 @@ Adding a topic is a coordinated change with the Unity project (`sollertia-virtua
 1. Add the topic to `_VRTaskMQTTTopics` in `driver.py`, mirroring the exact wire string Unity uses.
 2. If inbound and surfaced to the runtime, add it to the `monitored_topics` tuple in `VRTaskDriver.__init__`.
 3. Wire it: an outbound topic gets a `push_*` or `set_*` method that sends the payload, and an inbound dispatchable
-   topic gets a branch in `cycle()` returning a new `VRTaskEvent`.
+   topic gets a branch in `cycle()` returning a new `_VRTaskEvent`.
 4. Coordinate the Unity-side registration, owned by `unity:mqtt-contract`.
 5. Bump `sollertia-experiment` version.
 
@@ -375,7 +376,7 @@ Adding a topic is a coordinated change with the Unity project (`sollertia-virtua
 ## Workflow: adding a VR task event
 
 1. Add a member to `VRTaskEventKind`.
-2. Add any payload fields to `VRTaskEvent`, keeping it a frozen dataclass and defaulting new fields.
+2. Add any payload fields to `_VRTaskEvent`, keeping it a frozen dataclass and defaulting new fields.
 3. Branch on the source topic in `cycle()` to construct and return the new event.
 4. Handle the new event kind in the orchestrator's Unity cycle (see `mesoscope:mesoscope-vr-runtime`).
 5. Update the [Event model](#event-model) table here and bump `sollertia-experiment` version.
@@ -387,7 +388,7 @@ Adding a topic is a coordinated change with the Unity project (`sollertia-virtua
 Update this skill when:
 
 - `_VRTaskMQTTTopics` gains or loses a topic, or a payload shape changes.
-- `VRTaskEventKind`, `VRTaskEvent`, or `VRTaskState` change.
+- `VRTaskEventKind`, `_VRTaskEvent`, or `_VRTaskState` change.
 - The `VRTaskDriver` public method surface or the `vr_task` package `__all__` changes.
 - The `UnityBridgeClient` surface or the editor-bridge HTTP tool set changes.
 - The trial-decomposition data model (`DecomposedTrials`) changes.
@@ -454,7 +455,7 @@ Contract fidelity:
 - [ ] Module constants table matches the module constants in vr_task/driver.py
 - [ ] Scene activation binds the Linear treadmill controller and errors when the actor reports a different one
 - [ ] Bridge stays mandatory and loopback-only (no enable/disable config, no manual-prompt fallback)
-- [ ] cycle() branches and VRTaskEventKind/VRTaskEvent updated for any new dispatchable event
+- [ ] cycle() branches and VRTaskEventKind/_VRTaskEvent updated for any new dispatchable event
 - [ ] Guidance inversion preserved (RequireInteraction/RequireWait publish `not enabled`)
 - [ ] Trial decomposition (DecomposedTrials) updated if the per-trial data model changed
 

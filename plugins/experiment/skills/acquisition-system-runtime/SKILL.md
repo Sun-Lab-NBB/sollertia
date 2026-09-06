@@ -27,7 +27,7 @@ not any single system's specific states or modes. For the concrete worked instan
 - The configuration-time / runtime split, where AI assists configuration and the runtime stays deterministic
 - Per-mode runtime logic functions, the public entry points that run a session
 - The orchestrator's dynamic responsibilities: the system-state machine, the per-cycle runtime loop, lifecycle
-  (start/stop/pause/resume), and teardown isolation
+  (start/stop/pause/resume), and tear-down isolation
 - The two state axes: system state (hardware configuration) against runtime state (within-session stage)
 - Typed-event dispatch from the hardware subsystems into the runtime loop
 - The uninitialized-session marker and the point at which a runtime clears it
@@ -40,7 +40,7 @@ not any single system's specific states or modes. For the concrete worked instan
 
 **Does not cover:**
 - Static composition, meaning configuration YAML, configuration dataclasses, and binding-class construction and
-  shutdown order. See `/acquisition-system-design`
+  tear-down order. See `/acquisition-system-design`
 - Concrete Mesoscope-VR runtime behavior, meaning its states, modes, CLI, and visualizer. See
   `mesoscope:mesoscope-vr-runtime`
 - The seam catalog a new system's runtime composes. See `/library-extension`
@@ -93,7 +93,7 @@ A runtime layer therefore has two consumers:
 └──────────────────────────────────────────────────────────────────────────────┘
 ```
 
-The orchestrator's *construction* and *shutdown ordering* are governed by `/acquisition-system-design` (Layer 3).
+The orchestrator's *construction* and *tear-down ordering* are governed by `/acquisition-system-design` (Layer 3).
 This skill governs what the orchestrator does between start and stop.
 
 ---
@@ -114,9 +114,9 @@ mode. Every such function follows the same shape:
    and into a discarded temporary directory when it performs maintenance.
 4. Drive the state transitions and the per-cycle runtime loop for the session's lifetime.
 5. Tear down in the reverse order on completion or interrupt.
-6. Purge the session when the uninitialized-session marker survives teardown. The purge runs after the data logger has
-   stopped, so the raw-data directory is flushed and released before deletion, and it removes the session from the host
-   and from every configured destination with no confirmation prompt, leaving no partial session behind from an aborted
+6. Purge the session when the uninitialized-session marker survives tear-down. The purge runs after the data logger has
+   stopped, so the raw-data directory is flushed and released before deletion. It removes the session from the host and
+   from every configured destination with no confirmation prompt, leaving no partial session behind from an aborted
    bring-up.
 
 These functions are the only supported surface for starting a session, and direct construction of the orchestrator
@@ -131,7 +131,7 @@ calibration and positioning, follow the same shape without a session descriptor.
 
 A runtime distinguishes two orthogonal state axes:
 
-- **System state**: the hardware configuration the system is currently in, meaning which actuators are engaged and
+- **System state**: the hardware configuration the system currently holds, meaning which actuators are engaged and
   which sensors are active. It is a system-specific enumeration with one member per hardware mode. A dedicated
   method per state drives the binding classes into that configuration and logs the transition. These state methods
   are **convergent and unconditional**. They never short-circuit on the current system state, so re-entering a state
@@ -184,7 +184,7 @@ event kind plus any payload fields. The orchestrator then switches on the kind a
 example by delivering a reward, pulsing a brake, or entering an emergency pause. This keeps transport parsing
 inside the subsystem and hardware policy inside the orchestrator.
 
-The Unity VR task driver is the platform's shared asynchronous subsystem, and its `VRTaskEvent` is the event value
+The Unity VR task driver is the platform's shared asynchronous subsystem, and its `_VRTaskEvent` is the event value
 a runtime dispatches. A runtime builds the driver for the session types that `SESSION_TYPES_USING_VR_TASK` lists
 (`sollertia-shared-assets/src/sollertia_shared_assets/registries.py`) and holds `None` for every other session
 type, so every consumer site is guarded by a `None` check. See `/vr-driver-interface`.
@@ -193,11 +193,11 @@ type, so every consumer site is guarded by a `None` check. See `/vr-driver-inter
 
 `start()` brings the session up through semi-interactive hardware preparation, the cycle loop runs the session, and
 `stop()` tears it down. Pause and resume implement an idle state that produces no valid data, and terminate handles
-end-of-session shutdown. Construction and teardown ordering is owned by `/acquisition-system-design`.
+end-of-session shutdown. Construction and tear-down ordering is owned by `/acquisition-system-design`.
 
-### Teardown isolation
+### Tear-down isolation
 
-Every teardown step of a multi-asset shutdown runs through `run_shutdown_step(description, step)`, which runs the
+Every tear-down step of a multi-asset shutdown runs through `run_shutdown_step(description, step)`, which runs the
 step, catches `(Exception, KeyboardInterrupt)`, and echoes an ERROR so the later steps still run
 (`cross_system/shutdown_tools.py`). Isolation is load-bearing, because a propagating failure would skip the
 remaining steps and leave orphaned subprocesses for the garbage collector, which tears their shared-memory managers
@@ -214,7 +214,7 @@ session is flagged as uninitialized from the moment it exists
 (`sollertia-shared-assets/src/sollertia_shared_assets/data_hierarchy/session_data.py`). The per-mode logic function
 calls `session_data.mark_runtime_initialized()` once the hardware is up and the session is ready to acquire, and that
 call unlinks the marker (`session_data.py`). An aborted initialization therefore leaves the marker in place, the marker
-makes the logic function purge the session during its own teardown, and it gates snapshot writing, preprocessing, and
+makes the logic function purge the session during its own tear-down, and it gates snapshot writing, preprocessing, and
 purge confirmation downstream. The session hierarchy that holds the marker is owned by `assets:session-data`.
 
 ---
@@ -231,17 +231,16 @@ conditional snapshots at session creation (`session_data.py`), which leaves the 
 snapshot for the runtime itself to write.
 
 Beyond the required set, a mode that drives the full hardware stack also freezes the configuration of every active
-hardware module into the session as `hardware_state.yaml`, so downstream processing can interpret the raw data without
-the acquisition host (the `hardware_state_path` field of `RawData` in `session_data.py`). The write happens inside the
-orchestrator's `start()`, so a reduced-hardware mode that skips the orchestrator writes no hardware-state record, and
-its absence for that session type is expected rather than a defect. The parsing class is dispatched per acquisition
-system through `HARDWARE_STATE_REGISTRY` in `registries.py`, and the import-time `_assert_registry_coverage` check in
-that module requires every registered system to have an entry. Authoring and registering that dataclass is
-`assets:library-extension` work, and `assets:session-hardware-state` reads and validates the record the runtime
-writes.
+hardware module into the session as `hardware_state.yaml`. That record lets downstream processing interpret the raw data
+without the acquisition host (the `hardware_state_path` field of `RawData` in `session_data.py`). The write happens
+inside the orchestrator's `start()`, so a reduced-hardware mode that skips the orchestrator writes no hardware-state
+record, and its absence for that session type is expected rather than a defect. The parsing class is dispatched per
+acquisition system through `HARDWARE_STATE_REGISTRY` in `registries.py`, and the import-time `_assert_registry_coverage`
+check in that module requires every registered system to have an entry. Authoring and registering that dataclass is
+`assets:library-extension` work, and `assets:session-hardware-state` reads and validates the record the runtime writes.
 
 Nothing in sollertia-experiment verifies that a runtime wrote these files. A missing asset surfaces only when a health
-check or a downstream consumer asks for it, so treat the descriptor and system-configuration writes as part of every
+check or a downstream consumer asks for it. Treat the descriptor and system-configuration writes as part of every
 runtime's contract, and the hardware-state write as part of the contract of every mode that drives the full hardware
 stack. See `/system-health-check`.
 
@@ -265,11 +264,11 @@ interval, letting the idle time count against it.
 
 ## Operator interaction
 
-An acquisition runtime is semi-interactive and blocks on terminal prompts wherever an operator must act or decide.
-The shared helpers are `wait_for_enter`, `request_confirmation`, `request_required_confirmation`, `request_text`,
-and `request_selection` (`cross_system/terminal_prompts.py`). A high-stakes prompt uses
-`request_required_confirmation`, which has no default and re-prompts until an explicit yes or no
-(`cross_system/terminal_prompts.py`), so an accidental Enter keypress cannot decide the outcome.
+An acquisition runtime is semi-interactive and blocks on terminal prompts wherever an operator must act or decide. The
+shared helpers are `wait_for_enter`, `request_confirmation`, `request_required_confirmation`, `request_text`, and
+`request_selection` (`cross_system/terminal_prompts.py`). A high-stakes prompt uses `request_required_confirmation`,
+which has no default and re-prompts until an explicit yes or no (`cross_system/terminal_prompts.py`), so an accidental
+Enter keypress cannot decide the outcome.
 
 Hardware calibration and hardware positioning are experimenter-operated through a maintenance GUI. You MUST NOT
 write a runtime instruction that has an agent drive them.
@@ -281,9 +280,7 @@ write a runtime instruction that has an agent drive them.
 The session descriptor holds the runtime parameters for one session, authored as a dataclass owned by
 `sollertia-shared-assets`. See `assets:session-descriptors`.
 
-- The per-mode logic function instantiates the descriptor with defaults, inherits parameters from the animal's
-  previous session of the same mode when one exists on disk, and applies the per-flag overrides forwarded by the
-  CLI.
+- The per-mode logic function builds the descriptor as step 2 of the standard shape above.
 - The orchestrator receives the finalized descriptor in memory, caches it to disk at construction so an interrupted
   session can still be preprocessed, and uses it to parameterize the state machine.
 - At session end the orchestrator updates the descriptor in place with runtime-discovered values, clears the
@@ -337,8 +334,7 @@ Runtime modes are exposed as subcommands of a runtime subgroup inside the system
 arguments, meaning user, project, animal, and animal weight, are declared on that subgroup, parsed before the
 subcommand name, and passed to each mode subcommand through the click context. Each subcommand is a thin wrapper.
 It collects its per-mode flag overrides and forwards them, with the inherited session arguments, to the per-mode
-logic function that builds the `SessionData` and the descriptor. The CLI is the only public surface for starting a
-session.
+logic function that builds the `SessionData` and the descriptor.
 
 ---
 
@@ -385,7 +381,7 @@ only its mechanical steps carry an author-derived recipe. Steps 3, 4, and 6 are 
 autonomously, meaning the log code enumeration, the bounded per-cycle step per subsystem, and the CLI group that fronts
 the logic functions. Steps 2 and 5 carry the part no recipe reaches. That part is which hardware modes the system has,
 what each mode does to the animal and to the instrument, and the interlocks that make an unsafe transition impossible.
-Teardown ordering belongs to the same escalated part and sits in the static composition that
+Tear-down ordering belongs to the same escalated part and sits in the static composition that
 `/acquisition-system-design` owns. Escalate those to the human supervisor and co-design them in a generative,
 collaborative mode. What is missing there is a hardware fact that no repository records, rather than capability, so the
 work must be human-supervised. `/library-extension` owns the full treatment of this boundary.
@@ -412,20 +408,20 @@ system's runtime reveals a genuinely shared pattern not captured here, add it.
 
 ## Related skills
 
-| Skill                            | Relationship                                                                                     |
-|----------------------------------|--------------------------------------------------------------------------------------------------|
-| `/acquisition-system-design`     | Static composition counterpart (configuration, binding classes, construction and shutdown order) |
-| `/library-extension`             | Owns the seam catalog a new runtime composes, and the acquisition-engine autonomy boundary       |
-| `mesoscope:mesoscope-vr-runtime` | The current worked instance of this pattern                                                      |
-| `mesoscope:mesoscope-vr`         | The current worked instance of the static design pattern                                         |
-| `/microcontroller-interface`     | Per-module wrapper APIs and the SharedMemoryArray accessors the loop reads                       |
-| `/vr-driver-interface`           | The typed-event asset-subsystem source (`VRTaskEvent`) the loop dispatches                       |
-| `assets:session-descriptors`     | Reads, amends, and validates the descriptors the runtime writes                                  |
-| `assets:session-data`            | Owns the session hierarchy and the `nk.bin` uninitialized-session marker                         |
-| `assets:session-hardware-state`  | Reads and validates the `hardware_state.yaml` record the runtime writes                          |
-| `assets:library-extension`       | Authors new `SessionTypes` members and their descriptor dataclasses                              |
-| `/data-management`               | Post-acquisition session-data lifecycle                                                          |
-| `/pipeline`                      | Where the runtime phase sits in the end-to-end lifecycle                                         |
+| Skill                            | Relationship                                                                                      |
+|----------------------------------|---------------------------------------------------------------------------------------------------|
+| `/acquisition-system-design`     | Static composition counterpart (configuration, binding classes, construction and tear-down order) |
+| `/library-extension`             | Owns the seam catalog a new runtime composes, and the acquisition-engine autonomy boundary        |
+| `mesoscope:mesoscope-vr-runtime` | The current worked instance of this pattern                                                       |
+| `mesoscope:mesoscope-vr`         | The current worked instance of the static design pattern                                          |
+| `/microcontroller-interface`     | Per-module wrapper APIs and the SharedMemoryArray accessors the loop reads                        |
+| `/vr-driver-interface`           | The typed-event asset-subsystem source (`_VRTaskEvent`) the loop dispatches                       |
+| `assets:session-descriptors`     | Reads, amends, and validates the descriptors the runtime writes                                   |
+| `assets:session-data`            | Owns the session hierarchy and the `nk.bin` uninitialized-session marker                          |
+| `assets:session-hardware-state`  | Reads and validates the `hardware_state.yaml` record the runtime writes                           |
+| `assets:library-extension`       | Authors new `SessionTypes` members and their descriptor dataclasses                               |
+| `/data-management`               | Post-acquisition session-data lifecycle                                                           |
+| `/pipeline`                      | Where the runtime phase sits in the end-to-end lifecycle                                          |
 
 ---
 
@@ -438,14 +434,14 @@ Tool-settled (run `rg -n '.{121,}' <file>` and `wc -l <file>`):
 
 Runtime pattern compliance, reader-judged:
 - [ ] Runtime is launchable only via the CLI, with no MCP "start session" tool
-- [ ] Per-mode logic functions follow the standard shape (SessionData, descriptor, orchestrator, loop, teardown)
+- [ ] Per-mode logic functions follow the standard shape (SessionData, descriptor, orchestrator, loop, tear-down)
 - [ ] System state and runtime state are distinct axes, each logged with its own code
 - [ ] System-state methods drive the binding classes into the target configuration and log the transition
 - [ ] The per-cycle loop has one bounded step per hardware subsystem, and no step blocks the operator-facing surfaces
 - [ ] Asynchronous subsystems surface typed events, and the orchestrator dispatches on event kind
-- [ ] Every teardown step of a multi-asset shutdown is wrapped in run_shutdown_step
+- [ ] Every tear-down step of a multi-asset shutdown is wrapped in run_shutdown_step
 - [ ] mark_runtime_initialized() is called once the session is ready to acquire, and never earlier
-- [ ] Teardown purges the session when the uninitialized-session marker survives, after the logger has stopped, and
+- [ ] Tear-down purges the session when the uninitialized-session marker survives, after the logger has stopped, and
       hands off to preprocessing otherwise
 - [ ] The runtime writes the session descriptor and the system-configuration snapshot, plus hardware_state.yaml for
       every mode that drives the full hardware stack

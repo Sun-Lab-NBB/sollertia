@@ -1,25 +1,25 @@
 ---
 name: google-sheets-processing
 description: >-
-  Guides implementation of Google Sheets processing assets, the SurgeryLog and WaterLog classes that read animal and
-  session records into typed platform data and write results back. Covers the processor API, service-account auth, the
-  sheet schema contract, how an acquisition system wires sheets, and authoring a custom processor. Use when reading or
-  writing Google Sheets data, adapting a processor to a new sheet schema, or wiring sheets into an acquisition system.
+  Guides implementation of Google Sheets processors, the SurgeryLog and WaterLog classes that read animal and session
+  records into typed platform data and write results back. Covers the processor API, service-account auth, the sheet
+  schema contract, how an acquisition system wires sheets, and authoring a custom processor. Use when reading or writing
+  Google Sheets data, adapting a processor to a new sheet schema, wiring sheets into an acquisition system, or
+  diagnosing a preprocessing failure that traces to sheet parsing.
 user-invocable: false
 ---
 
 # Google Sheets processing
 
-Guides the implementation of Google Sheets **processing assets**, the source components that read records out of a
-Google Sheet into typed platform data and write runtime results back. The `SurgeryLog` and `WaterLog` stack in
-`cross_system/google_sheet_tools.py` is system-agnostic, is exported from `cross_system/__init__.py`, and is consumed
-by any acquisition system's preprocessing layer through the shared `snapshot_surgery_data` helper in
+Guides the implementation of Google Sheets **processors**, the source components that read records out of a Google Sheet
+into typed platform data and write runtime results back. The `SurgeryLog` and `WaterLog` stack in
+`cross_system/google_sheet_tools.py` is system-agnostic, is exported from `cross_system/__init__.py`, and is consumed by
+any acquisition system's preprocessing layer through the shared `snapshot_surgery_data` helper in
 `cross_system/data_preprocessing.py`.
 
-A **processing asset** is an external-service client that preprocessing or per-session setup constructs directly on
-demand, outside the Layer-2b `start`/`stop` binding-class surface. For where this category sits in the
-acquisition-system architecture, see `/acquisition-system-design` (its "External data-service processors"
-subsystem type).
+A **processor** is an external-service client that preprocessing or per-session setup constructs directly on demand,
+outside the Layer-2b `start`/`stop` binding-class surface. For where this category sits in the acquisition-system
+architecture, see `/acquisition-system-design` (its "External data-service processors" subsystem type).
 
 ---
 
@@ -48,17 +48,6 @@ subsystem type).
 
 ---
 
-## When to use this skill
-
-- Reading animal surgery records or water-restriction logs out of a Google Sheet
-- Writing a surgery-quality score or a session's water-restriction summary back to a sheet
-- Adapting `SurgeryLog` / `WaterLog` to a sheet whose column or tab layout differs from the default
-- Authoring a brand-new processor for a different external log when adopting the platform
-- Diagnosing a preprocessing failure that traces to sheet parsing (missing headers, animal not in
-  the sheet, a date row that is not pre-filled)
-
----
-
 ## Prerequisites
 
 A processor needs three things before it can connect:
@@ -75,12 +64,11 @@ updates the session row.
 
 ---
 
-## The two processing assets
+## The two processors
 
-Both classes are constructed with `(identity…, credentials_path, sheet_id)`, validate the sheet's
-shape in `__init__` (raising `ValueError` via `console.error` on any mismatch), expose
-extract / update methods, and release the HTTP connection through a public `close()` method, with
-`__del__` as a garbage-collection backstop.
+Both classes are constructed with `(identity…, credentials_path, sheet_id)` and validate the sheet's shape in `__init__`
+(raising `ValueError` via `console.error` on any mismatch). They expose extract / update methods and release the HTTP
+connection through a public `close()` method, with `__del__` as a garbage-collection backstop.
 
 ### SurgeryLog, read the surgery record and write the quality score
 
@@ -88,21 +76,18 @@ extract / update methods, and release the HTTP connection through a public `clos
 SurgeryLog(project_name: str, animal_id: int, credentials_path: Path, sheet_id: str)
 ```
 
-| Member                                 | Purpose                                                                                                              |
-|----------------------------------------|----------------------------------------------------------------------------------------------------------------------|
-| `extract_animal_data()`                | Parses the animal's row into a `SurgeryData` instance (subject, procedure, drugs[], implants[], injections[]).       |
-| `update_surgery_quality(quality: int)` | Writes the surgery-quality score into the animal's row and applies center/middle cell alignment.                     |
-| `close()`                              | Closes the HTTP service. Callers should invoke this from a `try`/`finally` as soon as they finish with the instance. |
-| `__del__`                              | Garbage-collection backstop that delegates to `close()`.                                                             |
+| Member                                 | Purpose                                                                                                        |
+|----------------------------------------|----------------------------------------------------------------------------------------------------------------|
+| `extract_animal_data()`                | Parses the animal's row into a `SurgeryData` instance (subject, procedure, drugs[], implants[], injections[]). |
+| `update_surgery_quality(quality: int)` | Writes the surgery-quality score into the animal's row and applies center/middle cell alignment.               |
 
 `update_surgery_quality` documents a 0-3 scale, from 0 for unusable to 3 for publication grade. That scale is
 advisory, and the writer validates neither the range nor the type before it writes the cell
 (`cross_system/google_sheet_tools.py`).
 
-**Identity model:** one **tab per project** (tab name = `project_name`), header row = **row 1**,
-animals in rows 2 and below, keyed by a zero-padded five-digit value in the **`id` column**. Construction
-fails when the project tab's header row is empty, a required header is missing, the `id` column is
-empty, or the target `animal_id` is absent from it.
+**Identity model:** one **tab per project** (tab name = `project_name`), header row = **row 1**, animals in rows 2 and
+below, keyed by a zero-padded five-digit value in the **`id` column**. Construction fails when the project tab's header
+row is empty, a required header is missing, the `id` column is empty, or the target `animal_id` is absent from it.
 
 ### WaterLog, write a session's water-restriction summary
 
@@ -116,8 +101,6 @@ uses it to locate the pre-filled date row for this session.
 | Member                                                              | Purpose                                                                                                                       |
 |---------------------------------------------------------------------|-------------------------------------------------------------------------------------------------------------------------------|
 | `update_water_log(weight, water_ml, experimenter_id, session_type)` | Writes the five session cells (weight, given-by, water given, behavior, time) into the resolved session row, with formatting. |
-| `close()`                                                           | Closes the HTTP service. Callers should invoke this from a `try`/`finally` as soon as they finish with the instance.          |
-| `__del__`                                                           | Garbage-collection backstop that delegates to `close()`.                                                                      |
 
 **Identity model:** one **tab per animal** (tab name = the animal's digits), header row = **row 2**, data rows 3 and
 below, with the **date column pre-filled**. Construction fails when no digit-named animal tabs exist, the target
@@ -131,7 +114,7 @@ The full required-header sets, the dynamic implant/injection column convention, 
 
 ---
 
-## The processing-asset contract
+## The processor contract
 
 Every processor, the two above and any custom one, satisfies the same contract. This is what makes the category
 recognizable and what a custom processor must reproduce:
@@ -139,14 +122,11 @@ recognizable and what a custom processor must reproduce:
 1. **Construction validates, then caches.** The constructor authenticates, fetches the header row, builds a
    `header → column-letter` map, and asserts every required header is present and the target record exists. A malformed
    sheet *shape* fails **at construction**, before any extract or update call. Cell-*value* parse problems are not
-   caught there. `_replace_empty_values` turns an empty or placeholder cell into `None`, so `extract_animal_data`
-   raises `TypeError` from `int()` / `float()` on an empty `id`, `weight (g)`, or `cage #` cell, `ValueError` from
-   those same conversions on a non-empty but malformed cell, and `ValueError` from `_convert_date_time_to_timestamp`
-   when a `dob`, `date`, `start`, or `end` cell is empty or malformed.
+   caught there.
 2. **Authentication is service-account based.** `Credentials.from_service_account_file` is scoped to
-   `https://www.googleapis.com/auth/spreadsheets` and builds a `sheets`/`v4` service with
-   `cache_discovery=False`, because the discovery cache is unsupported by the installed oauth2client version
-   and only emits a spurious warning. Both `SurgeryLog.__init__` and `WaterLog.__init__` in
+   `https://www.googleapis.com/auth/spreadsheets` and builds a `sheets`/`v4` service with `cache_discovery=False`,
+   because the discovery cache is unavailable to projects authenticating through google-auth rather than oauth2client
+   and only emits a spurious INFO log record. Both `SurgeryLog.__init__` and `WaterLog.__init__` in
    `cross_system/google_sheet_tools.py` carry this call.
 3. **Every API call is retried.** All `.execute()` calls pass `num_retries=_GOOGLE_API_MAX_RETRIES`, which is 5, so
    transient 5xx and 429 errors self-heal (`cross_system/google_sheet_tools.py`).
@@ -159,9 +139,8 @@ recognizable and what a custom processor must reproduce:
 5. **A handle may outlive its first use.** `snapshot_surgery_data` returns the open `SurgeryLog` and the caller owns
    it, so the caller MUST `close()` it in a `try`/`finally` to release the SSL socket
    (`cross_system/data_preprocessing.py`).
-6. **The processor is invoked directly.** Preprocessing or per-session setup constructs it on demand, so it takes no
-   `DataLogger`, joins no `start`/`stop` surface, and appears in no slsa registry. The read-asset *dataclass* it
-   produces is registered separately in slsa's `READ_ASSET_REGISTRY`
+6. **The processor is invoked directly.** It takes no `DataLogger`, joins no `start`/`stop` surface, and appears in no
+   slsa registry. The read-asset *dataclass* it produces is registered separately in slsa's `READ_ASSET_REGISTRY`
    (`sollertia-shared-assets/src/sollertia_shared_assets/registries.py`).
 
 ---
@@ -208,10 +187,10 @@ acquisition system can consume them** while they stay bound to the single Soller
     pre-existing row or record.
 
 The step-by-step procedure covering schema-contract definition, the read/write split, lifecycle implementation,
-placement (`cross_system/` versus the system package), wiring, and documentation is the
-**"Authoring a custom data-service processor"** workflow in `/acquisition-system-design`. This skill owns the
-*what*, meaning the API and the contract, and that workflow owns the *how*, meaning the procedure. For the
-seam catalog a new acquisition system composes, see `/library-extension`.
+placement (`cross_system/` versus the system package), wiring, and documentation is the **"Authoring a custom
+data-service processor"** workflow in `/acquisition-system-design`. This skill owns the *what*, meaning the API and the
+contract, and that workflow owns the *how*, meaning the procedure. For the seam catalog a new acquisition system
+composes, see `/library-extension`.
 
 ---
 
@@ -222,18 +201,18 @@ raises. Transport and authorization failures instead surface as the `googleapicl
 raises, and nothing in this library catches it, so it propagates out of preprocessing unchanged. Construction is
 atomic, so a processor either constructs cleanly or aborts.
 
-| Symptom                                              | Cause                                                                                                                                                                           |
-|------------------------------------------------------|---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
-| `ValueError` naming missing headers                  | The sheet's header row lacks a required column, from schema drift or a wrong tab.                                                                                               |
-| `ValueError`: animal not in the `id` column / no tab | The target animal has no surgery row or no water-log tab.                                                                                                                       |
-| `ValueError`: empty header or ID column              | The project tab's header row is empty, or the water-log sheet has no digit-named animal tabs.                                                                                   |
-| `ValueError`: date row not found (`WaterLog`)        | The session's date row is absent, or its date format differs from `M/D/YY`.                                                                                                     |
-| `ValueError`: invalid session timestamp              | The `session_date` passed to `WaterLog` is not a valid session name.                                                                                                            |
-| `googleapiclient.errors.HttpError` (authorization)   | The target sheet was never shared with the service-account email (see Prerequisites), so the credentials file grants no access to it.                                           |
-| `googleapiclient.errors.HttpError` (bad range)       | `SurgeryLog` was given a `project_name` with no matching tab. `__init__` reads `'{project_name}'!1:1` with no existence check, so the API call fails instead of a `ValueError`. |
-| `FileNotFoundError` during preprocessing             | A sheet identifier is set but the host credentials file has not been set.                                                                                                       |
-| `TypeError` on extract (`int()`/`float()`)           | An `id`, `weight (g)`, or `cage #` cell is empty, so `_replace_empty_values` resolves it to `None` before the conversion.                                                       |
-| `ValueError` on extract (`int()`/`float()`/date)     | A non-empty `id`, `weight (g)`, `cage #`, or `surgery quality` cell is malformed, or a `dob`, `date`, `start`, or `end` cell is empty or malformed.                             |
+| Symptom                                              | Cause                                                                                                                                                                                        |
+|------------------------------------------------------|----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| `ValueError` naming missing headers                  | The sheet's header row lacks a required column, from schema drift or a wrong tab.                                                                                                            |
+| `ValueError`: animal not in the `id` column / no tab | The target animal has no surgery row or no water-log tab.                                                                                                                                    |
+| `ValueError`: empty header or ID column              | The project tab's header row is empty, or the water-log sheet has no digit-named animal tabs.                                                                                                |
+| `ValueError`: date row not found (`WaterLog`)        | The session's date row is absent, or its date format differs from `M/D/YY`.                                                                                                                  |
+| `ValueError`: invalid session timestamp              | The `session_date` passed to `WaterLog` is not a valid session name.                                                                                                                         |
+| `googleapiclient.errors.HttpError` (authorization)   | The target sheet was never shared with the service-account email (see Prerequisites), so the credentials file grants no access to it.                                                        |
+| `googleapiclient.errors.HttpError` (bad range)       | `SurgeryLog` was given a `project_name` with no matching tab. `__init__` reads `'{project_name}'!1:1` with no existence check, so the API call fails instead of a `ValueError`.              |
+| `FileNotFoundError` during preprocessing             | A sheet identifier is set but the host credentials file has not been set.                                                                                                                    |
+| `TypeError` on extract (`int()`/`float()`)           | An `id`, `weight (g)`, or `cage #` cell is empty, so `_replace_empty_values` resolves it to `None` before the conversion.                                                                    |
+| `ValueError` on extract (`int()`/`float()`/date)     | A non-empty `id`, `weight (g)`, `cage #`, or `surgery quality` cell is malformed, or `_convert_date_time_to_timestamp` receives an empty or malformed `dob`, `date`, `start`, or `end` cell. |
 
 A preprocessing or migration run surfaces these as the failure of the operation that invoked the processor, so
 resolve the sheet and re-run. See `/data-management` for the lifecycle-level handling.
@@ -251,18 +230,18 @@ resolve the sheet and re-run. See `/data-management` for the lifecycle-level han
 
 ## Related skills
 
-| Skill                               | Relationship                                                                             |
-|-------------------------------------|------------------------------------------------------------------------------------------|
-| `/cli-reference`                    | Reference: the `sle mcp` command that starts the server these processors run under       |
-| `/acquisition-system-design`        | Platform-general home of the external data-service processor category and its workflow.  |
-| `/data-management`                  | Owns the shared preprocessing primitives that construct these processors.                |
-| `/library-extension`                | Catalogues the Sheets processors as a reusable seam a new acquisition system composes.   |
-| `/experiment-mcp-environment-setup` | Run first when the `sle mcp` server is not connected.                                    |
-| `assets:working-directory`          | Sets and resolves the service-account credentials path the processors require.           |
-| `assets:data-assets`                | Reads and amends the on-disk read asset the surgery snapshot produces.                   |
-| `assets:library-extension`          | Owns the read-asset registry that receives a new emitted record type.                    |
-| `mesoscope:mesoscope-vr`            | Current worked example, which declares the sheet identifiers its own preprocessing uses. |
-| `mesoscope:mesoscope-vr-runtime`    | Owns the worked example's session-type branch policy for sheet writes.                   |
+| Skill                               | Relationship                                                                              |
+|-------------------------------------|-------------------------------------------------------------------------------------------|
+| `/cli-reference`                    | Reference: the `sle mcp` command that starts the server under which these processors run. |
+| `/acquisition-system-design`        | Platform-general home of the external data-service processor category and its workflow.   |
+| `/data-management`                  | Owns the shared preprocessing primitives that construct these processors.                 |
+| `/library-extension`                | Catalogues the Sheets processors as a reusable seam a new acquisition system composes.    |
+| `/experiment-mcp-environment-setup` | Run first when the `sle mcp` server is not connected.                                     |
+| `assets:working-directory`          | Sets and resolves the service-account credentials path the processors require.            |
+| `assets:data-assets`                | Reads and amends the on-disk read asset the surgery snapshot produces.                    |
+| `assets:library-extension`          | Owns the read-asset registry that receives a new emitted record type.                     |
+| `mesoscope:mesoscope-vr`            | Current worked example, which declares the sheet identifiers its own preprocessing uses.  |
+| `mesoscope:mesoscope-vr-runtime`    | Owns the worked example's session-type branch policy for sheet writes.                    |
 
 ---
 

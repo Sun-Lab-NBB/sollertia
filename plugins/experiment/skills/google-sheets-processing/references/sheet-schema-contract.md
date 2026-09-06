@@ -1,12 +1,12 @@
 # Sheet schema contract
 
-The exact structural assumptions and required headers that `SurgeryLog` and `WaterLog` validate at
-construction, plus the field-to-header mapping each read produces. Loaded on demand from
-`google-sheets-processing`'s SKILL.md. Source: `cross_system/google_sheet_tools.py`.
+The exact structural assumptions and required headers that `SurgeryLog` and `WaterLog` validate at construction, plus
+the field-to-header mapping each read produces. Loaded on demand from `google-sheets-processing`'s SKILL.md. Source:
+`cross_system/google_sheet_tools.py`.
 
 A processor builds a `header → column-letter` map from the live sheet and asserts every required header is present
-before any extract/update call. Header matching is **case-insensitive and whitespace-stripped** (headers are lowercased
-on read). A column whose required header is missing aborts construction with a `ValueError` naming the missing headers.
+before any extract/update call. A column whose required header is missing aborts construction with a `ValueError` naming
+the missing headers.
 
 ---
 
@@ -48,8 +48,8 @@ The `_REQUIRED_SURGERY_HEADERS` set, grouped by the dataclass section each feeds
 
 ### Dynamic implant / injection columns
 
-Implants and injections are discovered by header name, not fixed columns. Headers follow the
-`implant<N>` / `injection<N>` convention, with companion columns sharing the same prefix:
+Implants and injections are discovered by header name, not fixed columns. Headers follow the `implant<N>` /
+`injection<N>` convention, with companion columns sharing the same prefix:
 
 | Header pattern             | Maps to                                            |
 |----------------------------|----------------------------------------------------|
@@ -63,30 +63,29 @@ Implants and injections are discovered by header name, not fixed columns. Header
 | `injection<N> coordinates` | Parsed into AP/ML/DV (optional)                    |
 | `injection<N> code`        | `InjectionData.injection_code` (defaults to `"0"`) |
 
-The "main" column (no spaces, e.g. `implant1`) drives detection. A `None` value in that cell means
-the animal does not have that implant or injection even though the header exists. Drug, implant, and
-injection `code` columns are optional and default to the string `"0"`, which reads as "no code", for
-backward compatibility with early sheet versions.
+The "main" column (no spaces, e.g. `implant1`) drives detection. A `None` value in that cell means the animal does not
+have that implant or injection even though the header exists. Drug, implant, and injection `code` columns are optional
+and default to the string `"0"`, which reads as "no code", for backward compatibility with early sheet versions.
 
-Once a main column holds a name, the reader indexes `<base> location` and `injection<N> volume (nl)`
-directly, so a missing companion header raises `KeyError`. An empty `injection<N> volume (nl)` cell
-additionally raises `TypeError` from the `float()` conversion, while an empty `<base> location` cell
-is stored as `None` without error. The `coordinates` and `code` companions are read through `.get()`
-and stay optional in the implant and injection loops of `SurgeryLog.extract_animal_data`
-(`cross_system/google_sheet_tools.py`).
+Once a main column holds a name, the reader indexes `<base> location` and `injection<N> volume (nl)` directly, so a
+missing companion header raises `KeyError`. An empty `injection<N> volume (nl)` cell additionally raises `TypeError`
+from the `float()` conversion, while an empty `<base> location` cell is stored as `None` without error. The
+`coordinates` and `code` companions are read through `.get()` and stay optional in the implant and injection loops of
+`SurgeryLog.extract_animal_data` (`cross_system/google_sheet_tools.py`).
 
 ### Coordinate string format
 
-Stereotactic coordinates are a single string like `-1.8 AP, 2 ML, .25 DV`, parsed into an
-`(AP, ML, DV)` float tuple. A surgery without coordinates (e.g., training) defaults to `(0, 0, 0)`.
+Stereotactic coordinates are a single string like `-1.8 AP, 2 ML, .25 DV`, parsed into an `(AP, ML, DV)` float tuple. A
+surgery without coordinates (e.g., training) defaults to `(0, 0, 0)`.
 
 Unlike header and placeholder matching, the axis designators MUST be uppercase. Axis detection is case-insensitive
-(`"AP" in substring.upper()`, `cross_system/google_sheet_tools.py:924`), but the extraction regex
-`([-+]?\d*\.?\d+)\s*(AP|ML|DV)` (line 897) carries no `re.IGNORECASE`, so a cell holding `-1.8 ap, 2 ML, .25 DV` is
-detected as an AP substring, fails extraction, and aborts the whole `extract_animal_data` call with `ValueError: Unable
-to extract the anatomical coordinate value from the input substring -1.8 ap`. Empty and placeholder cells (`n/a`, `--`,
-`---`) are already `None` and never reach the parser. A non-empty, non-placeholder cell containing none of `AP`, `ML`,
-or `DV` is instead read silently as `(0, 0, 0)` with no error.
+(`"AP" in substring.upper()`, `_parse_stereotactic_coordinates()` in `cross_system/google_sheet_tools.py`), but the
+extraction regex `([-+]?\d*\.?\d+)\s*(AP|ML|DV)` in `_extract_coordinate_value()` carries no `re.IGNORECASE`. A cell
+holding `-1.8 ap, 2 ML, .25 DV` is therefore detected as an AP substring, fails extraction, and aborts the whole
+`extract_animal_data` call. The abort raises
+`ValueError: Unable to extract the anatomical coordinate value from the input substring -1.8 ap`. Empty and placeholder
+cells (`n/a`, `--`, `---`) are already `None` and never reach the parser. A non-empty, non-placeholder cell containing
+none of `AP`, `ML`, or `DV` is instead read silently as `(0, 0, 0)` with no error.
 
 ### Output: `SurgeryData`
 
@@ -103,9 +102,9 @@ dataclasses, which perform no validation (`cross_system/google_sheet_tools.py`).
 
 Each drug tracked by `_SURGERY_LOG_DRUGS` becomes a named `DrugData` record in `drugs[]`, covering
 `Lactated Ringer's Solution`/`lrs`, `Ketoprofen`/`ketoprofen`, `Buprenorphine`/`buprenorphine`, and
-`Dexamethasone`/`dexamethasone`. For each record, `drug` is the descriptive name, `drug_volume_ml` comes
-from the `<stem> (ml)` column, and `drug_code` comes from the `<stem> code` column. A drug whose volume
-cell is empty was not administered and is excluded from `drugs[]`.
+`Dexamethasone`/`dexamethasone`. For each record, `drug` is the descriptive name, `drug_volume_ml` comes from the
+`<stem> (ml)` column, and `drug_code` comes from the `<stem> code` column. A drug whose volume cell is empty was not
+administered and is excluded from `drugs[]`.
 
 ---
 
@@ -121,7 +120,7 @@ cell is empty was not administered and is excluded from `drugs[]`.
 
 Tab discovery is looser than tab addressing. Discovery accepts any digit-only tab whose `int()` equals the animal ID and
 stores the zero-padded form for reporting, but every A1 range is built from the raw animal ID
-(`cross_system/google_sheet_tools.py`, lines 600, 716, and 753). A tab named `00012` therefore clears both construction
+(`cross_system/google_sheet_tools.py`, lines 605, 722, and 759). A tab named `00012` therefore clears both construction
 guards and then aborts on the header read with a googleapiclient range error against the nonexistent tab `12`, rather
 than with the `ValueError` that names the tabs the log contains.
 

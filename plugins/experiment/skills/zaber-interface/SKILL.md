@@ -9,8 +9,8 @@ user-invocable: false
 
 # Zaber motor interface
 
-The `ZaberConnection` / `ZaberDevice` / `ZaberAxis` stack in `cross_system/zaber_bindings.py` is the platform-general
-Zaber hardware subsystem, and every acquisition system composes it from its own binding layer. `AcquisitionSystems`
+The `ZaberConnection` / `_ZaberDevice` / `ZaberAxis` stack in `cross_system/zaber_bindings.py` is the platform-general
+Zaber hardware subsystem, and every acquisition system composes it from its own binding class. `AcquisitionSystems`
 holds one member today, so Mesoscope-VR is the only registered system that consumes this stack
 (`sollertia-shared-assets/src/sollertia_shared_assets/enums.py`).
 
@@ -21,7 +21,7 @@ holds one member today, so Mesoscope-VR is the only registered system that consu
 **Covers:**
 - Discovering Zaber motors and recording their port and daisy-chain assignments
 - Reading, modifying, and validating motor configuration in non-volatile memory (positions, flags, labels, checksum)
-- The `ZaberConnection` / `ZaberDevice` / `ZaberAxis` API hierarchy and its safety patterns
+- The `ZaberConnection` / `_ZaberDevice` / `ZaberAxis` API hierarchy and its safety patterns
 - Composing Zaber motors into an acquisition system's binding class
 
 **Does not cover:**
@@ -37,11 +37,11 @@ holds one member today, so Mesoscope-VR is the only registered system that consu
 - Adding Zaber motor support to an acquisition system
 - Troubleshooting Zaber motor connectivity issues
 - Verifying motor configuration before runtime
-- Understanding the ZaberConnection/ZaberDevice/ZaberAxis API hierarchy
+- Understanding the ZaberConnection/_ZaberDevice/ZaberAxis API hierarchy
 - Configuring motor positions in non-volatile memory
 
 For the worked example's motor inventory and its Zaber binding class, use `mesoscope:mesoscope-vr`. For the
-platform-general pattern by which an acquisition system composes Zaber motors into its binding layer, see
+platform-general pattern by which an acquisition system composes Zaber motors into its binding class, see
 `/acquisition-system-design`. For the catalog of seams a new acquisition system composes, including this one, see
 `/library-extension`.
 
@@ -106,19 +106,13 @@ place of its index (`_format_device_info` in the same module).
 > appears as a `COM3`-style name on Windows and as `/dev/tty.usbserial-XXXX` on macOS. Always use the path the
 > discovery tool reports for the host.
 
-If motors are not detected:
-- Check USB connections and power supplies
-- Verify the OS grants the current user access to the serial port. On Linux, add the user to the `dialout` group with
-  `sudo usermod -a -G dialout $USER`, then re-login. On Windows and macOS, install the vendor's USB-serial driver and
-  confirm no other application holds the port open
-- Ensure motors are powered on before connecting USB
-- Check for port conflicts with other applications
+If motors are not detected, work through the **Motor not detected** steps under Troubleshooting below.
 
 ### Step 1: Content verification
 
 | File                              | What to check                                                          |
 |-----------------------------------|------------------------------------------------------------------------|
-| `cross_system/zaber_bindings.py`  | The `ZaberConnection` / `ZaberDevice` / `ZaberAxis` patterns           |
+| `cross_system/zaber_bindings.py`  | The `ZaberConnection` / `_ZaberDevice` / `ZaberAxis` patterns          |
 | `mesoscope_vr/binding_classes.py` | The worked example's Zaber binding class. See `mesoscope:mesoscope-vr` |
 | `pyproject.toml`                  | The pinned `zaber-motion` version                                      |
 
@@ -137,7 +131,7 @@ Zaber motor control uses a tri-class hierarchy:
 │  - Coordinates shutdown across all devices                                      │
 │                                                                                 │
 │     ┌─────────────────────────────────────────────────────────────────────────┐ │
-│     │                    ZaberDevice (Controller Level)                       │ │
+│     │                    _ZaberDevice (Controller Level)                       │ │
 │     │  ─────────────────────────────────────────────────────────────────────  │ │
 │     │  - Validates device configuration (checksum verification)               │ │
 │     │  - Manages shutdown tracking in non-volatile memory                     │ │
@@ -156,14 +150,12 @@ Zaber motor control uses a tri-class hierarchy:
 
 **Key relationships:**
 - One `ZaberConnection` per serial port (USB cable)
-- Multiple `ZaberDevice` instances per connection (daisy-chained motors)
+- Multiple `_ZaberDevice` instances per connection (daisy-chained motors)
 - One `ZaberAxis` per device (single-axis controllers only)
 
 ---
 
 ## Motor discovery
-
-Use the MCP tool `get_zaber_devices_tool()` to discover connected Zaber motors.
 
 ### Discovery output fields
 
@@ -223,8 +215,6 @@ binding class see `mesoscope:mesoscope-vr`, and for its per-session snapshot see
 
 ## Agentic configuration management
 
-Use MCP tools to read and modify Zaber motor configuration stored in non-volatile memory.
-
 ### Available MCP tools
 
 | Tool                                                                         | Purpose                       |
@@ -238,7 +228,7 @@ Use MCP tools to read and modify Zaber motor configuration stored in non-volatil
 All five tools return a plain `str`, and each one reports failure through a leading `Error: ` prefix
 (`interfaces/get_tools.py`). `validate_zaber_configuration_tool` opens its report with the validated device's identity,
 `Port: {port} | Index: {device_index} | Device: {device_label} | Axis: {axis_label}`, where an unset device or axis
-label prints as `(not set)`, and continues with `Status: VALID|INVALID | Checksum: OK|FAIL | Positions: OK|FAIL`,
+label prints as `(not set)`. The report continues with `Status: VALID|INVALID | Checksum: OK|FAIL | Positions: OK|FAIL`,
 followed by an `Errors:` segment and a `Warnings:` segment when the validator produced any. Outside the MCP server,
 `sle get checksum` computes the same checksum. Its `-i` / `--input-string` option carries a prompt rather than a
 required flag, so omitting it makes the command ask for the string (the `calculate_crc` command in `interfaces/get.py`).
@@ -293,8 +283,8 @@ library owns the value and rewrites it on every `device_label` write (`cross_sys
 ### Understanding shutdown_flag vs unsafe_flag
 
 **shutdown_flag (USER_DATA_1):**
-- `ZaberDevice.__init__` zeroes it, so an aborted runtime stays detectable (`cross_system/zaber_bindings.py`)
-- `ZaberDevice.shutdown` writes `1` only for a motor resting at its stored park position, and `0` otherwise. See
+- `_ZaberDevice.__init__` zeroes it, so an aborted runtime stays detectable (`cross_system/zaber_bindings.py`)
+- `_ZaberDevice.shutdown` writes `1` only for a motor resting at its stored park position, and `0` otherwise. See
   Shutdown safety below for the tolerance that decides it
 - If a motor with `unsafe_flag=1` has `shutdown_flag=0`, the device blocks on a confirmation prompt before homing
 - **This is the flag you typically manage** when recovering from improper shutdown (power loss, crash, etc.)
@@ -321,7 +311,6 @@ library owns the value and rewrites it on every `device_label` write (`cross_sys
 - Axis labels are primarily used for third-party motors where the label reflects the specific motor name.
 - For Zaber single-axis controllers, the device_label drives checksum validation and can repeat across a motor group,
   because the binding library selects each device by its daisy-chain index.
-- Do not flag missing axis_label as a configuration problem.
 
 ### Initial device setup workflow
 
@@ -329,8 +318,7 @@ For new motors not yet configured for use with the binding library:
 
 1. **Discover device**: `get_zaber_devices_tool()`
 2. **Set device label**: `set_zaber_device_setting_tool(port, device_index, "device_label", "StageA",
-   confirm="yes")` (This
-   automatically calculates and sets the checksum)
+   confirm="yes")` (This automatically calculates and sets the checksum)
 3. **Set axis label**: `set_zaber_device_setting_tool(port, device_index, "axis_label", "Z", confirm="yes")`
 4. **Set positions**: Configure park, maintenance, and mount positions
 5. **Set unsafe flag** (if needed): Only set this during initial setup based on physical hardware constraints. Set to
@@ -345,9 +333,6 @@ When a motor with `unsafe_flag=1` was not properly shut down:
 2. **User verification**: Ask the user to physically verify the motor is in a safe position for homing
 3. **Reset shutdown flag**: `set_zaber_device_setting_tool(port, device_index, "shutdown_flag", "1", confirm="yes")`
 4. **Validate**: `validate_zaber_configuration_tool(port, device_index)` should now show no warnings
-
-**Important:** Never modify `unsafe_flag` to work around improper shutdown. The `unsafe_flag` reflects physical hardware
-constraints and should only be changed if the hardware assembly changes.
 
 ---
 
@@ -368,10 +353,10 @@ wait_until_idle()  ──►  IDLE       is_busy reads False, ready for the next
 
 ### Shutdown safety
 
-`ZaberDevice.shutdown` parks the axis, then records whether the motor came to rest where the next runtime expects it.
+`_ZaberDevice.shutdown` parks the axis, then records whether the motor came to rest where the next runtime expects it.
 `_PARK_POSITION_TOLERANCE` is `100.0` native units, the largest deviation from the stored park position still counted as
 parked (`cross_system/zaber_bindings.py`). The window absorbs the microstep-scale settling error left behind by the
-final move command, and `ZaberDevice.shutdown` records a motor resting outside it as improperly shut down.
+final move command, and `_ZaberDevice.shutdown` records a motor resting outside it as improperly shut down.
 
 `ZaberConnection.connect()` releases the port without shutting the constructed devices down when one device fails to
 initialize, then re-raises (`cross_system/zaber_bindings.py`). It deliberately does not park, because parking commits
@@ -407,12 +392,10 @@ and raise conditions of all three classes, for the non-volatile settings map, an
 
 ## Binding class patterns and configuration
 
-When composing Zaber motors into an acquisition system's binding class, follow these established binding-class patterns:
-park/unpark guards around every movement, position restoration from a previous-session snapshot, a `wait_until_idle()`
-barrier before parking, and connection teardown on disconnect. The consuming system supplies the motor port assignments
-and a position dataclass (one field per managed motor axis).
-
-For the full binding-class skeleton, the key-patterns table, and the configuration and position dataclass patterns, see
+For the pattern by which an acquisition system composes a Zaber subsystem into a binding class, see
+`/acquisition-system-design`. Zaber adds two subsystem-specific requirements to that pattern: park/unpark guards around
+every movement, and a `wait_until_idle()` barrier before parking. The consuming system supplies the motor port
+assignments and a position dataclass, with one field per managed motor axis. For the position dataclass pattern, see
 [references/zaber-api-reference.md](references/zaber-api-reference.md).
 
 ---
@@ -421,7 +404,7 @@ For the full binding-class skeleton, the key-patterns table, and the configurati
 
 ### Motor not detected
 
-1. Verify USB cable is connected and motor is powered
+1. Verify the motor is powered on and the USB cable is connected, in that order
 2. Confirm the host lists the serial port using an OS-appropriate method. Linux uses `ls -la /dev/ttyUSB*`, Windows uses
    Device Manager, Ports, and macOS uses `ls -la /dev/tty.usbserial-*`
 3. Ensure the user can access the port. On Linux, add the user to the `dialout` group with
@@ -484,6 +467,9 @@ Tool-settled (run `rg -n '.{121,}' <file>` and `wc -l <file>`):
 - [ ] All lines at or under 120 characters (tables and code blocks may exceed for clarity)
 - [ ] SKILL.md under 500 lines
 
+Tool-settled (run `tox -e lint`):
+- [ ] MyPy strict passes
+
 Integration:
 - [ ] Discovered motors using get_zaber_devices_tool()
 - [ ] Recorded port assignments for each motor group
@@ -494,5 +480,4 @@ Integration:
 - [ ] Implemented binding class with park/unpark safety patterns
 - [ ] Added position snapshot and restoration support
 - [ ] Integrated into the acquisition system's data-acquisition lifecycle
-- [ ] MyPy strict passes
 ```

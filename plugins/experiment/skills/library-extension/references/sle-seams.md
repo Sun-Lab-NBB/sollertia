@@ -22,9 +22,11 @@ acquisition system. Compose them rather than authoring equivalents.
 | `shutdown_tools.py`       | `run_shutdown_step`                                                                                                                                                                                                            |
 | `project_tools.py`        | `get_version_data`, `get_project_experiments`                                                                                                                                                                                  |
 
-Three Zaber classes stay out of that list deliberately. `ZaberDevice`, `ZaberDeviceSettings`, and
-`ZaberValidationResult` are importable only by their full `cross_system/zaber_bindings.py` module path, and a device
-is reached through `ZaberConnection.get_device()` in that same module.
+Three Zaber classes a caller meets as return values stay out of that list deliberately. `_ZaberDevice`,
+`_ZaberDeviceSettings`, and `_ZaberValidationResult` are importable only by their full `cross_system/zaber_bindings.py`
+module path, and a device is reached through `ZaberConnection.get_device()` in that same module. The module's four
+remaining private classes, `_ZaberAxisData`, `_ZaberDeviceData`, `_ZaberPortData`, and `_ZaberSettings`, are internal
+records that no exported callable returns.
 
 ---
 
@@ -48,9 +50,9 @@ sections as nested dataclasses. `/acquisition-system-design` owns the compositio
 
 ### Seam 3, the save hook
 
-`SystemConfiguration.save(path)` in `cross_system/system_configuration.py` delegates to
-`self.to_yaml(file_path=path)`. Override it only when the on-disk YAML layout has to differ from the in-memory one,
-such as when a tuple is persisted as a mapping for a stable file layout.
+`SystemConfiguration.save(path)` in `cross_system/system_configuration.py` delegates to `self.to_yaml(file_path=path)`.
+Override it only when the on-disk YAML layout has to differ from the in-memory one, such as when a tuple is persisted as
+a mapping for a stable file layout.
 
 ### Seam 4, the file lifecycle
 
@@ -122,7 +124,7 @@ the microcontroller processes start. A new shared-memory interface that omits it
 call site.
 
 The Zaber layer is a three-class hierarchy in `cross_system/zaber_bindings.py`, `ZaberConnection` for the port,
-`ZaberDevice` for the controller, and `ZaberAxis` for the motor. Its persistent contract lives in the device's
+`_ZaberDevice` for the controller, and `ZaberAxis` for the motor. Its persistent contract lives in the device's
 non-volatile memory map `_ZaberSettings` in the same module. That map assigns `USER_DATA_0` to the label checksum,
 `USER_DATA_1` to the shutdown flag, `USER_DATA_10` to the unsafe flag, and `USER_DATA_11`, `USER_DATA_12`, and
 `USER_DATA_13` to the park, maintenance, and mount positions. A new system reuses that contract as written, and
@@ -171,21 +173,21 @@ Seams 17 through 26. MCP registration is discovered, and CLI registration is han
 | Hardware-agnostic discovery        | The six `sle get` commands and the seven agnostic tools serve every system unchanged (the `get` group in `interfaces/get.py` and the tool functions in `interfaces/get_tools.py`)                                                                  |
 
 Two conventions the new tool module follows. A dict-returning tool signals failure with a single `"error"` key, and a
-string-returning tool signals failure with a leading `"Error: "` prefix. A destructive or hardware-mutating tool
-gates on a tri-state `Literal["yes","no"] | None` confirmation argument rather than a boolean, so a falsy default
-never reaches the mutation. The `confirm` parameter of `set_zaber_device_setting_tool`
-(`interfaces/get_tools.py`) is the worked example of that gate.
+string-returning tool signals failure with a leading `"Error: "` prefix. A destructive or hardware-mutating tool gates
+on a tri-state `Literal["yes","no"] | None` confirmation argument rather than a boolean, so a falsy default never
+reaches the mutation. The `confirm` parameter of `set_zaber_device_setting_tool` (`interfaces/get_tools.py`) is the
+worked example of that gate.
 
 ### Manual
 
-| Edit                                 | Detail                                                                                                                                                                                                                                                                                                   |
-|--------------------------------------|----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
-| Register the CLI group               | Add one import and one `sle_cli.add_command(cmd=<system>)` call inside `_register_subcommands` (`interfaces/entry_points.py`)                                                                                                                                                                            |
-| Author the CLI group module          | A new `interfaces/<system>.py` declaring a Click group and its own `CONTEXT_SETTINGS = {"max_content_width": 120}`, which is duplicated per module rather than imported (`interfaces/get.py`)                                                                                                            |
-| Author the tool module               | A new `interfaces/<system>_tools.py`. The suffix is load-bearing and the call uses `glob` rather than `rglob`, so the module sits directly in `interfaces/` (`_register_tool_modules()` in `interfaces/mcp_server.py`)                                                                                   |
-| Shared session-parameter object      | A `run`-style group re-implements the frozen dataclass and `click.make_pass_decorator` pattern, which is private to one system's module (`_SharedSessionParameters` and `_pass_shared_parameters` in `interfaces/mesoscope_vr.py`)                                                                       |
-| Filesystem and camera health reports | The report helpers are typed against one system's configuration, so a new system re-implements them. `build_filesystem_paths_report`, `check_dlc_project_task`, `_check_path`, and `_check_input_file` sit in `mesoscope_vr/system_health.py`, and the camera pair in `interfaces/mesoscope_vr_tools.py` |
-| Session-file constants               | The raw-data directory name and the canonical session filenames are private module constants (`_ZABER_POSITIONS_FILENAME` through `_MESOSCOPE_SYSTEM_CONFIGURATION_FILENAME` in `interfaces/mesoscope_vr_tools.py`)                                                                                      |
+| Edit                                 | Detail                                                                                                                                                                                                                                                                                                                         |
+|--------------------------------------|--------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| Register the CLI group               | Add one import and one `sle_cli.add_command(cmd=<system>)` call inside `_register_subcommands` (`interfaces/entry_points.py`)                                                                                                                                                                                                  |
+| Author the CLI group module          | A new `interfaces/<system>.py` declaring a Click group and its own `_CONTEXT_SETTINGS: dict[str, int] = {"max_content_width": 120}`, which is duplicated per module rather than imported (`interfaces/get.py`)                                                                                                                 |
+| Author the tool module               | A new `interfaces/<system>_tools.py`. The suffix is load-bearing and the call uses `glob` rather than `rglob`, so the module sits directly in `interfaces/` (`_register_tool_modules()` in `interfaces/mcp_server.py`)                                                                                                         |
+| Shared session-parameter object      | A `run`-style group re-implements the frozen dataclass and `click.make_pass_decorator` pattern, which is private to one system's module (`_SharedSessionParameters` and `_pass_shared_parameters` in `interfaces/mesoscope_vr.py`)                                                                                             |
+| Filesystem and camera health reports | The report helpers are typed against one system's configuration, so a new system re-implements them. `build_filesystem_paths_report`, `check_dlc_project_task`, `_check_path`, and `_check_input_file` sit in `mesoscope_vr/system_health.py`, and the camera pair in `interfaces/mesoscope_vr_tools.py`                       |
+| Session-file constants               | The only private module constants are `_SYSTEM_CONFIGURATION_GLOB` and `_MESOSCOPE_SYSTEM_CONFIGURATION_FILENAME` (`interfaces/mesoscope_vr_tools.py`). The raw-data directory name and the canonical session filenames come from `RAW_DATA_DIRECTORY`, `RawDataFiles`, and `MesoscopeRawDataFiles` in sollertia-shared-assets |
 
 ---
 

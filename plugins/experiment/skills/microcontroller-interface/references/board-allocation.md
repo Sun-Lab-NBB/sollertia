@@ -12,9 +12,9 @@ Default to adding new modules to an existing board. Reasons to consolidate:
 
 - **Pin budget headroom**: Each board has a finite pin count (check the target board's spec sheet). Each module consumes
   1-3 pins. Confirm the target board's free pin count exceeds the new module's pin requirements before adding it.
-- **Bandwidth headroom**: Each board's serial bandwidth depends on its USB or UART configuration. Boards running few
-  high-rate (sub-millisecond polling) sensors generally have bandwidth headroom, and a high-rate sensor on an
-  already-saturated board may need its own board.
+- **Bandwidth headroom**: Each board's serial bandwidth depends on its USB or UART configuration, its clock, and any
+  overclock the rig applies, so no fixed module count decides it. Settle it empirically with the human supervisor who
+  owns the rig, by measuring the target board with the new module attached.
 - **Role coherence**: The new module shares the same input/output role as the board's existing modules. Mixing input and
   output modules on one board is permitted but reduces debuggability, because emergency resets driven by sensor-side
   keepalive lapses also reset the actuators on the same board.
@@ -33,9 +33,10 @@ Stand up a new board (= new target macro in `main.cpp`) when one of these applie
    causes a keepalive-triggered emergency reset. Actuators that must hold state reliably (e.g., a long-running brake
    engagement) belong on a board separated from high-frequency sensors whose polling could lapse the keepalive.
 
-3. **Latency budget**: Multiple polling-style sensors on one board share the `RuntimeCycle()` iteration budget. If the
-   new module requires sub-100us polling and the existing board already runs several polling sensors, the cumulative
-   cycle time may exceed the budget. Split onto a dedicated board.
+3. **Latency budget**: Multiple polling-style sensors on one board share the `RuntimeCycle()` iteration budget. Whether
+   the cumulative cycle time still meets the new module's polling requirement depends on the specific board, its clock,
+   and any overclock, so measure it on the target hardware. Take the result to the human supervisor, and split onto a
+   dedicated board only where the measurement shows the budget exceeded.
 
 4. **Pin or bandwidth exhaustion**: An existing board has run out of physical pins for the new module's requirements, or
    the board's USB serial bandwidth is saturated by existing high-rate data. (In practice, the boards currently in slmc
@@ -75,17 +76,17 @@ reuse-first bias rather than by copying or discarding the existing layout.
 
 ## Workflow: adding a new controller board
 
-1. **Pick a target macro name**: short, all-caps, semantically meaningful (e.g., `STIMULUS`, `RECORD`). The macro is
-   conventionally one word, so avoid underscores or punctuation.
+1. **Pick a target macro name**: one all-caps word naming the role the board plays, matching the shape of the existing
+   `ACTOR`, `SENSOR`, and `ENCODER` macros (e.g., `STIMULUS`, `RECORD`). Avoid underscores and punctuation.
 
 2. **Allocate a controller ID**: `uint8_t`, and it must be unique across every controller board that a single
    DataLogger ingests. The ataraxis advised range for `MicroControllerInterface` instances is 101-150. The current slmc
-   deployment uses 101, 152, and 203, so two of its three ids sit outside that advised range
-   (the per-target `kControllerID` constants in `slmc/src/main.cpp`). Pick a value that no slmc target already uses
-   and that does not collide with the advised ranges of other ataraxis libraries, such as video systems. Coordinate
-   with the binding-class layer in sle. Neither library range-checks the id, but the identification handshake catches
-   a repeat, because each `MicroControllerInterface` binds one port to one expected id and raises `ValueError` when
-   the board on that port reports a different one. Only two interfaces configured with the same id slip through.
+   deployment uses 101, 152, and 203, so two of its three ids sit outside that advised range (the per-target
+   `kControllerID` constants in `slmc/src/main.cpp`). Pick a value that no slmc target already uses and that does not
+   collide with the advised ranges of other ataraxis libraries, such as video systems. Coordinate with the binding-class
+   layer in sle. Neither library range-checks the id, but the identification handshake catches a repeat, because each
+   `MicroControllerInterface` binds one port to one expected id and raises `ValueError` when the board on that port
+   reports a different one. Only two interfaces configured with the same id slip through.
 
 3. **Update `main.cpp`**:
    - Add the new `#elif defined <NEW_TARGET>` block.

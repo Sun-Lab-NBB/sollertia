@@ -131,12 +131,11 @@ animal between projects, which is why the mapping order defines pull-back prefer
 
 ### Within-system shares
 
-Within-system shares connect the separate PCs that together make up one acquisition system. Unlike long-term storage
-locations, which are one-way egress targets, a within-system share has no fixed direction, so flow may be
-unidirectional or bidirectional. Typically, every PC aggregates its data onto the main acquisition PC before the data
-is pushed to the long-term storage destinations, but the main PC can also write back to a peer. A within-system share
-connects peer PCs and moves data only. For the within-system shares the current worked example declares, see
-`mesoscope:mesoscope-vr`.
+Within-system shares connect the separate PCs that together make up one acquisition system. Unlike a long-term storage
+destination, a within-system share has no fixed direction, so flow may be unidirectional or bidirectional. Typically,
+every PC aggregates its data onto the main acquisition PC before the data is pushed to the long-term storage
+destinations, but the main PC can also write back to a peer. A within-system share connects peer PCs and moves data
+only. For the within-system shares the current worked example declares, see `mesoscope:mesoscope-vr`.
 
 ### Mount configuration
 
@@ -147,8 +146,7 @@ For every network storage location the system declares, ensure before invoking t
 3. The mount persists across reboots (configured via the OS-appropriate mechanism, for example `/etc/fstab` or
    systemd mount units on Linux).
 
-To verify that the declared mounts are reachable, use the `sle` MCP server. These tools check the paths, and they do
-not create the mounts:
+To verify that the declared mounts are reachable, use the `sle` MCP server:
 
 ```text
 <the active system's mount-sweep tool>    # sweeps the data root and every path the active configuration declares
@@ -173,7 +171,7 @@ ls /mnt/<peer_share_name>    # one listing per declared within-system share
 ```
 
 If a declared mount is not reachable, coordinate with system administrators to set up the SMB share (or an equivalent
-direct-filesystem-access protocol), because no skill or MCP tool can create the mount for you.
+direct-filesystem-access protocol).
 
 ---
 
@@ -300,7 +298,7 @@ After discovery completes, report the discovered hardware to the user as a struc
    configure the `google` category credentials, but only if the system reads animal metadata from Google Sheets.
 2. The active acquisition system's skill (`mesoscope:mesoscope-vr` for the current worked example) authors the host
    machine's system configuration YAML against the discovered hardware values.
-3. `assets:project-hierarchy` creates the project (or projects) the host will record under.
+3. `assets:project-hierarchy` creates the project (or projects) that will hold the host's recordings.
 4. `assets:task-templates` authors or imports the task templates the project will use.
 5. `assets:experiment-configuration` authors the per-project experiment configuration that wires a template to a
    project.
