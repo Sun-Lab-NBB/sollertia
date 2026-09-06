@@ -51,10 +51,6 @@ called as a **natural share** by any other skill that needs to enumerate project
 | `list_assets_tool`    | Lists asset paths of a given type under a search path (read-only natural share)          |
 | `refresh_assets_tool` | Imports pending asset changes and reports the post-import compilation state              |
 
-`list_assets_tool` is callable as a natural share by `/task-prefabs` when enumerating prefabs before inspection. For
-task creation and deletion (which always operate on the full template → prefab + segments + scene bundle), hand off to
-`/task-prefabs`.
-
 Every tool on this surface returns a top-level `success` key: `true` alongside the payload fields documented below, or
 `false` with an `error` message and nothing else. You MUST branch on `success` before reading any other field.
 
@@ -135,8 +131,9 @@ Three consequences worth flagging:
 - A GameObject that has a missing-script slot (broken `MonoBehaviour` GUID after a refactor) exposes a `null` component
   in Unity, and `inspect_scene_tool` silently drops it, so the symptom is "expected script not in `components`" rather
   than an explicit error.
-- `component_states[i].enabled` is `null` for a component type Unity offers no enabled flag on, so a present-but-`null`
-  entry reports "cannot be disabled" rather than "disabled". Branch on `null` before treating the value as a boolean.
+- `component_states[i].enabled` is `null` for a component type that carries no enabled flag in Unity, so a
+  present-but-`null` entry reports "cannot be disabled" rather than "disabled". Branch on `null` before treating the
+  value as a boolean.
 - A node with no `BoxCollider` carries no `collider_*` keys, and a leaf node carries no `children` key. Always probe
   with key-presence checks rather than assuming empty values.
 
@@ -304,15 +301,21 @@ You MUST verify your work against this checklist before submitting any change th
 `open_scene_tool`, `save_scene_tool`, `inspect_scene_tool`, `list_assets_tool`, or `refresh_assets_tool`.
 
 ```text
-Task Scenes Compliance:
+Tool-settled (run `rg -n '.{121,}' <file>` and `wc -l <file>`):
+- [ ] All lines at or under 120 characters (tables and code blocks may exceed for clarity)
+- [ ] SKILL.md under 500 lines
+
+Task scenes, tool-settled (run get_play_state_tool, list_scenes_tool, inspect_scene_tool):
 - [ ] Unity Editor is running and McpBridge is reachable
 - [ ] get_play_state_tool reported "edit" before open_scene_tool or save_scene_tool was called
 - [ ] list_scenes_tool returns a non-empty list before any switch
-- [ ] On dirty-scene error from open_scene_tool, the user is asked save vs discard before retry
 - [ ] open_scene_tool resolves and the active scene matches the requested path
 - [ ] save_scene_tool cleared is_dirty, or inspect_scene_tool already reported the scene clean
-- [ ] inspect_scene_tool confirms expected root components before entering Play Mode
 - [ ] list_assets_tool returns the expected asset_type and matching paths
 - [ ] refresh_assets_tool ran after any script authored outside the Editor, and compiling finished
+
+Task scenes, reader-judged:
+- [ ] On dirty-scene error from open_scene_tool, the user is asked save vs discard before retry
+- [ ] inspect_scene_tool confirms expected root components before entering Play Mode
 - [ ] Scene create / delete operations are dispatched to /task-prefabs, not attempted here
 ```

@@ -178,60 +178,19 @@ CreateTask.CreateSceneFromTemplate(sceneSavePath, taskPrefabPath, overwriteExist
   instantiates the just-built task prefab, runs `MainWindow.EnsureControllers`, `MainWindow.EnsureMqttDefaults`,
   `MainWindow.SyncDisplayBrightnessToSettings`, and `MainWindow.RemoveDefaultMainCamera`, then saves the scene. The
   camera step leaves the generated scene free of the template's default camera without a human opening Window > Task
-  Parameters, the window whose `OnEnable` otherwise runs that removal through `MainWindow.InitializeScene`. Both the
-  `CreateTask → New Task` Editor menu and `create_task_tool` call `CreateFromTemplate` and `CreateSceneFromTemplate`
-  back-to-back from one template selection, so the manual and agentic paths produce byte-equivalent assets.
+  Parameters, the window whose `OnEnable` otherwise runs that removal through `MainWindow.InitializeScene`.
 
 ---
 
 ## Required shared assets
 
-Every entry below is in `McpBridge.DeleteProtectedPaths` and cannot be deleted via `delete_asset_tool`:
+See [required-shared-assets.md](references/required-shared-assets.md) for the table of hand-authored prefabs and
+materials in `McpBridge.DeleteProtectedPaths`, the three severities a missing or broken entry is handled at, and the
+hand-authored composition of `Prefabs/Padding.prefab`.
 
-| Asset                                 | Type       | Purpose                                                          |
-|---------------------------------------|------------|------------------------------------------------------------------|
-| `Prefabs/StimulusTriggerZone.prefab`  | GameObject | Base prefab for interaction-mode and collision-mode zones        |
-| `Prefabs/OccupancyTriggerZone.prefab` | GameObject | Base prefab for all three occupancy-mode zones                   |
-| `Prefabs/Padding.prefab`              | GameObject | Appended past every corridor to cap the visible corridor depth   |
-| `Materials/_CueShaderReference.mat`   | Material   | Canonical shader source for every generated cue material         |
-| `Materials/Floor.mat`                 | Material   | Shared floor material baked into every generated segment         |
-| `Materials/Wall.mat`                  | Material   | Shared wall material baked into every generated segment          |
-| `Materials/TargetMat.mat`             | Material   | Renderer material referenced by both hand-authored trigger zones |
-
-A missing or broken entry is handled at one of three severities:
-
-- **Aborts before any mutation.** `ValidateHandAuthoredAssets` covers `Floor.mat`, `Wall.mat`, both zone prefabs, the
-  template's padding prefab, and `_CueShaderReference.mat`, naming every missing path at once under `Unable to generate
-  the task. Every hand-authored asset the pipeline references must exist, but these are missing from the project:`.
-  `BuildSegmentPrefabs` keeps its own null guards (`Unable to build the segment prefabs. Floor.mat and Wall.mat must
-  both exist under <folder>, but at least one of them is missing.` and `Unable to build the segment prefabs.
-  StimulusTriggerZone.prefab and OccupancyTriggerZone.prefab must both exist under <folder>, but at least one of them
-  is missing. Restore both hand-authored zone prefabs before generating.`) and `CreateFromTemplate` keeps its late
-  `error: Unable to assemble the corridor. The padding prefab must exist at '<path>', but it is missing.` check, both
-  as defense for direct callers and for a deletion racing the build. Every segment that reports success carries a
-  trigger zone.
-- **Aborts inside `BuildSegmentPrefabs`.** Beyond the table: a generated cue prefab that a trial's `cue_sequence`
-  references but that is missing from `Cues/` ends the run with `Unable to build the segment prefab for trial '<name>'.
-  The cue prefab must exist at '<path>', but it is missing.`
-- **Degrades with a warning.** `LoadReferenceCueShader` logs a `Debug.LogWarning` (`Unable to load the canonical cue
-  shader reference. The material at '<path>' must exist, but it is missing, so the shader falls back to a
-  hand-authored Cue*.mat material or Shader.Find.`) and resolves the shader through the fallback chain documented in
-  [references/prefab-anatomy.md](references/prefab-anatomy.md). Only a `Materials/_CueShaderReference.mat` that loads
-  with a null shader reaches it from `CreateFromTemplate`, because a missing file is already refused by
-  `ValidateHandAuthoredAssets`.
-
-`Materials/TargetMat.mat` sits outside all three paths. The generator never loads it by path, and the table lists it
-only because `DeleteProtectedPaths` protects it.
-
-You MUST NOT rename these assets, because `BuildSegmentPrefabs` / `LoadReferenceCueShader` /
+You MUST NOT rename those assets, because `BuildSegmentPrefabs` / `LoadReferenceCueShader` /
 `ValidateHandAuthoredAssets` resolve them by hardcoded path, and the trigger zone prefabs bind `TargetMat.mat` by
-serialized GUID. The scene base template `Assets/Scenes/ExperimentTemplate.unity` is also in
-`McpBridge.DeleteProtectedPaths` but is consumed by `CreateSceneFromTemplate` rather than by the prefab build pass.
-`Prefabs/Padding.prefab` is not synthesized either. It is hand-authored from Unity built-in primitives, a `Floor` plane
-plus `Walls/LeftWall` and `Walls/RightWall` quads mirroring the generated segment layout, and its three renderers bind
-the same shared `Materials/Floor.mat` and `Materials/Wall.mat` that `BuildSegmentPrefabs` bakes into every generated
-segment. A material edit is therefore corridor-wide, only the geometry is padding-local, and a corridor-cap geometry
-change is a prefab edit rather than a code change.
+serialized GUID.
 
 ---
 
@@ -324,11 +283,11 @@ generation, mirroring the Editor menu's single user-driven flow. The companion `
 per-scene `savedFullScreenViews` companion + task prefab + every `<TemplateName>-` segment prefab in one call, refusing
 outright when the template name resolves to a `DeleteProtectedPaths` entry.
 
-All entry points converge on `CreateFromTemplate` and `CreateSceneFromTemplate`, so any change to either method affects
-both flows. Test through the menu, the MCP tools, **and** the EditMode fixtures
-(`Assets/Tests/EditMode/CreateTaskTests.cs` plus the `ConfigLoaderTests.cs` / `TaskTemplateTests.cs` schema fixtures,
-see `/unity-tests`) after any pipeline modification. The automated suite is the surface that catches a regression the
-round-trip spot-check will not.
+All entry points converge on `CreateFromTemplate` and `CreateSceneFromTemplate`, called back-to-back from one template
+selection, so any change to either method affects both flows and the manual and agentic paths produce byte-equivalent
+assets. Test through the menu, the MCP tools, **and** the EditMode fixtures (`Assets/Tests/EditMode/CreateTaskTests.cs`
+plus the `ConfigLoaderTests.cs` / `TaskTemplateTests.cs` schema fixtures, see `/unity-tests`) after any pipeline
+modification. The automated suite is the surface that catches a regression the round-trip spot-check will not.
 
 ---
 
@@ -336,9 +295,9 @@ round-trip spot-check will not.
 
 ### Adding a new zone trigger type
 
-**Recipe boundary.** A new trigger mode is agent-doable even when its firing behavior is genuinely novel, because the
+**Recipe boundary.** A new trigger type is agent-doable even when its firing behavior is genuinely novel, because the
 `/zone-prefabs` worked examples cover a speed-gated interaction reward and a cumulative-occupancy variant end to end.
-The recipe holds as long as the new mode is a zone modifier on a copied zone prefab whose root subclasses
+The recipe holds as long as the new trigger type is a zone modifier on a copied zone prefab whose root subclasses
 `StimulusTriggerZone` and publishes the standard `Stimulus` event. A zone modifier is either a subclass of an existing
 zone or a standalone `IResettable` whose concrete type is added to `Task.FindResettableZones()`. Escalate to the human
 supervisor only when the behavior needs a new MQTT topic, new `Task.cs` runtime mechanics, or geometry outside a single
@@ -360,7 +319,7 @@ Apply all four skills' bullets in order. The pipeline-side touches owned here:
    `"collision"`, `"occupancy_disarm"`, `"occupancy_arm"`, and `"occupancy_trigger"`). Without this, every template that
    uses the new value fails at load time. The same method also gates `occupancy_duration_ms`, requiring it on all three
    occupancy literals and requiring it to be positive and finite whenever present. Extend that gate too when the new
-   mode reads a duration. The rest of the validation surface is inventoried in
+   trigger type reads a duration. The rest of the validation surface is inventoried in
    [references/template-validation.md](references/template-validation.md), covering cue catalog integrity, the
    `^[A-Za-z0-9_]+$` name pattern, `ValidateVrEnvironment` bounds, duplicate cue-sequence rejection, and the
    `transitions` probability checks.
@@ -375,8 +334,9 @@ Apply all four skills' bullets in order. The pipeline-side touches owned here:
    `StimulusTriggerZone.triggerMode` from the `Place<New>Zone` helper, and add a `case` to the `switch (triggerMode)`
    dispatch in `StimulusTriggerZone.Update`. A new **occupancy-family** literal must additionally be mapped in
    `CreateTask.ResolveOccupancyTriggerMode`, whose `_` default silently falls back to `TriggerMode.OccupancyDisarm`.
-   Reuse an existing base prefab where possible. The five current modes add **no** new prefab files, because `collision`
-   reuses `StimulusTriggerZone.prefab` and `occupancy_arm` / `occupancy_trigger` reuse `OccupancyTriggerZone.prefab`.
+   Reuse an existing base prefab where possible. The five current trigger types add **no** new prefab files, because
+   `collision` reuses `StimulusTriggerZone.prefab` and `occupancy_arm` / `occupancy_trigger` reuse
+   `OccupancyTriggerZone.prefab`.
 3. A genuinely new **base prefab** needs three registrations:
    1. `McpBridge.DeleteProtectedPaths`, because `BuildSegmentPrefabs` loads zone prefabs by hardcoded path and an
       accidental `delete_asset_tool` would break subsequent generation runs.
@@ -393,10 +353,10 @@ The platform `TriggerType` enum carries all five members (`INTERACTION`, `COLLIS
 `OCCUPANCY_ARM`, `OCCUPANCY_TRIGGER`), and the C# `ConfigLoader` accepts all five literals. System support is a
 **per-system subset**: a new `TriggerType` member does **not** require a per-system runtime-trial mapping. Each
 acquisition system maps only the subset it can resolve to its own runtime trial classes and may leave the rest unmapped.
-A configuration that uses an unmapped mode then raises a clear "not mapped to a runtime trial class" error. The concrete
-per-system mapping table lives in that system's own plugin, and for Mesoscope-VR that is
-`mesoscope:mesoscope-vr-experiment-schema`. All five modes share one MQTT/wire contract, so every mode publishes the
-same `Stimulus` event, adds no topics, and does not change `require_interaction` / `require_wait`.
+A configuration that uses an unmapped trigger type then raises a clear "not mapped to a runtime trial class" error. The
+concrete per-system mapping table lives in that system's own plugin, and for Mesoscope-VR that is
+`mesoscope:mesoscope-vr-experiment-schema`. All five trigger types share one MQTT/wire contract, so every trigger type
+publishes the same `Stimulus` event, adds no topics, and does not change `require_interaction` / `require_wait`.
 `assets:task-templates` owns `list_supported_trigger_types_tool`, which returns all five values.
 
 ### Adding a new cue or segment
@@ -479,7 +439,10 @@ You MUST verify your work against this checklist before submitting any change to
 the hand-authored shared materials, or the `McpBridge` dispatch surface.
 
 ```text
-Generator Pipeline Compliance:
+Generator Pipeline Compliance, tool-settled (run the EditMode and PlayMode suites, see /unity-tests):
+- [ ] Both Unity test platforms pass
+
+Generator Pipeline Compliance, reader-judged:
 - [ ] Any change to zone placement is reflected in PlaceInteractionZone, PlaceCollisionZone, and PlaceOccupancyZone
       if applicable
 - [ ] New zone types appear in the BuildSegmentPrefabs trigger-type chain (all five literals: interaction,
@@ -507,7 +470,6 @@ Generator Pipeline Compliance:
 - [ ] A new McpBridge.Dispatch case joins the [TestCase] list on
       McpBridgeTests.Dispatch_DeclaredToolName_DoesNotFallThroughToUnknownTool, or on McpBridgePlayModeTests /
       McpBridgeTaskParametersTests when its handler needs Play Mode or the FullScreenViewManager fixture
-- [ ] Both Unity test platforms pass (see /unity-tests)
 - [ ] After any generator change, regenerate a representative template via create_task_tool and spot-check the
       prefab via inspect_prefab_tool against the expected hierarchy
 - [ ] Any new template field has a matching [Serializable] C# mirror field (camelCase of the underscored YAML key,

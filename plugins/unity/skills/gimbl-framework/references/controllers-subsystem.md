@@ -44,8 +44,9 @@ Enum of supported controller subclasses (`LinearTreadmill`, `SimulatedLinearTrea
 `MainWindow.BuildControllerSpecs` resolves each enum value to its runtime `Type` via reflection
 (`controllerAssembly.GetType($"Gimbl.{enumName}")`, where `controllerAssembly` is `typeof(ControllerObject).Assembly`)
 once at type init, and maps each to a display name via a small switch (`LinearTreadmill → "Linear"`,
-`SimulatedLinearTreadmill → "Simulated Linear"`). An unresolved value logs `MainWindow.BuildControllerSpecs: could not
-resolve controller type 'Gimbl.<EnumName>'` once, not once per scene. Adding a new controller class requires:
+`SimulatedLinearTreadmill → "Simulated Linear"`). An unresolved value logs `Unable to resolve the controller type for
+the <EnumName> member. The ControllerObject assembly must declare a 'Gimbl.<EnumName>' class, but it declares none.`
+once, not once per scene. Adding a new controller class requires:
 
 1. Subclass `ControllerObject` (and hide `Start` per the non-chaining contract if the subclass adds an MQTT
    subscription). The class MUST be declared in `namespace Gimbl` under `Assets/Gimbl/Scripts/`, so it lands in the

@@ -64,11 +64,11 @@ alternative for `RequireInteraction` / `RequireWait`), and `/play-mode` (mid-run
   but ad-hoc tools (`mosquitto_pub`, dashboards, hand-typed test publishers) must match the casing exactly, because
   `interaction` and `Interaction` are different topics.
 - **Callbacks arrive off the main thread**: a broker-delivered `receivedEvent` callback runs on an MQTTnet worker thread
-  (`MQTTClient.cs` routes inside its `_messageReceivedHandler`), so a subscriber MUST NOT touch the Unity API
-  inside the callback. The prohibition covers `Instantiate`, transform writes, and any scene mutation. Record the event
-  with `Interlocked` / `Volatile` (`LickStimulusSpawner.OnLick` and `LickStimulusSpawner.OnStimulus`, with the
-  reasoning in the `_pendingLickCount` remarks in `LickStimulusSpawner.cs`) or under a lock
-  (`LinearTreadmill.OnMessage` in `LinearTreadmill.cs`), then act on it in `Update`.
+  (`MQTTClient.cs` routes inside its `_messageReceivedHandler`), so a subscriber MUST NOT touch the Unity API inside the
+  callback. The prohibition covers `Instantiate`, transform writes, and any scene mutation. Record the event with
+  `Interlocked` / `Volatile` (`LickStimulusSpawner.OnLick` and `LickStimulusSpawner.OnStimulus`, with the reasoning in
+  the `_pendingLickCount` remarks in `LickStimulusSpawner.cs`) or under a lock (`LinearTreadmill.OnMessage` in
+  `LinearTreadmill.cs`), then act on it in `Update`.
 - **Trigger pairs**: "Trigger" topics come in pairs of `<Name>Trigger` (subscriber that asks Unity to publish) and
   `<Name>` (publisher that responds). The former carries no payload, and the latter carries a JSON-serialized message.
   Lifecycle markers (`SessionStart` / `SessionStop`) are not trigger pairs, because they are one-shot lifecycle
@@ -87,9 +87,6 @@ primitives rather than redocumenting them.
 ---
 
 ## Topic catalog
-
-The full catalog matches `MQTTTopics.cs`. Each row names the topic constant, its direction relative to Unity, the
-channel type, the payload shape, and the script(s) that publish or subscribe.
 
 ### Session lifecycle (owned by `Gimbl.MQTTClient`)
 
@@ -130,7 +127,7 @@ because Unity both publishes it from `StimulusTriggerZone` and subscribes to it 
 cross-boundary flow toward `sollertia-experiment` runs one way. The `Stimulus` payload carries three fields. The first
 is the resolving trial's name (`trialName`, set on `StimulusTriggerZone.trialName` by `CreateTask` at generation, so the
 stimulus identifier is the trial name). The other two are a `delivered` flag (whether the physical stimulus fired or was
-omitted) and a `cause` string (`behavior` or `guidance`). `sollertia-experiment` parses these into `VRTaskEvent` and
+omitted) and a `cause` string (`behavior` or `guidance`). `sollertia-experiment` parses these into `_VRTaskEvent` and
 resolves the per-trial outcome from them.
 
 `cause` is derived per mode, and the derivation is not "did the animal act":
@@ -138,10 +135,10 @@ resolves the per-trial outcome from them.
 - **Occupancy modes** (`occupancy_disarm`, `occupancy_arm`, `occupancy_trigger`): `cause` is `guidance` exactly when
   this zone's child `OccupancyGuidanceZone` already published `Delay` earlier in the same lap, otherwise `behavior`.
   That derivation comes from
-  `bool brakeGuided = _occupancyGuidanceZone != null && _occupancyGuidanceZone.BrakeTriggered;`
-  in `StimulusTriggerZone.UpdateOccupancyMode`. `BrakeTriggered` latches inside `TriggerBrakeActivation` immediately
-  after the `Delay` send (`OccupancyGuidanceZone.cs`). Publishing `Delay` therefore deterministically changes the
-  later `Stimulus.cause` on that lap.
+  `bool brakeGuided = _occupancyGuidanceZone != null && _occupancyGuidanceZone.BrakeTriggered;` in
+  `StimulusTriggerZone.UpdateOccupancyMode`. `BrakeTriggered` latches inside `TriggerBrakeActivation` immediately after
+  the `Delay` send (`OccupancyGuidanceZone.cs`). Publishing `Delay` therefore deterministically changes the later
+  `Stimulus.cause` on that lap.
 - **Interaction mode**: `guidance` marks the two fallback resolutions, which are entering the nested `GuidanceZone`
   while `requireInteraction` is false, or entering the stimulus zone at all when no `GuidanceZone` exists. Both
   fallbacks and both sensor-interaction branches live in `StimulusTriggerZone.UpdateInteractionMode`. `behavior` marks
@@ -265,10 +262,8 @@ External:
 
 ## Lifecycle rules
 
-`/gimbl-framework` owns the channel lifecycle invariants (construct in `Start()` rather than `Awake()`, use the
-null-conditional `?.` in `OnDestroy()`, store typed channels as `MQTTChannel<TMessage>`, and give typed payloads public
-fields). When adding a new topic, follow the pattern `LickStimulusSpawner.Start`, `LickStimulusSpawner.OnDestroy`, and
-its `ReleaseChannel` helper establish:
+`/gimbl-framework` owns the channel lifecycle invariants. When adding a new topic, follow the pattern
+`LickStimulusSpawner.Start`, `LickStimulusSpawner.OnDestroy`, and its `ReleaseChannel` helper establish:
 
 ```csharp
 // Start()
@@ -306,7 +301,7 @@ You MUST work through this checklist before introducing a new MQTT topic:
       with `?.` and releases each listener channel via `MQTTClient.Unsubscribe`
 - [ ] Subscriber callbacks touch no Unity API, so they record the event (`Interlocked` / `Volatile` / lock) and act
       on it in `Update`, because broker delivery arrives on an MQTTnet worker thread
-- [ ] Payload class (if typed) is a public class with public fields (JsonUtility constraint)
+- [ ] Payload class satisfies the typed-payload rules in /gimbl-framework
 - [ ] `Assets/Tests/EditMode/MQTTTopicsTests.cs` is updated: bump `ExpectedTopicCount`, add the literal to
       `ExpectedTopics`, and add a per-topic `<Name>_Constant_EqualsTheContractLiteral` test. Otherwise every
       structural test in the fixture fails at once (see `/unity-tests`)
@@ -316,9 +311,8 @@ You MUST work through this checklist before introducing a new MQTT topic:
 - [ ] Did NOT treat Editor / keyboard-only success as proof of wiring, because `MQTTClient.Publish` loops messages
       in-process when no broker is connected, so a Unity-only topic with no `sollertia-experiment` counterpart
       appears to work locally and drops in production
-- [ ] Grepped the Console for `in-process subscribers only`, the stable fragment of the `Unable to deliver '<topic>'
-      to the MQTT broker at <ip>:<port>` warning (`MQTTClient.Publish`) that `MQTTClient` logs once per topic on the
-      first loopback publish, to enumerate every topic that never crossed the process boundary
+- [ ] Grepped the Console for `in-process subscribers only`, the loopback warning's stable fragment named under
+      Diagnosing a missed message, to enumerate every topic that never crossed the process boundary
 - [ ] Confirmed the experiment-side publisher / subscriber landed in the same release
 ```
 
@@ -337,7 +331,7 @@ likely cause and first check.
 ### Unity subscribes but never receives
 
 - **Likely cause**: Topic string mismatch between sides, hand-typed literal drifted from the constant, or casing differs
-  (`Interaction` vs `interaction`, because `MQTTClient` uses `StringComparison.Ordinal`).
+  (`Interaction` vs `interaction`, per the "Case-sensitive routing" bullet in [Topic conventions](#topic-conventions)).
 - **First check**: Confirm both sides reference `MQTTTopics.<Name>` (Unity) or the matching `_VRTaskMQTTTopics` member
   on the `sollertia-experiment` side with identical casing.
 - **Second likely cause**: The channel was constructed while the broker was unreachable. `MQTTClient.Subscribe` adds the
@@ -353,11 +347,11 @@ likely cause and first check.
   experiment process), or experiment-side subscription not active.
 - **First check**: The scene's connector calls `Connect(verbose: false)` (`MQTTConnectorObject.OnEnable`), so **no
   success line is printed during a run**. Look instead for `Unable to connect to the MQTT broker at <ip>:<port>`
-  (`MQTTClient.Connect`), for the once-per-topic loopback warning `Unable to deliver '<topic>' to the MQTT broker at
-  <ip>:<port>` (`MQTTClient.Publish`), whose stable fragment is `in-process subscribers only`, and for any `Unable to
-  publish to the MQTT topic '<topic>'` line. Then confirm experiment subscribed to the matching `MQTTTopics.<Name>`.
-  The `Successfully connected to MQTT Broker at: <ip>:<port>` line appears only when the Task Parameters window's Test
-  Connection button is pressed (`MainWindow.DrawMQTTSection` passes `verbose: true`).
+  (`MQTTClient.Connect`). Look also for the once-per-topic loopback warning, whose stable fragment is
+  `in-process subscribers only`, and for any `Unable to publish to the MQTT topic '<topic>'` line. Then confirm
+  experiment subscribed to the matching `MQTTTopics.<Name>`. The `Successfully connected to MQTT Broker at: <ip>:<port>`
+  line appears only when the Task Parameters window's Test Connection button is pressed (`MainWindow.DrawMQTTSection`
+  passes `verbose: true`).
 
 ### Channel constructor throws `InvalidOperationException`
 
@@ -400,9 +394,9 @@ likely cause and first check.
 
 - **Likely cause**: Expected, because `MQTTClient.Publish` loops messages in-process when the broker is unreachable.
 - **First check**: The in-process loopback is the dev-without-broker path rather than a defect. The Console records it
-  once per topic as a warning that begins `Unable to deliver '<topic>' to the MQTT broker at <ip>:<port>`
-  (`MQTTClient.Publish`), so grep for its stable fragment `in-process subscribers only` to list every topic that
-  stayed inside Unity.
+  once per topic, on that topic's first loopback publish, as a warning that begins
+  `Unable to deliver '<topic>' to the MQTT broker at <ip>:<port>` (`MQTTClient.Publish`). Grep for its stable fragment
+  `in-process subscribers only` to list every topic that stayed inside Unity.
 
 ### `RequireInteraction` / `RequireWait` writes have no effect
 
@@ -413,8 +407,6 @@ likely cause and first check.
 
 ## Interaction contract
 
-- **You MUST NOT** hardcode a topic string anywhere outside `MQTTTopics.cs`. You MUST always reference
-  `MQTTTopics.<Name>` so a rename propagates automatically and skill / source drift is impossible.
 - **You MUST NOT** rely on message ordering between two different topics, because MQTT provides per-topic ordering only.
 - **You MUST NOT** add a publisher and a subscriber on the same topic inside Unity expecting deduplication. MQTTnet
   delivers the message to every subscriber, including the local one, and this is the intended behavior for `Stimulus`
@@ -441,13 +433,18 @@ likely cause and first check.
 ## Verification checklist
 
 ```text
+Tool-settled (run `rg -n '.{121,}' <file>`, `wc -l <file>`, and the EditMode test run):
+- [ ] All lines at or under 120 characters (tables and code blocks may exceed for clarity)
+- [ ] SKILL.md under 500 lines
+- [ ] No hand-typed topic literals appear outside MQTTTopics.cs (grep the project for the literal)
+- [ ] Assets/Tests/EditMode/MQTTTopicsTests.cs pins the new topic (ExpectedTopicCount, ExpectedTopics,
+      per-topic <Name>_Constant_EqualsTheContractLiteral)
+- [ ] Both test platforms pass (see /unity-tests)
+
+Reader-judged:
 - [ ] The topic catalog above matches every `public const string` in MQTTTopics.cs
 - [ ] Every new channel has an entry with direction, channel type, payload, and owning script
 - [ ] Payload class shapes in this file match the C# definitions (public fields only)
 - [ ] Cross-Unity subscriptions (multi-consumer topics) are documented when they exist
 - [ ] Changes propagate to sollertia-experiment if a topic's direction, payload, or name changes
-- [ ] No hand-typed topic literals appear outside MQTTTopics.cs (grep the project for the literal)
-- [ ] Assets/Tests/EditMode/MQTTTopicsTests.cs pins the new topic (ExpectedTopicCount, ExpectedTopics,
-      per-topic <Name>_Constant_EqualsTheContractLiteral)
-- [ ] Both test platforms pass (see /unity-tests)
 ```

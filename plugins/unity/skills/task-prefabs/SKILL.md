@@ -95,7 +95,7 @@ is the natural share that reads the Unity Console entries the generation failure
 scoped to individual assets under `Assets/InfiniteCorridorTask/Tasks/`, `Prefabs/`, `Cues/`, and `Materials/`. Templates
 under `Configurations/` and imported textures under `Textures/` are outside the allowed roots, and the handler also
 rejects scene paths so scene cleanup goes through `delete_task_tool` and preserves the per-scene `savedFullScreenViews`
-companion cascade. `delete_task_tool` is the inverse of `create_task_tool`.
+companion cascade.
 
 `create_task_tool` takes a second argument, `unsaved_changes` (`"save"` | `"discard"` | omitted). Scene generation opens
 the new scene, which would discard unsaved edits in the active one, so the bridge applies the same dirty-scene gate
@@ -219,8 +219,7 @@ The success response carries `template_name`, `prefab_path`, `scene_path`, `simu
 `message`. The shipped `ExperimentTemplate.unity` carries none, so a fresh generation reports true, while false means
 one was already present and `/scene-setup` has nothing to add.
 
-If a scene already exists at the resolved path, the tool refuses and points at `delete_task_tool` (this skill), and a
-regeneration cycle is always `delete_task_tool` → `create_task_tool`.
+If a scene already exists at the resolved path, the tool refuses and points at `delete_task_tool` (this skill).
 
 ### Step 3: Inspect the result
 
@@ -267,10 +266,10 @@ the orphaned companion under `Assets/VRSettings/Displays/` has to be removed by 
 supplied template the call returns `No artifacts found for template '<name>'.`
 
 **Protected-asset refusal.** The tool checks `McpBridge.DeleteProtectedPaths` for both the resolved scene path and the
-resolved task-prefab path before deleting anything, so a template name that collides with a hand-authored asset is
-refused rather than honored: `delete_task_tool(template_name="ExperimentTemplate")` returns `Refusing to delete task
-'ExperimentTemplate'. Its scene or task prefab is a protected hand-authored asset that the generation pipeline loads by
-hardcoded path.`
+resolved task-prefab path before deleting anything. A template name that collides with a hand-authored asset is
+therefore refused rather than honored: `delete_task_tool(template_name="ExperimentTemplate")` returns `Refusing to
+delete task 'ExperimentTemplate'. Its scene or task prefab is a protected hand-authored asset that the generation
+pipeline loads by hardcoded path.`
 
 **Active-scene swap.** When the scene being deleted is the Editor's active scene, the tool opens
 `Assets/Scenes/ExperimentTemplate.unity` in single mode first, so the Editor is left on the template scene once the
@@ -327,8 +326,7 @@ The task prefab and the scene are rebuilt by every successful `create_task_tool`
 
 ### Workflow
 
-1. **Remove the existing task bundle**, which is always required because `create_task_tool` refuses to overwrite an
-   existing scene:
+1. **Remove the existing task bundle:**
    ```text
    delete_task_tool(template_name="<template-name>")
    ```
@@ -350,8 +348,6 @@ The task prefab and the scene are rebuilt by every successful `create_task_tool`
 
 ## End-to-end task authoring workflow
 
-Use this composite flow for end-to-end task creation, where each step is owned by a different skill.
-
 | Step | Skill (owner)                     | Action                                                                                                      |
 |------|-----------------------------------|-------------------------------------------------------------------------------------------------------------|
 | 1    | `assets:task-templates`           | Author `Assets/InfiniteCorridorTask/Configurations/<name>.yaml`                                             |
@@ -371,8 +367,10 @@ Checkpoints between steps:
 - **Step 3 → 4:** stop if `inspect_prefab_tool` shows a hierarchy that contradicts the template (missing corridor count,
   wrong segment names). Fix the template and regenerate via the `delete_task_tool` → `create_task_tool` cycle, and you
   MUST NOT hand-patch the prefab.
-- **Step 5 → 6:** stop if a display panel is missing, because Play Mode without displays throws runtime null-reference
-  errors in `ActorObject.Display`.
+- **Step 5 → 6:** stop if a display panel is missing, because a missing or unassigned panel yields a view that never
+  renders and never follows the actor, not an error. `ActorObject.Display` is null-safe and written only at Editor time
+  by `MainWindow.EnsureActorAndDisplay`, and `PerspectiveProjection.OnRenderImage` substitutes a brightness of 100 when
+  its `displayObject` is null.
 
 ---
 

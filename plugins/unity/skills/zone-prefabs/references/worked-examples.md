@@ -56,10 +56,12 @@ true`. Run `automation:csharp-style` (ataraxis marketplace) and CSharpier before
 
 Under `Assets/InfiniteCorridorTask/Scripts/CumulativeOccupancyZone.cs` (invoke `automation:csharp-style`):
 
-- Declare the class in `namespace SL.Tasks`, the namespace every script in that folder uses. The folder's
-  `Sollertia.InfiniteCorridorTask.asmdef` (`"name": "Sollertia.InfiniteCorridorTask"`, `"rootNamespace": "SL"`) compiles
-  the new file into the `Sollertia.InfiniteCorridorTask` assembly, and no script in the project compiles into Unity's
-  predefined `Assembly-CSharp`.
+- Declare the class in `namespace SL.Tasks`, the namespace `OccupancyZone.cs` and the folder's other zone scripts use.
+  The folder's configuration scripts, `ConfigLoader.cs`, `Cue.cs`, `TaskTemplate.cs`, `TrialStructure.cs`, and
+  `VREnvironment.cs`, declare `namespace SL.Config` instead. The folder's `Sollertia.InfiniteCorridorTask.asmdef`
+  (`"name": "Sollertia.InfiniteCorridorTask"`, `"rootNamespace": "SL"`) compiles the new file into the
+  `Sollertia.InfiniteCorridorTask` assembly, and no script in the project compiles into Unity's predefined
+  `Assembly-CSharp`.
 - Override `RestartTimerOnEntry => false` so re-entries resume the stopwatch and the dwell time accumulates across the
   lap.
 

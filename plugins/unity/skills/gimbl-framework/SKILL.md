@@ -61,6 +61,7 @@ Assets/Gimbl/
 │   ├── Icons/                          ← Unreferenced legacy icon art (`mouse.png` / `mouse.psd`)
 │   └── Materials/                      ← Unreferenced `MonitorTestPattern.psd` texture
 └── Scripts/
+    ├── AssemblyInfo.cs                 ← InternalsVisibleTo grants for the three Sollertia.Tests.* assemblies
     ├── LayoutSettings.cs               ← Shared GUI styling helpers used by MainWindow
     ├── Sollertia.Gimbl.asmdef          ← Runtime assembly (see below)
     ├── TagsAndLayers.cs                ← Tag / layer creation helpers (e.g., VRDisplay, TrackCam)
@@ -206,17 +207,21 @@ scene initialized by `MainWindow`.
   `read_console_tool(level="warning")` collects them without the Console window. Loopback calls `ReceivedMessage`
   synchronously on the publisher's thread, so a typed channel's deserialization `InvalidOperationException` propagates
   back out of the caller's `Send`, not only out of the broker callback.
-- **Lifecycle**: `Awake` first guards against a duplicate. A second `MQTTClient` in the scene logs the warning `Unable
-  to register this MQTTClient as the singleton instance. The active scene must host exactly one MQTTClient component,
-  but another instance is already registered, so that instance remains in use.` and returns without claiming `Instance`
-  or loading any settings, so its `ipAddress` / `port` keep their field initializers. Otherwise `Awake` sets `Instance`
-  and loads `ipAddress` / `port` from `EditorPrefs` (with loopback fallback). `Connect()` is invoked externally by
-  `MQTTConnectorObject.OnEnable()`, which runs after every `Awake` and before any subscriber `Start()` constructs
-  channels (see `Gimbl.MQTTConnectorObject` below). `Start` opens `SessionStart` / `SessionStop` channels and fires
-  `SessionStart` after a 1-second delay (gives downstream subscribers time to attach). `OnApplicationQuit` publishes
-  `SessionStop`, unsubscribes every channel, and disposes the client. `OnDestroy` duplicates the dispose path so scene
-  transitions that bypass quit still release the `IMqttClient`. Both null `Instance` when it still points at the
-  departing component, so `MQTTChannel` construction after teardown throws again.
+- **Lifecycle**: `Awake` first guards against a duplicate. A second `MQTTClient` in the scene logs a warning and returns
+  without claiming `Instance` or loading any settings, so its `ipAddress` / `port` keep their field initializers.
+
+  ```text
+  Unable to register this MQTTClient as the singleton instance. The active scene must host exactly one MQTTClient
+  component, but another instance is already registered, so that instance remains in use.
+  ```
+
+  Otherwise `Awake` sets `Instance` and loads `ipAddress` / `port` from `EditorPrefs` (with loopback fallback).
+  `Connect()` is invoked externally by `MQTTConnectorObject.OnEnable()`, which runs after every `Awake` and before any
+  subscriber `Start()` constructs channels (see `Gimbl.MQTTConnectorObject` below). `Start` opens `SessionStart` /
+  `SessionStop` channels and fires `SessionStart` after a 1-second delay (gives downstream subscribers time to attach).
+  `OnApplicationQuit` publishes `SessionStop`, unsubscribes every channel, and disposes the client. `OnDestroy`
+  duplicates the dispose path so scene transitions that bypass quit still release the `IMqttClient`. Both null
+  `Instance` when it still points at the departing component, so `MQTTChannel` construction after teardown throws again.
 - **`Connect()` is re-entrant**: it unhooks `_messageReceivedHandler` from, and disposes, any `IMqttClient` an earlier
   call installed before building the replacement, so a `MQTTConnectorObject` that re-enables repeatedly releases one
   broker handle per disable instead of accumulating them. The reset does not touch the routing list, so existing
@@ -225,8 +230,9 @@ scene initialized by `MainWindow`.
   second reason a channel created before a reconnect stops receiving broker-delivered messages.
 
 **Lifecycle gotcha:** `MQTTChannel` constructors throw `InvalidOperationException` if `MQTTClient.Instance` is null.
-This typically means the scene lacks a `MQTT Client` GameObject (or the script calling `new MQTTChannel(...)` is running
-in `Awake()`). Always create channels in `Start()`, because Unity guarantees every `Awake()` runs before any `Start()`.
+This typically means the scene lacks an `MQTT Client` GameObject (or the script calling `new MQTTChannel(...)` is
+running in `Awake()`). Always create channels in `Start()`, because Unity guarantees every `Awake()` runs before any
+`Start()`.
 
 ### `Gimbl.MQTTChannel`
 
@@ -297,9 +303,8 @@ audit-ready catalog. Never hardcode a topic string elsewhere.
 Small `MonoBehaviour` whose only job is to call `MQTTClient.Instance.Connect(verbose: false)` from `OnEnable()`.
 Attached to the `Logger` GameObject in `Assets/Scenes/ExperimentTemplate.unity`, so every scene the `CreateTask`
 pipeline copies from the template inherits one instance. Decoupling the connect call from `MQTTClient.Awake()` is
-load-bearing. Unity runs every `OnEnable` after every `Awake` but before every `Start`, so the broker connection is
-initiated only after `MQTTClient.Awake()` has populated `ipAddress` / `port` from `EditorPrefs`, and finishes before any
-subscriber `Start()` constructs `MQTTChannel` instances. Do not move the `Connect()` call back into
+load-bearing, because the connection must wait for the `ipAddress` / `port` that `Awake` loads. The `Gimbl.MQTTClient`
+**Lifecycle** bullet above states the ordering that guarantees it. Do not move the `Connect()` call back into
 `MQTTClient.Awake()`, because the order would not be guaranteed across all scripts in the scene.
 
 ### `Gimbl.ActorObject`
@@ -368,15 +373,14 @@ primitive extends the matching fixture, adding one when the type has none. See `
 
 ## GIMBL editor window
 
-`MainWindow` registers the only menu entry: `Window → Task Parameters`. Selecting it opens (or focuses) the window. The
-five sections are rendered in fixed order by `OnGUI`:
+`MainWindow.OnGUI` renders the five sections in fixed order:
 
 1. **Actor**, with model and controller dropdowns
 2. **MQTT**, with broker IP / port and Test Connection (greyed in Play Mode)
 3. **Display**, with the Blank / Show toggle, `brightness`, and `heightInVR`
 4. **Camera Mapping**, with Refresh Monitor Positions (which shares `FullScreenViewManager.RefreshMonitorPositions` with
-   the `refresh_monitors` MCP tool), per-monitor camera dropdowns, and Show Full-Screen Views (button greyed in Play
-   Mode)
+   the `refresh_monitors_tool` MCP tool), per-monitor camera dropdowns, and Show Full-Screen Views (button greyed in
+   Play Mode)
 5. **Task**, with `Require Interaction` / `Require Wait` (conditional on zone presence) and `Track Length` / `Track
    Seed`. The entire Task section's controls are greyed in Play Mode.
 
@@ -432,15 +436,15 @@ arrangement before committing.
 
 ## Common pitfalls
 
-| Pitfall                                                                     | Fix                                                                                                                                  |
-|-----------------------------------------------------------------------------|--------------------------------------------------------------------------------------------------------------------------------------|
-| `NullReferenceException` on `MQTTClient.Instance`                           | Ensure the scene has a `MQTT Client` GameObject (auto-created by MainWindow), and create channels in `Start()` rather than `Awake()` |
-| `JsonUtility` returns default-valued messages                               | Payload class uses properties `{ get; set; }`, so convert them to public fields                                                      |
-| Actor's own model appears in its VR view (display camera renders the actor) | No project layer is named exactly after the actor GameObject. See **Adding the actor's layer** below                                 |
-| A section says "No Actor / Display / MQTT Client in the active scene"       | The scene was never seeded by `MainWindow.InitializeScene`. See **Re-running scene init** below                                      |
-| The Task section says "No Task component found in the current scene."       | Expected outside a generated task scene, and reopening the window does not repair it                                                 |
-| MQTT settings reset after reopening the project                             | `EditorPrefs` are per-user-per-project-path, which is expected, so reconfigure once                                                  |
-| Adding a new controller does not appear in the dropdown                     | Missing `ControllerTypes` enum entry, or `BuildControllerSpecs` could not resolve the type at `Gimbl.<EnumName>`                     |
+| Pitfall                                                                     | Fix                                                                                                              |
+|-----------------------------------------------------------------------------|------------------------------------------------------------------------------------------------------------------|
+| `NullReferenceException` on `MQTTClient.Instance`                           | Ensure the scene has an `MQTT Client` GameObject (auto-created by MainWindow). See **Lifecycle gotcha** above    |
+| `JsonUtility` returns default-valued messages                               | Payload class uses properties `{ get; set; }`, so convert them to public fields                                  |
+| Actor's own model appears in its VR view (display camera renders the actor) | No project layer is named exactly after the actor GameObject. See **Adding the actor's layer** below             |
+| A section says "No Actor / Display / MQTT Client in the active scene"       | The scene was never seeded by `MainWindow.InitializeScene`. See **Re-running scene init** below                  |
+| The Task section says "No Task component found in the current scene."       | Expected outside a generated task scene, and reopening the window does not repair it                             |
+| MQTT settings reset after reopening the project                             | `EditorPrefs` are per-user-per-project-path, which is expected, so reconfigure once                              |
+| Adding a new controller does not appear in the dropdown                     | Missing `ControllerTypes` enum entry, or `BuildControllerSpecs` could not resolve the type at `Gimbl.<EnumName>` |
 
 **Adding the actor's layer.** `DisplayObject.ParentToActor` logs `unable to cull the actor model from display '<name>'`,
 which `read_console_tool(level="warning")` surfaces, and leaves every display camera's culling mask fully open. No

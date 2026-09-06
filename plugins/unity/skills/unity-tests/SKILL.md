@@ -169,13 +169,14 @@ Both platforms passing is a pre-commit gate for `sollertia-virtual-reality`, alo
 These fixtures assert a declared set rather than a behavior, so extending the set fails them by design. You MUST update
 the matching fixture in the same change as the source edit.
 
-| Fixture             | Pins                                                                                       | Update when                               |
-|---------------------|--------------------------------------------------------------------------------------------|-------------------------------------------|
-| `MQTTTopicsTests`   | `ExpectedTopicCount = 12` and the twelve-literal `ExpectedTopics` array                    | An `MQTTTopics` constant is added         |
-| `TriggerModeTests`  | Five `TriggerMode` members, their declaration order, and the accepted ordinals 0 through 4 | A `TriggerMode` member is added           |
-| `ControllerTests`   | `ControllerTypes` holding exactly two members, and each name resolving to `Gimbl.<Name>`   | A controller type is added                |
-| `McpBridgeTests`    | Thirteen of the eighteen dispatched tool names, and seven protected asset paths            | A bridge tool or protected asset is added |
-| `ConfigLoaderTests` | The accepted `trigger_type` literal set quoted in the rejection message                    | A `trigger_type` literal is accepted      |
+| Fixture                    | Pins                                                                                       | Update when                                      |
+|----------------------------|--------------------------------------------------------------------------------------------|--------------------------------------------------|
+| `MQTTTopicsTests`          | `ExpectedTopicCount = 12` and the twelve-literal `ExpectedTopics` array                    | An `MQTTTopics` constant is added                |
+| `TriggerModeTests`         | Five `TriggerMode` members, their declaration order, and the accepted ordinals 0 through 4 | A `TriggerMode` member is added                  |
+| `ControllerTests`          | `ControllerTypes` holding exactly two members, and each name resolving to `Gimbl.<Name>`   | A controller type is added                       |
+| `McpBridgeTests`           | Thirteen of the eighteen dispatched tool names, and seven protected asset paths            | A bridge tool or protected asset is added        |
+| `ConfigLoaderTests`        | The accepted `trigger_type` literal set quoted in the rejection message                    | A `trigger_type` literal is accepted             |
+| `StimulusTriggerZoneTests` | The four concrete `IResettable` implementers, by name, in ordinal-sorted order             | A zone class implementing `IResettable` is added |
 
 **`MQTTTopicsTests`** requires three edits for a new topic: bump `ExpectedTopicCount`, add the literal to
 `ExpectedTopics`, and add a `<Topic>_Constant_EqualsTheContractLiteral` test matching the existing per-topic pattern.
@@ -204,11 +205,11 @@ exclusions, so the remark is updated alongside the case list. The exclusions are
 strand the Editor in Play Mode for the rest of the run and is covered by `McpBridgePlayModeTests` instead.
 `read_task_parameters`, `write_task_parameters`, and `refresh_monitors` need the `FullScreenViewManager` fixture and are
 covered by `McpBridgeTaskParametersTests`. `save_scene` stays in this fixture but out of the case list, because a bare
-dispatch writes whichever scene the run happens to have open, so `SaveScene_DirtiedActiveScene_ClearsTheDirtyFlag`
-drives it against a throwaway scene the fixture stages and deletes, and
-`SaveScene_UntitledActiveScene_ReportsTheMissingAssetPath` drives it against an untitled scene left with no asset path
-to write at all. A new tool joins whichever of the three fixtures its handler's prerequisites allow, and a tool whose
-bare dispatch would mutate the open project follows `save_scene` into a dedicated test that stages its own subject.
+dispatch writes whichever scene the run happens to have open. `SaveScene_DirtiedActiveScene_ClearsTheDirtyFlag` drives
+it against a throwaway scene the fixture stages and deletes, and
+`SaveScene_UntitledActiveScene_ReportsTheMissingAssetPath` drives it against an untitled scene that has no asset path to
+write. A new tool joins whichever of the three fixtures its handler's prerequisites allow, and a tool whose bare
+dispatch would mutate the open project follows `save_scene` into a dedicated test that stages its own subject.
 `DeleteAsset_ProtectedHandAuthoredAsset_RefusesWithoutDeletingIt` takes one `[TestCase]` per entry in
 `McpBridge.DeleteProtectedPaths` except the experiment template scene, which
 `IsDeleteAllowed_UnsafeOrUnlistedPath_ReturnsFalse` pins instead, so a new hand-authored asset adds a case to one of the
@@ -282,6 +283,8 @@ Unity Test Suite Compliance:
       RefusesWithoutDeletingIt
 - [ ] A new trigger_type literal updated the accepted-literal substring in ConfigLoaderTests and gained an
       acceptance test
+- [ ] A new IResettable zone class updated the expected four-name array and the <summary> count in
+      StimulusTriggerZoneTests.IResettable_RuntimeAssembly_DeclaresExactlyTheRegisteredImplementers
 - [ ] A new script folder either sits inside an existing assembly's subtree or declares its own .asmdef and
       is referenced from every consuming assembly, including the test assemblies
 - [ ] A new .asmdef declares rootNamespace, and a test assembly variant declares the UNITY_INCLUDE_TESTS

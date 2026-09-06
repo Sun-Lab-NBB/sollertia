@@ -114,13 +114,6 @@ cues can reuse a texture so trials that look identical still differ in code. Rea
 one trial genuinely needs two coupled sensors, and otherwise express the new behavior as another trial. This is why the
 tool targets a single zone's slots and leaves multi-region composition to the task template.
 
-### When to drop to the manual workflow
-
-The tool covers rename, root and region script swaps, and region field overrides, which are the operations every shipped
-variant and both [worked examples](#worked-examples) need. Use the [manual fallback workflow](#manual-fallback-workflow)
-to add or remove a region (the one operation the tool leaves to a future version) or to inspect the raw YAML when a
-clone result is surprising.
-
 ---
 
 ## Why clone a base prefab
@@ -171,17 +164,15 @@ You MUST verify all the following before manufacturing a new zone prefab:
 6. **Unity Editor running** with `McpBridge` reachable. The validation step relies on `inspect_prefab_tool`, which fails
    without the bridge. Invoke `/unity-mcp-environment-setup` first if the bridge is offline.
 
-If any of the above is unmet, stop and resolve it before continuing.
-
 ---
 
-## Canonical templates
+## Canonical base prefabs
 
-Both templates live under `Assets/InfiniteCorridorTask/Prefabs/` and are committed to source control. The tool copies
+Both base prefabs live under `Assets/InfiniteCorridorTask/Prefabs/` and are committed to source control. The tool copies
 whichever one matches the target zone shape, so pick the source by the table below.
 
 The five `trigger_type` modes are backed by these two prefabs, and no mode has its own prefab file. `CreateTask` reuses
-one template for each and selects the behavior at generation time:
+one base prefab for each and selects the behavior at generation time:
 
 | `trigger_type`      | Backing prefab                | Fires when…                                                                    |
 |---------------------|-------------------------------|--------------------------------------------------------------------------------|
@@ -198,7 +189,7 @@ root collider set as a thin boundary wall at `stimulus_location`. The `occupancy
 reuse `OccupancyTriggerZone.prefab` unchanged, because `CreateTask` only selects the occupancy sub-mode. All three
 occupancy modes keep the occupancy-guidance brake (`OccupancyGuidanceZone` publishing `Delay`).
 
-### Interaction template (`StimulusTriggerZone.prefab`)
+### Interaction base prefab (`StimulusTriggerZone.prefab`)
 
 Hierarchy:
 
@@ -207,12 +198,12 @@ StimulusTriggerZone               ← root, 6 components
 └── GuidanceRegion                ← single child, 3 components
 ```
 
-Use this template when the new zone needs exactly one modifier region that reports the animal's arrival to
+Use this base prefab when the new zone needs exactly one modifier region that reports the animal's arrival to
 `StimulusTriggerZone`. Examples: a new "approach detector" that triggers stimulus on zone entry without occupancy
 timing. The shipped `interaction` and `collision` modes both back onto this prefab, and `collision` reuses it with the
 `GuidanceRegion` child stripped and the root collider sized as a thin boundary wall.
 
-### Occupancy template (`OccupancyTriggerZone.prefab`)
+### Occupancy base prefab (`OccupancyTriggerZone.prefab`)
 
 Hierarchy:
 
@@ -222,7 +213,7 @@ OccupancyTriggerZone              ← root, 6 components
     └── OccupancyGuidanceRegion   ← grandchild, 3 components
 ```
 
-Use this template when the new zone needs a nested modifier (a child of a modifier). Examples: a new
+Use this base prefab when the new zone needs a nested modifier (a child of a modifier). Examples: a new
 "must-wait-then-acknowledge" pattern where the inner zone reads state off the outer zone via `GetComponentInParent`. The
 shipped `occupancy_disarm`, `occupancy_arm`, and `occupancy_trigger` modes all back onto this prefab, and `CreateTask`
 reuses it unchanged and only selects the occupancy sub-mode on the parent `StimulusTriggerZone`.
@@ -235,8 +226,8 @@ Use this workflow to add or remove a region (the one operation `clone_zone_prefa
 to inspect raw YAML when a clone result is surprising. For rename, script swaps, and region field overrides, the tool in
 "Manufacturing a zone prefab" is the primary path.
 
-The template invariants, the script-GUID lookup, and the step-by-step YAML edits (Steps 1 through 6: pick, read, write,
-rename, swap script GUIDs, add/remove regions, validate) live in
+The base prefab invariants, the script-GUID lookup, and the step-by-step YAML edits (Steps 1 through 6: pick, read,
+write, rename, swap script GUIDs, add/remove regions, validate) live in
 [references/manual-yaml-editing.md](references/manual-yaml-editing.md). Author and compile the new script first (see the
 [preflight checklist](#preflight-checklist)), apply those edits, then hand off the wiring below.
 
@@ -295,14 +286,14 @@ handles routine variants in one call.
 
 ## Anti-patterns
 
-- **Editing the canonical templates in place.** `StimulusTriggerZone.prefab` and `OccupancyTriggerZone.prefab` are
+- **Editing the canonical base prefabs in place.** `StimulusTriggerZone.prefab` and `OccupancyTriggerZone.prefab` are
   protected via `McpBridge.DeleteProtectedPaths` for a reason: every generated task prefab references them by exact
   filename. Always copy to a new path.
 - **Constructing prefab YAML from scratch.** Unity prefabs have implicit serialization rules (component ordering, fileID
-  scoping, default field handling) that are easy to violate when authoring from a blank file. The two committed
-  templates already satisfy every rule, so copy them.
-- **Reusing fileIDs across prefabs.** fileIDs are scoped per-asset, so reusing the source template's IDs in the copy is
-  fine. Never reuse an ID that already appears in the same prefab, because Unity will silently merge the components.
+  scoping, default field handling) that are easy to violate when authoring from a blank file. The two committed base
+  prefabs already satisfy every rule, so copy them.
+- **Reusing fileIDs across prefabs.** fileIDs are scoped per-asset, so reusing the source base prefab's IDs in the copy
+  is fine. Never reuse an ID that already appears in the same prefab, because Unity will silently merge the components.
 - **Modifying root invariants.** Changing the `MeshFilter` mesh, the `MeshRenderer` material, the `MeshCollider` setup,
   or `Transform.localPosition.y` on the root breaks the visual boundary or the trigger detection geometry. Override
   fields on the modifier scripts instead.
@@ -334,7 +325,7 @@ handles routine variants in one call.
 | `clone_zone_prefab_tool` returns "Field '…' has unsupported type …"                                                 | A `fields` override targets a serialized property outside the supported set of int, bool, float, string, and enum, such as a `Vector3` or an object reference                                               | Set the value in the Editor or via the manual YAML workflow, and the failed call deletes the destination, so no partial prefab remains                                                                                                                                                 |
 | `clone_zone_prefab_tool` returns "Failed to set field '…': …"                                                       | A `fields` value does not convert to the property's type, such as a non-numeric string on the float `occupancyDurationMs`                                                                                   | Pass a correctly typed scalar and re-run, and the failed call deletes the destination, so no partial prefab remains                                                                                                                                                                    |
 | `clone_zone_prefab_tool` returns "A prefab already exists at '…'"                                                   | The destination prefab already exists and `overwrite` defaults to false                                                                                                                                     | Re-run with `overwrite=True` to replace the existing prefab, or pick a destination path that no prefab occupies                                                                                                                                                                        |
-| `inspect_prefab_tool` returns success but the root `components` list omits the root zone script                     | Root MonoBehaviour was accidentally removed or its script GUID is invalid                                                                                                                                   | Re-read the source template, then restore the root MonoBehaviour block verbatim (manual workflow only)                                                                                                                                                                                 |
+| `inspect_prefab_tool` returns success but the root `components` list omits the root zone script                     | Root MonoBehaviour was accidentally removed or its script GUID is invalid                                                                                                                                   | Re-read the source base prefab, then restore the root MonoBehaviour block verbatim (manual workflow only)                                                                                                                                                                              |
 | Hierarchy returned by `inspect_prefab_tool` is flat (no children)                                                   | `m_Father` ↔ `m_Children` symmetry was broken                                                                                                                                                               | Verify every child's Transform `m_Father` matches the parent Transform's fileID, and that the parent's `m_Children` list contains the child's Transform fileID                                                                                                                         |
 | Modifier script defaults look correct but the runtime behavior is wrong                                             | `m_Script.guid` references the wrong script                                                                                                                                                                 | Re-read the target script's `.cs.meta` and confirm the GUID, because the `m_EditorClassIdentifier` line is informational and may lag the real script class until Unity reimports                                                                                                       |
 | Unity Editor reports "missing script" when opening the new prefab                                                   | Either the script does not exist yet, or the GUID is malformed                                                                                                                                              | Confirm the `.cs` and `.cs.meta` files exist under `Scripts/`, and ensure the GUID is 32 hex characters with no whitespace                                                                                                                                                             |
@@ -371,7 +362,7 @@ sollertia marketplace.
 You MUST verify this checklist before submitting any new or modified zone prefab.
 
 ```text
-Zone Prefabs Compliance:
+Zone Prefabs Compliance, reader-judged:
 - [ ] clone_zone_prefab_tool was used for rename, script-swap, and region field-override authoring, and the
       manual YAML workflow was used only to add or remove a region
 - [ ] The new modifier script exists under Assets/InfiniteCorridorTask/Scripts/ with a valid
@@ -390,8 +381,6 @@ Zone Prefabs Compliance:
 - [ ] Every modifier region's BoxCollider is a trigger
 - [ ] m_Children ↔ m_Father pairs match for every parent-child relationship in the prefab
 - [ ] No fileID appears more than once in the same prefab
-- [ ] inspect_prefab_tool returns success and the reported hierarchy matches the intended
-      template-derived shape
 - [ ] McpBridge.DeleteProtectedPaths includes the new prefab path
 - [ ] BuildSegmentPrefabs has a branch that instantiates the new prefab for the new trigger_type
 - [ ] ConfigLoader.ValidateTemplate accepts the new trigger_type literal
@@ -406,6 +395,10 @@ Zone Prefabs Compliance:
       behavior depends on real physics callbacks or wall-clock timing (see /unity-tests)
 - [ ] The fixtures pinning the TriggerMode enum and the protected-asset inventory were updated for the
       new member and the new prefab path (see /unity-tests)
+
+Tool-settled (run `inspect_prefab_tool`, `csharpier check .`, then both Test Runner tabs):
+- [ ] inspect_prefab_tool returns success and the reported hierarchy matches the intended
+      base-prefab-derived shape
 - [ ] Both test platforms pass in the Unity Test Runner (see /unity-tests)
 - [ ] CSharpier ran cleanly on the modified C# files (the new script, McpBridge.cs, ConfigLoader.cs,
       CreateTask.cs, Task.cs)
