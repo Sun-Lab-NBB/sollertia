@@ -1,11 +1,11 @@
 ---
 name: mesoscope-vr-cli-reference
 description: >-
-  Documents the human-facing `sle mesoscope` command group. Covers all sixteen Click nodes and all thirty-three
-  options with their short form, long form, type, default, and required or flag status, the MCP tool each command maps
-  to, and the per-command failure modes. Use when a user asks what an `sle mesoscope` command or option does, or when
-  a run or maintenance command must be prepared for an experimenter. Use it also when the MCP server is unavailable
-  and the user must be told what to run by hand.
+  Documents the human-facing `sle mesoscope` command group. Covers all sixteen Click nodes and all thirty-three options
+  with their short form, long form, type, default, and required or flag status, the MCP tool to which each command maps,
+  and the per-command failure modes. Use when a user asks what an `sle mesoscope` command or option does, or when a run
+  or maintenance command must be prepared for an experimenter. Use it also when the MCP server is unavailable and the
+  user must be told what to run by hand.
 user-invocable: false
 ---
 
@@ -22,7 +22,7 @@ user-invocable: false
 ## Scope
 
 **Covers:**
-- The complete `sle mesoscope` command surface: every Click node, its purpose, and the MCP tool it maps to
+- The complete `sle mesoscope` command surface: every Click node, its purpose, and the MCP tool to which it maps
 - Every declared option: short form, long form, type, default, required or flag status, and effect
 - Per-command failure modes, the exception each raises, and the guard order inside each command body
 - Which commands have no MCP equivalent, which MCP tools have no CLI equivalent, and where paired surfaces differ
@@ -56,10 +56,13 @@ You MUST answer CLI questions from this skill or from `sle mesoscope COMMAND --h
 report disagrees with this reference, ask them to run that help command and read the installed build's answer.
 
 **The `run` subcommands and `maintain` drive real laboratory hardware.** They actuate the water valve, the gas puff
-valve, the wheel brake, the Zaber motors, and the mesoscope, with a head-fixed animal on the rig. They are operated by
-an experimenter standing at the rig, and every one of them opens a blocking GUI that expects a human at the keyboard.
-You MUST explain and prepare these commands, print the exact command line the experimenter types, and never execute
-one. This holds even when the user asks you to start a session for them.
+valve, the wheel brake, the Zaber motors, and the mesoscope, with a head-fixed animal on the rig. `window-checking` is
+the narrower case, because it starts no microcontrollers and therefore reaches only the Zaber motors, the mesoscope, and
+the face camera. They are operated by an experimenter standing at the rig. `lick-training`, `run-training`,
+`experiment`, and `maintain` each open a blocking control GUI, while `window-checking` blocks on terminal prompts
+instead. Every one of them expects a human at the keyboard. You MUST explain and prepare these commands, print the exact
+command line the experimenter types, and never execute one. This holds even when the user asks you to start a session
+for them.
 
 Your own path for everything that has an MCP equivalent is the MCP tool. Reach for `check_mesoscope_bridge_tool`,
 `check_system_mounts_tool`, `validate_system_configuration_tool`, `preprocess_session_tool`, `delete_session_tool`, and
@@ -143,7 +146,7 @@ None of the four declares an option. Each takes its entire input from the active
 | Short | Long              | Type    | Default | Form     | Effect                                                   |
 |-------|-------------------|---------|---------|----------|----------------------------------------------------------|
 | `-u`  | `--user`          | `str`   | `None`  | optional | The ID of the user supervising the session               |
-| `-p`  | `--project`       | `str`   | `None`  | optional | The name of the project the animal belongs to            |
+| `-p`  | `--project`       | `str`   | `None`  | optional | The name of the project to which the animal belongs      |
 | `-a`  | `--animal`        | `str`   | `None`  | optional | The ID of the animal undergoing the session              |
 | `-w`  | `--animal-weight` | `float` | `None`  | optional | The animal's weight in grams at the start of the session |
 
@@ -206,11 +209,11 @@ blocks on a human instead of exiting 2. Click rejects a path that does not exist
 
 ### `sle mesoscope migrate`
 
-| Short | Long            | Type  | Default    | Form     | Effect                                            |
-|-------|-----------------|-------|------------|----------|---------------------------------------------------|
-| `-s`  | `--source`      | `str` | (required) | required | The name of the project the data is migrated from |
-| `-d`  | `--destination` | `str` | (required) | required | The name of the project the data is migrated to   |
-| `-a`  | `--animal`      | `str` | (required) | required | The ID of the animal whose sessions are migrated  |
+| Short | Long            | Type  | Default    | Form     | Effect                                                   |
+|-------|-----------------|-------|------------|----------|----------------------------------------------------------|
+| `-s`  | `--source`      | `str` | (required) | required | The name of the source project of the migrated data      |
+| `-d`  | `--destination` | `str` | (required) | required | The name of the destination project of the migrated data |
+| `-a`  | `--animal`      | `str` | (required) | required | The ID of the animal whose sessions are migrated         |
 
 `-d` reaches the library as its `target_project` keyword, so a report quoting `target_project` is naming this option.
 
@@ -288,18 +291,18 @@ therefore reads a failed load as a healthy rig, so read the echoed line rather t
 `check-mounts` verifies every filesystem path the configuration declares, covering the platform data root, the mesoscope
 acquisition directory, every configured long-term storage destination, the two stored camera GenICam configuration
 files, and the DeepLabCut project. Directories are write-probed, and the read-only input files are checked for existence
-and read access instead. An optional path left unset reports as not configured and still passes, while an unset
+and read access instead. An optional path left unset reports as not configured and still passes. An unset
 `filesystem.mesoscope_directory` reports as both not configured and failed, because this acquisition system requires it,
 and an unset platform data root fails the sweep on its own.
 
 `validate-config` runs that same per-path report, turns every failing path into one entry of an issue list, then adds
 the DeepLabCut project check. That check reads the project's `config.yaml` and confirms its `Task` field carries the
-eye-tracking token, because DeepLabCut embeds the field verbatim in the scorer string it appends to every prediction
-filename, and session preprocessing accepts a prediction only when the filename carries the token. A project whose
-`Task` omits the token aborts the transfer to long-term storage at the very end of a session's preprocessing, so running
-this command before the day's first session turns that late failure into an early one. The check runs only on a project
-path that is set and resolves, because an unset or unreadable project is already an issue the path report raised. No
-finding from either command alters any acquisition behavior.
+eye-tracking token. DeepLabCut embeds the field verbatim in the scorer string it appends to every prediction filename,
+and session preprocessing accepts a prediction only when the filename carries the token. A project whose `Task` omits
+the token aborts the transfer to long-term storage at the very end of a session's preprocessing, so running this command
+before the day's first session turns that late failure into an early one. The check runs only on a project path that is
+set and resolves, because an unset or unreadable project is already an issue the path report raised. No finding from
+either command alters any acquisition behavior.
 
 ### The `run` group defers its own requirements
 
@@ -316,24 +319,27 @@ a symlink that would otherwise route an out-of-root session past the check, or r
 through a link. A session outside the resolved data root raises `FileNotFoundError` naming both paths. This fences the
 commands to sessions on the host-machine, and in particular keeps them off sessions on long-term storage mounts.
 
-`delete` then delegates to `purge_session`, which removes the session from every acquisition machine and every
-long-term storage destination with no undo. Whether it prompts depends on the `nk.bin` marker. `purge_session` passes
+`delete` then delegates to `purge_session`, which removes the session from every acquisition machine and every long-term
+storage destination with no undo. Whether it prompts depends on the `nk.bin` marker. `purge_session` passes
 `require_confirmation=not session_data.raw_data.nk_path.exists()`, and `SessionData.mark_runtime_initialized` clears
-that marker as soon as the acquisition runtime initializes, so every session that carries real data raises the
+that marker as soon as the acquisition runtime initializes. Every session that carries real data therefore raises the
 interactive `Permanently delete all data for session <session_name>?` prompt, which locks the terminal until the user
 answers and aborts on the default. Only a session that never finished initializing still carries the marker and is
-purged with no prompt at all. Never hand this command over without stating that plainly. `delete_session_tool` does
-not replace this prompt. It adds an argument guard in front of the same `purge_session` call, so once
-`confirm_deletion='yes'` clears that guard the tool reaches the identical prompt. A server process with no
-interactive terminal cannot answer it, and the tool reports the failure as an `Error: ` string, while a server
-started from a terminal blocks on it until someone answers there. Deleting an initialized session therefore belongs
-at a terminal on the host-machine either way.
+purged with no prompt at all. Never hand this command over without stating that plainly. `delete_session_tool` does not
+replace this prompt. It adds an argument guard in front of the same `purge_session` call, so once
+`confirm_deletion='yes'` clears that guard the tool reaches the identical prompt. A server process with no interactive
+terminal cannot answer it, and the tool reports the failure as an `Error: ` string, while a server started from a
+terminal blocks on it until someone answers there. Deleting an initialized session therefore belongs at a terminal on
+the host-machine either way.
 
 ### `migrate` requires the target project to exist
 
-The command raises `FileNotFoundError` when the target project directory is absent on the host-machine. Each session
-is an isolated unit that cleans up after itself on failure, so re-running the command after fixing the error resumes
-from the session that failed rather than starting over.
+The command raises `FileNotFoundError` when the target project directory is absent on the host-machine. On a host with
+at least one configured long-term storage destination, each session is an isolated unit that removes its in-flight
+source-project directory on failure. Re-running the command after fixing the error therefore resumes from the session
+that failed rather than starting over. A host with no configured destination migrates on-premises with a move that is
+not rolled back. A failure after the move leaves that session under the target project while its record still names the
+source project, and a re-run no longer sees it. That case requires manual repair.
 
 ---
 
@@ -346,11 +352,12 @@ tool below on the `slsa` server is `create_experiment_from_vr_template_tool`, an
 
 ### CLI commands with no MCP equivalent
 
-**`maintain` and the four `run` subcommands** are the only commands on this surface with no MCP equivalent. Each opens
-a blocking GUI and drives hardware with an animal on the rig, so no tool exists and none should. These are the
-experimenter's commands. `configure experiment` pairs with `create_experiment_from_vr_template_tool`, which
-`assets:experiment-configuration` owns, so an agent asked to create an experiment configuration calls that tool rather
-than handing the command to a user.
+**`maintain` and the four `run` subcommands** are the only commands on this surface with no MCP equivalent. Each blocks
+on a human at the rig and drives hardware with an animal on it, so no tool exists and none should. `maintain`,
+`lick-training`, `run-training`, and `experiment` block through a control GUI, and `window-checking` blocks through
+terminal prompts. These are the experimenter's commands. `configure experiment` pairs with
+`create_experiment_from_vr_template_tool`, which `assets:experiment-configuration` owns, so an agent asked to create an
+experiment configuration calls that tool rather than handing the command to a user.
 
 ### MCP tools with no CLI equivalent
 
@@ -390,8 +397,8 @@ and reads nothing back.
 1. **Direction of travel.** Every unpaired tool reads, except `write_session_zaber_positions_tool` and
    `write_session_mesoscope_positions_tool`, which repair the per-session position snapshots that the unpaired `run`
    runtimes write during a session. Among the paired commands, `check-mounts` and `validate-config` read while every
-   other one writes or acts, and both of them echo their verdict rather than returning it, so an agent asking for the
-   structured state of the rig still has only the MCP path.
+   other one writes or acts, and both of them echo their verdict rather than returning it. An agent asking for the
+   structured state of the rig therefore still has only the MCP path.
 2. **Guard placement.** Both surfaces run the same `is_relative_to` containment check, differing only in whether they
    resolve the operands first, and on `delete` both reach the same interactive terminal prompt inside `purge_session`.
    Only a guard the caller passes as an argument is MCP-only: `confirm_deletion` on `delete_session_tool` and
@@ -442,11 +449,11 @@ substitute out of a shell command.
 | `/mesoscope-vr-session-schema`                | Owns the descriptor and hardware-state schemas the descriptor tools carry                       |
 | `/mesoscope-vr-snapshots`                     | Owns the Zaber and mesoscope-objective position schemas the position tools carry                |
 | `experiment:data-management`                  | Owns the preprocessing, transfer, and purge primitives the three data commands run              |
-| `experiment:system-health-check`              | Owns the pre-flight sweep that `check-mounts` and `validate-config` report into                 |
+| `experiment:system-health-check`              | Owns the pre-flight sweep into which `check-mounts` and `validate-config` report                |
 | `assets:assets-mcp-environment-setup`         | Owns `slsa` server recovery and the response contract its tools follow                          |
 | `assets:experiment-configuration`             | Owns `create_experiment_from_vr_template_tool`, the tool that pairs with `configure experiment` |
 | `assets:task-templates`                       | Owns the task templates `configure experiment` instantiates through `-t`                        |
-| `assets:working-directory`                    | Owns the working directory `configure system` writes the configuration file into                |
+| `assets:working-directory`                    | Owns the working directory into which `configure system` writes the configuration file          |
 | `assets:project-hierarchy`                    | Owns the on-disk hierarchy the `-sp`, `-p`, and `-a` values address                             |
 
 ---
@@ -454,16 +461,10 @@ substitute out of a shell command.
 ## Verification checklist
 
 ```text
-Tool-settled (run `rg -n '.{121,}' <file>` and `wc -l <file>`):
-- [ ] All lines at or under 120 characters (tables and code blocks may exceed for clarity)
-- [ ] SKILL.md under 500 lines
-- [ ] Every code fence carries a language identifier
-- [ ] rg -n 'ataraxis@|cindra@' <file> finds nothing
-
 Answering a CLI question, reader-judged:
 - [ ] Answered from this skill or from sle mesoscope COMMAND --help, never from memory
 - [ ] Quoted the long option form, and never presented -h as a help alias
-- [ ] Named the MCP tool the command maps to, or said plainly that none exists
+- [ ] Named the MCP tool to which the command maps, or said plainly that none exists
 - [ ] Never read -id as a job identifier, since it is --initial-duration on run-training
 - [ ] Invoked no sle mesoscope command other than --help
 

@@ -32,7 +32,8 @@ demand:
 - `resolve_single_recording_configuration` and `resolve_multi_recording_configuration`, including the `None` return
 - `_CalciumIndicator`, its two members and their transgenic lines, and the `_IndicatorParameters` bundle each earns
 - `_GENOTYPE_INDICATOR_REGISTRY`, its three recognized keys, the normalization rule, and the unresolved-genotype error
-- The surgery-record field the genotype is read from, and the error raised when the surgery metadata file is missing
+- The surgery-record field from which the genotype is read, and the error raised when the surgery metadata file is
+  missing
 - `_assert_indicator_coverage`, the import-time check that every indicator declares its indicator-dependent parameters
 - The explicit-parameter design rule, the deploy-time fields left at cindra defaults, and the worker-count contract
 
@@ -82,8 +83,8 @@ Cross-recording cell tracking needs calcium imaging, which only an experiment se
 type resolves no multi-recording configuration.
 
 The frozenset and `resolve_multi_recording_configuration` answer the same question by different means. The resolver
-needs a loaded session and therefore that session's source data, while the frozenset needs only a recorded session
-type. The forging pipeline reads the answer from the dataset itself, through
+needs a loaded session and therefore that session's source data, while the frozenset needs only a recorded session type.
+The forging pipeline reads the answer from the dataset itself, through
 `SessionTypes(dataset.session_type) in resolve_multi_recording_session_types(...)`, so a dataset keeps growing while
 part of its source data lives elsewhere.
 
@@ -130,8 +131,8 @@ field names the cindra field it fills:
 
 `_resolve_calcium_indicator(genotype)` normalizes before matching, with
 `re.sub(pattern=r"\s+", repl=" ", string=genotype.strip().casefold())`. Normalization casefolds the string, strips
-surrounding whitespace, and collapses every internal whitespace run to one space. The normalized string is then
-matched exactly, so every jGCaMP8 variant needs its own registry key before it resolves.
+surrounding whitespace, and collapses every internal whitespace run to one space. The normalized string is then matched
+exactly, so every jGCaMP8 variant needs its own registry key before it resolves.
 
 Zygosity qualifiers such as the `(hemi)` in `GP5.17 (hemi)` are preserved and carry their own key, so a hemizygous
 line resolves to the same indicator as the homozygous line while the surgery metadata keeps the distinction. Only the
@@ -204,8 +205,7 @@ runs the configuration overrides them with the locations it resolved:
 | Multi-recording  | `recording_io.dataset_name`          | The forging pipeline, with `multi_recording_dataset_name(animal_id=..., dataset_name=...)` |
 | Both             | The `runtime` settings               | The running pipeline, which sets `runtime.display_progress_bars` from its own preference   |
 
-cindra takes the worker count as a call argument, so no configuration field carries it. Look for a worker setting in
-the call that runs a stage, never in the materialized configuration file.
+cindra takes the worker count as a call argument, so no configuration field carries it.
 
 ---
 

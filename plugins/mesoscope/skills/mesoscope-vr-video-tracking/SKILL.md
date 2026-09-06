@@ -11,12 +11,10 @@ user-invocable: false
 
 # Mesoscope-VR video tracking
 
-Documents the two Mesoscope-VR modules that turn face-camera and body-camera recordings into per-frame metrics, and
-then into the video columns of a forged dataset. `sollertia_forgery.mesoscope_vr.video_tracking` post-processes the
+Documents the two Mesoscope-VR modules that turn face-camera and body-camera recordings into per-frame metrics, and then
+into the video columns of a forged dataset. `sollertia_forgery.mesoscope_vr.video_tracking` post-processes the
 externally-produced DeepLabCut predictions into `face_camera_pupil.feather`, and
-`sollertia_forgery.mesoscope_vr.video_dataset` interpolates every per-camera feather onto the assembly reference
-clock. This skill is the single source for the Mesoscope-VR bodypart roster, the fit and blink rules, the pupil
-column schema, and the per-camera dataset column naming.
+`sollertia_forgery.mesoscope_vr.video_dataset` interpolates every per-camera feather onto the assembly reference clock.
 
 The token `video_tracking` names two different things on the two sides of the platform. On the acquisition side it is
 the `MesoscopeVideoTracking` configuration section that runs `slvt infer` during preprocessing and writes the DeepLabCut
@@ -31,7 +29,7 @@ consumer, and the two live in different libraries.
 **Covers:**
 - The two registry seams this pair of modules fills, `_POSE_PREDICTION_REGISTRY` and `_VIDEO_TRACKING_REGISTRY`
 - `locate_mesoscope_pose_predictions`, its glob pattern, its natural-sort tie-break, and its two consumers
-- The twelve module-level constants of `video_tracking.py`, including the thirteen canonical bodyparts and the
+- The fourteen module-level constants of `video_tracking.py`, including the thirteen canonical bodyparts and the
   load-bearing pupil and eye ring order
 - `_read_points_from_h5`, its MultiIndex column keying, and its two `ValueError` messages
 - `_fit_ring_ellipse`, its least-squares model, its confidence-pattern grouping, its rejection rule, and the
@@ -81,10 +79,10 @@ schedule the pass.
 | `_POSE_PREDICTION_REGISTRY` | `locate_mesoscope_pose_predictions` | `resolve_pose_prediction_locator` | Video job discovery and the job sizing pass |
 | `_VIDEO_TRACKING_REGISTRY`  | `process_mesoscope_video_tracking`  | `resolve_video_tracking`          | The `pose_tracking` job runner              |
 
-Job discovery calls the locator to decide whether a session supports a tracking job at all, and
+Job discovery calls the locator to decide whether a session supports a tracking job at all.
 `orchestration/footprints.py` calls it again to charge the job the width of the table that file holds, read from the
-table's own row and column counts rather than from the file's size on disk. A single donation covering both would
-force discovery to load and parse the predictions merely to decide whether to schedule work.
+table's own row and column counts rather than from the file's size on disk. A single donation covering both would force
+discovery to load and parse the predictions merely to decide whether to schedule work.
 
 `video_dataset.py` fills no registry of its own. `assemble_video_dataset` and `resolve_slowest_camera_clock` are
 reached through the Mesoscope-VR assembly worker registered in `_FORGING_ASSEMBLY_REGISTRY`, which
@@ -98,22 +96,24 @@ second, registered in `_ASSEMBLY_GEOMETRY_REGISTRY` and `_ASSEMBLY_SOURCE_REGIST
 ## Constants and the canonical bodyparts
 
 Every name, threshold, and filename fragment the tracking pass uses is a module-level constant in
-`mesoscope_vr/video_tracking.py`. Nothing below is a literal written at a call site.
+`mesoscope_vr/video_tracking.py`.
 
-| Constant                     | Value                                                | Role                                                                            |
-|------------------------------|------------------------------------------------------|---------------------------------------------------------------------------------|
-| `_EYE_TRACKING_PROJECT_NAME` | `"eye_tracking"`                                     | The DeepLabCut project name baked into the prediction filename                  |
-| `PUPIL_CAMERA_NAME`          | `"face_camera"`                                      | Public. Names the output feather and prefixes the face camera's dataset columns |
-| `_PUPIL_TARGET`              | `"pupil"`                                            | The tracking-target label in `{camera}_{target}.feather`                        |
-| `_REFLECTION_POINT`          | `"reflection"`                                       | The corneal infrared reflection, a motion-robust positional reference           |
-| `_PUPIL_POINTS`              | eight pupil-perimeter bodyparts, in ring order       | The pupil ellipse's ring                                                        |
-| `_EYE_POINTS`                | `("eye_right", "eye_bottom", "eye_left", "eye_top")` | The eye ellipse's ring, in the same order convention                            |
-| `_CANONICAL_POINTS`          | `(_REFLECTION_POINT, *_PUPIL_POINTS, *_EYE_POINTS)`  | The thirteen bodyparts the `.h5` must supply                                    |
-| `_LIKELIHOOD_THRESHOLD`      | `0.8`                                                | The minimum DeepLabCut likelihood for a point to be trusted                     |
-| `_MINIMUM_PERIMETER_POINTS`  | `3`                                                  | The ring points a feature needs for its ellipse to be determined                |
-| `_MAXIMUM_FIT_CONDITION`     | `12.0`                                               | The largest admissible design-matrix condition number                           |
-| `_BLINK_FRACTION`            | `0.5`                                                | The fraction of median openness below which a frame is a blink                  |
-| `_COORDINATES`               | `("x", "y", "likelihood")`                           | The three per-bodypart channels, in read order                                  |
+| Constant                     | Value                                                | Role                                                                             |
+|------------------------------|------------------------------------------------------|----------------------------------------------------------------------------------|
+| `_EYE_TRACKING_PROJECT_NAME` | `"eye_tracking"`                                     | The DeepLabCut project name baked into the prediction filename                   |
+| `PUPIL_CAMERA_NAME`          | `"face_camera"`                                      | Public. Names the output feather and prefixes the face camera's dataset columns  |
+| `_PUPIL_TARGET`              | `"pupil"`                                            | The tracking-target label in `{camera}_{target}.feather`                         |
+| `_REFLECTION_POINT`          | `"reflection"`                                       | The corneal infrared reflection, a motion-robust positional reference            |
+| `_PUPIL_POINTS`              | eight pupil-perimeter bodyparts, in ring order       | The pupil ellipse's ring                                                         |
+| `_EYE_POINTS`                | `("eye_right", "eye_bottom", "eye_left", "eye_top")` | The eye ellipse's ring, in the same order convention                             |
+| `_CANONICAL_POINTS`          | `(_REFLECTION_POINT, *_PUPIL_POINTS, *_EYE_POINTS)`  | The thirteen bodyparts the `.h5` must supply                                     |
+| `_LIKELIHOOD_THRESHOLD`      | `0.8`                                                | The minimum DeepLabCut likelihood for a point to be trusted                      |
+| `_MINIMUM_PERIMETER_POINTS`  | `3`                                                  | The ring points a feature needs for its ellipse to be determined                 |
+| `_MAXIMUM_FIT_CONDITION`     | `12.0`                                               | The largest admissible design-matrix condition number                            |
+| `_BLINK_FRACTION`            | `0.5`                                                | The fraction of median openness below which a frame is a blink                   |
+| `_MINIMUM_FIT_EXTENT_PX`     | `1e-6`                                               | The smallest fitted ellipse extent a division may treat as a measurement         |
+| `_COORDINATES`               | `("x", "y", "likelihood")`                           | The three per-bodypart channels, in read order                                   |
+| `_MINIMUM_COLUMN_LEVELS`     | `2`                                                  | The column-index levels a frame must carry to be read as a DeepLabCut prediction |
 
 `_PUPIL_POINTS` is `("pupil_right", "pupil_bottom_right", "pupil_bottom", "pupil_bottom_left", "pupil_left",
 "pupil_top_left", "pupil_top", "pupil_top_right")`. The order is load-bearing. It starts at the right and advances
@@ -155,11 +155,11 @@ The predictions are produced upstream rather than in-process because DeepLabCut 
 sollertia-forgery runs `numpy>=2` on Python 3.14, so DeepLabCut cannot be imported here. This worker only reads
 DeepLabCut's `.h5` output, which keeps the `deeplabcut` library out of the forgery environment entirely.
 
-`_read_points_from_h5` reads the file with `pandas.read_hdf`, since DeepLabCut serializes with
-`pandas.DataFrame.to_hdf` in the PyTables `table` format, then sorts by index so rows are in ascending frame order.
-Columns carry a `(scorer, bodypart, coordinate)` MultiIndex, and each column is keyed by the trailing
-`(bodypart, coordinate)` pair alone, so the single scorer level never has to be named. Each bodypart becomes one
-`(frame_count, 3)` array of `(x, y, likelihood)`.
+`_read_points_from_h5` reads the file with `pandas.read_hdf`, since DeepLabCut serializes with `pandas.DataFrame.to_hdf`
+in the PyTables `table` format, then sorts by index so rows are in ascending frame order. Columns carry a
+`(scorer, bodypart, coordinate)` MultiIndex, and each column is keyed by the trailing `(bodypart, coordinate)` pair
+alone, so the single scorer level never has to be named. Each bodypart becomes one `(frame_count, 3)` array of
+`(x, y, likelihood)`.
 
 Two `ValueError` messages come out of this function, both raised through `console.error`:
 
@@ -202,9 +202,9 @@ Per pattern, in order:
    overdetermined. Exactly-determined three-point fits have a structurally zero residual that says nothing about fit
    quality, so they keep NaN and are judged on the condition number alone.
 
-Rejected frames keep NaN geometry and `valid = False`. The cap of `12.0` sits at the worst value a minimally
-determined three-point fit on an evenly spaced ring produces, so it admits every arc the pupil and eye rings can
-present and guards against a ring that samples the ellipse less evenly.
+Rejected frames keep NaN geometry and `valid = False`. The cap of `12.0` sits at the worst value a minimally determined
+three-point fit on an evenly spaced ring produces. It therefore admits every arc the pupil and eye rings can present and
+guards against a ring that samples the ellipse less evenly.
 
 ---
 
@@ -212,11 +212,11 @@ present and guards against a ring that samples the ellipse less evenly.
 
 `_compute_pupil_metrics` fits the pupil ring and the eye ring, then derives three geometric quantities:
 
-| Quantity            | Formula                                                     | Note                                                                        |
-|---------------------|-------------------------------------------------------------|-----------------------------------------------------------------------------|
-| `pupil_area_px2`    | `pi * abs(semi_a_x * semi_b_y - semi_a_y * semi_b_x)`       | Pi times the cross-product magnitude of the two conjugate semi-diameters    |
-| `pupil_diameter_px` | `hypot(semi_a) + hypot(semi_b)`                             | The mean of the two full-axis diameters, `(2 * a + 2 * b) / 2`              |
-| `eye_openness`      | `eye_height / eye_width`, where `eye_width > 0.0`, else NaN | `eye_width` and `eye_height` are twice the eye ring's two semi-axis lengths |
+| Quantity            | Formula                                                                         | Note                                                                        |
+|---------------------|---------------------------------------------------------------------------------|-----------------------------------------------------------------------------|
+| `pupil_area_px2`    | `pi * abs(semi_a_x * semi_b_y - semi_a_y * semi_b_x)`                           | Pi times the cross-product magnitude of the two conjugate semi-diameters    |
+| `pupil_diameter_px` | `hypot(semi_a) + hypot(semi_b)`                                                 | The mean of the two full-axis diameters, `(2 * a + 2 * b) / 2`              |
+| `eye_openness`      | `eye_height / eye_width`, where `eye_width >= _MINIMUM_FIT_EXTENT_PX`, else NaN | `eye_width` and `eye_height` are twice the eye ring's two semi-axis lengths |
 
 `eye_openness` is an aspect ratio, so it is invariant to camera distance and comparable across animals and sessions.
 A zero-width eye is a degenerate fit rather than a closed eye, so it yields NaN instead of dividing.
@@ -252,27 +252,27 @@ the same order, so declaration order is feather column order. Every `Float64` co
 geometry derives from pixel coordinates far coarser than `Float32` resolves. The two flags are written as `Boolean`
 and are the only non-float columns.
 
-| Column                         | Dtype   | NaN wherever                                                              |
-|--------------------------------|---------|---------------------------------------------------------------------------|
-| `pupil_center_x_px`            | Float32 | `pupil_measured` is False                                                 |
-| `pupil_center_y_px`            | Float32 | `pupil_measured` is False                                                 |
-| `pupil_diameter_px`            | Float32 | `pupil_measured` is False                                                 |
-| `pupil_area_px2`               | Float32 | `pupil_measured` is False                                                 |
-| `pupil_fit_condition`          | Float32 | `pupil_measured` is False                                                 |
-| `pupil_fit_residual_px`        | Float32 | `pupil_measured` is False, and on exactly-determined three-point fits     |
-| `eye_center_x_px`              | Float32 | `eye_fit.valid` is False                                                  |
-| `eye_center_y_px`              | Float32 | `eye_fit.valid` is False                                                  |
-| `eye_width_px`                 | Float32 | `eye_fit.valid` is False                                                  |
-| `eye_height_px`                | Float32 | `eye_fit.valid` is False                                                  |
-| `eye_openness`                 | Float32 | `eye_fit.valid` is False                                                  |
-| `blinking_state`               | Boolean | never, the flag is total                                                  |
-| `dilation_state`               | Boolean | never, the flag is total                                                  |
-| `reflection_x_px`              | Float32 | `reflection_valid` is False                                               |
-| `reflection_y_px`              | Float32 | `reflection_valid` is False                                               |
-| `pupil_reflection_offset_x_px` | Float32 | `pupil_measured & reflection_valid` is False                              |
-| `pupil_reflection_offset_y_px` | Float32 | `pupil_measured & reflection_valid` is False                              |
-| `pupil_in_eye_x`               | Float32 | `pupil_measured & eye_fit.valid` is False, or the eye semi-width is zero  |
-| `pupil_in_eye_y`               | Float32 | `pupil_measured & eye_fit.valid` is False, or the eye semi-height is zero |
+| Column                         | Dtype   | NaN wherever                                                                                        |
+|--------------------------------|---------|-----------------------------------------------------------------------------------------------------|
+| `pupil_center_x_px`            | Float32 | `pupil_measured` is False                                                                           |
+| `pupil_center_y_px`            | Float32 | `pupil_measured` is False                                                                           |
+| `pupil_diameter_px`            | Float32 | `pupil_measured` is False                                                                           |
+| `pupil_area_px2`               | Float32 | `pupil_measured` is False                                                                           |
+| `pupil_fit_condition`          | Float32 | `pupil_measured` is False                                                                           |
+| `pupil_fit_residual_px`        | Float32 | `pupil_measured` is False, and on exactly-determined three-point fits                               |
+| `eye_center_x_px`              | Float32 | `eye_fit.valid` is False                                                                            |
+| `eye_center_y_px`              | Float32 | `eye_fit.valid` is False                                                                            |
+| `eye_width_px`                 | Float32 | `eye_fit.valid` is False                                                                            |
+| `eye_height_px`                | Float32 | `eye_fit.valid` is False                                                                            |
+| `eye_openness`                 | Float32 | `eye_fit.valid` is False                                                                            |
+| `blinking_state`               | Boolean | never, the flag is total                                                                            |
+| `dilation_state`               | Boolean | never, the flag is total                                                                            |
+| `reflection_x_px`              | Float32 | `reflection_valid` is False                                                                         |
+| `reflection_y_px`              | Float32 | `reflection_valid` is False                                                                         |
+| `pupil_reflection_offset_x_px` | Float32 | `pupil_measured & reflection_valid` is False                                                        |
+| `pupil_reflection_offset_y_px` | Float32 | `pupil_measured & reflection_valid` is False                                                        |
+| `pupil_in_eye_x`               | Float32 | `pupil_measured & eye_fit.valid` is False, or the eye semi-width is below `_MINIMUM_FIT_EXTENT_PX`  |
+| `pupil_in_eye_y`               | Float32 | `pupil_measured & eye_fit.valid` is False, or the eye semi-height is below `_MINIMUM_FIT_EXTENT_PX` |
 
 Positions and lengths are in the face camera's pixel coordinate frame, marked by the `_px` suffix, and are never
 converted to physical units, because the camera is not calibrated against a physical scale. The two offset pairs are
@@ -351,16 +351,16 @@ rather than failing assembly.
 Experiment sessions use the mesoscope fluorescence clock instead, so this resolver is reached only from
 `assemble_training_dataset`.
 
-For each camera source with a present timestamp feather, it requires at least `_MINIMUM_CLOCK_FRAMES`, which is two,
-and computes `duration_seconds` from the first and last timestamps. Both endpoints are pulled one at a time through a
+For each camera source with a present timestamp feather, it requires at least `_MINIMUM_CLOCK_FRAMES`, which is two, and
+computes `duration_seconds` from the first and last timestamps. Both endpoints are pulled one at a time through a
 pushed-down one-row slice and arrive as Python integers, whose difference cannot wrap the way the unsigned timestamp
-column's would, so an out-of-order feather states a negative span and is dropped rather than read as the slowest clock.
-A non-positive duration disqualifies the camera. The mean rate is the frame count divided by that duration, and the
-camera with the lowest mean rate wins, its timestamps returned verbatim. The comparison is strict, so an exact tie is
-settled in favour of the first camera `_CAMERA_SOURCES` names, which is the face camera.
+column's would. An out-of-order feather therefore states a negative span and is dropped rather than read as the slowest
+clock. A non-positive duration disqualifies the camera. The mean rate is the frame count divided by that duration, and
+the camera with the lowest mean rate wins, its timestamps returned verbatim. The comparison is strict, so an exact tie
+is settled in favour of the first camera `_CAMERA_SOURCES` names, which is the face camera.
 
-The slowest camera is chosen because every other data source can be interpolated onto its coarser grid without
-inventing samples between its frames. On success the resolver echoes
+The slowest camera is chosen because every other data source can be interpolated onto its coarser grid without inventing
+samples between its frames. On success the resolver echoes
 `Resolved the '{selection.camera}' clock ({selection.mean_rate:.2f} fps) as the reference clock.` When no camera
 qualifies it raises `FileNotFoundError`:
 

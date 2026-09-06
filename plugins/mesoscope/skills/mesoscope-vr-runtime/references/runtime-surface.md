@@ -18,7 +18,9 @@ Each session-running mode has a top-level function in `mesoscope_vr/data_acquisi
    exists, then the per-flag CLI overrides, in that order. `window_checking_logic` builds
    `WindowCheckingDescriptor(experimenter=..., incomplete=True)` from defaults alone, taking no parameter overrides and
    inheriting nothing from a previous session. `experiment_logic` additionally loads the
-   `MesoscopeExperimentConfiguration` from `raw_data.experiment_configuration_path` through its `from_yaml()` builder.
+   `MesoscopeExperimentConfiguration` from the project's own copy at
+   `ProjectData(...).configuration_directory/<experiment_name>.yaml` through its `from_yaml()` builder. That load runs
+   before `SessionData.create` mints the session and copies the same file into the session's `raw_data`.
 3. Builds the hardware assets the mode needs. `lick_training_logic`, `run_training_logic`, and `experiment_logic`
    construct `MesoscopeVRSystem`, which owns and starts its own `DataLogger`. `window_checking_logic` and
    `maintenance_logic` construct their own `DataLogger` and hardware assets directly, with no orchestrator.
@@ -81,11 +83,11 @@ The runtime both consumes and completes the descriptor:
   (`mesoscope_vr/acquisition_components.py`), which runs two blocking terminal prompts. Window-checking sessions are
   prompted for the 0 to 3 cranial-window quality rating, stored as `surgery_quality`. Every other session type is shown
   the session water summary and prompted for the total water the animal should receive, defaulting to the previous
-  session's received total (falling back to `_DEFAULT_TOTAL_WATER_VOLUME_ML` when no prior session recorded one), and
-  the surplus over the session-dispensed volume, clamped at zero, is stored as `experimenter_given_water_volume_ml`. It
-  then collects the experimenter notes into `experimenter_notes`, writes the completed descriptor to the session's
-  `raw_data` directory, and copies it to the animal's persistent directory, where the next session of the same type
-  reads it back.
+  session's received total. That default falls back to `_DEFAULT_TOTAL_WATER_VOLUME_ML` when no prior session recorded
+  one, and the surplus over the session-dispensed volume, clamped at zero, is stored as
+  `experimenter_given_water_volume_ml`. It then collects the experimenter notes into `experimenter_notes`, writes the
+  completed descriptor to the session's `raw_data` directory, and copies it to the animal's persistent directory, where
+  the next session of the same type reads it back.
 
 ---
 

@@ -101,35 +101,38 @@ Module constants: `_MINIMUM_CPU_COUNT = 10`, derived as three cores for the micr
 four for the video systems, one for the central process, and one for the GUI. `_GUIDED_RUNTIME_STATE_CODE` and
 `_MAXIMUM_RUNTIME_STATE_CODE` are both 255. `_MESOSCOPE_START_TIMEOUT_MS = 15000` and `_EXPECTED_FRAME_PULSES = 10`
 together decide whether frame acquisition began. Class statics set the mesoscope frame-checking window
-`_mesoscope_frame_delay = 300` ms, the `_speed_calculation_window = 50` ms, and the logging `_source_id = 1`.
+`_MESOSCOPE_FRAME_DELAY_MS = 300`, the `_SPEED_CALCULATION_WINDOW_MS = 50`, and the logging `_SOURCE_ID = np.uint8(1)`.
 
 ### Consumer API
 
 The per-mode logic functions reach the orchestrator through these members alone. Every other attribute is private.
 
-| Member                                                                        | Kind     | Purpose                                                                              |
-|-------------------------------------------------------------------------------|----------|--------------------------------------------------------------------------------------|
-| `start()`                                                                     | method   | Runs the semi-interactive sequence that prepares every asset and begins acquisition   |
-| `stop()`                                                                      | method   | Stops all components and external assets, then ends the session's data acquisition    |
-| `runtime_cycle()`                                                             | method   | Carries out one pass of every cyclic runtime task. Loops in place while paused        |
-| `change_runtime_state(new_state)`                                             | method   | Updates and logs the acquired session's runtime stage code                            |
-| `idle()`                                                                      | method   | Switches the system to the idle state                                                 |
-| `rest()`                                                                      | method   | Switches the system to the rest state                                                 |
-| `run()`                                                                       | method   | Switches the system to the run state                                                  |
-| `lick_train()`                                                                | method   | Switches the system to the lick training state                                        |
-| `run_train()`                                                                 | method   | Switches the system to the run training state                                         |
-| `resolve_reward(reward_size, tone_duration)`                                  | method   | Delivers or simulates a water reward, returning whether water was actually dispensed  |
-| `update_visualizer_thresholds(speed_threshold, duration_threshold)`           | method   | Updates the running speed and epoch duration thresholds the visualizer draws          |
-| `publish_runtime_thresholds(speed_threshold, duration_threshold)`             | method   | Publishes those same thresholds to the runtime control GUI                            |
-| `setup_reinforcing_guidance(initial_guided_trials, recovery_mode_threshold, recovery_guided_trials)` | method | Configures guidance for reinforcing (water reward) trials              |
-| `setup_aversive_guidance(initial_guided_trials, recovery_mode_threshold, recovery_guided_trials)`    | method | Configures guidance for aversive (gas puff) trials                     |
-| `terminated`                                                                  | property | Returns True once the system has entered the termination state                        |
-| `running_speed`                                                               | property | Returns the animal's current running speed in centimeters per second                  |
-| `speed_modifier`                                                              | property | Returns the modifier applied to the run training speed threshold                      |
-| `duration_modifier`                                                           | property | Returns the modifier applied to the run training duration threshold                   |
-| `dispensed_water_volume`                                                      | property | Returns the total water volume, in microliters, dispensed during the current runtime  |
+| Member                                                                                               | Kind      | Purpose                                                                              |
+|------------------------------------------------------------------------------------------------------|-----------|--------------------------------------------------------------------------------------|
+| `start()`                                                                                            | method    | Runs the semi-interactive sequence that prepares every asset and begins acquisition  |
+| `stop()`                                                                                             | method    | Stops all components and external assets, then ends the session's data acquisition   |
+| `runtime_cycle()`                                                                                    | method    | Carries out one pass of every cyclic runtime task. Loops in place while paused       |
+| `change_runtime_state(new_state)`                                                                    | method    | Updates and logs the acquired session's runtime stage code                           |
+| `idle()`                                                                                             | method    | Switches the system to the idle state                                                |
+| `rest()`                                                                                             | method    | Switches the system to the rest state                                                |
+| `run()`                                                                                              | method    | Switches the system to the run state                                                 |
+| `lick_train()`                                                                                       | method    | Switches the system to the lick training state                                       |
+| `run_train()`                                                                                        | method    | Switches the system to the run training state                                        |
+| `resolve_reward(reward_size, tone_duration)`                                                         | method    | Delivers or simulates a water reward, returning whether water was actually dispensed |
+| `update_visualizer_thresholds(speed_threshold, duration_threshold)`                                  | method    | Updates the running speed and epoch duration thresholds the visualizer draws         |
+| `publish_runtime_thresholds(speed_threshold, duration_threshold)`                                    | method    | Publishes those same thresholds to the runtime control GUI                           |
+| `setup_reinforcing_guidance(initial_guided_trials, recovery_mode_threshold, recovery_guided_trials)` | method    | Configures guidance for reinforcing (water reward) trials                            |
+| `setup_aversive_guidance(initial_guided_trials, recovery_mode_threshold, recovery_guided_trials)`    | method    | Configures guidance for aversive (gas puff) trials                                   |
+| `terminated`                                                                                         | property  | Returns True once the system has entered the termination state                       |
+| `running_speed`                                                                                      | property  | Returns the animal's current running speed in centimeters per second                 |
+| `speed_modifier`                                                                                     | property  | Returns the modifier applied to the run training speed threshold                     |
+| `duration_modifier`                                                                                  | property  | Returns the modifier applied to the run training duration threshold                  |
+| `dispensed_water_volume`                                                                             | property  | Returns the total water volume, in microliters, dispensed during the current runtime |
+| `paused_time`                                                                                        | attribute | The total seconds spent paused, folded into the logic functions' timing budgets      |
 
-The five state methods carry their own section below. `descriptor` is the one public attribute, cached at construction.
+The five state methods carry their own section below. `descriptor` and `paused_time` are the two public attributes.
+`descriptor` is cached at construction, and `paused_time` accumulates the seconds spent paused for the per-mode logic
+functions to read and reset.
 
 ### Construction
 
@@ -280,10 +283,10 @@ A new event gets the next unused code, 7. Downstream behavior processing in the 
 ## Unity coupling
 
 For experiment sessions the orchestrator couples to Unity through a `VRTaskDriver` held on `_vr_task`. It pushes motion
-and lick events to the driver and consumes at most one typed `VRTaskEvent` per `_unity_cycle()`. The driver owns the
+and lick events to the driver and consumes at most one typed `_VRTaskEvent` per `_unity_cycle()`. The driver owns the
 MQTT broker connection, the topic vocabulary, scene and cue verification, cue-sequence trial decomposition, and the
-editor bridge that opens the scene and controls Play Mode, so `start()` only brackets `setup()` with the VR-screen
-enable and disable.
+editor bridge that opens the scene and controls Play Mode. Because the driver owns all of that, `start()` only brackets
+`setup()` with the VR-screen enable and disable.
 
 | Event kind                | Dispatch                                                                                                                 |
 |---------------------------|--------------------------------------------------------------------------------------------------------------------------|
@@ -291,10 +294,11 @@ enable and disable.
 | `TRIGGER_DELAY_REQUESTED` | `brake.send_pulse(duration_ms=event.delay_ms)` when the delay is positive                                                |
 | `UNITY_TERMINATED`        | Enters an emergency pause, echoes an error, and logs a `DISTANCE_SNAPSHOT` packet carrying the float64 traveled distance |
 
-The `STIMULUS_TRIGGERED` dispatch runs five steps in order:
+The `STIMULUS_TRIGGERED` dispatch runs six steps in order:
 
 - Resolves the trial position from `_resolved_stimulus_count`.
 - Discards an event past the decomposed trial count, with a warning.
+- Discards an event whose `trial_name` does not match the trial decomposed at the resolved position, with an error.
 - Delivers the puff directly through `gas_puff_valve.deliver_puff()` when `delivered` is set, but routes the reward
   through `resolve_reward()`, which sounds the tone without dispensing water once `_unconsumed_reward_count` reaches the
   descriptor's `maximum_unconsumed_rewards`.
@@ -315,83 +319,18 @@ decomposition are documented in `experiment:vr-driver-interface`, and the Unity 
 ## Detailed surfaces
 
 [`references/runtime-surface.md`](references/runtime-surface.md) carries the enumerations this file summarizes. Those
-are the per-mode logic function sequence with its function table and descriptor consumption pattern. The same file
-holds the shared-memory index maps, prototype defaults, and per-control tables of both GUIs and the visualizer. The
-`sle mesoscope` command and option tables live in `/mesoscope-vr-cli-reference`.
+are the per-mode logic function sequence with its function table and descriptor consumption pattern. The same file holds
+the shared-memory index maps, prototype defaults, and per-control tables of both GUIs and the visualizer.
 
 ---
 
 ## Session data lifecycle
 
-`preprocess_session_data(session_data)` (`mesoscope_vr/data_preprocessing.py`) is the Mesoscope-VR orchestration around
-the shared primitives that `experiment:data-management` owns. A session whose `nk.bin` marker survives never finished
-initialization, so it is purged instead of preprocessed, and each destination listed in
-`MesoscopeData.unconfigured_destinations` produces one WARNING.
+See [session-data-lifecycle.md](references/session-data-lifecycle.md) for the `preprocess_session_data` step order, the
+Mesoscope-VR-only preprocessing steps, and the `purge_session` and `migrate_animal_between_projects` behavior.
 
-| Order | Step                                                              | Owner                       |
-|-------|-------------------------------------------------------------------|-----------------------------|
-| 1     | `rename_mesoscope_directory(mesoscope_data)`                      | Mesoscope-VR                |
-| 2     | `assemble_session_logs(session_data, processes=...)`              | `cross_system`              |
-| 3     | `rename_session_videos(session_data)`                             | `cross_system`              |
-| 4     | `_launch_face_tracking(...)`, experiment sessions only, async     | Mesoscope-VR                |
-| 5     | `_pull_mesoscope_data(...)`                                       | Mesoscope-VR                |
-| 6     | `_preprocess_mesoscope_directory(...)`                            | Mesoscope-VR                |
-| 7     | `_preprocess_google_sheet_data(...)`                              | Mesoscope-VR Sheets wrapper |
-| 8     | `_purge_window_checking_behavior_data(...)`, window checking only | Mesoscope-VR                |
-| 9     | `_join_face_tracking(...)`                                        | Mesoscope-VR                |
-| 10    | `push_session_data(session_data, destinations, threads=15)`       | `cross_system`              |
-
-Steps 5 through 8 run inside a `try` whose `except BaseException` calls `_terminate_face_tracking(...)` and re-raises,
-so an abort never abandons the child holding the GPU. Constants: `_PREPROCESSING_WORKER_COUNT` is
-`resolve_worker_count(reserved_cores=1)`, `_STORAGE_TRANSFER_THREAD_COUNT = 15`,
-`_FACE_TRACKING_TERMINATION_TIMEOUT = 30.0` seconds, and `_INFERENCE_LOG_TAIL_CHARACTERS = 2000`.
-
-### Mesoscope-VR-only steps
-
-- `rename_mesoscope_directory` renames the shared `mesoscope_data` directory to the session-specific path, only when the
-  session path is absent and the shared path holds files, then recreates an empty shared directory.
-- `_launch_face_tracking` returns `None` when either `conda_environment` or `dlc_project_path` is unset, or when the
-  face-camera video is missing. Otherwise it runs `conda run -n <env> slvt infer` with `--config-path`, `--videos`,
-  `--shuffle`, `--device cuda`, `--gpus 0`, `--batch-size`, `--chunks`, `--compile-model`, `--no-progress`, and `--crop`
-  when configured. It writes predictions beside the video in raw `camera_data` and redirects output to a temporary log
-  file rather than a pipe, because a full pipe buffer would deadlock the long-running child.
-- `_join_face_tracking` waits for the child, then raises `RuntimeError` when the exit code is non-zero or no `.h5`
-  prediction file sits beside the video, which aborts the transfer and retains the local copy for a retry. The transient
-  log is removed on success and retained on failure, and the failure message carries its tail.
-- `_pull_mesoscope_data` raises `RuntimeError` unless `MotionEstimator.me`, `fov.roi`, and `zstack.tiff` are all
-  present, strips `*.bin` markers, creates `raw_data/raw_mesoscope_frames` only after that verification, and then
-  transfers with `remove_source=True`.
-- `_preprocess_mesoscope_directory` re-verifies the same three files, seeds the animal's persistent ScanImagePC
-  `fov.roi` and `MotionEstimator.me` when absent, copies all three into the session `mesoscope_data` directory, and
-  emits `frame_invariant_metadata.json`, `frame_variant_metadata.npz`, and `cindra_parameters.json` alongside the
-  LERC-recompressed frame stacks.
-- `_preprocess_google_sheet_data` returns early with a WARNING when neither sheet id is set, otherwise resolves
-  `get_credentials(CredentialsTypes.GOOGLE)`, validates the session type against `MESOSCOPE_VR_SESSIONS`, and loads the
-  descriptor through `DESCRIPTOR_REGISTRY`. Window-checking sessions call `update_surgery_quality` with the descriptor
-  value clamped into 0 to 3, every other session type writes the water log entry from the animal weight and the summed
-  training and experimenter-given volumes, and both handles close in a `finally`.
-
-### Purge and migration
-
-`purge_session(session_data)` builds its candidate set from the local session parent, every configured storage
-destination's session path, and the ScanImagePC session-specific path, then delegates to
-`delete_session_directories(..., require_confirmation=not nk_path.exists())`. A declined confirmation returns without
-further change, and a completed deletion also clears residual files from the shared ScanImagePC `mesoscope_data`
-directory.
-
-`migrate_animal_between_projects(animal, source_project, target_project)` raises `FileNotFoundError` when the target
-project is absent, then picks one of two strategies. With no configured storage destination it relocates each locally
-stored session on premises. With at least one, the first configured destination becomes the source of truth, and each
-session is pulled from that destination, re-preprocessed, and purged against it. Both strategies then relocate the
-ScanImagePC persistent directory at `mesoscope_directory/<project>/<animal>` and the VRPC persistent directory, and
-delete the redundant `<root>/<source_project>/<animal>` directory under the mesoscope mount, the data root, and every
-configured storage root.
-
-`sle mesoscope delete` runs the data-root containment check and then delegates to `purge_session` (the `delete` command
-in `interfaces/mesoscope_vr.py`). It therefore prompts for an interactive confirmation on any session whose `nk.bin`
-marker is already cleared, and deletes without a prompt only for a session that never finished initializing. The MCP
-`delete_session_tool` refuses to act without an explicit `confirm_deletion`, returning an `Error:` string when it is
-`None` and an abandonment notice when it is `"no"` (`interfaces/mesoscope_vr_tools.py`). You MUST route an
+The MCP `delete_session_tool` refuses to act without an explicit `confirm_deletion`, returning an `Error:` string when
+it is `None` and an abandonment notice when it is `"no"` (`interfaces/mesoscope_vr_tools.py`). You MUST route an
 agent-initiated deletion through the MCP tool and warn the user before passing `"yes"`.
 
 ---
@@ -407,7 +346,7 @@ the property that reads it, under the array lock, while a value-style slot is no
 with matplotlib on a `QtAgg` backend, driven by a `_BlitManager` for partial redraws. It runs in the main thread of the
 runtime control process and updates through direct calls from `runtime_cycle()`, with no IPC.
 
-`RUN_TRAINING_THRESHOLD_LIMITS`, a frozen `RunTrainingThresholdLimits` in `mesoscope_vr/system.py`, fixes the
+`RUN_TRAINING_THRESHOLD_LIMITS`, a frozen `_RunTrainingThresholdLimits` in `mesoscope_vr/system.py`, fixes the
 run-training speed bounds at 0.1 to 5.0 cm/s and the duration bounds at 0.05 to 5.0 s. The run-training logic clamps the
 effective thresholds to these bounds and the GUI constrains its spin boxes to them, so an out-of-range request is
 silently clamped rather than rejected.
@@ -459,10 +398,10 @@ method to `MesoscopeVRSystem` that drives every actuator and monitoring flag and
 member in `mesoscope_vr/visualizer.py` and update the plot-construction and update logic in `BehaviorVisualizer`.
 
 **Step 4, author the runtime logic function.** In `mesoscope_vr/data_acquisition.py`, add a top-level
-`<new_mode>_logic(...)` that mints the `SessionData` and the descriptor, constructs `MesoscopeVRSystem`, calls
-`mark_runtime_initialized()` once the hardware is up, drives the state transitions and the `runtime_cycle()` loop, and
-tears down in a `finally` block. Mirror `lick_training_logic` for a mode without trials and `experiment_logic` for a
-trial-structured mode.
+`<new_mode>_logic(...)` that mints the `SessionData` and the descriptor, constructs `MesoscopeVRSystem`, and calls
+`mark_runtime_initialized()` once the hardware is up. The same function drives the state transitions and the
+`runtime_cycle()` loop, and tears down in a `finally` block. Mirror `lick_training_logic` for a mode without trials and
+`experiment_logic` for a trial-structured mode.
 
 **Step 5, add the CLI command.** In `interfaces/mesoscope_vr.py`, add a `@run.command(...)` for a session or a
 `@mesoscope.command(...)` for a standalone utility. A `@run.command` declares its own defaultless options and forwards
