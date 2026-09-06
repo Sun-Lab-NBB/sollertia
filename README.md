@@ -7,7 +7,7 @@
 Sollertia is an open-source platform for running behavioral neuroscience experiments end to end, from designing an
 acquisition system to forging the recorded sessions into analysis-ready datasets. It builds on the
 [Ataraxis](https://github.com/Sun-Lab-NBB/ataraxis) framework, which supplies the hardware interface libraries and the
-timing primitives underneath, and adds the layers a laboratory needs above them: a shared asset vocabulary, an
+timing primitives underneath. Above them, Sollertia adds the layers a laboratory needs: a shared asset vocabulary, an
 acquisition runtime, a Virtual Reality task engine, and a processing pipeline.
 
 The platform separates what every acquisition system shares from what one system contributes. System-agnostic libraries
@@ -115,13 +115,13 @@ ___
 
 - **[sollertia-shared-assets](https://github.com/Sun-Lab-NBB/sollertia-shared-assets)** (Python). Defines every record
   the platform reads and writes, the registries that dispatch them per acquisition system, and the `slsa` MCP server
-  that authors and validates them. Every other Python library depends on it.
+  that authors and validates them. Both sollertia-experiment and sollertia-forgery depend on it.
 
 ### Data Acquisition
 
-- **[sollertia-experiment](https://github.com/Sun-Lab-NBB/sollertia-experiment)** (Python). The acquisition runtime.
-  Composes hardware binding classes into an acquisition system, runs the session state machine, and preprocesses the
-  recorded data for transfer. Ships the `sle` CLI and MCP server.
+- **[sollertia-experiment](https://github.com/Sun-Lab-NBB/sollertia-experiment)** (Python). The acquisition runtime,
+  which composes hardware binding classes into an acquisition system, runs the session state machine, and preprocesses
+  the recorded data for transfer. Ships the `sle` CLI and MCP server.
 - **[sollertia-micro-controllers](https://github.com/Sun-Lab-NBB/sollertia-micro-controllers)** (C++). The firmware
   running on every Ataraxis Micro Controller the platform drives, one module class per hardware device.
 - **[sollertia-virtual-reality](https://github.com/Sun-Lab-NBB/sollertia-virtual-reality)** (C#, Unity). The Virtual
@@ -140,10 +140,10 @@ ___
 
 Some tools the platform runs cannot live inside it. An external tool binding is reached across a process boundary,
 because its runtime, its dependency pins, its license, or its own launcher forbids installing or driving it beside the
-stack, and its contract is the artifact it leaves on disk rather than an API. A binding is not indexed above, ships no
-marketplace plugin, and is not version-checked as a sibling clone. It is documented at the two seams it touches, the
-call that produces the artifact and the stage that reads it back. The `experiment:external-tool-bindings` skill owns
-the convention and the producer seam, and `forging:processing-input-format` owns the consumer seam.
+stack. The binding's contract is the artifact it leaves on disk rather than an API. A binding is not indexed above,
+ships no marketplace plugin, and is not version-checked as a sibling clone. It is documented at the two seams it
+touches, the call that produces the artifact and the stage that reads it back. The `experiment:external-tool-bindings`
+skill owns the convention and the producer seam, and `forging:processing-input-format` owns the consumer seam.
 
 - **[sollertia-video-tracking](https://github.com/Sun-Lab-NBB/sollertia-video-tracking)** (Python, DeepLabCut). Bolted
   into Mesoscope-VR acquisition preprocessing, which invokes its `slvt infer` command through `conda run` and leaves
@@ -168,8 +168,7 @@ pip install sollertia-shared-assets sollertia-experiment sollertia-forgery
 ```
 
 An external tool binding installs into its own environment instead, on the interpreter its own pins allow. For
-sollertia-video-tracking that is Python `>=3.12,<3.13`, and the acquisition configuration names the environment it
-created.
+sollertia-video-tracking that is Python `>=3.12,<3.13`, and the acquisition configuration names that environment.
 
 C++ firmware is built and uploaded with PlatformIO from a clone of the repository, and the Unity project is opened
 directly in the Unity Editor. Both carry their own setup instructions in their READMEs.
@@ -228,12 +227,114 @@ type. The one exception performs a discrete on-demand action and can be typed as
 |------------------------|------------------------------------------------------------------------------------|
 | `/system-health-check` | Verifies platform configuration, network mounts, hardware, and configuration files |
 
-Each plugin also depends on the ataraxis marketplace for development-convention skills, so add that marketplace and
-install its `automation` plugin alongside these:
+Each plugin also depends on the ataraxis and cindra marketplaces. Add both, then install `automation` for the
+development conventions, `video`, `communication`, and `microcontroller` for the hardware and log-processing skills that
+receive the sollertia skills' handoffs, and `cindra` for the imaging stages the forging pipelines dispatch:
 
 `/plugin marketplace add Sun-Lab-NBB/ataraxis`
 
+`/plugin marketplace add Sun-Lab-NBB/cindra`
+
 `/plugin install automation@ataraxis`
+
+`/plugin install video@ataraxis`
+
+`/plugin install communication@ataraxis`
+
+`/plugin install microcontroller@ataraxis`
+
+`/plugin install cindra@cindra`
+
+### assets
+
+| Skill                          | Description                                                         |
+|--------------------------------|---------------------------------------------------------------------|
+| `working-directory`            | Initializes the local working directory, data root, and credentials |
+| `project-hierarchy`            | Discovers the project hierarchy and creates and removes projects    |
+| `session-discovery`            | Discovers sessions under a project root and filters the result      |
+| `session-data`                 | Reads, writes, and validates SessionData markers and health reports |
+| `session-descriptors`          | Reads, writes, and validates per-session-type descriptor YAMLs      |
+| `session-hardware-state`       | Reads, writes, and validates per-system hardware-state YAMLs        |
+| `experiment-configuration`     | Authors per-project, per-system experiment configuration YAMLs      |
+| `task-templates`               | Authors, modifies, and validates reusable task template YAMLs       |
+| `data-assets`                  | Reads, writes, and describes on-disk read-asset dataclasses         |
+| `datasets`                     | Discovers, inspects, reads, writes, and validates forged datasets   |
+| `library-extension`            | Owns the extension path of the shared-assets registry system        |
+| `cli-reference`                | Documents the human-facing `slsa` command-line interface            |
+| `assets-mcp-environment-setup` | Diagnoses and resolves MCP server connectivity issues               |
+
+### experiment
+
+| Skill                              | Description                                                               |
+|------------------------------------|---------------------------------------------------------------------------|
+| `system-design-pipeline`           | Orders the phases of designing and building a new acquisition system      |
+| `pipeline`                         | Orders the phases of the experiment lifecycle from bringup to handoff     |
+| `acquisition-system-design`        | Documents the configuration and binding-class layer of a system           |
+| `acquisition-system-runtime`       | Documents the runtime state machine and per-mode logic layer              |
+| `acquisition-system-setup`         | Discovers and verifies the hardware connected to an acquisition PC        |
+| `microcontroller-interface`        | Registry of the paired Module and ModuleInterface classes                 |
+| `zaber-interface`                  | Guides implementation of Zaber motor interfaces using zaber-motion        |
+| `vr-driver-interface`              | Documents the Virtual Reality task driver subsystem and its MQTT contract |
+| `google-sheets-processing`         | Guides implementation of the SurgeryLog and WaterLog sheet processors     |
+| `data-management`                  | Preprocesses, migrates, and deletes session data after acquisition        |
+| `external-tool-bindings`           | Owns the external tool binding convention and its producer seam           |
+| `library-extension`                | Owns the extension path of the acquisition runtime and the firmware       |
+| `system-health-check`              | Verifies platform configuration, mounts, hardware, and configurations     |
+| `cli-reference`                    | Documents the system-agnostic half of the `sle` command-line interface    |
+| `experiment-mcp-environment-setup` | Diagnoses and resolves MCP server connectivity issues                     |
+
+### forging
+
+| Skill                           | Description                                                                |
+|---------------------------------|----------------------------------------------------------------------------|
+| `pipeline`                      | Orders the phases of the processing lifecycle from setup to project state  |
+| `job-planning`                  | Sizes every runnable job of a session or a dataset                         |
+| `batch-processing`              | Orchestrates batch preparation, job execution, monitoring, and cancelation |
+| `dataset-definition`            | Composes and grows forged dataset hierarchies and reports their state      |
+| `dataset-forging`               | Documents what the forging pipeline does differently from the other five   |
+| `remote-execution`              | Runs processing work on the configured SLURM compute server                |
+| `server-configuration`          | Authors the ServerConfiguration YAML that authorizes remote execution      |
+| `processing-input-format`       | Documents the on-disk inputs each batch pipeline requires                  |
+| `processing-results`            | Documents what each pipeline writes to disk and how to verify it           |
+| `project-state`                 | Documents the session manifest and the job table published beside it       |
+| `data-processing-design`        | Documents the agnostic worker and per-system donation design pattern       |
+| `library-extension`             | Owns the extension path of the processing library and its registries       |
+| `cli-reference`                 | Documents the human-facing `slf` command-line interface                    |
+| `forging-mcp-environment-setup` | Diagnoses and resolves MCP server connectivity issues                      |
+
+### mesoscope
+
+| Skill                                 | Description                                                            |
+|---------------------------------------|------------------------------------------------------------------------|
+| `mesoscope-vr`                        | Documents the Mesoscope-VR hardware inventory and configuration layer  |
+| `mesoscope-vr-runtime`                | Documents the state machine, the orchestrator, and the control GUIs    |
+| `mesoscope-vr-session-schema`         | Documents the four session descriptors and the hardware-state snapshot |
+| `mesoscope-vr-experiment-schema`      | Documents the experiment configuration and trial class schema          |
+| `mesoscope-vr-snapshots`              | Reads and writes the per-session frozen position snapshots             |
+| `mesoscope-vr-module-parsing`         | Documents the eight-entry microcontroller module parser registry       |
+| `mesoscope-vr-trial-decomposition`    | Documents the runtime-log cue-sequence to trial decomposition          |
+| `mesoscope-vr-fluorescence-alignment` | Documents the fluorescence frame alignment sub-assembly                |
+| `mesoscope-vr-video-tracking`         | Documents the pupil-tracking pass and video sub-dataset assembler      |
+| `mesoscope-vr-imaging-configuration`  | Documents the two-photon donations and cindra configuration resolvers  |
+| `mesoscope-vr-dataset-assembly`       | Documents the session-assembly worker and its admission policy         |
+| `mesoscope-vr-processing-schema`      | Documents the filename rosters and the assembled column roster         |
+| `mesoscope-vr-cli-reference`          | Documents the human-facing `sle mesoscope` command group               |
+
+### unity
+
+| Skill                         | Description                                                            |
+|-------------------------------|------------------------------------------------------------------------|
+| `task-prefabs`                | Creates, deletes, and inspects Unity tasks from YAML task templates    |
+| `task-scenes`                 | Manages task scenes and project asset enumeration                      |
+| `task-parameters`             | Reads and writes the consolidated Task Parameters editor window        |
+| `play-mode`                   | Controls Unity Editor Play Mode through the relay                      |
+| `zone-prefabs`                | Manufactures new trigger zone prefabs from the canonical base prefabs  |
+| `scene-setup`                 | Guides Editor-side scene configuration ahead of Play Mode              |
+| `task-generator`              | Documents the `CreateTask.cs` editor pipeline that builds task prefabs |
+| `gimbl-framework`             | Reference for the inlined GIMBL VR framework components                |
+| `mqtt-contract`               | Documents the bidirectional MQTT topic contract with the runtime       |
+| `unity-tests`                 | Documents the Unity Test Framework suite and the assembly layout       |
+| `unity-mcp-environment-setup` | Diagnoses and resolves Unity Editor relay connectivity issues          |
 
 ___
 
@@ -266,18 +367,18 @@ ___
 
 ## Adoption Roadmap
 
-1. **Install the marketplaces.** Add both `sollertia` and `ataraxis`, then install the plugins matching the side of the
-   platform you work on. Acquisition needs `assets` and `experiment`, processing needs `assets` and `forging`.
+1. **Install the marketplaces.** Add `sollertia`, `ataraxis`, and `cindra`, then install the plugins matching the
+   adopter's side of the platform. Acquisition needs `assets` and `experiment`, processing needs `assets` and `forging`.
 2. **Bootstrap the working directory.** Set the local working directory, the data root, and the platform credentials,
-   which every other tool resolves its paths against.
+   against which every other tool resolves its paths.
 3. **Bring up the hardware.** Discover the connected cameras, microcontrollers, and motors, and reconcile what is found
    against the system configuration file.
 4. **Author the task and the experiment.** Design a Virtual Reality task template, generate its Unity task, and author
    the experiment configuration that instantiates it.
 5. **Record and process a session.** Run one acquisition session, preprocess it, then plan and execute the processing
    pipelines against it before scaling to a project.
-6. **Implement your own system.** Mesoscope-VR is the reference instance, and the `mesoscope` plugin documents every
-   donation it makes. Scaffold your engine from its shape rather than inventing a new one, and expect to settle the
+6. **Implement a new system.** Mesoscope-VR is the reference instance, and the `mesoscope` plugin documents every
+   donation it makes. Scaffold the new engine from its shape rather than inventing a new one, and expect to settle the
    hardware-defined decisions with the human supervisor while an agent wires the registry seams around them.
 
 ___
@@ -285,14 +386,16 @@ ___
 ## License
 
 Every repository indexed above is released under the Apache License 2.0. See [LICENSE](LICENSE) for the full text.
+The cindra imaging library, which the architecture diagram shows beneath sollertia-forgery and which that library
+declares as a runtime dependency, is released under the GNU General Public License v3.0 or later instead.
 
 ___
 
 ## Acknowledgments
 
 This platform builds on the [Ataraxis](https://github.com/Sun-Lab-NBB/ataraxis) framework, on
-[DeepLabCut](https://github.com/DeepLabCut/DeepLabCut) for pose estimation, and on
-[Unity](https://unity.com/) for the Virtual Reality task engine.
+[DeepLabCut](https://github.com/DeepLabCut/DeepLabCut) for pose estimation, and on [Unity](https://unity.com/) for the
+Virtual Reality task engine.
 
 Developed in the Sun (NeuroAI) lab at Cornell University. Questions and contributions are welcome through the issue
 tracker of the repository the question concerns.
