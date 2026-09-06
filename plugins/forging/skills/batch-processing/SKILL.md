@@ -18,6 +18,7 @@ serves every pipeline `dispatch.BATCH_PIPELINES` declares, selected by a `pipeli
 call these nine tools.
 
 - [tool-responses.md](references/tool-responses.md) carries each tool's complete return-key tree and every condition.
+- [error-routing.md](references/error-routing.md) carries every error message the nine tools return, with its remedy.
 
 ---
 
@@ -62,7 +63,7 @@ never assemble one yourself, and confirm both the selection and its owning proje
 You MUST treat `prepare_batch_tool` as an expensive write. It plans each unit, creates and aligns that unit's processing
 trackers, and rewrites the project's plan and state artifacts before registering anything, so call it once per intended
 batch and never as a poll. You MUST then carry the returned `batch_id` forward, since `execute_jobs_tool` accepts
-identifiers and no path, recovering a lost one with `list_prepared_batches_tool` rather than preparing the work again.
+identifiers and no path, and recover a lost one through the registry rather than preparing the work again.
 
 ---
 
@@ -154,19 +155,19 @@ A remote read resolves as well as reports. It regenerates and reads each covered
 scheduler accounting and the queue, resolves every covered allocation once, and closes each batch whose entries all
 prescribe the plain `drop` remediation. Each listed allocation carries a `scheduler_state` of `held`, `settled`, or
 `gone`, the `tracker_status` its job recorded, a `verdict` of `running`, `finished`, `failed`, `abandoned`, or
-`stranded`, and the `remediation` it prescribes, while each batch carries a `progress` verdict of `progressing`,
-`stalled`, or `awaiting_closure` with a `verdicts` count, `stranded_allocations`, `unresolvable_allocations`, and a
-`remedy`. The response carries `stalled_batch_ids`, `uncovered_batch_ids` naming any batch another process recorded
-while the read ran, and `scheduler_read_error`. `active` counts the `running` verdict rather than the `held` scheduler
-state, so a held tracker claim or an executor outside the scheduler sets it even where every recorded allocation reads
-`settled` or `gone`, and no stalled batch sets it, so read that list. `/remote-execution` owns those values and
+`stranded`, and the `remediation` it prescribes. Each batch carries a `progress` verdict of `progressing`, `stalled`, or
+`awaiting_closure`, with a `verdicts` count, `stranded_allocations`, `unresolvable_allocations`, and a `remedy`. The
+response carries `stalled_batch_ids`, `uncovered_batch_ids` naming any batch another process recorded while the read
+ran, and `scheduler_read_error`. `active` counts the `running` verdict rather than the `held` scheduler state, so a held
+tracker claim or an executor outside the scheduler sets it even where every recorded allocation reads `settled` or
+`gone`. No stalled batch sets it, so read that list. `/remote-execution` owns those values and
 `retire_remote_batches_tool` acts on them.
 
 **Note:** `summary`, `status`, and `breakdown` describe the whole covered batch and never respect a per-job filter, and
 only `jobs`, `rows`, and `matched_rows` do. Remotely, `batch_ids` narrows the covered batches, so it narrows `active`,
 `summary`, and `breakdown` with them. A local read with no live state ignores every filter, reporting the recorded
-outcomes of the named batches where any exist and otherwise only that no batch is running in this process, which is also
-what a restarted server returns while outcome files sit on disk. Blocked jobs arrive as a `blocked_jobs` count plus a
+outcomes of the named batches where any exist and otherwise only that no batch is running in this process. A restarted
+server returns the same while outcome files sit on disk. Blocked jobs arrive as a `blocked_jobs` count plus a
 `blocked_reason` string, and their tracker record still reads scheduled, so list them with `status_filter="scheduled"`.
 
 `cancel_processing_tool` stops a run. Locally it is cooperative, remotely it kills queued and running allocations alike
@@ -200,11 +201,11 @@ retire_remote_batches_tool(batch_ids: list[str], *, force: bool = False,
 | Parameter              | Type        | Default    | Description                                                                             |
 |------------------------|-------------|------------|-----------------------------------------------------------------------------------------|
 | `batch_ids`            | `list[str]` | (required) | Outstanding batches, as a remote status read reports them. An empty list errors         |
-| `force`                | `bool`      | `False`    | Also remediates batches holding a `running` allocation, cancelling every held one first |
+| `force`                | `bool`      | `False`    | Also remediates batches holding a `running` allocation, canceling every held one first  |
 | `drop_without_outcome` | `bool`      | `False`    | Also drops the entries when closure cannot snapshot what their jobs recorded            |
 
 **Note:** there is no `host` parameter, since only a remote batch has a ledger entry, and no wildcard, since the drop is
-irreversible. The call resolves every allocation exactly as the status read does, then cancels under `force` alone,
+irreversible. The call resolves every allocation exactly as the status read does, then cancels under `force` alone. It
 resets each `stranded` job to `SCHEDULED` on its own tracker, snapshots each named batch through the same closure a
 settled batch takes, and drops the entries. **That cancellation is not confined to this ledger**: it also covers the
 allocation each job's tracker claims, so `force` can kill an allocation another machine submitted; `/remote-execution`
@@ -325,8 +326,7 @@ identifier and every per-unit operation is scoped by the unit path paired with t
 
 ### Execution model
 
-1. **Prepare** materializes the host's artifacts and records a dispatchable batch document without running any job. It
-   is not idempotent in identity, since each call issues an identifier and rewrites plan caches and project artifacts.
+1. **Prepare**, as described above, records a dispatchable batch document without running any job.
 2. **Execute** dispatches the named prepared batches. A local pool holds one run at a time and a second dispatch is
    refused, though one call may carry several prepared batches into that run against one pair of budgets. A remote run
    submits one scheduler allocation per job in dependency order and may hold many batches at once.
@@ -356,7 +356,7 @@ identifier and every per-unit operation is scoped by the unit path paired with t
    and a remote run once no allocation remains outstanding. Read each outcome's `succeeded`, `failed`, `blocked`, and
    `outstanding` counts separately, because `complete` is a strict equality against a total that includes blocked jobs.
    A local run whose closure recorded no outcome, because every close raised or its batches had already been retired,
-   keeps its live-run state instead, so `active: false` carrying `status`, `summary`, and `breakdown` but no
+   keeps its live-run state instead. An `active: false` read carrying `status`, `summary`, and `breakdown` but no
    closed-batch message is equally a finished run. That `summary` carries neither `blocked` nor `outstanding`, so take
    blocked work from the separate `blocked_jobs` count and confirm the batches through `list_prepared_batches_tool`.
 10. **Verify the output.** On success, invoke `/processing-results` for the output layout and `/project-state` for the
@@ -412,47 +412,8 @@ upstream stage first, then execute the dependents again.
 
 ## Error routing
 
-Errors carry `success: false` and a human-readable `error` string alone, with no error code and no structured detail,
-so match on `success` and read the string. The one exception is `No valid jobs to execute.`, which also carries
-`invalid_jobs`. Two rejections are shared, one by every tool taking a pipeline and one by every tool taking a host.
-
-```text
-Unsupported batch pipeline '{pipeline}'. Available: checksum, forging, microcontroller, runtime, two_photon, video.
-Unsupported host '{host}'. Available: local, remote.
-```
-
-| Message                                                                                                                                                                      | Tool                           | Remedy                                                                                                                                                                                                                                          |
-|------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|--------------------------------|-------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
-| `Unable to prepare the {host} '{pipeline}' batch. {exception}`                                                                                                               | `prepare_batch_tool`           | Read the wrapped exception, which names the missing plan table, the multi-project batch, or the absent server configuration                                                                                                                     |
-| `Unable to read the prepared batches {batch_ids}. {exception}`                                                                                                               | `execute_jobs_tool`            | A registry file is unreadable or malformed. Re-list, then re-prepare                                                                                                                                                                            |
-| `No prepared batch exists for identifier(s) {missing}. Prepare the pipeline again to register its jobs.`                                                                     | `execute_jobs_tool`            | Recover the identifier with `list_prepared_batches_tool`                                                                                                                                                                                        |
-| `No batch was named.`                                                                                                                                                        | `execute_jobs_tool`            | The identifier list was empty                                                                                                                                                                                                                   |
-| `Unable to execute batches prepared against the hosts {hosts} together. …`                                                                                                   | `execute_jobs_tool`            | Dispatch one host's batches at a time                                                                                                                                                                                                           |
-| `No dispatchable jobs. Every prepared job is blocked or already succeeded.`                                                                                                  | `execute_jobs_tool`            | Read the preparation's `blocked_jobs` list and run the upstream stage                                                                                                                                                                           |
-| `No valid jobs to execute.`                                                                                                                                                  | `execute_jobs_tool`            | The response carries `invalid_jobs`, each entry naming the field that failed                                                                                                                                                                    |
-| `A batch is already running in this process. Wait for it to finish or cancel it before starting another.`                                                                    | `execute_jobs_tool`            | One local pool holds one run. Wait, or cancel                                                                                                                                                                                                   |
-| `Unable to clear the recorded state of the batch's jobs. {exception}`                                                                                                        | `execute_jobs_tool`            | A concurrent writer held a unit's tracker lock past the timeout, so nothing was dispatched and no record was cleared. Retry once that writer finishes                                                                                           |
-| `Unable to submit the remote batch to the compute server's scheduler. …` and `Unable to cancel the allocations the named batches hold …`                                     | execute and cancel             | The submit message means the scheduler rejected a job; every allocation it accepted first stays queued and recorded, so re-running the batch submits what it left. The cancel one means nothing was cancelled and every batch stays outstanding |
-| `Unable to read this machine's submission ledger, …` and `Unable to drop the named batches from this machine's submission ledger. …`                                         | status and retire              | This machine's ledger file or its lock. The drop message states that remediating again is safe                                                                                                                                                  |
-| `Unable to reach the remote compute server, …`, `Unable to read what the named batches' jobs recorded …`, and `Unable to read the state of the named batches' allocations …` | status and retire              | Restore the connection, the host's state artifacts, or scheduler accounting, then call again                                                                                                                                                    |
-| `Unable to retire the batches every allocation of which resolves to a plain drop from the submission ledger. …`                                                              | status and cancel              | The closure that runs inside the call could not write. Call again once the host answers                                                                                                                                                         |
-| `Unable to cancel the allocations the scheduler still holds, …` and `Unable to return the stranded jobs to the scheduled state, …`                                           | `retire_remote_batches_tool`   | Nothing was changed and no flag waives either one. Retry once the server answers                                                                                                                                                                |
-| `Unable to report the named batch(es) {uncovered}. …` and `No outstanding remote batch has identifier(s) {unknown}. …`                                                       | status, cancel, and retire     | A live local run answers only for the batches it covers, and a remote call only for the outstanding ones                                                                                                                                        |
-| `Unknown status '{status_filter}'. Available: failed, running, scheduled, succeeded.` locally, `Unknown scheduler state '{status_filter}'. Available: {states}.` remotely    | `get_processing_status_tool`   | Local labels are lowercase, remote scheduler states are uppercase                                                                                                                                                                               |
-| `Unable to read the recorded outcomes of {named}. {exception}`                                                                                                               | `get_processing_status_tool`   | An outcome file is unreadable. Re-list the registry                                                                                                                                                                                             |
-| `No batch is running.`                                                                                                                                                       | `cancel_processing_tool`       | Nothing is live in this process                                                                                                                                                                                                                 |
-| `No remote batch is outstanding. …`                                                                                                                                          | cancel and retire              | Read the recorded outcome instead of the outstanding listing                                                                                                                                                                                    |
-| `Unable to remediate a batch without an identifier. …`                                                                                                                       | `retire_remote_batches_tool`   | Name the batches. Remediation never defaults to the whole ledger                                                                                                                                                                                |
-| `Unable to remediate the named remote batch(es). {n} of their allocation(s) resolve as 'running' …`                                                                          | `retire_remote_batches_tool`   | Wait, cancel through `cancel_processing_tool`, or pass `force=True` to cancel each one first                                                                                                                                                    |
-| `Unable to snapshot what the jobs of {batches} recorded. …` and `Unable to reach the remote compute server, so neither the state … nor what their jobs recorded …`           | `retire_remote_batches_tool`   | Restore server access and remediate again, or pass `drop_without_outcome=True` to drop the entries regardless                                                                                                                                   |
-| `The named batches hold no allocation to cancel.`                                                                                                                            | `cancel_processing_tool`       | Confirm the identifiers through a remote status read first                                                                                                                                                                                      |
-| `Unable to reset the {host} '{pipeline}' jobs. {exception}` and `Unable to clean the {host} '{pipeline}' output. {exception}`                                                | reset and clean                | Read the wrapped exception, which for a remote call names the failing server-side command                                                                                                                                                       |
-| `A batch is currently running in this process. Wait for it to finish or cancel it before cleaning output.`                                                                   | `clean_processing_output_tool` | The guard covers this process's pool alone                                                                                                                                                                                                      |
-| `No prepared batch has identifier(s) {unknown}. Held: {held}.`                                                                                                               | `list_prepared_batches_tool`   | The message enumerates what the registry does hold                                                                                                                                                                                              |
-| `Unable to read the prepared batches under '{directory}'. {exception}`                                                                                                       | `list_prepared_batches_tool`   | The registry directory is unreadable                                                                                                                                                                                                            |
-| `Unable to resolve the prepared-batch directory. {exception}`                                                                                                                | list and forget                | The platform working directory does not resolve, so neither tool reaches the registry. `/forging-mcp-environment-setup` owns that check                                                                                                         |
-| `Unable to forget a batch without an identifier. …`                                                                                                                          | `forget_prepared_batches_tool` | Name the batches, since there is no wildcard                                                                                                                                                                                                    |
-| `Unable to forget the batches {batch_ids} under '{directory}'. {exception}`                                                                                                  | `forget_prepared_batches_tool` | Removal was partial and its report is lost. Re-list to see what remains                                                                                                                                                                         |
+[error-routing.md](references/error-routing.md) carries every error message these tools return, the tool that raises
+each one, and its remedy.
 
 ---
 
@@ -484,7 +445,6 @@ Tool-settled (run `rg -n '.{121,}' <file>` and `wc -l <file>`):
 - [ ] SKILL.md under 500 lines
 - [ ] Every code fence carries a language identifier
 - [ ] rg -n 'ataraxis@|cindra@' <file> finds nothing
-- [ ] No acquisition-system-specific file name, column, or session type appears in this skill
 
 Batch workflow, tool-settled (run get_processing_status_tool on the batch, then read_project_jobs_tool):
 - [ ] sollertia-forgery MCP server is connected
@@ -502,4 +462,5 @@ Batch workflow, agent-judged:
 - [ ] Blocked jobs distinguished from failed jobs in every report
 - [ ] Failed jobs retried through reset or clean, with the destructive cost of clean stated first
 - [ ] Output verified through /processing-results before the batch is called complete
+- [ ] No acquisition-system-specific file name, column, or session type appears in this skill
 ```

@@ -104,14 +104,16 @@ gains a camera), follow these steps:
 - `<system>/system_controller.py` for the lifecycle orchestrator.
 - `<system>/data_acquisition.py` for the per-mode logic functions: one per session type the system runs, plus one per
   non-session runtime mode such as hardware maintenance.
-- `<system>/acquisition_components.py` for the shared runtime-state types (trial state, log message codes) and the
-  hardware setup, tear-down, and snapshot helpers the orchestrator and the per-mode logic functions both call, kept out
-  of `system_controller.py` so the orchestrator holds only the state machine.
+- `<system>/acquisition_components.py` for the shared runtime-state types (trial state, log message codes) and for the
+  hardware setup, tear-down, and snapshot helpers that the orchestrator and the per-mode logic functions both call.
+  Keeping them here leaves `system_controller.py` holding only the state machine.
 - `<system>/data_preprocessing.py` for the session-lifecycle orchestrators, meaning the preprocess, purge, and migrate
   entry points that compose the six shared `cross_system` primitives and add the system's own conversion, compression,
   and cleanup steps around them.
 - `<system>/__init__.py` re-exporting the per-mode logic functions, the configuration helpers, and the three
   session-lifecycle entry points, because the CLI group and the tool module import them from the package.
+- `<system>/system_health.py` for the on-demand health-report builders the system's own package owns, such as the
+  filesystem-mount report that both the `check-mounts` CLI command and the mount-check MCP tool call.
 - `<system>/visualizer.py`, `<system>/runtime_ui.py`, `<system>/maintenance_ui.py`, and an instrument-driver module,
   added as the system's hardware and runtime modes require.
 - `interfaces/<system>.py` for the `sle <system>` CLI command group, registered in `entry_points.py`.
@@ -174,7 +176,7 @@ reuse one or author a new one.
    a sheet identifier or endpoint. It authenticates, builds the header-to-location map, validates, and caches the
    connection. Expose `extract_*` and `update_*` methods, and retry every API call. Expose a `close()` that releases the
    connection, and treat `__del__` as a backstop only, because the caller owning the processor closes it in a
-   `try/finally` (`SurgeryLog` in `cross_system/google_sheet_tools.py`). See the processing-asset contract in
+   `try/finally` (`SurgeryLog` in `cross_system/google_sheet_tools.py`). See the processor contract in
    `/google-sheets-processing`.
 
 5. **Place it by reuse scope.** A processor that any acquisition system could consume goes in `cross_system/`, beside

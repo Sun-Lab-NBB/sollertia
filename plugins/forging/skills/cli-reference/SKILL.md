@@ -179,8 +179,8 @@ naming none of them runs every stage, all three on `video` and all four in seque
 | `-np` | `--no-progress`     | flag   | `False`    | flag       | Suppresses the progress bars. They are displayed by default        |
 
 **Note on the two-phase body:** an invocation naming `-s`, `-f`, or `-ra` defines the hierarchy first through
-`forging/pipeline.py::define_forging_dataset` and then runs the outstanding jobs, while an invocation naming none of the
-three skips definition and runs jobs alone, as the scheduler-rendered command deliberately does. **Note on the freeze
+`forging/pipeline.py::define_forging_dataset` and then runs the outstanding jobs. An invocation naming none of the three
+skips definition and runs jobs alone, as the scheduler-rendered command deliberately does. **Note on the freeze
 policy:** an animal already in the dataset is frozen, because widening its session set invalidates the outputs already
 forged for it. Name that animal with `-ra` to rebuild it from the provided sessions.
 
@@ -250,7 +250,7 @@ A caller holding per-unit identifiers passes one unit per invocation rather than
 | `batches`      | `-b`  | `--batch-id`             | `str`  | `()`       | repeatable           | One outstanding batch to report. Omit to report every one                                      |
 | `batches`      | `-a`  | `--allocations`          | flag   | `False`    | flag                 | Adds one row per resolved allocation beneath the batch table                                   |
 | `retire-batch` | `-b`  | `--batch-id`             | `str`  | (required) | required, repeatable | One outstanding batch to remediate and drop from the ledger                                    |
-| `retire-batch` | `-f`  | `--force`                | flag   | `False`    | flag                 | Remediates batches holding an allocation that resolves as running, cancelling each one first   |
+| `retire-batch` | `-f`  | `--force`                | flag   | `False`    | flag                 | Remediates batches holding an allocation that resolves as running, canceling each one first   |
 | `retire-batch` | `-do` | `--drop-without-outcome` | flag   | `False`    | flag                 | Drops the entries when what their jobs recorded cannot be snapshotted                          |
 | `pull`         | `-r`  | `--remote-path`          | `str`  | (required) | required             | The absolute server-side path to the file or directory to copy                                 |
 | `pull`         | `-d`  | `--destination`          | `Path` | (required) | required             | The local directory receiving the copy. Created when it does not exist                         |
@@ -279,79 +279,9 @@ expands to `--force` on `omp` and on `server retire-batch`, but `--force-recreat
 
 ## Command behavior and failure modes
 
-### How a failure reaches the user
-
-No command body is wrapped in a catching decorator, so every failure the body raises leaves a Python traceback and a
-non-zero exit. The message text identifies the fault, so ask the user to paste the traceback rather than the status.
-
-| Path                                                                       | Mechanism                                 | Observable outcome                         |
-|----------------------------------------------------------------------------|-------------------------------------------|--------------------------------------------|
-| `slf omp` finding no runtime to link                                       | `raise SystemExit(1)`                     | Exit 1, the only deliberate non-zero exit  |
-| A missing required option, a rejected choice, or a path that must exist    | Click's own parameter validation          | Usage message, exit 2                      |
-| `-sp` omitted before a `process` subcommand, `-pp` before a `manifest` one | `click.UsageError` from the shared object | Usage message naming the omission, exit 2  |
-| Any guard or pipeline error on every other command                         | The exception propagates uncaught         | Traceback, non-zero exit                   |
-| `slf plan session` or `slf plan dataset` meeting an unplannable unit       | Caught per path inside the loop           | `<name>: planned nothing. <error>`, exit 0 |
-| `slf reset` or `slf clean` meeting an unloadable unit                      | Warning logged, the unit is skipped       | Exit 0                                     |
-
-`slf dataset-state` catches nothing, so one bad dataset path aborts the whole loop partway through. There is no
-version, verbosity, or global host option anywhere: `slf` addresses this machine, and the remote host is reachable only
-through `slf server`.
-
-### The macOS OpenMP precondition
-
-`shared_assets/openmp.py::verify_openmp_runtime` runs at the head of every pipeline except `manifest`, so on macOS
-`slf process`, `slf forge`, and `slf checksum` raise `RuntimeError` naming `slf omp` as the remedy before doing any work
-when `libomp.dylib` does not load. The MCP server reports healthy on such a host while every parallel job fails, which
-makes this a first-order environment diagnostic. A bare `slf omp` is always a dry run, and writing the link usually runs
-through sudo. The `## OpenMP runtime prerequisite` section of `/forging-mcp-environment-setup` owns its four outcomes.
-
-### The job identifier contract on `slf process` and `slf forge`
-
-| Case                  | `-id`    | Behavior                                                                      |
-|-----------------------|----------|-------------------------------------------------------------------------------|
-| Local mode            | omitted  | Discovers and runs every available job for the unit, honoring the stage flags |
-| Remote mode           | supplied | Runs only the matching job, chosen entirely by the identifier                 |
-| `slf process runtime` | either   | Always runs its single job. The identifier is never forwarded                 |
-
-`interfaces/process.py::runtime_command` does not pass the shared job identifier to
-`runtime/pipeline.py::run_runtime_processing_pipeline`, which declares no such parameter, so `-id` is silently ignored
-there. Local mode on `slf forge` skips every succeeded stage, while remote mode runs the named job regardless.
-
-### `slf manifest print`
-
-Three guards fire in order, and each raises uncaught. Giving neither `-n` nor `-s` raises `ValueError`. No manifest on
-disk raises `FileNotFoundError` naming the generation command, because printing reads an existing snapshot and never
-regenerates one. An animal that did not participate raises `ValueError`. Both views print together, notes first.
-
-### `slf clean` holds no running-batch guard
-
-`clean_processing_output_tool` refuses while a batch is running locally, and `slf clean` performs no such check, so it
-will remove output from under a running batch. Confirm no batch is executing before handing the command over. Each
-removed path is reported as the bytes it held, a single space, then the path. Cleaning `checksum` removes its tracker
-alone, since that pipeline owns no output directory, while cleaning `forging` removes the whole dataset hierarchy.
-
-### The four `slf server` reporting commands
-
-`slf server print` requires at least one of `-j` and `-q`, raising `ValueError` when neither is given, and prints both
-views in one call when both are given, accounting first. Both views read `-id`, and only `-j` reads `-st` and `-et`,
-which `-q` accepts and ignores. A non-zero `sacct` or `squeue` return raises `RuntimeError` quoting the scheduler's own
-error stream, and an empty result logs a warning and returns. `slf server discover` prints one line per discovered
-session, reporting no forged dataset and no absolute path, so it cannot supply the paths a `host="remote"` tool takes.
-
-`slf server batches` prints a `batch_id | progress | outstanding_h | jobs | running | stranded | gone | pipelines`
-table, where `outstanding_h` reads in hours or `unknown`, `running`, `stranded`, and `gone` count the allocations
-carrying each resolved verdict, and `progress` is one of `progressing`, `stalled`, and `awaiting_closure`. A
-`scheduler_read_error` prints first as a WARNING, `-a` adds a
-`batch_id | allocation | job_name | specifier | scheduler | tracker | verdict | remediation` table beneath it, and each
-stalled batch then prints one WARNING line naming the allocations both scheduler records disclaim and the remedy, which
-names `slf server retire-batch`. A read that closes every batch it covered prints that message as a warning and stops.
-
-`slf server retire-batch` prints the snapshot error if any, one SUCCESS line per retired batch with the allocations it
-held, then an `allocation | job_name | specifier | verdict | cancelled | reset | snapshot | dropped` table, one row per
-allocation with the four booleans naming which steps ran, and finally the message and the local outcome directory.
-Where their tool answers with an error rather than a report, both commands raise `RuntimeError` through `console.error`
-and it propagates uncaught, which is how a `running` allocation without `--force`, and a failed snapshot without
-`--drop-without-outcome`, reach the user.
+See [command-behavior.md](references/command-behavior.md) for how a failure reaches the user, the macOS OpenMP
+precondition, the job identifier contract on `slf process` and `slf forge`, the three `slf manifest print` guards, the
+absent running-batch guard on `slf clean`, and the four `slf server` reporting commands.
 
 ---
 
@@ -397,8 +327,8 @@ documented in the `## Response contract` section of `/forging-mcp-environment-se
 | `slf server print`                     | `read_scheduler_jobs_tool`                        | The CLI selects with two independent flags and may print both views, while the tool takes one view string and answers one. The CLI's job identifier scopes whichever views were requested, as the tool's list does for its one view |
 | `slf server discover`                  | `discover_remote_project_tool`                    | The CLI prints sessions only, unfiltered and unpaginated. The tool also covers forged datasets and returns the absolute server-side paths                                                                                           |
 | `slf server batches`                   | `get_processing_status_tool`, `host='remote'`     | The same call, with `limit=0`. Without `-a` the CLI prints the batch entries alone, so the per-allocation page a named `-b` produces is computed and never shown                                                                    |
-| `slf server retire-batch`              | `retire_remote_batches_tool`                      | The same call with the same two waivers. The CLI requires `-b` at the parser, and prints the per-allocation remediation table and the outcome directory rather than returning the recorded outcomes                                 |
-| `slf server pull`                      | `pull_remote_path_tool`                           | The same copy. Click rejects a destination that already exists as a file, and the CLI raises `FileNotFoundError` on a path the server holds nothing at, echoing the file count and the megabytes copied where the tool returns them |
+| `slf server retire-batch`              | `retire_remote_batches_tool`                      | The same call with the same two waivers. The CLI prints the per-allocation remediation table and the outcome directory rather than returning the recorded outcomes                                                                  |
+| `slf server pull`                      | `pull_remote_path_tool`                           | The same copy, echoing the file count and the megabytes copied where the tool returns them                                                                                                                                          |
 
 ### The three rules behind the table
 
@@ -457,29 +387,29 @@ Confirm the server is genuinely unrecoverable through `/forging-mcp-environment-
 | `retire_remote_batches_tool`          | `slf server retire-batch -b <batch>`                                         |
 | `pull_remote_path_tool`               | `slf server pull -r <remote-path> -d <destination>`                          |
 
-Three caveats. Every substitute runs one unit on this machine, so a batch spanning many sessions becomes one command
-per session, and a remote batch can be read and remediated but never dispatched from the CLI. `slf clean` carries none
-of the running-batch guard its tool holds, and only `slf plan project`, `slf dataset-state`, and `slf clean` print
-machine-readable output, so ask for it. Everything else genuinely blocks until the server is back: dispatching,
-cancelling, and polling a local batch, listing and forgetting prepared batches, reading the resource model, inspecting
-what outstanding jobs would cost, and reading the project plan, the project jobs table, the dataset state, the dataset
-listing, the manifest generation status, and the stored server configuration. Say so plainly rather than improvising.
+Three caveats. Every substitute runs one unit on this machine, so a batch spanning many sessions becomes one command per
+session, and a remote batch can be read and remediated but never dispatched from the CLI. Only `slf plan project`,
+`slf dataset-state`, and `slf clean` print machine-readable output, so ask for it. Everything else genuinely blocks
+until the server is back: dispatching, canceling, and polling a local batch, listing and forgetting prepared batches,
+reading the resource model, and inspecting what outstanding jobs would cost. The same holds for reading the project
+plan, the project jobs table, the dataset state, the dataset listing, the manifest generation status, and the stored
+server configuration. Say so plainly rather than improvising.
 
 ---
 
 ## Related skills
 
-| Skill                                     | Relationship                                                                             |
-|-------------------------------------------|------------------------------------------------------------------------------------------|
-| `/forging-mcp-environment-setup`          | Owns the `--help` exemption, the `slf mcp` transports, and MCP recovery                  |
-| `/batch-processing`                       | Owns the batch pair every pipeline command stands in for, and the reset and clean tools  |
-| `/job-planning`                           | Owns the planning tools behind `slf plan` and the resource model with no CLI surface     |
-| `/project-state`                          | Owns the manifest and project jobs tools behind `slf manifest`                           |
-| `/dataset-definition`, `/dataset-forging` | Own the tools behind `slf forge` and `slf dataset-state`, and its stages                 |
-| `/server-configuration`                   | Owns the configuration payload `slf server configure` writes                             |
-| `/remote-execution`                       | Owns the ledger, the verdicts, and the remediation the two `server` batch commands drive |
-| `assets:working-directory`                | Owns the working directory holding the server configuration and the batch records        |
-| `assets:session-discovery`, `/pipeline`   | Upstream session paths for `-sp`, and where each command sits in the pipeline            |
+| Skill                                     | Relationship                                                                                  |
+|-------------------------------------------|-----------------------------------------------------------------------------------------------|
+| `/forging-mcp-environment-setup`          | Owns the `--help` exemption, the `slf mcp` transports, and MCP recovery                       |
+| `/batch-processing`                       | Owns the batch pair for which every pipeline command stands in, and the reset and clean tools |
+| `/job-planning`                           | Owns the planning tools behind `slf plan` and the resource model with no CLI surface          |
+| `/project-state`                          | Owns the manifest and project jobs tools behind `slf manifest`                                |
+| `/dataset-definition`, `/dataset-forging` | Own the tools behind `slf forge` and `slf dataset-state`, and its stages                      |
+| `/server-configuration`                   | Owns the configuration payload `slf server configure` writes                                  |
+| `/remote-execution`                       | Owns the ledger, the verdicts, and the remediation the two `server` batch commands drive      |
+| `assets:working-directory`                | Owns the working directory holding the server configuration and the batch records             |
+| `assets:session-discovery`, `/pipeline`   | Upstream session paths for `-sp`, and where each command sits in the pipeline                 |
 
 ---
 

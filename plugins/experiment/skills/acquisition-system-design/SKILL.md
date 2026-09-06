@@ -2,8 +2,8 @@
 name: acquisition-system-design
 description: >-
   Documents the platform-general design pattern for a Sollertia data acquisition system: the YAML system configuration,
-  the per-subsystem binding classes, and the runtime orchestrator that owns master start/stop. Use when designing a new
-  acquisition system, adding a hardware subsystem, or auditing an existing system's configuration/binding layer for
+  the per-subsystem binding classes, and the lifecycle orchestrator that owns master start/stop. Use when designing a
+  new acquisition system, adding a hardware subsystem, or auditing an existing system's configuration/binding layer for
   pattern compliance.
 user-invocable: false
 ---
@@ -18,8 +18,8 @@ runnable platform that produces session data. An additional PC runs its own acqu
 through filesystem paths and network settings in the system configuration rather than through a binding class.
 
 This skill is a **pattern skill**. It documents the conventions and contracts that all Sollertia acquisition systems
-share, and it documents no single system's specific composition. For a concrete instance, see the
-[Worked example](#worked-example) section and `mesoscope:mesoscope-vr`.
+share, and it documents no single system's specific composition. For a concrete instance, see the [Worked
+example](#worked-example) section and `mesoscope:mesoscope-vr`.
 
 Detailed authoring patterns live in three reference files, loaded on demand:
 
@@ -69,9 +69,9 @@ Detailed authoring patterns live in three reference files, loaded on demand:
   dataclasses, and the `from_task_template` experiment-configuration builder. Owned by `assets:library-extension`.
 - The implementation of external data-service processors, meaning the Google Sheets `SurgeryLog` and `WaterLog` classes,
   their schema contract, and authoring a custom one. Owned by `/google-sheets-processing`. This skill documents only
-  where such processors sit in the architecture (see
-  [Auxiliary sections](#auxiliary-sections-beyond-hardware-subsystems) and the "External data-service processors"
-  category in [references/subsystem-types.md](references/subsystem-types.md)).
+  where such processors sit in the architecture (see [Auxiliary
+  sections](#auxiliary-sections-beyond-hardware-subsystems) and the "External data-service processors" category in
+  [references/subsystem-types.md](references/subsystem-types.md)).
 
 ---
 
@@ -264,10 +264,10 @@ Four common changes each have a step-by-step procedure in [references/workflows.
 
 ## Auxiliary sections beyond hardware subsystems
 
-Beyond the per-subsystem sections, the system configuration also captures host- and system-level state that is not a
-hardware subsystem and has no binding class: filesystem paths, external-service identifiers, network endpoints, and
-parameters for command-line tools the stack runs as subprocesses. Which of these a system needs is system-specific. Four
-categories recur:
+Beyond the per-subsystem sections, the system configuration also captures host- and system-level state that has no
+binding class. That state covers filesystem paths, external-service identifiers, network endpoints, and parameters for
+command-line tools the stack runs as subprocesses. Which of these a system needs is system-specific. Four categories
+recur:
 
 | Auxiliary section | Holds                                               | Kind of value                     |
 |-------------------|-----------------------------------------------------|-----------------------------------|
@@ -411,7 +411,8 @@ Configuration dataclasses:
 - [ ] Class named <System><Subsystem>
 - [ ] Every field follows <device>_<parameter>_<unit> naming
 - [ ] Every field has an explicit type annotation
-- [ ] Every field has a sensible default
+- [ ] Every field defaults to the reference-rig value where the parameter is a measured calibration, and to a working
+      factory setting otherwise
 - [ ] Every field has a triple-quoted docstring describing purpose + units
 - [ ] Filesystem fields default to Path() (empty), which reads as not configured until a deployment sets it, and a field
       the system requires reports that unset state as not ok

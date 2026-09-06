@@ -1,9 +1,9 @@
 ---
 name: system-health-check
 description: >-
-  Comprehensive pre-flight verification for acquisition systems. Orchestrates MCP tools and skill hand-offs to check
-  platform configuration readiness, network storage mounts, hardware connectivity, and configuration validity. Use
-  before running acquisition sessions or when troubleshooting system issues.
+  Orchestrates MCP tools and skill hand-offs to verify a host is ready to run an acquisition session, covering platform
+  configuration readiness, network storage mounts, hardware connectivity, and configuration validity. Use before running
+  acquisition sessions or when troubleshooting system issues.
 user-invocable: true
 ---
 
@@ -46,7 +46,7 @@ If a required server is unavailable, hand off to the owning plugin's MCP environ
 `/experiment-mcp-environment-setup`, `assets:assets-mcp-environment-setup`, `video:video-mcp-environment-setup`
 (ataraxis marketplace), or `communication:communication-mcp-environment-setup`.
 
-### The `sle` surfaces this skill draws on
+### The `sle` surfaces this skill uses
 
 `/acquisition-system-setup` owns the `sle get` command set and the way it diverges from the seven hardware-agnostic
 MCP tools of `interfaces/get_tools.py`, so read that skill before mapping a command name onto a tool name.
@@ -55,11 +55,12 @@ Every agnostic tool returns a plain string, and most report failure with a leadi
 that convention, and `/acquisition-system-setup` owns the divergence, so read it before treating a non-`Error:` return
 as a fault.
 
-Two of the checks below also reach an operator working with no agent at the keyboard, because the active system's own
+Three of the checks below also reach an operator working with no agent at the keyboard, because the active system's own
 command group carries them as commands. On Mesoscope-VR they are `sle mesoscope check-mounts` for the Phase 2 mount
-sweep and `sle mesoscope validate-config` for the Phase 4 validator, the second of which adds the DeepLabCut project
-check to the same per-path report. `mesoscope:mesoscope-vr-cli-reference` owns both, and both are the experimenter's to
-run, so print one for the user rather than running it yourself.
+sweep, `sle mesoscope check-bridge` for the Phase 3 system-specific instrument control interface, and
+`sle mesoscope validate-config` for the Phase 4 validator. The validator adds the DeepLabCut project check to the same
+per-path report. `mesoscope:mesoscope-vr-cli-reference` owns all three, and all three are the experimenter's to run, so
+print one for the user rather than running it yourself.
 
 Every other tool this skill calls belongs to the active system's own tool module, `interfaces/<system>_tools.py`, whose
 tools register as an import side effect of the `*_tools.py` glob run by `_register_tool_modules()` in
@@ -78,6 +79,8 @@ System health check progress:
 - [ ] Phase 3: Hardware connectivity confirmed
 - [ ] Phase 4: Configuration validity confirmed
 ```
+
+When every phase passes, the system is ready for session execution.
 
 ### Phase 0: Identify the active acquisition system
 
@@ -103,8 +106,8 @@ list_supported_acquisition_systems_tool() # slsa: the AcquisitionSystems vocabul
    registry, which this skill does not duplicate. The skill name is not derivable from the type, so read the table.
    The phases below refer to the resolved skill as "the active system's skill."
 
-A system's configuration loader verifies that the host belongs to that system and raises `TypeError` when it does not,
-and its tools catch that exception and return it as an `{"error": ...}` payload rather than letting it cross the MCP
+A system's configuration loader verifies that the host belongs to that system and raises `TypeError` when it does not.
+Its tools catch that exception and return it as an `{"error": ...}` payload rather than letting it cross the MCP
 boundary. An `error` payload naming a different acquisition system therefore identifies the host as belonging to that
 other system. The current worked example implements this check in `get_system_configuration()`
 (`mesoscope_vr/system.py`), and its tools wrap the loader in `try`/`except Exception`
@@ -177,7 +180,7 @@ enumerated here. Hand off to `/acquisition-system-setup` for the per-system hard
 troubleshooting semantics, and to `/zaber-interface` for the per-device Zaber semantics. This skill calls these tools
 read-only as a pre-flight sweep.
 
-For a session whose type runs the corridor task, additionally confirm the shared Unity Editor MCP Bridge is reachable
+For a session whose type runs the corridor task, additionally confirm the shared Unity Editor bridge is reachable
 with `check_unity_bridge_tool` (`sle`, CLI `sle get unity`). Unity is a shared asset with its own driver rather than a
 per-system one. The bridge starts automatically inside the Unity Editor, so an unreachable bridge means the editor is
 not open and the runtime can neither open the scene nor arm the VR task. The session types that run the task are the
@@ -185,9 +188,9 @@ members of `SESSION_TYPES_USING_VR_TASK` (`sollertia-shared-assets/src/sollertia
 every other session type skips this check. Hand off to `/vr-driver-interface` for the bridge contract.
 
 If the active system drives a system-specific instrument control interface beyond the domain-general stack and the
-shared Unity bridge, additionally confirm that interface is reachable. Its check tool, expected state, and remediation
-are owned by the active system's skill, so hand off rather than assuming a tool here. For the current worked example,
-see `mesoscope:mesoscope-vr`.
+shared Unity Editor bridge, additionally confirm that interface is reachable. Its check tool, expected state, and
+remediation are owned by the active system's skill, so hand off rather than assuming a tool here. For the current worked
+example, see `mesoscope:mesoscope-vr`.
 
 ### Phase 4: Configuration validity
 
@@ -204,38 +207,18 @@ Each third-party-SDK subsystem additionally exposes its own device-level validat
 systems, validating one Zaber device against the settings the binding library requires. It returns `Port: {port} |
 Index: {device_index} | Device: {device_label} | Axis: {axis_label}` ahead of `Status: VALID|INVALID | Checksum: OK|FAIL
 | Positions: OK|FAIL`, plus `Errors:` and `Warnings:` segments when either is present, where the index is the zero-based
-`device_index` the call passed in and an unset label prints as `(not set)` (`interfaces/get_tools.py`). Which subsystems
-the active system composes, and the ports, device indices, and expected settings each should report, are
+`device_index` that the call passed and an unset label prints as `(not set)` (`interfaces/get_tools.py`). Which
+subsystems the active system composes, and the ports, device indices, and expected settings each should report, are
 system-specific, so hand off to the active system's skill and to `/zaber-interface` for the per-device Zaber semantics.
 A system that composes no such subsystem has nothing further to validate here.
 
 For a session that is about to be recorded, confirm the raw assets that session will be required to carry.
-`SessionData.required_raw_assets()` is the single source of truth
-(`sollertia-shared-assets/src/sollertia_shared_assets/data_hierarchy/session_data.py`). Every session requires the
-session descriptor and the system configuration snapshot. An experiment session additionally requires the experiment
-configuration snapshot, and a session whose type sits in `SESSION_TYPES_USING_VR_TASK` additionally requires the
-`vr_configuration.yaml` task template snapshot. That snapshot is copied out of the task templates directory at session
-creation, so an unset templates directory blocks a corridor-task session even when every mount is healthy. Hand off to
-`assets:library-extension` for the required-asset policy, to `assets:session-data` for the session hierarchy, and to
-`assets:project-hierarchy` to confirm the recording project exists, because `sle mcp` carries no project-listing tool.
-
----
-
-## Quick health check
-
-For a rapid pre-session check:
-
-1. `get_platform_environment_status_tool()` reports the platform configuration healthy.
-2. The active system's mount sweep reports all storage accessible.
-3. `/acquisition-system-setup` confirms the hardware the active system declares is present, covering cameras,
-   microcontrollers, any third-party-SDK subsystems such as Zaber motors, and the MQTT broker.
-4. The active system's configuration validator reports the configuration valid.
-5. For a session whose type runs the corridor task, `check_unity_bridge_tool()` reports the Unity Editor open and its
-   MCP bridge reachable.
-6. For a session that drives a system-specific instrument control interface, confirm it through the active system's
-   skill.
-
-If all pass, the system is ready for acquisition.
+`assets:library-extension` owns the `required_raw_assets` policy, and `SessionData.required_raw_assets()` is the single
+source of truth (`sollertia-shared-assets/src/sollertia_shared_assets/data_hierarchy/session_data.py`). The
+`vr_configuration.yaml` task template snapshot is copied out of the task templates directory at session creation, so an
+unset templates directory blocks a corridor-task session even when every mount is healthy. Hand off to
+`assets:session-data` for the session hierarchy, and to `assets:project-hierarchy` to confirm the recording project
+exists, because `sle mcp` carries no project-listing tool.
 
 ---
 
@@ -265,17 +248,12 @@ microcontroller, Zaber, and MQTT failure modes.
 
 ## Post-check actions
 
-1. **All checks pass.** The system is ready for session execution.
-2. **Configuration prerequisite unhealthy.** Hand off to `assets:working-directory`.
-3. **Mount failures.** Resolve OS-level mount issues before proceeding.
-4. **Hardware missing.** Hand off to `/acquisition-system-setup`.
-5. **Configuration invalid.** Hand off to the active acquisition system's skill to correct the system configuration.
-6. **Unity bridge unreachable**, for a session type that runs the corridor task. Open the Unity project in the editor
-   so its MCP bridge auto-starts, and confirm with `sle get unity`. Hand off to `/vr-driver-interface`, or to
-   `unity:unity-mcp-environment-setup` when the Editor is already open and the listener is still unreachable.
-7. **Missing required raw asset.** Hand off to `assets:library-extension` for the required-asset policy, and to
-   `assets:working-directory` when the task templates directory is the blocker.
-8. **System-specific control interface unreachable.** Hand off to the active system's skill to bring it up.
+1. **Configuration invalid.** Hand off to the active acquisition system's skill to correct the system configuration.
+2. **Unity Editor bridge unreachable**, for a session type that runs the corridor task. Open the Unity project in the
+   editor so the bridge auto-starts, and confirm with `sle get unity`. Hand off to `unity:unity-mcp-environment-setup`
+   when the Editor is already open and the listener is still unreachable.
+3. **Missing required raw asset.** Hand off to `assets:working-directory` when the task templates directory is the
+   blocker.
 
 ---
 
@@ -290,7 +268,7 @@ Entries prefixed `video:` and `communication:` resolve through the ataraxis mark
 | `mesoscope:mesoscope-vr`               | The current worked example's skill, resolved by Phase 0 on a host running that system |
 | `mesoscope:mesoscope-vr-cli-reference` | Owns `sle mesoscope check-mounts` and `sle mesoscope validate-config`, the CLI path   |
 | `/library-extension`                   | Owns the seams a new acquisition system fills before this sweep can resolve it        |
-| `/vr-driver-interface`                 | Owns the shared Unity editor bridge check (`check_unity_bridge_tool`)                 |
+| `/vr-driver-interface`                 | Owns the shared Unity Editor bridge check (`check_unity_bridge_tool`)                 |
 | `unity:unity-mcp-environment-setup`    | Editor-side McpBridge listener diagnostic when the Editor is open but unreachable     |
 | `/experiment-mcp-environment-setup`    | Run first if the `sle mcp` server is not connected                                    |
 | `/pipeline`                            | Phase 5 (pre-session health check) is owned by this skill                             |
@@ -323,7 +301,7 @@ Platform and storage:
 Hardware:
 - [ ] Hardware sweep via /acquisition-system-setup confirmed the expected hardware
 - [ ] Per-subsystem discovery and validation done for each subsystem the active system composes, skipped when none
-- [ ] For a session type in SESSION_TYPES_USING_VR_TASK, check_unity_bridge_tool reported the shared Unity editor
+- [ ] For a session type in SESSION_TYPES_USING_VR_TASK, check_unity_bridge_tool reported the shared Unity Editor
       bridge reachable, skipped for every other session type
 - [ ] For a session driving a system-specific instrument control interface, confirmed reachable through the active
       system's skill, skipped when none

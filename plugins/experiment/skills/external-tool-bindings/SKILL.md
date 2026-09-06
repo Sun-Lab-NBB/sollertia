@@ -212,11 +212,11 @@ what the producer owes it, which is the directory named through the same session
 as a constant on each seam, and the artifact's schema.
 
 The registry receiving the donation may not exist. When a processing stage already reads this kind of artifact, the
-donation joins that stage's registries. A new stage joins the pipeline whose input root already holds the artifact's
-directory, and `forging:processing-input-format` tabulates those roots. Only an artifact under no existing input root
-needs a new pipeline, which is the heaviest extension of the three. When none does, the consumer seam is a new stage.
-That stage mints its own locator and worker registries, its pipeline call site, and its job-discovery and sizing
-entries, all under `forging:library-extension`.
+donation joins that stage's registries. When no stage reads this kind of artifact yet, the consumer seam is a new stage,
+and that stage joins the pipeline whose input root already holds the artifact's directory. It mints its own locator and
+worker registries, its pipeline call site, and its job-discovery and sizing entries, all under
+`forging:library-extension`. `forging:processing-input-format` tabulates those input roots, and only an artifact under
+no existing input root needs a new pipeline, which is the heaviest extension of the three.
 
 ### An acquisition-only binding has no consumer seam
 
@@ -278,9 +278,8 @@ directory that already exists needs no upstream change at all. An artifact needi
 `Directories` member and its session-record field under `assets:session-data`, which is the one sollertia-shared-assets
 change a binding is permitted.
 
-Three things cross the boundary, which are the argument vector's literals, the naming rule, and the artifact's on-disk
-schema. None of them is an import, so a binding is verified by grep, since its distribution name appears in no
-dependency list and its module name appears in no import.
+None of the three things that cross the boundary is an import, so a binding is verified by grep, since its distribution
+name appears in no dependency list and its module name appears in no import.
 
 Recorded instead, in these places:
 
@@ -320,8 +319,8 @@ You MUST follow these steps in order when adding a binding.
    resolved in that dataclass's `build` classmethod. `assets:library-extension` owns that change and
    `assets:session-data` describes it.
 
-5. **Fix the naming rule.** Pass the output name explicitly where the tool's command line accepts one, and pass the
-   output directory where the tool accepts one, or rely on the tool's default location when that default is already the
+5. **Fix the naming rule.** Pass the output name explicitly where the tool's command line accepts one. Pass the output
+   directory where the tool accepts one, or rely on the tool's default location when that default is already the
    artifact's home, as the worked instance does. Where the tool names its own file, decide the substring and extension
    identifying the artifact, and the total order breaking ties. Record the rule as a module constant on each seam.
 
@@ -391,8 +390,10 @@ data the predictions accompany.
 
 Two cautions carry forward. Its producer checks existence by the input's stem while its consumer globs the tool's
 project name, so one real filename satisfies both rules only while the operator names the tool's project as the consumer
-expects. And neither seam names the other by repository or module, so the cross-reference this skill requires is a rule
-the precedent does not yet meet.
+expects. And the cross-reference this skill requires is met on the producer seam alone. The producer's
+`EYE_TRACKING_PROJECT_NAME` docstring names sollertia-forgery's `locate_mesoscope_pose_predictions`, while the
+consumer's own naming constant names neither sollertia-experiment nor its module, so the precedent misses the consumer
+naming constant record.
 
 ---
 

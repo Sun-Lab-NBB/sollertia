@@ -114,9 +114,9 @@ Reading a failure correctly separates an environment fault from a tool-level ref
   `get_checksum_tool` do in `interfaces/get_tools.py`.
 - A destructive or hardware-mutating tool takes a tri-state confirmation `Literal["yes", "no"] | None` instead of a
   boolean, so a falsy default never reaches the mutation. `set_zaber_device_setting_tool` takes `confirm`
-  (`interfaces/get_tools.py`) and `delete_session_tool` takes `confirm_deletion`
-  (`interfaces/mesoscope_vr_tools.py`). An omitted confirmation returns an `Error:` string carrying the preview or the
-  warning the caller shows the user, which is expected behavior rather than a server fault.
+  (`interfaces/get_tools.py`) and `delete_session_tool` takes `confirm_deletion` (`interfaces/mesoscope_vr_tools.py`).
+  An omitted confirmation returns an `Error:` string carrying the preview or the warning the caller shows the user,
+  which is expected behavior rather than a server fault.
 
 ---
 

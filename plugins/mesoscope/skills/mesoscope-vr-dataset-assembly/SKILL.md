@@ -14,8 +14,8 @@ user-invocable: false
 Concretizes the agnostic dataset-forging output stage for the Mesoscope-VR acquisition system. This skill owns the two
 forging registry seams the system fills, `_FORGING_ASSEMBLY_REGISTRY` and `_FORGING_ADMISSION_REGISTRY`. The assembly
 algorithm behind them is owned here too: the dispatcher `assemble_mesoscope_session` in `mesoscope_vr/forging.py`, the
-experiment and training assembly paths it routes to, the behavior and runtime sub-datasets, the sentinel masking, and
-the session-bounds clip.
+experiment and training assembly paths it selects, the behavior and runtime sub-datasets, the sentinel masking, and the
+session-bounds clip.
 
 The column-roster enum definitions themselves (`DatasetColumn`, `BehaviorDataFiles`) are declared in
 `mesoscope_vr/metadata.py` and documented by `/mesoscope-vr-processing-schema`.
@@ -27,7 +27,7 @@ The column-roster enum definitions themselves (`DatasetColumn`, `BehaviorDataFil
 **Covers:**
 - The two forging registry seams Mesoscope-VR fills, and the assets donated into each
 - `MESOSCOPE_ADMISSION_PIPELINES`, the per-session-type pipeline requirement that decides which sessions join a dataset
-- `assemble_mesoscope_session`, the session-type dispatcher, and the two assembly paths it routes to
+- `assemble_mesoscope_session`, the session-type dispatcher, and the two assembly paths it selects
 - The reference clock each path resolves, and the sub-datasets each path concatenates onto it
 - Behavior-dataset discrete-versus-continuous interpolation, the running-speed sliding window, and reward
   classification (`no` / `tone` / `yes`)
@@ -134,7 +134,7 @@ steps in order:
 4. **Fluorescence first.** `assemble_cindra_dataset` runs alone, and its `time_us` column becomes `reference_time`.
 5. **Three sub-datasets in parallel.** The `behavior`, `runtime`, and `video` assemblies are submitted as
    `functools.partial` tasks to a `ThreadPoolExecutor(max_workers=len(tasks))` and collected with `as_completed`. The
-   behavior task passes `drop_time_columns=True`, because the fluorescence half already supplies the time axis.
+   behavior task passes `drop_time_columns=True`.
 6. **Horizontal stack.** `reduce(pl.DataFrame.hstack, ...)` runs over `[fluorescence, behavior, runtime]`, with the
    video frame appended only when `results["video"].width > 0`. Stacking requires every sub-dataset to carry the
    reference clock's height, so one that drifts off that clock raises rather than being padded.
@@ -154,8 +154,8 @@ no cindra output to locate:
 2. **Reference clock.** `resolve_slowest_camera_clock(video_data_path=...)` returns the slowest camera's timestamps
    verbatim. It is resolved **before** `ensure_directory_exists`, so a session with no usable camera clock leaves no
    empty output directory behind.
-3. **Two sub-datasets, sequentially.** `assemble_behavior_dataset(..., drop_time_columns=False)`, so the behavior half
-   supplies the feather's `time_us` and `elapsed_minutes` columns, then `assemble_video_dataset` on the same clock.
+3. **Two sub-datasets, sequentially.** `assemble_behavior_dataset(..., drop_time_columns=False)`, then
+   `assemble_video_dataset` on the same clock.
 4. **Stack, clip, write.** `hstack` over `[behavior]` with the video frame appended when `video_data.width`, then
    `clip_to_session_bounds`, then `result.write_ipc(file=output_path)`.
 
@@ -277,9 +277,9 @@ reward
 system_state
 ```
 
-The experiment path passes `drop_time_columns=True`, which removes `time_us` and `elapsed_minutes` (the
-`_TIME_COLUMNS` frozen set) from the selection before the frame is returned. The training path leaves the `False`
-default in place, so both time columns survive into the assembled feather.
+The experiment path passes `drop_time_columns=True`, which removes `time_us` and `elapsed_minutes` (the `_TIME_COLUMNS`
+frozen set) from the selection before the frame is returned, because the fluorescence half already supplies the time
+axis. The training path leaves the `False` default in place, so both time columns survive into the assembled feather.
 
 ---
 
@@ -433,8 +433,8 @@ the copy is a required dataset artifact only for datasets whose `session_type` i
 dataset of lick-training, run-training, or window-checking sessions, a missing `vr_configuration.yaml` describes the
 source sessions rather than a defective dataset.
 
-The registry-dispatched mechanism behind that rule, the `DatasetData` marker it is read from, and the inspection
-report that applies it belong to `assets:datasets`.
+The registry-dispatched mechanism behind that rule, the `DatasetData` marker that holds it, and the inspection report
+that applies it belong to `assets:datasets`.
 
 ---
 

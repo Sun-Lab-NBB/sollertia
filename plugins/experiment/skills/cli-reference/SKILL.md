@@ -3,9 +3,9 @@ name: cli-reference
 description: >-
   Documents the system-agnostic half of the sle command-line interface of the sollertia-experiment library. Covers the
   root group, the mcp command, and the six sle get commands with every option's short form, long form, type, default,
-  and effect. Also covers the MCP tool each command maps to and how the CLI path diverges from the MCP path. Use when a
-  user asks what an sle, sle mcp, or sle get command or option does, or when the MCP server is unavailable and the user
-  must be told what to run by hand.
+  and effect. Also covers the MCP tool to which each command maps and how the CLI path diverges from the MCP path. Use
+  when a user asks what an sle, sle mcp, or sle get command or option does, or when the MCP server is unavailable and
+  the user must be told what to run by hand.
 user-invocable: false
 ---
 
@@ -25,7 +25,7 @@ test.
 ## Scope
 
 **Covers:**
-- The complete system-agnostic `sle` command surface: every Click node, its purpose, and the MCP tool it maps to
+- The complete system-agnostic `sle` command surface: every Click node, its purpose, and the MCP tool to which it maps
 - Every declared option: short form, long form, type, default, required, flag, or prompted status, and effect
 - Per-command output shapes, empty-result behavior, and the exception each failure raises
 - Which CLI commands have no MCP equivalent, which agnostic MCP tools have no CLI equivalent, and where pairs differ
@@ -55,8 +55,7 @@ disagrees with this reference, ask them to run `sle COMMAND --help` and read the
 You MUST NOT infer an MCP tool name from a command name. Three of the six `sle get` commands have no tool on this
 server at all, and four agnostic tools have no command, so the two surfaces are read separately rather than mapped.
 
-The agnostic `sle` surface addresses this machine only. Nothing on it takes a host, renders a remote job, or reaches a
-second machine, so every command below reports the hardware of the machine that runs it.
+The agnostic `sle` surface addresses this machine only.
 
 ---
 
@@ -79,7 +78,7 @@ root, which the count above excludes and the extension point section below route
 | `sle get unity`       | command | Reports whether the Unity Editor MCP bridge answers               | `check_unity_bridge_tool`        |
 | `sle get checksum`    | command | Prints the CRC32-XFER checksum of the supplied string             | `get_checksum_tool`              |
 
-**Note on `-h`:** `CONTEXT_SETTINGS` sets `max_content_width` alone, so Click's `help_option_names` stays at its
+**Note on `-h`:** `_CONTEXT_SETTINGS` sets `max_content_width` alone, so Click's `help_option_names` stays at its
 `["--help"]` default and `-h` is never a help alias. No agnostic node binds `-h` to anything either, so `sle get -h`
 aborts on an unknown option at exit code 2.
 
@@ -165,7 +164,7 @@ side, where every agnostic tool returns a string and all but two report failure 
 | `sle get ports` finding no port with a product ID      | Filtered out before printing      | Empty output, exit 0                      |
 | `sle get unity` finding the bridge closed              | Warning logged, the body returns  | Unreachable warning, exit 0               |
 
-There is no version option, no verbosity option, no dry-run flag, and no host option anywhere on the agnostic surface.
+There is no version option, no verbosity option, and no dry-run flag anywhere on the agnostic surface.
 
 ### `sle get zaber`
 
@@ -183,14 +182,14 @@ line format is the one `video:cli-reference` documents for `axvs check devices`,
 inside each group, so it is never a camera index. Read `index=` instead. An OpenCV group is preceded by a warning that
 the interface resolves no model and no serial number, which recommends `axvs run` for mapping indices to hardware.
 
-One divergence from the `axvs` command matters. `discover_camera_ids` returns the OpenCV cameras alone where the GenICam
-runtime is absent, which is every Intel Mac and every macOS host running Python 3.14. `axvs check devices` distinguishes
-the absent-runtime case with its own `Harvesters camera discovery skipped.` line, and `sle get cameras` does not.
-Neither command distinguishes the third case, a present runtime with no configured CTI file, where `discover_camera_ids`
-catches the `FileNotFoundError` raised by `_get_cti_path` and skips Harvesters discovery silently. The identical `No
-Harvesters-compatible cameras discovered.` warning therefore covers an absent runtime, an unconfigured CTI file, and a
-genuinely empty GenTL bus. Ask for `axvs check devices` to rule out the absent runtime and `axvs cti check` to rule out
-the unconfigured CTI file before reading the warning as an empty bus.
+`discover_camera_ids` returns the OpenCV cameras alone where the GenICam runtime is absent, which is every Intel Mac and
+every macOS host running Python 3.14. Both `axvs check devices` and `sle get cameras` name that case with their own
+`Harvesters camera discovery skipped.` line, so the two commands agree here. `sle get cameras` distinguishes the third
+and fourth causes too, a present runtime with no configured CTI file and a configured path that no longer loads, both of
+which `check_cti_file()` reports as `None`. That branch prints `Harvesters camera discovery skipped. No GenTL Producer
+interface (.cti) file is configured.` and names `axvs cti set` and `AXVS_CTI_PATH` as the remedies. The `No
+Harvesters-compatible cameras discovered.` warning therefore reaches the operator only for a genuinely empty GenTL bus,
+so read it as that answer rather than as an ambiguous one.
 
 ### `sle get controllers`
 
@@ -239,7 +238,7 @@ while an acquisition session holds the host's ports.
 ## How the CLI diverges from the MCP path
 
 The agnostic tool inventory, the `Error: ` return convention, and the two tools that depart from it are owned by
-`/acquisition-system-setup`. This section covers the surface asymmetry alone.
+`/acquisition-system-setup`.
 
 ### CLI commands with no MCP equivalent
 
@@ -332,13 +331,13 @@ Tool-settled (run `rg -n '.{121,}' <file>` and `wc -l <file>`):
 - [ ] All lines at or under 120 characters (tables and code blocks may exceed for clarity)
 - [ ] SKILL.md under 500 lines
 - [ ] Every code fence carries a language identifier
-- [ ] rg -n 'sle mesoscope ' <file> finds only the extension point and handoff references
 
 Answering a CLI question, reader-judged:
 - [ ] Answered from this skill or from sle COMMAND --help, never from memory
 - [ ] Quoted the long option form, and never presented -h as a help alias
-- [ ] Named the MCP tool the command maps to, or said plainly that none exists on this server
+- [ ] Named the MCP tool to which the command maps, or said plainly that none exists on this server
 - [ ] Routed any sle mesoscope question to mesoscope:mesoscope-vr-cli-reference instead of answering it
+- [ ] Every sle mesoscope mention is the extension point or a handoff reference (rg -n 'sle mesoscope ' <file>)
 - [ ] Invoked no sle command other than --help
 
 Handing a user a CLI command, reader-judged:

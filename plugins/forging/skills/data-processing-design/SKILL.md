@@ -2,10 +2,10 @@
 name: data-processing-design
 description: >-
   Documents the durable design pattern behind sollertia-forgery data processing. Covers the agnostic worker packages and
-  the per-system donations they dispatch through, the registry seam with its import-time coverage check, the pipeline
-  dispatch table, the plan, prepare, execute, close job model, and the resource admission rules. Use when adding a
-  processing stage or pipeline, auditing the agnostic versus per-system split, or deciding whether a concern belongs in
-  this library or in one of its upstream dependencies.
+  the per-system donations each pipeline dispatches through a resolver, the registry seam with its import-time coverage
+  check, the pipeline dispatch table, the plan, prepare, execute, close job model, and the resource admission rules. Use
+  when adding a processing stage or pipeline, auditing the agnostic versus per-system split, or deciding whether a
+  concern belongs in this library or in one of its upstream dependencies.
 user-invocable: false
 ---
 
@@ -15,9 +15,6 @@ Documents the durable design pattern behind sollertia-forgery data processing, a
 orchestration layer. A pipeline reads one class of acquired data, writes its outputs beside the session it processed,
 and records every job it ran on a per-unit tracker. That shape holds for every acquisition system, and what differs
 between systems arrives as registered data rather than as a branch inside a pipeline.
-
-This skill is a **pattern skill**. It documents the contracts every pipeline in the library shares, and it documents
-no single acquisition system's donations.
 
 ---
 
@@ -94,8 +91,8 @@ third-party stack. Being a leaf is the structural reason the substrate exists as
 module inside a worker package.
 
 Every pipeline that dispatches a parallelized worker pool calls `shared_assets.verify_openmp_runtime()` as the first
-statement of its entry point, so a host that cannot run a parallelized kernel fails while it has done no work rather
-than partway through a unit. The manifest pipeline runs single-threaded and is the one pipeline that does not.
+statement of its entry point. A host that cannot run a parallelized kernel therefore fails before it has done any work,
+rather than partway through a unit. The manifest pipeline runs single-threaded and is the one pipeline that does not.
 
 ---
 
@@ -110,8 +107,8 @@ accessor rather than by indexing a registry.
 | `_MICROCONTROLLER_EVENT_CODE_REGISTRY`   | `AcquisitionSystems`               | An accessor returning the event codes each parseable module reads     |
 | `_MICROCONTROLLER_ELIGIBILITY_REGISTRY`  | `AcquisitionSystems`               | The modules one loaded session configured for use                     |
 | `_FORGING_ASSEMBLY_REGISTRY`             | `AcquisitionSystems`               | The per-session assembly worker, paired with its column descriptions  |
-| `_ASSEMBLY_GEOMETRY_REGISTRY`            | `AcquisitionSystems`               | The heights its assembler holds a frame and its sources at            |
-| `_ASSEMBLY_SOURCE_REGISTRY`              | `AcquisitionSystems`               | The height its assembler holds each source it reads at                |
+| `_ASSEMBLY_GEOMETRY_REGISTRY`            | `AcquisitionSystems`               | The frame height and the source heights its assembler holds           |
+| `_ASSEMBLY_SOURCE_REGISTRY`              | `AcquisitionSystems`               | The height at which its assembler holds each source it reads          |
 | `_FORGING_ADMISSION_REGISTRY`            | `AcquisitionSystems`               | The pipelines each session type completes before it joins a dataset   |
 | `_CINDRA_CONFIGURATION_REGISTRY`         | `AcquisitionSystems`               | The single-recording and multi-recording configuration resolvers      |
 | `_MULTI_RECORDING_SESSION_TYPE_REGISTRY` | `AcquisitionSystems`               | The session types the system tracks across recordings                 |
@@ -126,54 +123,8 @@ a pipeline consumes. Three donations carry no callable at all, since `_FORGING_A
 `dict[SessionTypes, frozenset[ProcessingPipelines]]`, `_MULTI_RECORDING_SESSION_TYPE_REGISTRY` holds a
 `frozenset[SessionTypes]`, and the column-description half of `_FORGING_ASSEMBLY_REGISTRY` is a `dict[str, str]`.
 
-### The accessors a pipeline calls
-
-| Accessor                                          | Returns                                                             |
-|---------------------------------------------------|---------------------------------------------------------------------|
-| `resolve_microcontroller_parsers`                 | `dict[tuple[int, int], MicrocontrollerParser]`, re-keyed per system |
-| `resolve_microcontroller_event_codes`             | `dict[tuple[int, int], tuple[int, ...]]`, by calling the donation   |
-| `resolve_eligible_microcontroller_modules`        | `set[tuple[int, int]]`, taking the loaded session as a second input |
-| `resolve_forging_assembly_worker`                 | `ForgingAssembler`                                                  |
-| `resolve_forging_column_descriptions`             | `dict[str, str]`                                                    |
-| `resolve_assembly_geometry_resolver`              | `_AssemblyGeometryResolver`                                         |
-| `resolve_assembly_source_resolver`                | `_AssemblySourceResolver`                                           |
-| `resolve_forging_admission_pipelines`             | `dict[SessionTypes, frozenset[ProcessingPipelines]]`                |
-| `resolve_single_recording_configuration_resolver` | `Callable[[SessionData], SingleRecordingConfiguration]`             |
-| `resolve_multi_recording_configuration_resolver`  | `Callable[[SessionData], MultiRecordingConfiguration \| None]`      |
-| `resolve_multi_recording_session_types`           | `frozenset[SessionTypes]`                                           |
-| `resolve_runtime_binding`                         | `tuple[str, _RuntimeParser]`, a source identifier and its parser    |
-| `resolve_two_photon_data_locator`                 | `_TwoPhotonDataLocator`                                             |
-| `resolve_pose_prediction_locator`                 | `_PosePredictionLocator`                                            |
-| `resolve_video_tracking`                          | `_VideoTracker`                                                     |
-
-Every accessor takes `system: str | AcquisitionSystems` as its first parameter and normalizes it through one gate, so a
-caller holding the enum member and a caller holding its string value resolve the identical asset. An unknown system
-raises a `ValueError` naming the supported members. The accessor is the API and the registry is an implementation
-detail. That split buys three things a raw lookup does not, namely the string-or-member normalization, a named
-`ValueError` in place of a bare `KeyError`, and the freedom to change a registry's internal shape without touching a
-pipeline. A locator or the video-tracking function is reached in two steps, as in
-`resolve_pose_prediction_locator(system=session.acquisition_system)(session=session)`.
-
-### The donation Protocols
-
-Every donated callable is a module-level, picklable function, because the parallel stages dispatch several of them into
-spawned worker processes. `registries.py` exports two of the eight Protocols, and the remaining six appear only as the
-return annotations of their accessors.
-
-```python
-class ForgingAssembler(Protocol):
-    def __call__(self, source_session_path: Path, output_path: Path, dataset_name: str) -> None: ...
-
-
-class MicrocontrollerParser(Protocol):
-    def __call__(
-        self, event_partition: dict[int, pl.DataFrame], output_directory: Path, session: SessionData
-    ) -> None: ...
-```
-
-Coverage is a check on wiring rather than on capability. A system that produces none of a data class still donates an
-entry, in the form of a no-op tracking function, a pose-prediction locator returning `None`, an empty
-`frozenset[SessionTypes]`, and a two-photon locator returning the path the system would use.
+See [registry-accessors.md](references/registry-accessors.md) for the `resolve_*` accessor roster with the return type
+of each accessor, for the donation Protocols, and for the entry a system donates when it produces none of a data class.
 
 ---
 
@@ -217,7 +168,7 @@ is the only lookup into that table.
 | Field           | What the entry supplies                                                                              |
 |-----------------|------------------------------------------------------------------------------------------------------|
 | `pipeline`      | The `ProcessingPipelines` member this entry dispatches                                               |
-| `unit_kind`     | `SESSION_UNIT` or `DATASET_UNIT`, the unit its jobs operate on                                       |
+| `unit_kind`     | `SESSION_UNIT` or `DATASET_UNIT`, the unit on which its jobs operate                                 |
 | `load`          | Loads the unit from its root, reading its markers alone                                              |
 | `discover`      | The job resolver, returning the loaded unit, the job universe, and the possible subset               |
 | `worker`        | The picklable module-level worker the process pool invokes with one planned job                      |
@@ -229,10 +180,10 @@ is the only lookup into that table.
 | `command`       | Renders the argument vector that runs one job on a host holding the data                             |
 | `prime`         | Materializes state the unit needs before its jobs resolve, defaulting to `None`                      |
 
-`prime` and `external_output_paths` are the two fields carrying a default, each of them `None`. The two-photon
-pipeline is the one entry that supplies a `prime`, because `cindra` requires a single-threaded step that writes the
-shared configuration before any of its jobs reads it, and the forging pipeline is the one entry that names external
-output paths, because its cross-recording stages write outside the dataset the pipeline processes.
+`prime` and `external_output_paths` are the two fields carrying a default, each of them `None`. The two-photon pipeline
+is the one entry that supplies a `prime`, because `cindra` requires a single-threaded step that writes the shared
+configuration before any of its jobs reads it. The forging pipeline is the one entry that names external output paths,
+because its cross-recording stages write outside the dataset the pipeline processes.
 
 `BATCH_PIPELINES` holds six members, namely `checksum`, `runtime`, `microcontroller`, `video`, `two_photon`, and
 `forging`. The `manifest` pipeline is a `ProcessingPipelines` member that operates on a project, and it carries no
@@ -336,10 +287,10 @@ job whose input does not exist and never breaches a ceiling.
 ## Feather as the cross-stage interchange format
 
 Every stage that hands data to another stage writes an uncompressed Arrow IPC feather. Polars defaults `write_ipc` to
-`compression="uncompressed"`, and each writer in the library either passes that value or accepts the default, so
-every feather it produces is memory-mappable and a downstream stage memory-maps it on read rather than paying a
-decompression pass. The project-level rollups use the same format, so a submitting host that holds none of the data
-reads a project's plan, manifest, jobs, and dataset-state tables exactly as a worker reads a stage output.
+`compression="uncompressed"`, and each writer in the library either passes that value or accepts the default, so every
+feather it produces is memory-mappable. A downstream stage memory-maps it on read rather than paying a decompression
+pass. The project-level rollups use the same format, so a submitting host that holds none of the data reads a project's
+plan, manifest, jobs, and dataset-state tables exactly as a worker reads a stage output.
 
 The pipeline owns the interchange path and the schema of every table it writes itself, while the acquisition system's
 donations name the tables their parsers and assembly worker produce. A stage therefore stays readable by a tool that
@@ -454,33 +405,33 @@ This skill is NOT updated when:
 The `communication:` and `cindra:` entries below resolve through the ataraxis and cindra marketplaces. Every other
 entry resolves inside the sollertia marketplace.
 
-| Skill                                           | Relationship                                                                |
-|-------------------------------------------------|-----------------------------------------------------------------------------|
-| `experiment:external-tool-bindings`             | Owns the convention behind an externally produced input this library reads  |
-| `/pipeline`                                     | Context: where each pattern here sits in the end-to-end route               |
-| `/batch-processing`                             | Downstream: the tools that drive the prepare and execute steps              |
-| `/job-planning`                                 | Downstream: the tools that drive the plan step and read the resource model  |
-| `/library-extension`                            | The exact code touch points for each extension scenario                     |
-| `/dataset-definition`                           | Consumer: the admission policy applied when a dataset is defined            |
-| `/dataset-forging`                              | Consumer: the dataset pipeline's own three-stage shape                      |
-| `/processing-input-format`                      | The archives each pipeline's first stage consumes                           |
-| `/processing-results`                           | The on-disk schema of every artifact a stage writes                         |
-| `/project-state`                                | The project-level rollups of tracker state                                  |
-| `/remote-execution`                             | The scheduler backend behind the remote execute step                        |
-| `/server-configuration`                         | The transport settings the remote backend reads                             |
-| `/cli-reference`                                | The `slf` commands a rendered job argument vector invokes                   |
-| `/forging-mcp-environment-setup`                | Owner: the response contract and the server-health diagnostics              |
-| `assets:library-extension`                      | The upstream enum and session-record side of registering a system           |
-| `experiment:acquisition-system-design`          | Peer: the acquisition-side counterpart of this pattern skill                |
-| `mesoscope:mesoscope-vr-processing-schema`      | The file name and column rosters every Mesoscope-VR donation writes against |
-| `mesoscope:mesoscope-vr-module-parsing`         | The Mesoscope-VR donations behind the three microcontroller registries      |
-| `mesoscope:mesoscope-vr-trial-decomposition`    | The Mesoscope-VR donation behind the runtime parser registry                |
-| `mesoscope:mesoscope-vr-video-tracking`         | The Mesoscope-VR donations behind the two video registries                  |
-| `mesoscope:mesoscope-vr-imaging-configuration`  | The Mesoscope-VR donations behind the three two-photon registries           |
-| `mesoscope:mesoscope-vr-dataset-assembly`       | The Mesoscope-VR donations behind the two forging registries                |
-| `mesoscope:mesoscope-vr-fluorescence-alignment` | The Mesoscope-VR sub-assembly the forging assembly worker calls             |
-| `communication:log-processing-results`          | The upstream microcontroller primitives and extracted-message schema        |
-| `cindra:single-recording-processing`            | The dependency whose job bindings the imaging stages call in-process        |
+| Skill                                           | Relationship                                                               |
+|-------------------------------------------------|----------------------------------------------------------------------------|
+| `experiment:external-tool-bindings`             | Owns the convention behind an externally produced input this library reads |
+| `/pipeline`                                     | Context: where each pattern here sits in the end-to-end route              |
+| `/batch-processing`                             | Downstream: the tools that drive the prepare and execute steps             |
+| `/job-planning`                                 | Downstream: the tools that drive the plan step and read the resource model |
+| `/library-extension`                            | The exact code touch points for each extension scenario                    |
+| `/dataset-definition`                           | Consumer: the admission policy applied when a dataset is defined           |
+| `/dataset-forging`                              | Consumer: the dataset pipeline's own three-stage shape                     |
+| `/processing-input-format`                      | The archives each pipeline's first stage consumes                          |
+| `/processing-results`                           | The on-disk schema of every artifact a stage writes                        |
+| `/project-state`                                | The project-level rollups of tracker state                                 |
+| `/remote-execution`                             | The scheduler backend behind the remote execute step                       |
+| `/server-configuration`                         | The transport settings the remote backend reads                            |
+| `/cli-reference`                                | The `slf` commands a rendered job argument vector invokes                  |
+| `/forging-mcp-environment-setup`                | Owner: the response contract and the server-health diagnostics             |
+| `assets:library-extension`                      | The upstream enum and session-record side of registering a system          |
+| `experiment:acquisition-system-design`          | Peer: the acquisition-side counterpart of this pattern skill               |
+| `mesoscope:mesoscope-vr-processing-schema`      | The target file names and column rosters of every Mesoscope-VR donation    |
+| `mesoscope:mesoscope-vr-module-parsing`         | The Mesoscope-VR donations behind the three microcontroller registries     |
+| `mesoscope:mesoscope-vr-trial-decomposition`    | The Mesoscope-VR donation behind the runtime parser registry               |
+| `mesoscope:mesoscope-vr-video-tracking`         | The Mesoscope-VR donations behind the two video registries                 |
+| `mesoscope:mesoscope-vr-imaging-configuration`  | The Mesoscope-VR donations behind the three two-photon registries          |
+| `mesoscope:mesoscope-vr-dataset-assembly`       | The Mesoscope-VR donations behind the two forging registries               |
+| `mesoscope:mesoscope-vr-fluorescence-alignment` | The Mesoscope-VR sub-assembly the forging assembly worker calls            |
+| `communication:log-processing-results`          | The upstream microcontroller primitives and extracted-message schema       |
+| `cindra:single-recording-processing`            | The dependency whose job bindings the imaging stages call in-process       |
 
 ---
 
@@ -491,7 +442,7 @@ Tool-settled (run `rg -n '.{121,}' <file>` and `wc -l <file>`):
 - [ ] All lines at or under 120 characters (tables and code blocks may exceed for clarity)
 - [ ] SKILL.md under 500 lines
 - [ ] Every code fence carries a language identifier
-- [ ] No cross-marketplace reference uses the superseded marketplace-prefix spelling with an at sign
+- [ ] rg -n 'ataraxis@|cindra@' <file> finds nothing
 
 Agnosticism:
 - [ ] No acquisition-system-specific file name, column, or session type appears in this skill

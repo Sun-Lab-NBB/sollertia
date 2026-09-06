@@ -2,21 +2,21 @@
 
 Carries seams 29 through 32 of the extension seam table in [SKILL.md](../SKILL.md). Firmware paths are cited as
 `slmc/...`, and sollertia-experiment mirrors are cited relative to `src/sollertia_experiment/`.
-`/microcontroller-interface` owns the paired Module and Interface conventions, and
-`microcontroller:firmware-module` owns the base ataraxis `Module` mechanics these steps extend.
+`/microcontroller-interface` owns the paired Module and Interface conventions, and `microcontroller:firmware-module`
+owns the base ataraxis `Module` mechanics these steps extend.
 
 ---
 
-## Seam 1, a new firmware module
+## Seam 29, a new firmware module
 
 Ten steps, in order.
 
 1. Create `slmc/src/<name>_module.h` guarded by `SLMC_<NAME>_MODULE_H`, following the `SLMC_BRAKE_MODULE_H` guard
    of `slmc/src/brake_module.h`.
 2. Declare `template <...> class <Name>Module final : public Module`, following `BrakeModule` in
-   `slmc/src/brake_module.h`, and add a `static_assert(kPin != LED_BUILTIN, ...)` per pin, following the same class.
-   A multi-pin module also asserts its pins pairwise distinct, following `EncoderModule` in
-   `slmc/src/encoder_module.h` and `ValveModule` in `slmc/src/valve_module.h`.
+   `slmc/src/brake_module.h`, and add a `static_assert(kPin != LED_BUILTIN, ...)` per pin, following the same class. A
+   multi-pin module also asserts its pins pairwise distinct, following `EncoderModule` in `slmc/src/encoder_module.h`
+   and `ValveModule` in `slmc/src/valve_module.h`.
 3. Declare `enum class kCustomStatusCodes : uint8_t` starting at **51** and `enum class kModuleCommands : uint8_t`
    starting at **1**. The convention holds in all seven existing headers.
 4. Give the class a three-argument constructor forwarding `(module_type, module_id, Communication&)` to `Module`,
@@ -63,14 +63,13 @@ with different behavior, which is the pattern a new role specialization follows.
 
 ---
 
-## Seam 2, a new controller target
+## Seam 30, a new controller target
 
 Three steps.
 
 1. Add `[env:<board>_<name>]` to `slmc/platformio.ini` with `extends = teensy41_base` and
-   `build_flags = ${teensy41_base.build_flags} -D <MACRO>`, following `[env:teensy41_actor]` in
-   `slmc/platformio.ini`. The file's header comment states the current target count, so update it alongside the
-   environment.
+   `build_flags = ${teensy41_base.build_flags} -D <MACRO>`, following `[env:teensy41_actor]` in `slmc/platformio.ini`.
+   The file's header comment states the current target count, so update it alongside the environment.
 2. Add an `#elif defined <MACRO>` branch to `slmc/src/main.cpp`, following its `SENSOR` and `ENCODER` branches,
    holding the module `#include`s, a `static constexpr uint8_t kControllerID`, the module instantiations, and a
    `Module* modules[]` array.
@@ -88,7 +87,7 @@ and the IDs the current slmc deployment uses are documented in `/microcontroller
 
 ---
 
-## Seam 3, a new board family
+## Seam 31, a new board family
 
 Five steps.
 
@@ -97,9 +96,8 @@ Five steps.
    The current value is `arm-none-eabi`, and it makes clang apply the board's pointer and integer widths.
 2. Add one `[env:<board>_<target>]` per controller target extending the new template, each defining the same target
    macro as its Teensy sibling (`slmc/platformio.ini`).
-3. Re-verify every `LED_BUILTIN` `static_assert` in the module headers under `slmc/src/`, and every pin literal in
-   the target blocks of `slmc/src/main.cpp`, because
-   pin numbering is board-specific.
+3. Re-verify every `LED_BUILTIN` `static_assert` in the module headers under `slmc/src/`, and every pin literal in the
+   target blocks of `slmc/src/main.cpp`, because pin numbering is board-specific.
 4. Confirm the board supports the `kAnalogReadResolution` of 12 bits that `setup()` passes to `analogReadResolution()`
    in `slmc/src/main.cpp`. That ADC width underpins the 12-bit-unit parameter defaults of the analog sensor modules, the
    analog module baselines set in `main.cpp`, and the `*_adc` calibration fields on the host, so a board that cannot
@@ -120,7 +118,7 @@ Every environment today inherits `board = teensy41` and `monitor_speed = 115200`
 
 ---
 
-## Seam 4, constants that move together
+## Seam 32, constants that move together
 
 Twelve constants exist on both sides of the serial boundary, and each row moves as a unit. A one-sided change produces
 firmware that compiles and a host that runs while the data between them is garbage, because `PACKED_STRUCT` carries
@@ -155,5 +153,5 @@ Hand the experimenter the command instead of running it, because every seam abov
 flash before the change reaches hardware. One board takes one target firmware, uploaded with
 `pio run -e <board>_<target> -t upload` while that board is the only microcontroller connected. The flashing section of
 `/microcontroller-interface`'s `references/slmc-conventions.md` carries the procedure and the two rules an upload
-follows, and it is the answer to give when a user asks how firmware reaches a board. The environment a given board
-takes is named by the consuming system's skill, which is `mesoscope:mesoscope-vr` today.
+follows, and it is the answer to give when a user asks how firmware reaches a board. The environment a given board takes
+is named by the consuming system's skill, which is `mesoscope:mesoscope-vr` today.

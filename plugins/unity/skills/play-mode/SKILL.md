@@ -100,18 +100,15 @@ is in `edit` before performing mutating Unity operations.
    ```text
    get_play_state_tool()
    ```
-   If `state == "playing"`, skip to step 4. If `state == "compiling"`, you SHOULD wait and re-poll rather than issuing
-   the call. `EnterPlayMode` (`McpBridge.cs`) guards only on `EditorApplication.isPlaying`, so the call is accepted and
-   Unity defers the transition until the recompile finishes (see the interaction contract).
+   If `state == "playing"`, skip to step 4. If `state == "compiling"`, wait and re-poll (see the interaction contract).
 3. **Enter Play Mode:**
    ```text
    enter_play_mode_tool()
    ```
-   The response's `state` is `entering_play_mode` when the bridge has issued the transition (or `playing` if the editor
-   was already in Play Mode). The tool does not block on completion, so poll `get_play_state_tool` about once a second
-   for up to 30 s to confirm `playing` before exercising the scene. Entry runs a full domain and scene reload
-   (`m_EnterPlayModeOptionsEnabled: 0` in `ProjectSettings/EditorSettings.asset`), so an `edit` reading inside that
-   window means the transition is still running. Conclude that Unity refused entry only once the window expires.
+   The response's `state` is `entering_play_mode` when the bridge has issued the transition. Poll `get_play_state_tool`
+   until it reports `playing` before exercising the scene (see the interaction contract). Entry runs a full domain and
+   scene reload (`m_EnterPlayModeOptionsEnabled: 0` in `ProjectSettings/EditorSettings.asset`), so an `edit` reading
+   inside the polling window means the transition is still running.
 
    Play Mode entry also connects the scene's `MQTTClient` to the broker configured in the MQTT section
    (`MQTTConnectorObject.OnEnable`). If the active scene hosts no client singleton, the connector logs `Unable to
@@ -180,8 +177,8 @@ You MUST hand off to the owning skill (`/task-scenes`, `/task-prefabs`) only aft
 - **You MUST** confirm the final state with `get_play_state_tool` after issuing a transition. The transition tools
   acknowledge the request (`entering_play_mode` / `exiting_play_mode`) but do not block on completion, so an `edit`
   reading taken right after `enter_play_mode_tool` is ambiguous. It means either that the reload is still running or
-  that Unity refused entry because the active scene has compile errors. Re-poll for up to 30 s, then read the refusal
-  with `read_console_tool(level="error")`.
+  that Unity refused entry because the active scene has compile errors. Re-poll about once a second for up to 30 s, then
+  read the refusal with `read_console_tool(level="error")`.
 - **Play Mode publishes on the configured broker.** Entering Play Mode makes the scene's `MQTTClient` connect to the
   IP/port in the MQTT section and broadcast `SessionStart`. Exiting broadcasts `SessionStop` (`MQTTClient.Start` and
   `MQTTClient.OnApplicationQuit`). Trigger zones publish `Stimulus` and `Delay` while playing. If an acquisition
@@ -208,18 +205,18 @@ You MUST hand off to the owning skill (`/task-scenes`, `/task-prefabs`) only aft
 
 ## Troubleshooting
 
-| Symptom                                                                          | Cause                                                                                                              | Resolution                                                                                        |
-|----------------------------------------------------------------------------------|--------------------------------------------------------------------------------------------------------------------|---------------------------------------------------------------------------------------------------|
-| `enter_play_mode_tool` returns `entering_play_mode` but follow-up poll is `edit` | The domain and scene reload has not landed yet, or Unity refused entry because the active scene has compile errors | Re-poll on step 3's schedule first, then read the refusal with `read_console_tool(level="error")` |
-| `enter_play_mode_tool` returns `entering_play_mode` while `compiling`            | Script recompile in progress, and Unity will run the transition once it finishes                                   | Wait and re-poll `get_play_state_tool`                                                            |
-| `exit_play_mode_tool` returns `state == "edit"` immediately                      | Editor already in `edit`, and the handler short-circuits with `Not in Play Mode.`                                  | Expected, no further action needed                                                                |
-| A poll fails with `Unable to complete the request to the Unity Editor ...`       | Play Mode entry triggered a domain reload and the Editor main thread is not draining the bridge queue              | Wait for the Editor to settle, then re-poll, because this is not a bridge outage                  |
-| Console logs `Unable to connect to the MQTT broker on enable ...`                | The active scene hosts no `MQTTClient` component, so `MQTTConnectorObject.OnEnable` returns before connecting      | Open `Window → Task Parameters` to rerun `InitializeScene`, which recreates it (`/scene-setup`)   |
-| Console logs `Unable to connect to the MQTT broker ... failed with: ...`         | The connect task faulted, typically in milliseconds, most often because nothing is bound to the IP/port            | Expected for keyboard-only runs, otherwise start the broker or fix IP/port via `/task-parameters` |
-| Console logs `Unable to connect to the MQTT broker ... must resolve within ...`  | The connect attempt did not resolve within `ConnectTimeoutMilliseconds`, most often an unreachable/filtered host   | Expected without a broker, otherwise check the host address and firewall, then fix the IP/port    |
-| Console logs `Unable to deliver '<topic>' to the MQTT broker ...`                | `MQTTClient.Publish` fell back to in-process delivery, warning once per topic (`MQTTClient.cs`)                    | Expected while playing without a broker, rather than a defect                                     |
-| Active scene is not the one expected                                             | A different scene was opened previously                                                                            | Hand off to `/task-scenes` (`open_scene_tool`)                                                    |
-| All tools fail with `Unable to reach the Unity Editor at http://localhost:8090/` | McpBridge down                                                                                                     | `/unity-mcp-environment-setup`                                                                    |
+| Symptom                                                                          | Cause                                                                                                              | Resolution                                                                                                    |
+|----------------------------------------------------------------------------------|--------------------------------------------------------------------------------------------------------------------|---------------------------------------------------------------------------------------------------------------|
+| `enter_play_mode_tool` returns `entering_play_mode` but follow-up poll is `edit` | The domain and scene reload has not landed yet, or Unity refused entry because the active scene has compile errors | Re-poll on the interaction contract's schedule, then read the refusal with `read_console_tool(level="error")` |
+| `enter_play_mode_tool` returns `entering_play_mode` while `compiling`            | Script recompile in progress, and Unity will run the transition once it finishes                                   | Wait and re-poll `get_play_state_tool`                                                                        |
+| `exit_play_mode_tool` returns `state == "edit"` immediately                      | Editor already in `edit`, and the handler short-circuits with `Not in Play Mode.`                                  | Expected, no further action needed                                                                            |
+| A poll fails with `Unable to complete the request to the Unity Editor ...`       | Play Mode entry triggered a domain reload and the Editor main thread is not draining the bridge queue              | Wait for the Editor to settle, then re-poll, because this is not a bridge outage                              |
+| Console logs `Unable to connect to the MQTT broker on enable ...`                | The active scene hosts no `MQTTClient` component, so `MQTTConnectorObject.OnEnable` returns before connecting      | Open `Window → Task Parameters` to rerun `InitializeScene`, which recreates it (`/scene-setup`)               |
+| Console logs `Unable to connect to the MQTT broker ... failed with: ...`         | The connect task faulted, typically in milliseconds, most often because nothing is bound to the IP/port            | Expected for keyboard-only runs, otherwise start the broker or fix IP/port via `/task-parameters`             |
+| Console logs `Unable to connect to the MQTT broker ... must resolve within ...`  | The connect attempt did not resolve within `ConnectTimeoutMilliseconds`, most often an unreachable/filtered host   | Expected without a broker, otherwise check the host address and firewall, then fix the IP/port                |
+| Console logs `Unable to deliver '<topic>' to the MQTT broker ...`                | `MQTTClient.Publish` fell back to in-process delivery, warning once per topic (`MQTTClient.cs`)                    | Expected while playing without a broker, rather than a defect                                                 |
+| Active scene is not the one expected                                             | A different scene was opened previously                                                                            | Hand off to `/task-scenes` (`open_scene_tool`)                                                                |
+| All tools fail with `Unable to reach the Unity Editor at http://localhost:8090/` | McpBridge down                                                                                                     | `/unity-mcp-environment-setup`                                                                                |
 
 `read_console_tool` reads the Console rows above without a human at the Editor. Its buffer holds the last 500 entries
 logged since the Editor loaded, and a domain reload starts it empty, so entries predating a Play Mode entry are gone

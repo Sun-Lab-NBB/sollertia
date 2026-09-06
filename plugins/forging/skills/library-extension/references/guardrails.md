@@ -153,7 +153,7 @@ Unable to validate the manifest's pipeline status columns. Every pipeline in SES
 The column name may differ from the pipeline value, so the mapping's values are not derivable from its keys, and five
 further rosters spell the same column out. The check builds a `rosters` mapping over all five and tests each in both
 directions. Every roster must name every status column, and no roster may name a column absent from
-`_PROJECT_MANIFEST_SCHEMA`, which every roster names a subset of.
+`_PROJECT_MANIFEST_SCHEMA`, of which every roster names a subset.
 
 | Order | Roster named in the message | What it decides                                                    |
 |-------|-----------------------------|--------------------------------------------------------------------|
@@ -223,9 +223,10 @@ cores in `_JOB_CORE_ALLOCATIONS`.
 
 ## What no check covers
 
-The seventeen touch points below reach no guardrail and are covered by a test instead. All but one pass every import
-and fail later or silently; a dataset column with no description entry raises at import of the system's own metadata
-module. The manifest's status column is absent from this table, because every roster naming it is checked at import.
+The seventeen touch points below reach no guardrail and are covered by a test instead. All but two pass every import and
+fail later or silently. A dataset column with no description entry raises at import of the system's own metadata module,
+and a system package importing a category package raises a circular `ImportError` at import. The manifest's status
+column is absent from this table, because every roster naming it is checked at import.
 
 | Uncovered touch point                                                 | Scenario        | How the omission surfaces                                                                                                | Where to cover it                              |
 |-----------------------------------------------------------------------|-----------------|--------------------------------------------------------------------------------------------------------------------------|------------------------------------------------|

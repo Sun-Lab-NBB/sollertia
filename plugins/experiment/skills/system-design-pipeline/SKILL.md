@@ -10,9 +10,7 @@ user-invocable: false
 
 # Sollertia system design pipeline
 
-End-to-end orchestration reference for building a new Sollertia acquisition system. Covers the canonical build-phase
-ordering, the handoff conditions between phases, the cross-repository ordering hazards, and the hand-off to `/pipeline`
-for operating the finished system.
+End-to-end orchestration reference for building a new Sollertia acquisition system.
 
 This skill is the build-time counterpart to `/pipeline`. This skill builds a new acquisition system, and `/pipeline`
 operates one that already exists. Mesoscope-VR is the current worked example throughout, so substitute the system you
@@ -26,7 +24,7 @@ are building wherever a `mesoscope:*` skill is named. See `mesoscope:mesoscope-v
 - Canonical phase ordering for building a new acquisition system across the four owning layers
 - Handoff conditions that gate each phase before the next begins
 - The cross-repository ordering hazards, meaning which repository must be complete before the next imports
-- Where the assets, unity, forging, and ataraxis plugins fit into the build, and the hand-off to `/pipeline`
+- Where the assets, unity, forging, and ataraxis plugins fit into the build, and the handoff to `/pipeline`
 
 **Does not cover:**
 - The seam-by-seam catalog of what a new system touches in sollertia-experiment and sollertia-micro-controllers,
@@ -78,7 +76,7 @@ handoff condition before starting the next.
 4.  Corridor task            assets:task-templates → unity:task-generator → unity:task-prefabs (+ zone-prefabs)
 5.  External services (opt.) /google-sheets-processing  (read/write processors, read asset via assets:library-extension)
 6.  Agentic assets           /acquisition-system-design (the system's companion plugin and its skills)
-7.  Subprocess tools (opt.)  /acquisition-system-design (separate-environment CLI tools)
+7.  External tool bindings   /acquisition-system-design (separate-environment CLI tools, optional)
 8.  Downstream design (opt.) forging:data-processing-design
 →   Operate                  /pipeline  (configure a host and run the first session)
 ```
@@ -123,11 +121,11 @@ half 2, because half 2 names the files each of them touches.
   mechanics to `microcontroller:firmware-module` (ataraxis marketplace, the firmware `Module`) and
   `communication:microcontroller-interface` (the PC-side `ModuleInterface`). Cameras use `video:camera-interface`, and
   motors use `/zaber-interface`.
-- **Actions:** For each hardware module the system drives that the shared module catalog does not already provide,
-  author the paired C++ `Module` and Python `ModuleInterface`, allocating a type code and instance ids from
+- **Actions:** For each hardware module that the system drives and that the shared module catalog does not already
+  provide, author the paired C++ `Module` and Python `ModuleInterface`, allocating a type code and instance ids from
   `/microcontroller-interface`'s catalog. Hardware already in the catalog is reused with no new code. The firmware and
-  PC sides must agree on the protocol, meaning the type code, the `PACKED_STRUCT` command and parameter layouts, and
-  the event codes.
+  PC sides must agree on the protocol, meaning the type code, the `PACKED_STRUCT` command and parameter layouts, and the
+  event codes.
 - **System instrument:** Beyond the ataraxis-contracted hardware above, the system's primary scientific instrument is
   integrated through a bespoke, system-specific driver, because each instrument differs and no shared contract exists.
   The current worked example drives its instrument through a custom bridge. See `mesoscope:mesoscope-vr`. Author the
@@ -160,8 +158,8 @@ half 2, because half 2 names the files each of them touches.
   and the visualizer, UIs, and instrument driver the system needs. The orchestrator composes the platform-general VR
   task driver that couples the runtime to the Unity scene, covered by `/vr-driver-interface` alongside
   `/microcontroller-interface` and `/zaber-interface`. Add the `sle <system>` CLI command group, registered in
-  `interfaces/entry_points.py`, and the `interfaces/<system>_tools.py` MCP tool module. Bump the
-  `sollertia-experiment` version.
+  `interfaces/entry_points.py`, and the `interfaces/<system>_tools.py` MCP tool module. Bump the `sollertia-experiment`
+  version.
 - **Handoff condition:** The `sle <system>` CLI group is reachable, the system's configuration validation tool reports
   the configuration as valid with an empty `issues` list, and the per-system MCP tools register, because the server
   imports every `*_tools.py` module in `interfaces/` through `_register_tool_modules()` (`interfaces/mcp_server.py`).
@@ -213,7 +211,7 @@ half 2, because half 2 names the files each of them touches.
   the per-system skills exist.
 - **Handoff condition:** The system has an instance skill to which the operate pipeline can dispatch.
 
-### Phase 7: Subprocess tools (optional)
+### Phase 7: External tool bindings (optional)
 
 - **Plugin / Skill:** `/external-tool-bindings` owns the binding convention, the admission test that decides whether
   the tool registers or binds, the artifact contract, and the ordered workflow for adding a binding.
@@ -296,7 +294,7 @@ list_supported_acquisition_systems_tool)?
                                 ├─ no  → Phase 4 (assets:task-templates → the unity task skills)
                                 └─ yes → the system type is built. Hand off to /pipeline to configure a host and
                                          run the first session (also: external-service processors, Phase 5,
-                                         agentic assets, Phase 6, subprocess tools, Phase 7, downstream
+                                         agentic assets, Phase 6, external tool bindings, Phase 7, downstream
                                          processing design, Phase 8)
 ```
 
@@ -304,8 +302,7 @@ list_supported_acquisition_systems_tool)?
 
 ## Cross-plugin handoffs at a glance
 
-Each row points to the system-agnostic owning skill. Mesoscope-VR is the worked example built through these same
-skills. The `video:`, `communication:`, and `microcontroller:` entries resolve through the ataraxis marketplace.
+Each row points to the system-agnostic owning skill. Mesoscope-VR is the worked example built through these same skills.
 
 | You need to…                                                   | Use…                                              |
 |----------------------------------------------------------------|---------------------------------------------------|
@@ -389,7 +386,7 @@ System build orchestration:
 - [ ] The sle CLI group was registered by hand in entry_points.py, since only the MCP seam is automatic
 - [ ] The experiment configuration's unity_scene_name resolves to a real task template and scene
 - [ ] If the system integrates an external data service, its processor round-trips and (for reads) snapshots to disk
-- [ ] If the system runs a subprocess tool, its environment and project path are set and confirmed by hand
+- [ ] If the system binds an external tool, its environment and project path are set and confirmed by hand
 - [ ] Each cross-repository coupling has both sides in agreement, with version bumps where required
 - [ ] Handed off to /pipeline for host configuration and the first session
 ```

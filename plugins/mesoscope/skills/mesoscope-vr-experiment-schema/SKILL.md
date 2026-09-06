@@ -158,11 +158,11 @@ skill records only what Mesoscope-VR constrains on top of them.
 | `LICK_TRAINING`            | `3`  | No                                      |
 | `RUN_TRAINING`             | `4`  | No                                      |
 
-An experiment configuration accepts only `REST` (`1`) and `RUN` (`2`). Session initialization walks every
-`experiment_states` value and raises `ValueError` on any other code. The `0` that `from_task_template` seeds is
-therefore `IDLE`, a valid Mesoscope-VR system state that an experiment configuration rejects, and it must be edited to
-`1` or `2` before the session can run. How the runtime installs these states is owned by `/mesoscope-vr-runtime`, and
-this skill documents only which codes an experiment configuration accepts.
+Session initialization walks every `experiment_states` value and raises `ValueError` on any code other than `1` or `2`.
+The `0` that `from_task_template` seeds is therefore `IDLE`, a valid Mesoscope-VR system state that an experiment
+configuration rejects, and it must be edited to `1` or `2` before the session can run. How the runtime installs these
+states is owned by `/mesoscope-vr-runtime`, and this skill documents only which codes an experiment configuration
+accepts.
 
 ---
 
@@ -212,7 +212,7 @@ For each of the `state_count` states, the builder emits a `state_{n}` (1-indexed
 - `supports_trials = True`
 
 The guidance counters are populated **only for the trial classes that exist** in the seeded `trial_structures`,
-mirroring the trial types present in the template:
+mirroring the trial types present in the template, and a counter whose trial class is absent holds `0`:
 
 | Guidance counter (reinforcing or aversive) | Seeded value when the matching trial type is present | Source constant                      |
 |--------------------------------------------|------------------------------------------------------|--------------------------------------|
@@ -220,10 +220,8 @@ mirroring the trial types present in the template:
 | `*_recovery_failed_threshold`              | `9`                                                  | `_DEFAULT_RECOVERY_FAILED_THRESHOLD` |
 | `*_recovery_guided_trials`                 | `3`                                                  | `_DEFAULT_RECOVERY_GUIDED_TRIALS`    |
 
-The `reinforcing_*` counters take these values only when a `MesoscopeWaterRewardTrial` is present in `trial_structures`,
-and otherwise hold `0`. The `aversive_*` counters take them only when a `MesoscopeGasPuffTrial` is present, and
-otherwise hold `0`. These constants are private to `experiment_configuration.py`. Only the per-trial `default_*`
-parameters above are overridable through the builder.
+These constants are private to `experiment_configuration.py`. Only the per-trial `default_*` parameters above are
+overridable through the builder.
 
 ---
 

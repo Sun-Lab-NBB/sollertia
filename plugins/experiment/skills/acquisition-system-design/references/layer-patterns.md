@@ -409,8 +409,7 @@ depend on it, and stop the DataLogger last.
   `mesoscope:mesoscope-vr-runtime`.
 - **The DataLogger is stopped last.** Every binding class's `stop()` may write final messages to it, and it records the
   data streams from all sources, so it MUST outlive every consumer.
-- **Every tear-down step is isolated.** `run_shutdown_step` catches a failing step and echoes an ERROR so the remaining
-  steps still run (`cross_system/shutdown_tools.py`).
+- **Every tear-down step is isolated** through `run_shutdown_step`, per the Layer 2b tear-down isolation rule above.
 
 After shutdown, the downstream preprocessing pipeline calls `assemble_log_archives()` from `ataraxis_data_structures` to
 consolidate the per-source log entries into the final session output. That call is a separate preprocessing step rather
@@ -418,15 +417,10 @@ than part of the orchestrator's `stop()` (`assemble_session_logs` in `cross_syst
 
 ### Keepalive
 
-AXCI handles microcontroller keepalive. A `MicroControllerInterface` constructed with a non-zero `keepalive_interval`
-sends keepalive messages to its controller at that interval, and raises a `RuntimeError` when the controller misses its
-deadline. The firmware Kernel reports the miss as the `kKeepAliveTimeout` status code, value 10, and performs an
-emergency reset that returns all managed hardware to its default state.
-
-The orchestrator and the binding classes are responsible for **configuration** only. Each `MicroControllerInterface`
-receives its `keepalive_interval` at construction, read from the configuration section's keepalive-interval field, where
-a value of `0` disables keepalive. AXCI owns detection and aborting. See `/microcontroller-interface` for the
-per-interface keepalive surface.
+AXCI handles microcontroller keepalive. The orchestrator and the binding classes are responsible for **configuration**
+only. Each `MicroControllerInterface` receives its `keepalive_interval` at construction, read from the configuration
+section's keepalive-interval field, where a value of `0` disables keepalive. AXCI owns detection and aborting. See
+`/microcontroller-interface` for the per-interface keepalive surface and the firmware-side status code.
 
 ### Cross-subsystem synchronization
 
@@ -467,7 +461,7 @@ than per-system material. Camera-section fields feed `VideoSystem.__init__` in `
 `ZaberConnection.__init__` in `cross_system/zaber_bindings.py`
 (`ZaberConnection(port=zaber_configuration.headbar_port)`). The same naming agreement is checked against those
 constructors instead. When a wrapper changes its constructor signature, the corresponding dataclass field's name SHOULD
-change in the same change set to maintain conceptual agreement. Drift here is allowed and causes confusion during
+change in the same change set to maintain conceptual agreement. Drift here is permitted, but it causes confusion during
 debugging.
 
 ### Contract 2: Schema versioning

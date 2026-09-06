@@ -26,7 +26,7 @@ below is invoked through the skill that owns it.
 
 **Does not cover:**
 - Any MCP tool signature, parameter, return key, or failure mode. Owned by the skill that owns that tool.
-- Preparing, executing, monitoring, cancelling, resetting, or cleaning a batch. Owned by `/batch-processing`.
+- Preparing, executing, monitoring, canceling, resetting, or cleaning a batch. Owned by `/batch-processing`.
 - Sizing a unit's jobs and reading the plan projection. Owned by `/job-planning`.
 - Remote unit discovery, the submission ledger, and the scheduler's own job views. Owned by `/remote-execution`.
 - The compute server's five-field configuration. Owned by `/server-configuration`.
@@ -172,8 +172,8 @@ carried through them in several passes before a dataset is defined.
 ### Phase 5: Execute
 
 - **Plugin / Skill:** `/batch-processing`, and `/remote-execution` for the scheduler path
-- **Actions:** Call `execute_jobs_tool` with the recorded identifiers. It takes no host argument, because a batch runs
-  where it was prepared. A local run dispatches onto one process pool the MCP server process owns and honors a core
+- **Actions:** Call `execute_jobs_tool` with the recorded identifiers. It takes no host argument, because Phase 4 fixed
+  the host for this batch. A local run dispatches onto one process pool the MCP server process owns and honors a core
   budget and a memory budget. A remote run submits one scheduler allocation per job, chains each dependent onto its
   prerequisite allocations, and honors a wall-time request instead.
 - **Handoff condition:** The response reports that dispatch started. That proves the pool was launched or the
@@ -266,7 +266,7 @@ carried through them in several passes before a dataset is defined.
 
 ---
 
-## Decision tree: which skill to start from
+## Decision tree: the starting skill for a request
 
 ```text
 Is the Sollertia working directory configured on this host?
@@ -306,7 +306,7 @@ Every other entry resolves inside the sollertia marketplace.
 | You need to...                                           | Use...                                          |
 |----------------------------------------------------------|-------------------------------------------------|
 | Set the working directory or the data root               | `assets:working-directory`                      |
-| Create the project directory the units live under        | `assets:project-hierarchy`                      |
+| Create the project directory that holds the units        | `assets:project-hierarchy`                      |
 | Build the unit-path list a local batch consumes          | `assets:session-discovery`                      |
 | Name the units of a batch that lives on the server       | `/remote-execution`                             |
 | Preprocess a session so it carries `raw_data`            | `experiment:data-management`                    |
@@ -345,7 +345,7 @@ Every other entry resolves inside the sollertia marketplace.
 
 | Skill                            | Relationship                                                                   |
 |----------------------------------|--------------------------------------------------------------------------------|
-| `/batch-processing`              | Runs Phases 4 through 6 and owns the eight batch and orchestration tools       |
+| `/batch-processing`              | Runs Phases 4 through 6 and owns the nine batch and orchestration tools        |
 | `/job-planning`                  | Runs Phase 3 and owns the six planning and resource tools                      |
 | `/remote-execution`              | Runs Phase R2 and the scheduler half of Phases 5 and 6                         |
 | `/server-configuration`          | Runs Phase R1, the precondition of every remote call                           |
@@ -362,12 +362,10 @@ Every other entry resolves inside the sollertia marketplace.
 
 - Name the current phase and the skill that owns it before invoking any tool, so the user can see where the work
   stands and what ends the phase.
-- Invoke the phase-specific skill rather than reproducing its tool calls here, because this skill carries no tool
-  signatures and its summaries are deliberately shorter than the owning skill's.
 - Route a request that names a pipeline but no units back to Phase 2 or Phase R2 before planning anything.
 - Route a status read that reports nothing running and no outcome to `/batch-processing` for identifier recovery,
   rather than preparing a second batch over the same work.
-- Settle the local versus remote choice before Phase 3, since a batch runs where it was prepared.
+- Settle the local versus remote choice before Phase 3, because Phase 4 closes it.
 
 ---
 

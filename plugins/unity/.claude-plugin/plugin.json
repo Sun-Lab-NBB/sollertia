@@ -1,6 +1,6 @@
 {
   "name": "unity",
-  "version": "2.1.1",
+  "version": "2.1.2",
   "description": "Provides Unity Editor integration skills for sollertia-virtual-reality, generating VR tasks from templates and managing scenes, prefabs, and Play Mode. Includes MCP bindings, through the assets plugin's sollertia-shared-assets server, for the Unity Editor relay this project's McpBridge exposes.",
   "repository": "https://github.com/Sun-Lab-NBB/sollertia",
   "license": "Apache-2.0",

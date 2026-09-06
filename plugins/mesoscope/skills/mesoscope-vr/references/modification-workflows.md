@@ -125,9 +125,8 @@ For each: read the configuration, mutate the relevant field, write back via `wri
 changes needed.
 
 A replacement Teensy is the one exception, because it arrives with no firmware and its port field means nothing until
-the board is flashed with the environment its row names in
-[Hardware subsystem: microcontrollers](../SKILL.md#hardware-subsystem-microcontrollers). The experimenter runs the
-upload.
+the board is flashed with the environment its row names in [Hardware subsystem:
+microcontrollers](../SKILL.md#hardware-subsystem-microcontrollers). The experimenter runs the upload.
 
 ---
 
@@ -143,7 +142,7 @@ upload.
 | Brake strength bounds changed | `microcontrollers.minimum_brake_strength_g_cm` / `maximum_brake_strength_g_cm` |
 
 For each: read, mutate, write. The binding class consumes the calibration at session start, when it instantiates the
-wrappers, so a session already running keeps the values it started with.
+wrappers, so a session already running keeps the values in force when it started.
 
 ---
 
@@ -169,11 +168,8 @@ This crosses repositories. Follow the "Workflow: adding a paired Module + Interf
    in only one branch stays `None` in the others, the forgery eligibility check reads that `None` as "module not
    used", and the module's data is silently absent from those sessions with no error raised. Adding the field itself
    follows the "Adding a hardware-state field for a new module" workflow of `/mesoscope-vr-session-schema`.
-5. **Bump the `sollertia-experiment` version** in `pyproject.toml`.
-6. **Regenerate the system configuration YAML** on every deployment so the new fields appear.
-7. **Update this skill.** When the new module changes the boards' module inventory, update the table at the top of
-   [Hardware subsystem: microcontrollers](../SKILL.md#hardware-subsystem-microcontrollers).
-8. **Hand off to the processing side.** A module the runtime drives produces no processed output until a parser exists
+5. **Apply the post-change steps** in [After any hardware-inventory change](#after-any-hardware-inventory-change).
+6. **Hand off to the processing side.** A module the runtime drives produces no processed output until a parser exists
    for it. Follow the "Adding a new module parser" workflow of `/mesoscope-vr-module-parsing` to write the
    `parse_<module>` entry point, register its `_ModuleSpecification` under the module's `(module_type, module_id)` key
    in `_MODULE_REGISTRY`, and register the entry point in `_MICROCONTROLLER_PARSER_REGISTRY`. The specification's
@@ -193,8 +189,7 @@ Follow the "Workflow: adding a new controller board" section of `experiment:micr
    `buffer_size`, the shared `keepalive_interval_ms`, and a fresh `controller_id`. The values 101, 152, and 203 are
    taken. `MicroControllerInterface` accepts a `np.uint8` id between 1 and 255, and
    `experiment:microcontroller-interface` owns the allocation convention that narrows that range.
-3. **Update this skill's hardware-subsystem table** to list the new board, its controller ID, role, and modules.
-4. **Bump the `sollertia-experiment` version** and regenerate YAMLs.
+3. **Apply the post-change steps** in [After any hardware-inventory change](#after-any-hardware-inventory-change).
 
 ---
 
@@ -208,8 +203,7 @@ Follow the "Workflow: adding a new controller board" section of `experiment:micr
    in use on the rig.
 3. **Add per-camera lifecycle methods** (`start_<role>_camera`, `save_<role>_camera_frames`), a `_<role>_camera_started`
    flag, and the matching `run_shutdown_step` calls in `stop()`.
-4. **Bump the `sollertia-experiment` version** and regenerate YAMLs.
-5. **Update this skill's hardware-subsystem table.**
+4. **Apply the post-change steps** in [After any hardware-inventory change](#after-any-hardware-inventory-change).
 
 ---
 
@@ -224,7 +218,14 @@ Follow the "Workflow: adding a new controller board" section of `experiment:micr
    `disconnect()` and the `is_connected` property to cover the new `ZaberConnection`.
 4. **Update the `ZaberPositions` dataclass** in `mesoscope_vr/system.py` to capture the new group's per-axis positions,
    and reconcile `/mesoscope-vr-snapshots`, which owns that record's schema.
-5. **Bump the `sollertia-experiment` version** and regenerate YAMLs.
-6. **Update this skill's hardware-subsystem table.**
+5. **Apply the post-change steps** in [After any hardware-inventory change](#after-any-hardware-inventory-change).
 
 For motor-side mechanics (checksum validation, parking, position storage), see `experiment:zaber-interface`.
+
+---
+
+## After any hardware-inventory change
+
+Bump the `sollertia-experiment` version in `pyproject.toml` and regenerate the system configuration YAML on every
+deployment, so the new fields appear. When the change alters an inventory [`../SKILL.md`](../SKILL.md) records, update
+the matching hardware-subsystem table there, filling every column it carries.

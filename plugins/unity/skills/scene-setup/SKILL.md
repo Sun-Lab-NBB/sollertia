@@ -87,9 +87,8 @@ the same thing, "Close and reopen this window to auto-create one".
 | `Linear`              | `LinearTreadmill` + `ControllerOutput`                                                   | No                      |
 | `Simulated Linear`    | `SimulatedLinearTreadmill` + `ControllerOutput`                                          | No                      |
 
-**Both controllers coexist permanently** under the `Controllers` root. The active controller is selected via the Actor
-dropdown rather than by adding or removing scripts. The Unity-default `Main Camera` is removed automatically because the
-Display owns the per-monitor cameras and the Actor owns the third-person tracking camera.
+**Both controllers coexist permanently** under the `Controllers` root. The Unity-default `Main Camera` is removed
+automatically because the Display owns the per-monitor cameras and the Actor owns the third-person tracking camera.
 
 See `/gimbl-framework` "MainWindow" for the underlying invariants, which cover the `MainWindow.InitializeScene` /
 `EnsureControllers` / `EnsureMqttDefaults` / `SyncDisplayBrightnessToSettings` mechanics, the `HideInHierarchy` flag on
@@ -144,8 +143,7 @@ the helper first.
 ### Assigning monitors
 
 1. Save the scene. `save_scene_tool` from `/task-scenes` does this, and it refuses a scene that has never been saved,
-   which needs one `File → Save As` by hand first. An untitled scene has no persistence path, so assignments made there
-   are lost (see "Per-scene state" below).
+   which needs one `File → Save As` by hand first (see "Per-scene state" below).
 2. Open `Window → Task Parameters` and scroll to **Camera Mapping**.
 3. Click **Refresh Monitor Positions** if the entries do not match the OS-reported monitors. The agentic counterpart is
    `refresh_monitors_tool` from `/task-parameters`, which shares `FullScreenViewManager.RefreshMonitorPositions` with
@@ -384,31 +382,31 @@ reboot. **You SHOULD** maintain one scene per experimental protocol so the confi
       the MQTT broker is running on the IP / port configured in the MQTT section
 ```
 
-A `Simulated Linear` keyboard-only run needs **no** broker: when the broker is unreachable, `MQTTClient.Publish` falls
-back to routing the message straight to in-process subscribers on the matching topic and logs one warning per topic,
-opening `Unable to deliver '<topic>' to the MQTT broker at <ip>:<port>. ... the message reaches in-process subscribers
-only ...` (`MQTTClient.cs`). Only `Interaction` and `Stimulus` are both published and subscribed inside Unity, so they
-alone can be exercised that way.
+A `Simulated Linear` keyboard-only run needs **no** broker. When the broker is unreachable, `MQTTClient.Publish` falls
+back to routing the message straight to in-process subscribers on the matching topic and logs one warning per topic
+(`MQTTClient.cs`). That warning opens `Unable to deliver '<topic>' to the MQTT broker at <ip>:<port>. ... the message
+reaches in-process subscribers only ...`. Only `Interaction` and `Stimulus` are both published and subscribed inside
+Unity, so they alone can be exercised that way.
 
 ---
 
 ## Common failure modes
 
-| Symptom                                                | Root cause                                                                                                                                                      | Resolution                                                                                         |
-|--------------------------------------------------------|-----------------------------------------------------------------------------------------------------------------------------------------------------------------|----------------------------------------------------------------------------------------------------|
-| Display does not follow the actor in Play Mode         | Actor.Display not assigned, so `ActorObject.Display`'s setter never ran `ParentToActor`                                                                         | Close and reopen `Window → Task Parameters` to retrigger `EnsureActorAndDisplay`                   |
-| Camera Mapping lists no monitors at all                | No monitors detected, because `displayplacer` on macOS or `xrandr` on Linux is missing or failed (`read_console_tool` shows the `Monitor enumeration:` warning) | Install the helper, then press **Refresh Monitor Positions** or call `refresh_monitors_tool`       |
-| Camera Mapping rows are empty after a scene open       | Monitors enumerated but no camera bound yet, or the scene was created without the `MainWindow.InitializeScene` pass                                             | Bind each row, and if the Actor / Display are missing, close and reopen `Window → Task Parameters` |
-| Monitors show wrong content after reboot               | OS reassigned monitor ports                                                                                                                                     | Press **Refresh Monitor Positions** (or call `refresh_monitors_tool`) and reassign cameras         |
-| Two stacked full-screen windows per monitor            | **Show Full-Screen Views** was pressed in edit mode, and the Play-Mode pass uses `closeOldViews: false`                                                         | Left-click each edit-mode view to close it, then let Play Mode open the views                      |
-| Camera bindings vanish after a restart                 | They were made in an untitled scene, so `SaveCameras` no-opped                                                                                                  | `File → Save As` once to give the scene a path, then rebind and call `save_scene_tool`             |
-| Keyboard input has no effect in Play Mode              | Controller dropdown is `Linear`, not `Simulated Linear`                                                                                                         | Swap via the Actor section's Controller dropdown                                                   |
-| Spurious `Interaction` events in session log           | Forgotten `Simulated Linear` selection in a production scene                                                                                                    | Swap back to `Linear`                                                                              |
-| UI indicators never appear                             | `LickStimulusSpawner` canvas / prefab fields unset                                                                                                              | Assign fields in the Inspector (a `Stimulus` with `delivered == false` correctly spawns nothing)   |
-| Task disables itself at `Start`, corridor never builds | `configPath` drifted, and `read_console_tool(level="error")` logs `Unable to load the task configuration. The configPath must resolve to an existing YAML file` | Regenerate via `/task-prefabs` or fix the path                                                     |
-| Full-screen views open on wrong monitors               | Monitor indices reordered or new monitors attached                                                                                                              | Refresh Monitor Positions, reassign cameras                                                        |
-| `Window → Task Parameters` shows "No Task component"   | Active scene contains no task prefab                                                                                                                            | `create_task_tool(template_name=...)`, or drag a task prefab in                                    |
-| Default `Main Camera` present in a new scene           | The scene was assembled by hand, outside both `InitializeScene` and the `CreateSceneFromTemplate` pass that strips it                                           | Close and reopen `Window → Task Parameters`, which logs the removal                                |
+| Symptom                                                | Root cause                                                                                                                                                                                                       | Resolution                                                                                         |
+|--------------------------------------------------------|------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|----------------------------------------------------------------------------------------------------|
+| Display does not follow the actor in Play Mode         | Actor.Display not assigned, so `ActorObject.Display`'s setter never ran `ParentToActor`                                                                                                                          | Close and reopen `Window → Task Parameters` to retrigger `EnsureActorAndDisplay`                   |
+| Camera Mapping lists no monitors at all                | No monitors detected, because the platform's monitor-enumeration helper is missing or failed (`read_console_tool` shows the `Monitor enumeration:` warning, and `/unity-mcp-environment-setup` names the helper) | Install the helper, then press **Refresh Monitor Positions** or call `refresh_monitors_tool`       |
+| Camera Mapping rows are empty after a scene open       | Monitors enumerated but no camera bound yet, or the scene was created without the `MainWindow.InitializeScene` pass                                                                                              | Bind each row, and if the Actor / Display are missing, close and reopen `Window → Task Parameters` |
+| Monitors show wrong content after reboot               | OS reassigned monitor ports                                                                                                                                                                                      | Press **Refresh Monitor Positions** (or call `refresh_monitors_tool`) and reassign cameras         |
+| Two stacked full-screen windows per monitor            | **Show Full-Screen Views** was pressed in edit mode, and the Play-Mode pass uses `closeOldViews: false`                                                                                                          | Left-click each edit-mode view to close it, then let Play Mode open the views                      |
+| Camera bindings vanish after a restart                 | They were made in an untitled scene, so `SaveCameras` no-opped                                                                                                                                                   | `File → Save As` once to give the scene a path, then rebind and call `save_scene_tool`             |
+| Keyboard input has no effect in Play Mode              | Controller dropdown is `Linear`, not `Simulated Linear`                                                                                                                                                          | Swap via the Actor section's Controller dropdown                                                   |
+| Spurious `Interaction` events in session log           | Forgotten `Simulated Linear` selection in a production scene                                                                                                                                                     | Swap back to `Linear`                                                                              |
+| UI indicators never appear                             | `LickStimulusSpawner` canvas / prefab fields unset                                                                                                                                                               | Assign fields in the Inspector (a `Stimulus` with `delivered == false` correctly spawns nothing)   |
+| Task disables itself at `Start`, corridor never builds | `configPath` drifted, and `read_console_tool(level="error")` logs `Unable to load the task configuration. The configPath must resolve to an existing YAML file`                                                  | Regenerate via `/task-prefabs` or fix the path                                                     |
+| Full-screen views open on wrong monitors               | Monitor indices reordered or new monitors attached                                                                                                                                                               | Refresh Monitor Positions, reassign cameras                                                        |
+| `Window → Task Parameters` shows "No Task component"   | Active scene contains no task prefab                                                                                                                                                                             | `create_task_tool(template_name=...)`, or drag a task prefab in                                    |
+| Default `Main Camera` present in a new scene           | The scene was assembled by hand, outside both `InitializeScene` and the `CreateSceneFromTemplate` pass that strips it                                                                                            | Close and reopen `Window → Task Parameters`, which logs the removal                                |
 
 ---
 

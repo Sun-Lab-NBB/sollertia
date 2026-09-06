@@ -76,18 +76,17 @@ resolve onto long-term storage destinations.
 
 A system's tool and its CLI command may normalize that path differently. The current worked example tests containment
 with the unresolved path in both `preprocess_session_tool` and `delete_session_tool`
-(`interfaces/mesoscope_vr_tools.py`) and resolves both operands
-in the CLI, so a `..` segment or a symlink is treated differently by the two routes. You SHOULD pass a resolved
-absolute path.
+(`interfaces/mesoscope_vr_tools.py`) and resolves both operands in the CLI, so a `..` segment or a symlink is treated
+differently by the two routes. You SHOULD pass a resolved absolute path.
 
 ---
 
 ## The logger-name contract
 
 `BEHAVIOR_LOGGER_NAME = "behavior"` names the `DataLogger` instance that records the behavior data of every acquisition
-system (`cross_system/data_preprocessing.py`). That name composes the `_LOG_DIRECTORY_NAME` constant in the same
-module, which yields the `behavior_data_log` directory that `assemble_session_logs` looks for, so every acquisition
-system MUST name its behavior `DataLogger` `"behavior"`.
+system (`cross_system/data_preprocessing.py`). That name composes the `_LOG_DIRECTORY_NAME` constant in the same module,
+which yields the `behavior_data_log` directory `assemble_session_logs` expects, so every acquisition system MUST name
+its behavior `DataLogger` `"behavior"`.
 
 ---
 
@@ -152,14 +151,6 @@ pulls one session from a storage destination with `verify_integrity=False`. It c
 `raw_data/session_data.yaml` back to the source project's host path, recreating the `raw_data` directory that
 preprocessing removed, then sets `project_name`, saves, and returns a reloaded `SessionData`
 (`cross_system/data_preprocessing.py`).
-
----
-
-## When to use this skill
-
-- **Preprocessing**: "Preprocess all sessions for project X" / "for animal 12345" / "the session at /path"
-- **Migrating**: "Move animal 12345 from project A to project B"
-- **Deleting**: "Delete the session at /path" / "Remove failed session data"
 
 ---
 
@@ -246,8 +237,11 @@ command. Use `assets:project-hierarchy` to verify whether the destination projec
 (`interfaces/mesoscope_vr_tools.py`), so the two names refer to the same project.
 
 Migration **fails with an error if any session cannot be preprocessed or migrated**, for example when the animal is
-absent from the surgery sheet that preprocessing reads. Each session is an isolated unit that cleans up after itself
-on failure, so re-running the migrate tool after the fix resumes from the failed session.
+absent from the surgery sheet that preprocessing reads. With configured destinations each session is an isolated unit
+that removes its in-flight source-project directory on failure, so re-running the migrate tool after the fix resumes
+from the failed session. Without configured destinations each session is relocated by a move that is not rolled back.
+A failure after that move leaves the session under the target project while its record still names the source project,
+a re-run no longer sees it, and that case needs manual repair.
 
 ```text
 Animal migration progress:
@@ -257,7 +251,8 @@ Animal migration progress:
 - [ ] Warned the user that migration also moves the animal's persistent data and deletes the source-project
       animal directory from the data root and from every configured storage destination
 - [ ] Executed the migrate tool
-- [ ] On failure, resolved the reported error and re-ran the migrate tool to resume
+- [ ] On failure, re-ran the migrate tool to resume with configured destinations, or repaired the moved session by
+      hand without configured destinations
 - [ ] Reported completion
 ```
 
@@ -280,8 +275,8 @@ never reach the purge. Omitting the argument returns an `Error:` string that spe
 the two accepted values. A `"no"` value returns an abandonment notice. Only `"yes"` reaches the purge.
 
 Clearing that gate does not remove the second one. A session that lacks the `nk.bin` marker still needs a human at the
-acquisition host, because `delete_session_directories` opens a blocking terminal prompt the agent cannot answer. A
-session that carries the marker skips that prompt. Two outcomes need care in your reporting:
+acquisition host, for the reason given under `delete_session_directories` above. A session that carries the marker skips
+the terminal prompt. Two outcomes need care in your reporting:
 
 - The user declines the terminal prompt. The purge deletes nothing, and the tool still returns its success string.
   Verify the session directory is gone before you report success.
@@ -321,15 +316,15 @@ per-session pipelines. `forging:server-configuration` owns the remote compute se
 
 ## Error handling
 
-| Error                                            | Cause                                                      | Solution                                               |
-|--------------------------------------------------|------------------------------------------------------------|--------------------------------------------------------|
-| "Session directory must be inside the data root" | Path is outside the local data root                        | Only process sessions under `get_data_root()`          |
-| "The target project does not exist"              | Destination project not created                            | Create it with `create_project_tool`                   |
-| Preprocessing failure during migration           | A session cannot be preprocessed or migrated               | Resolve the error and re-run the migration to resume   |
-| `Error:` naming the accepted confirmation values | `confirm_deletion` was omitted                             | Confirm via AskUserQuestion, then retry with `"yes"`   |
-| Success string with data still present           | The host terminal prompt was declined                      | Verify the session is gone before reporting success    |
-| Opaque `Error:` from the delete tool             | No terminal attached on the acquisition host               | Re-run the deletion from the acquisition host terminal |
-| `RuntimeError` from log assembly                 | The log directory holds `.npy` entries and `.npz` archives | Back up and remove the existing archives, then retry   |
+| Error                                            | Cause                                                      | Solution                                                                |
+|--------------------------------------------------|------------------------------------------------------------|-------------------------------------------------------------------------|
+| "Session directory must be inside the data root" | Path is outside the local data root                        | Only process sessions under `get_data_root()`                           |
+| "The target project does not exist"              | Destination project not created                            | Create it with `create_project_tool`                                    |
+| Preprocessing failure during migration           | A session cannot be preprocessed or migrated               | Re-run to resume with configured destinations, repair by hand otherwise |
+| `Error:` naming the accepted confirmation values | `confirm_deletion` was omitted                             | Confirm via AskUserQuestion, then retry with `"yes"`                    |
+| Success string with data still present           | The host terminal prompt was declined                      | Verify the session is gone before reporting success                     |
+| Opaque `Error:` from the delete tool             | No terminal attached on the acquisition host               | Re-run the deletion from the acquisition host terminal                  |
+| `RuntimeError` from log assembly                 | The log directory holds `.npy` entries and `.npz` archives | Back up and remove the existing archives, then retry                    |
 
 ---
 

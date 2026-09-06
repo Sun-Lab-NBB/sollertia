@@ -9,9 +9,7 @@ user-invocable: false
 
 # Sollertia experiment pipeline
 
-End-to-end orchestration reference for the Sollertia experiment lifecycle. Covers canonical phase ordering, handoff
-conditions to phase-specific skills, and the boundary between configuration-time (AI-assisted) and runtime
-(deterministic) work.
+End-to-end orchestration reference for the Sollertia experiment lifecycle.
 
 ---
 
@@ -123,7 +121,7 @@ owns what each mode does once it starts.
   - that system's skill for any system-specific instrument the active system composes. For the current worked
     example, see `mesoscope:mesoscope-vr`
 
-### Phase 4: Experiment authoring
+### Phase 4: Experiment design
 
 This phase spans three assets plugin skills, each owning exactly one slsa asset. Step 4a (project), Step 4b (task
 template), and Step 4c (experiment configuration) are all required for a session type that runs the corridor task.
@@ -153,10 +151,11 @@ Every path cited in this phase is relative to `sollertia-shared-assets/src/solle
 - **Actions:** Verify platform configuration prerequisites, network mounts, hardware connectivity, configuration
   validity, and project readiness. Google credentials report as a configured-or-not platform component only, and the
   sheets themselves are read at preprocessing time rather than here. For a session type in
-  `SESSION_TYPES_USING_VR_TASK`, also confirm the Unity Editor MCP Bridge is reachable through
-  `check_unity_bridge_tool` (`interfaces/get_tools.py`) or `sle get unity`, whose `get_unity_bridge()` command lives in
-  `interfaces/get.py`, so the run CLI can open the scene and arm the VR task. Session types outside that set run no
-  task and skip this check. Keep the phase a light-touch sanity check before launching a runtime session. A system
+  `SESSION_TYPES_USING_VR_TASK`, also confirm the Unity Editor MCP Bridge is reachable, so the run CLI can open the
+  scene and arm the VR task. Use `check_unity_bridge_tool` (`interfaces/get_tools.py`) or `sle get unity`, whose
+  `get_unity_bridge()` command lives in `interfaces/get.py`. Session types outside that set run no task and skip this
+  check. The default for this phase is the five checks listed above and nothing else. A check that needs hardware to be
+  actuated, or that writes to a configuration file, belongs to `/acquisition-system-setup` rather than here. A system
   whose configuration declares out-of-process tools verifies their host-specific settings through that system's skill.
 - **Handoff condition:** All checklist items pass.
 
@@ -178,8 +177,8 @@ Every path cited in this phase is relative to `sollertia-shared-assets/src/solle
   completes, so their presence alone does not establish this. A session still carrying `nk.bin` is a purge target rather
   than a preprocessing target. See `assets:session-data` for that marker and for the separate descriptor `incomplete`
   field.
-- **Skill restriction:** You MUST NOT attempt to run sessions through MCP tools. No MCP tool starts a runtime
-  session, and there will not be one.
+- **Skill restriction:** You MUST NOT attempt to run sessions through MCP tools. Runtime is launched only through the
+  run CLI, as stated under "The configuration-time / runtime split".
 
 ### Phase 7: Post-process and manage
 

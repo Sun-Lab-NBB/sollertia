@@ -3,8 +3,8 @@ name: mesoscope-vr-processing-schema
 description: >-
   Documents the Mesoscope-VR metadata schema in metadata.py: the BehaviorDataFiles and VideoDataFiles filename rosters,
   the fifty-member DatasetColumn roster with its per-session-type presence matrix, and the derived
-  MESOSCOPE_COLUMN_DESCRIPTIONS mapping donated to the forging assembly registry. Use when you need the master filename
-  or assembled-column roster, when adding a processed feather or an assembled column, or when verifying that a
+  MESOSCOPE_COLUMN_DESCRIPTIONS mapping donated to the forging assembly registry. Use when looking up the master
+  filename or assembled-column roster, when adding a processed feather or an assembled column, or when verifying that a
   producer's output names match the contract.
 user-invocable: false
 ---
@@ -49,7 +49,7 @@ reaches the agnostic forging pipeline through the `_FORGING_ASSEMBLY_REGISTRY` s
 ## BehaviorDataFiles: the processed behavior feather roster
 
 `BehaviorDataFiles` is a `StrEnum` whose values are the canonical filenames of the behavior feather files the donated
-Mesoscope-VR parsers write, and the donated assembly worker reads most of them back. There are two output homes, not
+Mesoscope-VR parsers write, and the donated assembling module reads most of them back. There are two output homes, not
 one. The microcontroller parsers write the module feathers into a session's `processed_data/microcontroller_data`
 directory, and the runtime parser writes its feathers into `processed_data/runtime_data`. There is no
 `processed_data/behavior_data` directory, because `behavior_data` is the raw-side DataLogger archive directory under
@@ -253,28 +253,27 @@ Three ordered touches put a new column into a forged `data.feather`, and only th
 |---|---------------------|-------------------------------------------------------------------------------|-------------------------------------------------------------------|
 | 1 | Declare the name    | A `DatasetColumn` member in `metadata.py`, in the group of the emitting stage | Every assembly job that emits the column fails                    |
 | 2 | Describe the column | The matching `_COLUMN_DESCRIPTIONS` entry, keyed by that member               | `KeyError` at import of `sollertia_forgery.mesoscope_vr`          |
-| 3 | Emit the value      | The group's emission site, tabulated by `/mesoscope-vr-dataset-assembly`      | A described column no session carries, which the contract permits |
+| 3 | Emit the value      | The group's assembling module, tabulated by `/mesoscope-vr-dataset-assembly`  | A described column no session carries, which the contract permits |
 
 Touches 1 and 2 land in the same edit, because the comprehension deriving `MESOSCOPE_COLUMN_DESCRIPTIONS` indexes
-`_COLUMN_DESCRIPTIONS` with every `DatasetColumn` member. Touch 3 sits in a different module that no check reaches, so
-a test covers the emitted value. That site is the group's own sub-assembler for four of the five groups. The pupil
-group is the exception, because `assemble_video_dataset` forwards the pupil feather's own columns verbatim, so a pupil
-column is emitted by declaring a `PupilColumn` member and computing its metric in `video_tracking.py`, which
-`/mesoscope-vr-video-tracking` owns, and the extra rule a boolean pupil state flag carries lives with
-`/mesoscope-vr-dataset-assembly`. A column present only under a condition also joins the `DatasetColumn` class
-docstring and the presence table above, both of which state the full condition set.
+`_COLUMN_DESCRIPTIONS` with every `DatasetColumn` member. Touch 3 sits in a different module that no check reaches, so a
+test covers the emitted value. That module is the group's own assembler for four of the five groups. The pupil group is
+the exception, because `assemble_video_dataset` forwards the pupil feather's own columns verbatim. A pupil column is
+therefore emitted by declaring a `PupilColumn` member and computing its metric in `video_tracking.py`, which
+`/mesoscope-vr-video-tracking` owns. The extra rule a boolean pupil state flag carries lives with
+`/mesoscope-vr-dataset-assembly`. A column present only under a condition also joins the `DatasetColumn` class docstring
+and the presence table above, both of which state the full condition set.
 
 ### A new column invalidates the datasets already defined
 
 `data_descriptions.feather` is written once, by `DatasetData._write_column_descriptions`, whose only caller is
 `DatasetData.create`. The donation is read in exactly one place, by `resolve_forging_column_descriptions` inside
-`_create_dataset` in `forging/dataset.py`, so a dataset that gains sessions keeps the mapping baked when it was
-created. The forging pipeline loads that baked file into its `described_columns` set and holds every assembled feather
-to it. A session emitting the new column into an older dataset therefore fails with the `ValueError` that
-`_forge_session` in `forging/pipeline.py` raises, naming every undescribed column. Recreating the dataset is what clears
-it, through `slf forge --force-recreate` or the `force_recreate` argument of `define_forging_dataset`, because that path
-deletes the hierarchy and re-enters `_create_dataset`. Rebuilding one animal with `--recreate-animal` clears nothing,
-since it
+`_create_dataset` in `forging/dataset.py`, so a dataset that gains sessions keeps the mapping baked when it was created.
+The forging pipeline loads that baked file into its `described_columns` set and holds every assembled feather to it. A
+session emitting the new column into an older dataset therefore fails with the `ValueError` that `_forge_session` in
+`forging/pipeline.py` raises, naming every undescribed column. Recreating the dataset is what clears it, through
+`slf forge --force-recreate` or the `force_recreate` argument of `define_forging_dataset`, because that path deletes the
+hierarchy and re-enters `_create_dataset`. Rebuilding one animal with `--recreate-animal` clears nothing, since it
 leaves the companion file as it stands, and the two options are mutually exclusive.
 
 ---
@@ -366,8 +365,8 @@ Roster fidelity:
 - [ ] Every member description matches its metadata.py docstring, with no invented unit, transform, or sensor
 - [ ] MESOSCOPE_COLUMN_DESCRIPTIONS is the exported asset and the three enumerations are package-internal
 - [ ] The import-time completeness check is described as a bare KeyError from the dict comprehension
-- [ ] A newly added column carries its DatasetColumn member, its _COLUMN_DESCRIPTIONS entry, and its emission site,
-      the last being the group's sub-assembler except for a pupil column, whose site is video_tracking.py, and the
+- [ ] A newly added column carries its DatasetColumn member, its _COLUMN_DESCRIPTIONS entry, and its assembling module,
+      the last being the group's own assembler except for a pupil column, whose module is video_tracking.py, and the
       presence condition reached the class docstring and the presence table
 - [ ] The rebuild a new column forces on every dataset already defined was stated, and routed to slf forge
       --force-recreate rather than to --recreate-animal

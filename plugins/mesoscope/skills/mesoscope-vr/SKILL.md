@@ -26,8 +26,8 @@ runtime behavior (state machine, training modes, CLI) to `/mesoscope-vr-runtime`
 - `MesoscopeSystemConfiguration`, its registration call, the configuration file lifecycle, and the per-section field
   registry in `references/configuration-fields.md`
 - `MesoscopeData`, the class that resolves the `filesystem` section into per-session paths
-- Per-subsystem binding classes (`MicroControllerInterfaces`, `VideoSystems`, `ZaberMotors`) and the
-  `MesoscopeDriver` MQTT interface, covering composition and lifecycle wiring
+- Per-subsystem binding classes (`MicroControllerInterfaces`, `VideoSystems`, `ZaberMotors`) and the `MesoscopeDriver`
+  out-of-band device driver, covering composition and lifecycle wiring
 - MCP tools for reading, writing, and validating the configuration YAML, plus `read_session_system_configuration_tool`
   for the frozen per-session snapshot
 - The `video_tracking` section that binds the acquisition stack to the sollertia-video-tracking (slvt) inference tool
@@ -56,7 +56,7 @@ it exports its data-output directory as a local mount that the VRPC reads throug
 field is therefore the ScanImagePC data share as seen from the VRPC, and `MesoscopeData` raises `ValueError` when it is
 left unset (`mesoscope_vr/system.py`).
 
-| Subsystem             | Devices                                                            | Binding class                       |
+| Subsystem             | Devices                                                            | Binding or driver class             |
 |-----------------------|--------------------------------------------------------------------|-------------------------------------|
 | Microcontrollers      | 3 × Teensy 4.1 boards (ACTOR, SENSOR, ENCODER)                     | `MicroControllerInterfaces`         |
 | Cameras               | 2 × GenICam scientific cameras (face camera, body camera)          | `VideoSystems`                      |
@@ -113,7 +113,7 @@ defined in `mesoscope_vr/system.py`.
 | Section            | Dataclass                   | What it parameterizes                                                       |
 |--------------------|-----------------------------|-----------------------------------------------------------------------------|
 | `name`             | (str, top-level)            | Human-readable system label (default: `"mesoscope"`)                        |
-| `filesystem`       | `MesoscopeFileSystem`       | ScanImagePC acquisition mount plus the named long-term storage destinations |
+| `filesystem`       | `_MesoscopeFileSystem`      | ScanImagePC acquisition mount plus the named long-term storage destinations |
 | `sheets`           | `MesoscopeGoogleSheets`     | Google Sheet IDs for surgery log and water log                              |
 | `cameras`          | `MesoscopeCameras`          | Face / body camera indices and H.265 encoding parameters                    |
 | `microcontrollers` | `MesoscopeMicroControllers` | Per-board ports + per-module calibration data                               |
@@ -132,7 +132,7 @@ configuration_class=MesoscopeSystemConfiguration)` runs at module scope, so the 
 package adds one typed accessor on top of it. `get_system_configuration()` calls the shared
 `get_system_configuration_data()` and raises `TypeError` when the host belongs to another system
 (`mesoscope_vr/system.py`). The package re-exports `get_system_configuration_path` from `cross_system` unchanged
-(`mesoscope_vr/__init__.py`), and the `__all__` list of that module holds 16 names.
+(`mesoscope_vr/__init__.py`), and the `__all__` list of that module holds 19 names.
 
 ### YAML file lifecycle
 
@@ -346,7 +346,7 @@ because mounting is facilitated primarily by moving the LickPort away from the a
 For when the runtime invokes these methods and in what order, see `/mesoscope-vr-runtime`.
 
 For motor mechanics (park/unpark safety, position management, configuration tooling, the `ZaberConnection` /
-`ZaberDevice` / `ZaberAxis` hierarchy, MCP discovery), see `experiment:zaber-interface`.
+`_ZaberDevice` / `ZaberAxis` hierarchy, MCP discovery), see `experiment:zaber-interface`.
 
 ---
 
@@ -367,7 +367,7 @@ the start of each runtime.
 For the full per-field documentation (types, defaults, units, and `__post_init__` validation), see
 [`references/configuration-fields.md`](references/configuration-fields.md) under the "MesoscopeAcquisition" section.
 
-### MesoscopeDriver interface class
+### MesoscopeDriver out-of-band device driver
 
 `MesoscopeDriver` (in `mesoscope_vr/mesoscope_driver.py`) encapsulates all MQTT communication with the `runAcquisition`
 MATLAB function on the ScanImagePC. Its construction signature, method surface, command-acknowledgement semantics, MQTT
@@ -390,7 +390,7 @@ mesoscope, valve, or motor hardware yourself. Direct the experimenter to the mai
 
 ## Auxiliary sections and workflows
 
-`MesoscopeFileSystem` with the `MesoscopeData` path resolver it feeds, `MesoscopeGoogleSheets`, the Unity-VR portion
+`_MesoscopeFileSystem` with the `MesoscopeData` path resolver it feeds, `MesoscopeGoogleSheets`, the Unity-VR portion
 of `MesoscopeVRAssets`, and `MesoscopeVideoTracking` are documented field by field in
 [`references/configuration-fields.md`](references/configuration-fields.md).
 
@@ -403,14 +403,13 @@ camera, and adding a Zaber motor group.
 
 ## Lifecycle orchestrator handoff
 
-`MesoscopeVRSystem` (in `mesoscope_vr/system_controller.py`) composes the three binding classes, and also constructs
-the `VRTaskDriver` (experiment sessions only) and the `MesoscopeDriver` (every session, connected only for
-experiments). Its responsibilities, state machine, training modes, and CLI surface belong to `/mesoscope-vr-runtime`.
+`MesoscopeVRSystem` also constructs the `VRTaskDriver` (experiment sessions only) and the `MesoscopeDriver` (every
+session, connected only for experiments).
 
 This skill owns the **hardware composition**: which binding classes exist, and how they are constructed from
-configuration. The runtime skill owns the **temporal composition**: when binding classes start and stop, how state
-transitions happen, and how the training logic uses them. A change to the binding classes (new wrapper, new
-construction parameter) is in scope here. A change to the runtime state machine or the CLI is in scope there.
+configuration. `/mesoscope-vr-runtime` owns the **temporal composition**: when binding classes start and stop, how state
+transitions happen, and how the training logic uses them. A change to the binding classes (new wrapper, new construction
+parameter) is in scope here. A change to the runtime state machine or the CLI is in scope there.
 
 ---
 

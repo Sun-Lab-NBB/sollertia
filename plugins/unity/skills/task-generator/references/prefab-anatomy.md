@@ -49,15 +49,16 @@ then runs, in this order:
 
 1. **Resolve the asset stem** `Cue_<name>_<lengthLabel>cm` and derive both the prefab and the material path from it. Cue
    assets are keyed by `(name, length_cm)` only, so every template that declares a matching cue shares them.
-2. **Load the texture** as a `Texture2D`. A file present on disk but not imported aborts the build with
-   `BuildCuePrefabs: Failed to load texture '<texture>'.` The load happens before the cached-asset checks so a template
-   that changed a cue's texture is caught rather than served a stale asset.
-3. **Reject a cached material built from a different texture.** When `Cue_<stem>.mat` exists and its `_MainTex` is not
-   the texture the template declares, the build aborts: `BuildCuePrefabs: Cue '<name>' at <n> cm declares texture '<t>',
-   but the cached material '<stem>.mat' was built from a different texture.` The message names the two resolutions.
-   Delete both cue assets to rebuild them for every template that shares the identity, or give the cue a distinct name
-   or length so it occupies its own slot. Rebuilding in place is refused because it would silently alter every other
-   template's rendering.
+2. **Load the texture** as a `Texture2D`. A file present on disk but not imported aborts the build with `Unable to build
+   the cue prefab for '<name>'. The texture must exist under Assets/InfiniteCorridorTask/Textures, but '<texture>'
+   failed to load.` The load happens before the cached-asset checks so a template that changed a cue's texture is caught
+   rather than served a stale asset.
+3. **Reject a cached material built from a different texture.** When `<stem>.mat` exists and its `_MainTex` is not the
+   texture the template declares, the build aborts: `Unable to build cue '<name>' at <n> cm. The cached material
+   '<stem>.mat' must be built from the declared texture '<t>', but it was built from a different texture.` The message
+   names the two resolutions. Delete both cue assets to rebuild them for every template that shares the identity, or
+   give the cue a distinct name or length so it occupies its own slot. Rebuilding in place is refused because it would
+   silently alter every other template's rendering.
 4. **Skip only when BOTH assets survive.** The skip-if-exists test requires the prefab *and* its material. A material
    deleted from under a surviving prefab leaves that prefab rendering untextured, so `BuildCuePrefabs` deletes the
    surviving prefab and rebuilds both. `SaveAsPrefabAsset` merges into a same-named asset already at the path, and that
@@ -73,12 +74,12 @@ negative geometry scale to mirror its texture. The Standard shader breaks under 
 lighting altogether. When the reference material loads but carries a null shader, the method logs a `Debug.LogWarning`
 and falls back through a hand-authored `Cue*.mat` heuristic (a `Materials/` material whose filename starts with `Cue`
 but not `Cue_`), then `Shader.Find("Legacy Shaders/Diffuse")`, then `Standard`. That null-shader case is the only one
-that reaches the fallback chain from a generation run: `CreateFromTemplate` runs `ValidateHandAuthoredAssets`, whose
-required paths carry `_CueShaderReference.mat`, before it calls `BuildCuePrefabs`, so a *missing* file is refused at
-the preflight rather than degrading to a fallback shader. The warning text itself still reads `must exist, but it is
-missing`, which names the broader condition the method guards rather than the narrower one that can actually trigger
-it here. The reference material is the canonical source and must be restored from version control whenever it goes
-missing or loses its shader.
+that reaches the fallback chain from a generation run. `CreateFromTemplate` runs `ValidateHandAuthoredAssets`, whose
+required paths carry `_CueShaderReference.mat`, before it calls `BuildCuePrefabs`, so a *missing* file is refused at the
+preflight rather than degrading to a fallback shader. The warning text itself still reads
+`must exist, but it is missing`, which names the broader condition the method guards rather than the narrower one that
+can actually trigger it here. The reference material is the canonical source and must be restored from version control
+whenever it goes missing or loses its shader.
 
 ---
 
@@ -174,8 +175,8 @@ Rules enforced by the assembly loop:
 The `vr_environment.padding_prefab_name` template field names the padding prefab under `Prefabs/`. `CreateTask` appends
 one padding instance at `zShift - cueOffsetUnity` past every corridor, where `zShift` is the running sum of that
 corridor's own segment lengths, to prevent the camera from seeing past the last real segment. The padding prefab is
-**hand-authored** and referenced by name, with no automatic synthesis. It is in the required-shared-assets table in
-`SKILL.md` and is protected by `McpBridge.DeleteProtectedPaths`.
+**hand-authored** and referenced by name, with no automatic synthesis. It is one of the required shared assets and is
+protected by `McpBridge.DeleteProtectedPaths`.
 
 Its geometry is built from Unity built-in primitive meshes, a `Floor` plane plus `Walls/LeftWall` and `Walls/RightWall`
 quads mirroring the generated segment layout. Its three renderers bind the shared `Materials/Floor.mat` and

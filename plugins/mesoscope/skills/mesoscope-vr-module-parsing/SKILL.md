@@ -14,11 +14,9 @@ user-invocable: false
 Documents how the Mesoscope-VR processing pipeline converts pre-extracted microcontroller module feather
 files into calibrated, domain-specific behavior feather files, one parser per hardware module.
 
-This skill owns the concrete Mesoscope-VR instance of the module-parser contract. It is the single source for the
-`(module_type, module_id)` to conversion mapping: which parser runs, what output filename and column schema it
-produces, which event codes it reads, and which `MesoscopeHardwareState` fields gate it. It fills the three
-microcontroller registry seams whose agnostic side is owned by `forging:data-processing-design`, and it never
-re-documents the extraction and partitioning primitives owned by `communication:log-processing-results`.
+This skill fills the three microcontroller registry seams whose agnostic side is owned by
+`forging:data-processing-design`, and it never re-documents the extraction and partitioning primitives owned by
+`communication:log-processing-results`.
 
 All of the symbols below live in `sollertia_forgery.mesoscope_vr.microcontrollers`. The eligibility registry
 (`_MODULE_REGISTRY`), the eight `_parse_*_data` functions, and the `_resolve_hardware_state` and `_is_module_eligible`
@@ -242,38 +240,29 @@ gate each parser and how the parser uses them.
 
 ## Adding a new module parser
 
-You MUST keep a new parser consistent with the existing contract. When adding support for a new hardware
-module:
-
 1. Write a public `parse_<module>(event_partition, output_directory, session)` entry point in
    `mesoscope_vr/microcontrollers.py` that resolves the hardware state from the session, returns early when the module
-   is ineligible, and delegates to a private `_parse_<module>_data` helper. Read events only through the upstream
-   `get_event_timestamps` and `get_event_data` readers and the shared `merge_event_streams` primitive, and do not
-   re-scan the partitioned DataFrame directly.
-2. Write the output with `write_ipc(file=output_file, compression="uncompressed")` so the result is memory-mappable
-   downstream, and lead the schema with a `time_us` uint64 column.
-3. Add the output filename as a new `BehaviorDataFiles` member (owned by `/mesoscope-vr-processing-schema`) and
+   is ineligible, and delegates to a private `_parse_<module>_data` helper. The shared read, write, and column-schema
+   rules are stated under **Module parsing contract** above.
+2. Add the output filename as a new `BehaviorDataFiles` member (owned by `/mesoscope-vr-processing-schema`) and
    build the output path from that member inside the entry point, never hardcoding the filename string.
-4. Register a new `_ModuleSpecification` under the module's `(module_type, module_id)` key in `_MODULE_REGISTRY`. List
+3. Register a new `_ModuleSpecification` under the module's `(module_type, module_id)` key in `_MODULE_REGISTRY`. List
    every `MesoscopeHardwareState` field the parser reads in `required_fields`, every boolean recording whether the
    module was used at all in `usage_flags`, and every event code the parser reads in `event_codes`. If the parser
    reads a field, that field MUST appear in `required_fields`, and the lick parser's `ValueError` guard exists
    precisely to catch a parser/registry skew. The hardware-state field itself is added through the "Adding a
    hardware-state field for a new module" workflow of `/mesoscope-vr-session-schema`, and a field the specification
    names but the acquisition runtime never populates makes `check_eligibility` skip the module for every session.
-5. Export the entry point from `sollertia_forgery/mesoscope_vr/__init__.py`, adding it to both that package's
+4. Export the entry point from `sollertia_forgery/mesoscope_vr/__init__.py`, adding it to both that package's
    `from .microcontrollers import (...)` block and to its `__all__`, then register the entry point under its
    `(acquisition system, module_type, module_id)` triplet in `_MICROCONTROLLER_PARSER_REGISTRY`. The export comes first
    because `registries.py` imports every parser from the `.mesoscope_vr` package rather than from the `microcontrollers`
    submodule, so an unexported entry point breaks that import block. The import-time coverage check owned by
    `forging:data-processing-design` then raises `RuntimeError` for a module registered as parseable that declares no
-   event codes, which is what a step 4 registration skipped by mistake produces.
-6. Cover the new parser with tests. sollertia-forgery carries the test suite, and the Mesoscope-VR module parsers are
-   exercised from `tests/mesoscope_vr/microcontroller_extraction_test.py`. The repository `pyproject.toml` sets
-   `branch = true` under `[tool.coverage.run]` and `fail_under = 100` under `[tool.coverage.report]`, and the omit list
-   names only `interfaces/` modules, so every statement and every branch the new parser adds is measured and MUST be
-   reached. The repository-wide documentation, coverage, and test obligations are owned by `forging:library-extension`.
-7. If the new column must reach the assembled session feather, coordinate with `/mesoscope-vr-dataset-assembly`, because
+   event codes, which is what a step 3 registration skipped by mistake produces.
+5. Cover the new parser with tests in `tests/mesoscope_vr/microcontroller_extraction_test.py`. The repository-wide
+   coverage gate and its tox commands are owned by `forging:library-extension`.
+6. If the new column must reach the assembled session feather, coordinate with `/mesoscope-vr-dataset-assembly`, because
    assembly is out of scope here.
 
 ---

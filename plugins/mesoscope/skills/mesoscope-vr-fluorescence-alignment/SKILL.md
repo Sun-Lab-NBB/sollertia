@@ -27,8 +27,8 @@ session `data.feather`.
 - The primary TTL alignment path: pairing rising and falling TTL edges and keeping pulses whose duration falls inside
   the expected scan-pulse window (`expected_duration_ms` plus or minus 20 ms)
 - The stray pulse-run discard that drops runs of TTL pulses which imaged no frame, before any count comparison
-- The reconciliation of the surviving pulse count against cindra's frame count, and the front-clip rule with the
-  single-plane assumption it rests on
+- The reconciliation of the surviving pulse count against cindra's frame count, and the front-clip rule that rests on
+  the single-plane assumption
 - The ScanImage metadata fallback path invoked when the surviving pulses fall short of the frame count
 - The three ScanImage metadata keys, the lexicographic chronological ordering, the anchor search, and the match
   tolerance
@@ -39,8 +39,8 @@ session `data.feather`.
 - The `time_us` reference clock produced here and consumed as `reference_time` by the sibling sub-assemblies
 
 **Does not cover:**
-- The cindra configuration each recording is processed under, and the genotype-driven indicator selection behind it.
-  Owned by `/mesoscope-vr-imaging-configuration`.
+- The cindra configuration governing each recording, and the genotype-driven indicator selection behind it. Owned by
+  `/mesoscope-vr-imaging-configuration`.
 - The cindra pipelines that produce the fluorescence arrays this stage reads. Owned by
   `cindra:single-recording-processing` and `cindra:multi-recording-processing`. Their output formats are owned by
   `cindra:single-recording-results` and `cindra:multi-recording-results`.
@@ -61,14 +61,13 @@ prepare-then-execute batch model, and the worker-budget concurrency contract (se
 This skill documents only the Mesoscope-VR-specific content of the fluorescence sub-assembly, the alignment algorithm
 and its constants, not the orchestration that schedules it.
 
-`assemble_cindra_dataset` in `mesoscope_vr/two_photon_dataset.py` is a sub-assembler rather than the stage entry
-point. The stage entry point is `assemble_mesoscope_session` in `mesoscope_vr/forging.py`, which dispatches an
-experiment session to `assemble_experiment_dataset` in `mesoscope_vr/experiment_dataset.py`. That entry point reaches
-the agnostic pipeline through the `_FORGING_ASSEMBLY_REGISTRY` seam in `sollertia_forgery.registries`, read by
-`resolve_forging_assembly_worker`, and the donation filling that seam is owned by
-`/mesoscope-vr-dataset-assembly`. `assemble_experiment_dataset` runs this sub-assembly first and takes
-`fluorescence_data["time_us"].to_numpy()` as the `reference_time` handed to the behavior, runtime, and video
-sub-assemblies.
+`assemble_cindra_dataset` in `mesoscope_vr/two_photon_dataset.py` is a sub-assembler rather than the stage entry point.
+The stage entry point is `assemble_mesoscope_session` in `mesoscope_vr/forging.py`, which dispatches an experiment
+session to `assemble_experiment_dataset` in `mesoscope_vr/experiment_dataset.py`. That entry point reaches the agnostic
+pipeline through the `_FORGING_ASSEMBLY_REGISTRY` seam in `sollertia_forgery.registries`, read by
+`resolve_forging_assembly_worker`, and the donation filling that seam is owned by `/mesoscope-vr-dataset-assembly`.
+`assemble_experiment_dataset` runs this sub-assembly first and takes `fluorescence_data["time_us"].to_numpy()` as the
+`reference_time` handed to the behavior, runtime, and video sub-assemblies.
 
 Training sessions carry no fluorescence sub-dataset at all. `assemble_training_dataset` resolves its reference clock
 from `resolve_slowest_camera_clock` in `mesoscope_vr/video_dataset.py` instead.
@@ -205,15 +204,15 @@ several planes or two channels would carry part of its surplus at the tail inste
 
 ## ScanImage metadata fallback path
 
-The surviving count falls below cindra's frame count when the duration filter has rejected real frames whose TTL
-signal briefly fell outside the tolerance window. The stage then delegates to `_align_pulses_to_scanimage`, which
-consumes the unfiltered `paired_pulses` table rather than the filtered one. sollertia-experiment's
-`_preprocess_mesoscope_directory` parses the per-frame ScanImage metadata out of each acquired TIFF page's
-`ImageDescription` tag, concatenates the rows across every valid session stack, and writes one entry per frame to
-`frame_variant_metadata.npz`, making those per-frame timestamps the authoritative record of which TTL rising edges
-correspond to real frames. The archive is a `sle mesoscope preprocess` product rather than a ScanImage output, so
-`experiment:data-management` covers regenerating it. Pulses matching no ScanImage frame within tolerance are dropped as
-noise, typically the electrical glitches captured while the mesoscope arms.
+The surviving count falls below cindra's frame count when the duration filter has rejected real frames whose TTL signal
+briefly fell outside the tolerance window. The stage then delegates to `_align_pulses_to_scanimage`, which consumes the
+unfiltered `paired_pulses` table rather than the filtered one. sollertia-experiment's `_preprocess_mesoscope_directory`
+parses the per-frame ScanImage metadata out of each acquired TIFF page's `ImageDescription` tag, concatenates the rows
+across every valid session stack, and writes one entry per frame to `frame_variant_metadata.npz`. Those per-frame
+timestamps are the authoritative record of which TTL rising edges correspond to real frames. The archive is a
+`sle mesoscope preprocess` product rather than a ScanImage output, so `experiment:data-management` covers regenerating
+it. Pulses matching no ScanImage frame within tolerance are dropped as noise, typically the electrical glitches captured
+while the mesoscope arms.
 
 The fallback resolves the metadata archive at `raw_data_path / mesoscope_data / frame_variant_metadata.npz`
 (`MesoscopeDirectories.MESOSCOPE_DATA` is `mesoscope_data`, and the filename constant is
@@ -285,7 +284,7 @@ cast back to `np.uint64`, the width the primary path emits, so the forged feathe
 dtype whichever path aligned the session.
 
 The single-offset model holds only for a session that recorded one uninterrupted acquisition. Preprocessing compressed
-each stop and resume pause to one median frame period while the TTL log kept the true pause, and the anchor search spans
+each stop and resume pause to one median frame period while the TTL log kept the true pause. The anchor search spans
 only the first `_SCANIMAGE_ANCHOR_SEARCH_LIMIT` pulses and therefore anchors on the first acquisition, so every frame
 after a restart sits earlier than its pulse by the compressed interval, far beyond the 50 ms tolerance. Those pulses are
 dropped as noise and the fallback aborts at the `keep_pulse.sum() != expected_frame_count` check with the "matching

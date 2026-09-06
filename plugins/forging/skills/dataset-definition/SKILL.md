@@ -156,9 +156,9 @@ against the project manifest, jobs, and plan tables on animal and session withou
 
 ## The forging jobs
 
-`forging.state._DATASET_JOB_SCOPES` maps each forging job name to the unit its specifier names, `multiday_discovery` to
+`forging.state._DATASET_JOB_SCOPES` maps each forging job name to the scope its specifier names, `multiday_discovery` to
 `animal`, and `multiday_extraction` and `session_data_assembly` to `session`. `/dataset-forging` owns what each job type
-does, when it exists, and the order the three run in.
+does, when it exists, and the order in which the three run.
 
 These three are the only values `read_dataset_state_tool` accepts in `job_names`, and `animal` and `session` are the
 only values it accepts in `scope`. Resolve a row's subject from `scope` rather than assuming the specifier names a
@@ -314,7 +314,7 @@ tracker holding no jobs, produces an empty snapshot rather than an error.
 | `job_names`     | `list[str] \| None` | `None`     | Restricts the listing to these forging job names                 |
 | `status`        | `str \| None`       | `None`     | Restricts the listing to one status, such as `FAILED`            |
 | `limit`         | `int \| None`       | `None`     | Jobs to list. See the response contract                          |
-| `start_row`     | `int`               | `0`        | The match index to begin at. Follow `next_start_row`             |
+| `start_row`     | `int`               | `0`        | The match index at which to begin. Follow `next_start_row`       |
 | `include_items` | `bool`              | `False`    | Keyword-only. Lists jobs even when no filter is named            |
 | `detailed`      | `bool`              | `False`    | Keyword-only. Adds the executor, timestamps, and error text      |
 
@@ -327,7 +327,7 @@ and `next_start_row`. Each listed job carries `animal`, `session`, `scope`, `job
 The summary and the breakdown are computed from the whole snapshot before any filter applies, so narrowing the listing
 never distorts the totals. Filters combine conjunctively, and each is validated against the whole snapshot, so a filter
 naming a value the snapshot does not hold returns an error listing the available values. That makes the breakdown the
-right place to pick filter values from.
+right source of filter values.
 
 Reading the stored table rather than the tracker is what lets a snapshot pulled off a remote host answer without any
 access to the data it describes. When no snapshot exists the call returns `No dataset state snapshot exists at
@@ -342,7 +342,7 @@ access to the data it describes. When no snapshot exists the call returns `No da
 | `session`      | `str \| None` | `None`     | Narrows the listing to the datasets holding this session     |
 | `animal`       | `str \| None` | `None`     | Narrows the listing to the datasets holding this animal      |
 | `limit`        | `int \| None` | `None`     | Datasets to list. See the response contract                  |
-| `start_row`    | `int`         | `0`        | The match index to begin at. Follow `next_start_row`         |
+| `start_row`    | `int`         | `0`        | The match index at which to begin. Follow `next_start_row`   |
 | `detailed`     | `bool`        | `False`    | Keyword-only. Adds each dataset's animals and its job counts |
 
 Returns `project_path`, `total_datasets`, `total_memberships` summed across datasets, and a `breakdown` per session
@@ -369,14 +369,14 @@ whether one is structurally complete. Of the two listings, only this one reaches
 cost and caches the figures in `job_plan.yaml` at each dataset root. `/job-planning` owns the tool, the resource model,
 and the project plan projection every plan call rewrites. Three facts are specific to a dataset unit. A dataset is
 plannable as soon as its hierarchy is defined, because its figures follow from the single-day outputs its jobs consume
-and admission already requires each session to carry those outputs. Every named dataset must belong to the same
-project, since the plan and state artifacts a batch is resolved from are written per project. A local unit entry
-carries `unsized_jobs` whenever the plan recorded a sizing refusal, mapping each refused job to the reason its sizing
-pass gave, and a refused job is left out of the plan rather than failing it.
+and admission already requires each session to carry those outputs. Every named dataset must belong to the same project,
+since the plan and state artifacts from which a batch is resolved are written per project. A local unit entry carries
+`unsized_jobs` whenever the plan recorded a sizing refusal, mapping each refused job to the reason its sizing pass gave,
+and a refused job is left out of the plan rather than failing it.
 
-`unsized_jobs` is local-only. The remote summariser reads its figures back out of the project plan projection and
-cannot see the plan cache's refusal map. A remote unit therefore reports `unit_path`, `unit_name`, `job_count`, and
-`summed_memory_mb` alone, or an error saying the projection holds no job for the unit.
+`unsized_jobs` is local-only. The remote summarizer reads its figures back out of the project plan projection and
+cannot see the plan cache's refusal map. A remote unit therefore reports `unit_path`, `unit_name`, `job_count`,
+`summed_memory_mb`, and `summed_resident_mb` alone, or an error saying the projection holds no job for the unit.
 
 ---
 

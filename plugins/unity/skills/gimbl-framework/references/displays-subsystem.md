@@ -100,9 +100,9 @@ shared instance is the reason editor-side writes via `/task-parameters` are visi
 reload.
 
 **`RefreshMonitorPositions()`** is the shared re-detection entry point behind both the Camera Mapping "Refresh Monitor
-Positions" button and the `refresh_monitors` MCP tool. It re-runs `Monitor.EnumerateMonitors()` and carries existing
-camera assignments across **by monitor index**, so removing a monitor from the middle of the arrangement shifts every
-later assignment up one slot. The refreshed list stays in memory and only reaches the companion asset on the next
+Positions" button and the `refresh_monitors_tool` MCP tool. It re-runs `Monitor.EnumerateMonitors()` and carries
+existing camera assignments across **by monitor index**, so removing a monitor from the middle of the arrangement shifts
+every later assignment up one slot. The refreshed list stays in memory and only reaches the companion asset on the next
 `SaveCameras` call.
 
 `LoadCameras` and `SaveCameras` skip the saved-views asset I/O entirely when the active scene has no name (untitled /

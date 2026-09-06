@@ -31,14 +31,14 @@ The Sollertia platform currently uses type codes 1-7.
 two move together, because the firmware repository owns the codes its targets instantiate.
 
 Nothing in slmc or sle enforces the allocation at build time. The ataraxis `Kernel::ResolveTargetModule` scans
-`modules[]` and returns the first entry whose type and id match (`ataraxis-micro-controller/src/kernel.h:683`), so on
-the controller a duplicated pair leaves the later module permanently unaddressable, and the Kernel declares no status
-code for the condition, its only miss code being `kTargetModuleNotFound`. The host catches it instead.
+`modules[]` and returns the first entry whose type and id match (`ataraxis-micro-controller/src/kernel.h`), so on the
+controller a duplicated pair leaves the later module permanently unaddressable. The Kernel declares no status code for
+the condition, its only miss code being `kTargetModuleNotFound`. The host catches it instead.
 `MicroControllerInterface.__init__` raises `ValueError` when two `ModuleInterface` instances on one controller share a
-combined type + id code (`interface.py:663-672`), and `_verify_microcontroller_communication`, run when `start()`
-launches the communication process, raises `ValueError` when the board's own module-identification responses contain a
-duplicated type + id pair (`interface.py:973-979`). The collision therefore surfaces as a startup abort rather than as
-silently missing data. Confirm a candidate pair against the table above and against every target block of
+combined type + id code (`microcontroller/interface.py`). `_verify_microcontroller_communication`, run when `start()`
+launches the communication process, raises the same error when the board's own module-identification responses contain a
+duplicated type + id pair (`microcontroller/interface.py`). The collision therefore surfaces as a startup abort rather
+than as silently missing data. Confirm a candidate pair against the table above and against every target block of
 `slmc/src/main.cpp` before instantiating it.
 
 Type 5 is the only type with two instance ids in the current slmc deployment. Its `ACTOR` target instantiates
@@ -169,8 +169,8 @@ underlying command code 3 exists in firmware.
 
 **Firmware**: `src/lick_module.h`, `LickModule<kPin>`. Analog-pin sensor using `INPUT_PULLDOWN`. Emits `kChanged` only
 when the ADC delta exceeds `delta_threshold`, and emits a single zero-pull trailer when signal drops back below
-`signal_threshold`. Assumes 12-bit ADC resolution (`kAnalogReadResolution`, passed to
-`analogReadResolution()` in `main.cpp`).
+`signal_threshold`. Assumes 12-bit ADC resolution (`kAnalogReadResolution`, passed to `analogReadResolution()` in
+`main.cpp`).
 
 | Item               | Value                                                                                                   |
 |--------------------|---------------------------------------------------------------------------------------------------------|
@@ -222,7 +222,8 @@ transitions reported by the firmware.
   open.
 - Public methods: `set_state(*, state)`, `deliver_reward(volume, tone_duration)`, `simulate_reward(tone_duration)`,
   `reference_valve()`, `calibrate_valve(pulse_duration)`, `get_duration_from_volume(target_volume)`, `scale_coefficient`
-  (property), `nonlinearity_exponent` (property), `delivered_volume` (property), `calibrating` (property)
+  (property), `nonlinearity_exponent` (property), `delivered_volume` (property), `calibrating` (property),
+  `valve_tracker` (property)
 
 **Wrapper B**: `GasPuffValveInterface()`, the same firmware module in a different application. Calibration is omitted
 because gas-volume precision is not critical, leaving duration-only control. Hardcodes `name="gas_puff"` and
@@ -234,7 +235,7 @@ because gas-volume precision is not critical, leaving duration-only control. Har
   state)
 - Cached commands: `_pulse = 1`, `_open = 2`, `_close = 3` (`GasPuffValveInterface.__init__` in
   `module_interfaces.py`)
-- Public methods: `set_state(*, state)`, `deliver_puff(duration_ms)`, `puff_count` (property)
+- Public methods: `set_state(*, state)`, `deliver_puff(duration_ms)`, `puff_count` (property), `puff_tracker` (property)
 
 > **Multi-instance pattern**: Two valve wrappers exist because the same firmware module serves two application roles
 > (water reward + gas aversive). When a single firmware module can be physically reused with different calibration or

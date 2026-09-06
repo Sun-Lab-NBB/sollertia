@@ -97,10 +97,10 @@ documented by `/data-processing-design`.
 
 Three rules govern every entry in that table.
 
-**Coverage is a check on wiring, not on capability.** A system that produces none of a data class still donates an
-entry for it, which is a no-op tracking function, a locator returning `None`, an empty frozenset, or a two-photon
-locator returning the path the system would use. The video-tracking, pose-prediction, two-photon, and multi-recording
-registries state that null shape in their own docstrings.
+**Coverage is a check on wiring, not on capability.** A system that produces none of a data class still donates an entry
+for it. That entry is a no-op tracking function, a locator returning `None`, an empty frozenset, or a two-photon locator
+returning the path the system would use. The video-tracking, pose-prediction, two-photon, and multi-recording registries
+state that null shape in their own docstrings.
 
 **The accessor is the API and the dict is an implementation detail.** No category package imports a registry constant,
 and each imports the matching accessor from `..registries` instead. `_resolve_system` normalizes a `str` or an
@@ -119,7 +119,7 @@ Protocol, a module-private dict, a `resolve_*` accessor, its `__all__` export, a
 admits a system with no entry, so the seam raises a bare `KeyError` from its accessor at runtime rather than a named
 `RuntimeError` at import. The ordered touch list of each branch is under "Minting or joining a per-system registry" in
 [references/extension-recipes.md](references/extension-recipes.md). `_POSE_PREDICTION_REGISTRY` is the worked pattern
-there for every touch, including the coverage test that once omitted it and now names it.
+there for every touch, including its entry in the coverage test.
 
 The Mesoscope-VR donations that fill these seams are documented by the `mesoscope:mesoscope-vr-*` skill family, one
 member per seam group. `forging:data-processing-design` carries the registry-to-skill map, and the related-skills table
@@ -192,13 +192,13 @@ enum value, so a search for the offending entry uses the spelling carried by the
 
 ### What the checks do not catch
 
-The three checks cover registry membership, the dispatch table, and the manifest columns together with every roster
-that names one. Seventeen further touch points reach no guardrail, so tests rather than a check cover each one. All but
-one pass every import and fail later or silently, the exception being a dataset column with no description entry, which
-raises a bare `KeyError` with no message at import of the system's own metadata module. One is silent by design, because
-omitting a recorded session type from the admission mapping is the supported opt-out.
-[references/guardrails.md](references/guardrails.md) lists all seventeen, the scenario each belongs to, how it
-surfaces, and where to cover it.
+The three checks cover registry membership, the dispatch table, and the manifest columns together with every roster that
+names one. Seventeen further touch points reach no guardrail, so tests rather than a check cover each one. All but two
+pass every import and fail later or silently. A dataset column with no description entry raises a bare `KeyError` with
+no message at import of the system's own metadata module, and a system package importing a category package raises a
+circular `ImportError` at import. One is silent by design, because omitting a recorded session type from the admission
+mapping is the supported opt-out. [references/guardrails.md](references/guardrails.md) lists all seventeen, the scenario
+that owns each one, how it surfaces, and where to cover it.
 
 ---
 
@@ -284,8 +284,8 @@ extension checks against it.
 
 ### Step 1: Identify the scenario and its blocking upstream half
 
-Pick exactly one row of the scenario table and read the upstream column. A scenario with a blocking half does not
-start here, and attempting the forgery half first produces an unimportable library with no member to wire against.
+Pick exactly one row of the scenario table and read the upstream column. A scenario with a blocking half does not start
+here, and attempting the forgery half first produces an unimportable library that has no member to wire.
 
 ### Step 2: Land the upstream change
 
@@ -332,16 +332,16 @@ Cross-document references follow the same rule. Cite a README or a CLAUDE.md by 
 
 | Pitfall                                                      | Why it bites                                                                                                                                                                |
 |--------------------------------------------------------------|-----------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
-| Starting the forgery half before the upstream member lands   | The coverage check measures against `frozenset(AcquisitionSystems)`, so there is nothing to wire against and no error to work from                                          |
-| Reading a clean import as a finished extension               | Only registry membership, the dispatch table, and the manifest columns and their rosters are checked. Seventeen further touch points fail at runtime or silently            |
-| Treating a system that produces no data of a class as exempt | Every system donates an entry to all thirteen registries. The null donation is a no-op function, a `None`-returning locator, or an empty frozenset                          |
-| Adding a stage and stopping at the pipeline                  | A stage also needs a core allocation, a sizing model with its routing branch and its mapped term, and a `_PIPELINE_JOB_NAMES` entry, none of which any check reaches       |
+| Starting the forgery half before the upstream member lands   | See **Cross-repository ordering**                                                                                                                                           |
+| Reading a clean import as a finished extension               | See **What the checks do not catch**                                                                                                                                        |
+| Treating a system that produces no data of a class as exempt | See **The registry model**                                                                                                                                                  |
+| Adding a stage and stopping at the pipeline                  | A stage also needs a core allocation, a sizing model with its routing branch and its mapped term, and a `_PIPELINE_JOB_NAMES` entry, none of which any check reaches        |
 | Adding a per-session pipeline without its manifest column    | The declaring mapping and five further rosters name the column, and `_assert_status_column_coverage()` refuses the import until every one carries it, one message at a time |
 | Minting a local job-name string for a dependency's stage     | The dependency exports the constant and its resource figures, and a local copy drifts the moment either is retuned                                                          |
 | Registering a closure or a bound method as a donated worker  | The forging assemblers and the module parsers cross a process boundary, so a donation that is not a picklable module-level function fails at dispatch                       |
-| Adding a per-system section to a skill in this plugin        | Every forging skill is acquisition-system-agnostic. Concrete per-system material belongs in that system's own companion plugin                                              |
-| Minting a per-system registry with no coverage-tuple row     | The seam stays unguarded, so a system with no entry raises a bare `KeyError` from the accessor instead of a named `RuntimeError`                                            |
-| Planning a new per-session dataset file as a donation        | The re-exported set and `DatasetFiles` are fixed in the agnostic layer, so the artifact folds into `data.feather` or escalates                                              |
+| Adding a per-system section to a skill in this plugin        | See **Step 4: Apply the documentation and skill touches**                                                                                                                   |
+| Minting a per-system registry with no coverage-tuple row     | See **The registry model**                                                                                                                                                  |
+| Planning a new per-session dataset file as a donation        | See **What a donation cannot widen**                                                                                                                                        |
 
 ---
 
@@ -395,8 +395,8 @@ You SHOULD proactively invoke this skill when the user mentions any of the follo
 - "How do I add support for ..." in the context of `sollertia-forgery`
 - A pull request touching `registries.py`, `shared_assets/pipelines.py`, `orchestration/dispatch.py`,
   `orchestration/footprints.py`, `managing/manifest.py`, or `interfaces/orchestration_tools.py`
-- An import-time `RuntimeError` carrying one of the message stems below, each of which means an extension is
-  unfinished
+- An import-time `RuntimeError` carrying one of the first four message stems below, or a runtime `ValueError` carrying
+  one of the last two, each of which means an extension is unfinished
 
 ```text
 Unable to validate donor-registry coverage for ...
@@ -427,10 +427,6 @@ Code side:
 - [ ] The blocking upstream half landed first and assets:library-extension's checklist completed
 - [ ] Every touch in the scenario's recipe applied, in the order the recipe lists them
 - [ ] Every symbol registries.py imports appears in the donating package's __all__
-- [ ] python -c "import sollertia_forgery.registries" succeeds, which runs the donor-registry coverage check
-- [ ] python -c "import sollertia_forgery.orchestration" succeeds, which runs the dispatch-table check
-- [ ] python -c "import sollertia_forgery.managing" succeeds, which runs the manifest status-column check
-- [ ] slf --help prints and slf mcp starts cleanly
 - [ ] No system package imports a category package, and every donated worker is a picklable module-level function
 - [ ] Every donated worker's signature matches the Protocol its registry declares
 - [ ] A newly minted registry carries its donation Protocol, its resolve_* accessor, its __all__ export, and its
@@ -443,6 +439,12 @@ Code side:
 - [ ] A newly minted registry's name was added to _DONOR_REGISTRY_NAMES in tests/registry_coverage_test.py
 - [ ] docs/source/api.rst carries the section or autodata directive the recipe names
 - [ ] A new *_tools.py module was added to [tool.coverage.run] omit in pyproject.toml
+
+Code side, command-settled (run the three package imports, `slf --help`, `slf mcp`, and the three tox environments):
+- [ ] python -c "import sollertia_forgery.registries" succeeds, which runs the donor-registry coverage check
+- [ ] python -c "import sollertia_forgery.orchestration" succeeds, which runs the dispatch-table check
+- [ ] python -c "import sollertia_forgery.managing" succeeds, which runs the manifest status-column check
+- [ ] slf --help prints and slf mcp starts cleanly
 - [ ] tox -e py314-test and tox -e coverage pass, and tox -e stubs regenerated the checked-in stubs
 
 Skill side:

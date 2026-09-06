@@ -4,8 +4,8 @@ Completes each `sollertia-forgery` extension scenario touch point by touch point
 scenario edits and, inside each file, the exact constant, registry, mapping, or function that gains an entry. The
 import-time checks that catch an unfinished recipe are documented in [guardrails.md](guardrails.md).
 
-You MUST land the upstream half of a scenario before starting its sollertia-forgery half, because the upstream member
-is what this library's coverage checks measure against. The upstream half is owned by `assets:library-extension`.
+You MUST land the upstream half of a scenario before starting its sollertia-forgery half, because this library's
+coverage checks measure against the upstream member. The upstream half is owned by `assets:library-extension`.
 
 | Scenario                | Unit the change acts on                       | Upstream half is blocking      |
 |-------------------------|-----------------------------------------------|--------------------------------|
@@ -21,8 +21,8 @@ is what this library's coverage checks measure against. The upstream half is own
 ## Conventions every scenario shares
 
 **Every donated worker is a picklable module-level function.** The forging assemblers and the microcontroller parsers
-are dispatched into spawned worker processes through a `ProcessPoolExecutor`, so a closure, a lambda, or a bound
-method fails at pickling time rather than at registration time. The `_ForgingAssemblyAsset.assembler` field docstring
+are dispatched into spawned worker processes through a `ProcessPoolExecutor`. A closure, a lambda, or a bound method
+therefore fails at pickling time rather than at registration time. The `_ForgingAssemblyAsset.assembler` field docstring
 and the `PipelineDispatch.worker` field docstring both state the requirement.
 
 **A pipeline never indexes a registry.** Every registry constant in `registries.py` is module-private, and the only
@@ -42,11 +42,11 @@ contract exists. The enforcement is the circular `ImportError` itself.
 the constant it already exports.
 
 **The forged dataset's file set is closed to a donation.** A forged session directory carries the assembled
-`DatasetFiles.DATA` feather plus the raw assets that the `reexported_assets` mapping in `_forge_session` names, which
-are `RawDataFiles.SESSION_DESCRIPTOR`, `RawDataFiles.VR_CONFIGURATION`, and `RawDataFiles.EXPERIMENT_CONFIGURATION`,
-each copied when the session holds it. That mapping is a literal inside the agnostic `forging/pipeline.py` and no
-registry feeds it, the per-animal `RawDataFiles.SURGERY_METADATA` copy is fixed the same way in
-`_copy_animal_surgery_files` in `forging/dataset.py`, and `DatasetFiles` in
+`DatasetFiles.DATA` feather plus the raw assets that the `reexported_assets` mapping in `_forge_session` names. Those
+assets are `RawDataFiles.SESSION_DESCRIPTOR`, `RawDataFiles.VR_CONFIGURATION`, and
+`RawDataFiles.EXPERIMENT_CONFIGURATION`, each copied when the session holds it. That mapping is a literal inside the
+agnostic `forging/pipeline.py` and no registry feeds it, the per-animal `RawDataFiles.SURGERY_METADATA` copy is fixed
+the same way in `_copy_animal_surgery_files` in `forging/dataset.py`, and `DatasetFiles` in
 `sollertia_shared_assets.data_hierarchy.dataset_data` declares only `DATA` and `DESCRIPTIONS`. A new per-session
 artifact therefore folds into `data.feather` columns through the system's own assembly worker, or the extension stops
 and becomes a platform-contract change to `reexported_assets` and `DatasetFiles` that the human supervisor co-designs.
@@ -92,7 +92,7 @@ its registry expects, and the signatures are fixed by the eight donation Protoco
 | `forging.py`            | `assemble_<system>_session(source_session_path: Path, output_path: Path, dataset_name: str) -> None` and `<SYSTEM>_ADMISSION_PIPELINES: dict[SessionTypes, frozenset[ProcessingPipelines]]`                                                                                                                                 |
 | `assembly_sources.py`   | `resolve_<system>_assembly_sources(session: SessionData) -> tuple[int, ...]`. Its companion `resolve_<system>_assembly_geometry(session: SessionData) -> AssemblyGeometry` sits beside the assembler it describes, which in the registered system is a per-sub-dataset module rather than this one                          |
 | `metadata.py`           | The system's dataset-column `StrEnum`, its private per-column description mapping, and `<SYSTEM>_COLUMN_DESCRIPTIONS: dict[str, str]` derived from both                                                                                                                                                                     |
-| Per-sub-dataset modules | The assemblers `<system>/forging.py` routes to. These face no registry, so their shape is the system's own                                                                                                                                                                                                                  |
+| Per-sub-dataset modules | The assembly targets of `<system>/forging.py`. These face no registry, so their shape is the system's own                                                                                                                                                                                                                   |
 
 `/data-processing-design` owns what each donation computes. This recipe owns only the wiring.
 
@@ -190,11 +190,11 @@ acquisition system can supply also needs the registry through which each system 
 | 12 | Optional CLI flag       | A `@click.option` on the pipeline's `slf process <name>` subcommand in `interfaces/process.py`, plus the matching keyword on `run_<category>_processing_pipeline`                                                              |
 
 A `JobFootprint` reports two memory figures rather than one. `memory_mb` is the anonymous memory the job holds at its
-peak and is what the local process pool budgets against, and `mapped_mb` is the bytes the job holds memory-mapped
+peak, and the local process pool budgets against that figure. `mapped_mb` is the bytes the job holds memory-mapped
 behind it. The derived `resident_mb` property sums the two with the per-job shared library image, carries a tolerance
 above that sum, and rounds it to a gigabyte, and that is the figure a SLURM allocation declares. A stage reading its
-input through the file interface leaves `mapped_mb` at its zero default. A stage that maps its input states the bytes
-it maps, as `_mapped_plane_megabytes` does for the three two-photon stages holding a plane binary open and
+input through the file interface leaves `mapped_mb` at its zero default. A stage that maps its input states the bytes it
+maps, as `_mapped_plane_megabytes` does for the three two-photon stages holding a plane binary open and
 `_mapped_recording_megabytes` does for the cross-recording extraction stage. Nothing checks the term, so a stage that
 maps its input and reports zero is given a remote allocation below what it holds resident. Every module-private
 uppercase constant a new model adds is digested by `resolve_model_version()`, so landing one re-estimates every plan
@@ -274,10 +274,9 @@ edits no consumer, because the stage that reads the registry already imports the
 | 8 | The coverage test | The registry's name added to `_DONOR_REGISTRY_NAMES` in `tests/registry_coverage_test.py`, whose parametrized test empties each one             |
 
 `_POSE_PREDICTION_REGISTRY` and `resolve_pose_prediction_locator` are the worked pattern for all eight touches, since
-that seam is a locator over an artifact a tool outside this library writes. Touch 8 was the one that registry did not
-model for as long as `_DONOR_REGISTRY_NAMES` in `tests/registry_coverage_test.py` omitted it. That tuple now names all
-thirteen registries, and `test_the_guarded_names_are_every_registry_the_module_declares` derives its expectation from
-every `*_REGISTRY` name the module declares, so a registry minted without touch 8 now fails that test.
+that seam is a locator over an artifact a tool outside this library writes. `_DONOR_REGISTRY_NAMES` names all thirteen
+registries, and `test_the_guarded_names_are_every_registry_the_module_declares` derives its expectation from every
+`*_REGISTRY` name the module declares, so a registry minted without touch 8 fails that test.
 
 A new Protocol stays module-private unless a consumer names it in a type annotation outside `registries.py`. Two of the
 eight declared today do, which are the public `ForgingAssembler` and `MicrocontrollerParser`.
@@ -325,11 +324,11 @@ lands through `assets:library-extension`. The three surfaces it adds to are docu
 | 12 | MCP                               | Only when the pipeline needs a bespoke tool. Every batch tool validates `pipeline` against `{member.value for member in BATCH_PIPELINES}`, and `slf reset` and `slf clean` build their `click.Choice` from the same frozenset in `interfaces/manage.py`, so both surfaces accept the new value unedited. The roster each batch tool advertises in prose is hand-written |
 | 13 | Admission                         | Add the new member to `<SYSTEM>_ADMISSION_PIPELINES` in every `<system>/forging.py` whose sessions must complete it before forging                                                                                                                                                                                                                                      |
 
-The manifest column of touch 3 is spelled out in six hand-maintained rosters, and all six sit in
-`managing/manifest.py`. They are `_PIPELINE_STATUS_COLUMNS`, which declares the pipeline-to-column mapping; the
-matching `pl.UInt8` column in `_PROJECT_MANIFEST_SCHEMA`; `_MANIFEST_ROW_COLUMNS`, the accumulator the generation pass
-fills; `_MANIFEST_SUMMARY_COLUMNS`, which `ProjectManifest.print_summary` selects; `MANIFEST_AXES`, so the manifest
-breakdown counts the column; and `MANIFEST_SEMI_FIELDS`, so a listing returns it. The last two are public, and
+The manifest column of touch 3 is spelled out in six hand-maintained rosters, and all six sit in `managing/manifest.py`.
+They are `_PIPELINE_STATUS_COLUMNS`, which declares the pipeline-to-column mapping; the matching `pl.UInt8` column in
+`_PROJECT_MANIFEST_SCHEMA`; and `_MANIFEST_ROW_COLUMNS`, the accumulator the generation pass fills. The other three are
+`_MANIFEST_SUMMARY_COLUMNS`, which `ProjectManifest.print_summary` selects; `MANIFEST_AXES`, so the manifest breakdown
+counts the column; and `MANIFEST_SEMI_FIELDS`, so a listing returns it. The last two are public, and
 `interfaces/management_tools.py` imports them from `managing/manifest.py` rather than declaring copies of its own.
 
 `_assert_status_column_coverage()` reaches every one of the six at import, in both directions. It compares

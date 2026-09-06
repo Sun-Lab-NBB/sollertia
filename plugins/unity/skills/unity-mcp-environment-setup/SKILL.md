@@ -79,10 +79,10 @@ IPv6 stack. The 18 relayed tools are:
 | `refresh_monitors_tool`      | `/task-parameters`             |
 | `read_console_tool`          | `/unity-mcp-environment-setup` |
 
-Four read-only tools serve as **natural shares** that skills beyond their owner may call. `inspect_prefab_tool`
-inspects a prefab hierarchy, `get_play_state_tool` confirms the Editor sits in `edit` before a mutating call,
-`list_assets_tool` enumerates prefabs for `/task-prefabs`, and `read_console_tool` reads the Unity Console that every
-skill prescribing a Console check depends on. Every other tool in the table is owned exclusively by the listed skill.
+Four read-only tools serve as **natural shares** that skills beyond their owner may call. `inspect_prefab_tool` inspects
+a prefab hierarchy, `get_play_state_tool` confirms the Editor sits in `edit` before a mutating call, `list_assets_tool`
+enumerates prefabs for `/task-prefabs`, and `read_console_tool` reads the Unity Console required by every skill that
+prescribes a Console check. Every other tool in the table is owned exclusively by the listed skill.
 
 All 18 tools require **both** the `slsa mcp` MCP server to be connected **and** the Unity Editor to be running with
 `sollertia-virtual-reality` open.
@@ -207,9 +207,8 @@ debugging when the Unity tools stop responding after a recently healthy session.
 
 ### Silent failure after a compile error
 
-`McpBridge` is declared `[InitializeOnLoad]`, so it restarts every time Unity reloads its assemblies. If **any** script
-in the project fails to compile (including a file unrelated to the bridge), the reload aborts and the listener never
-starts. From the MCP side this looks identical to "Editor not running."
+If **any** script in the project fails to compile (including a file unrelated to the bridge), the reload aborts and the
+listener never starts. From the MCP side this looks identical to "Editor not running."
 
 - Check the Unity Console for compile errors and fix them first.
 - The listener log will reappear on the next successful reload, and the full three-prefix line is `The MCP bridge is
@@ -221,7 +220,7 @@ starts. From the MCP side this looks identical to "Editor not running."
 `Assets/InfiniteCorridorTask/Scripts/Editor/Sollertia.InfiniteCorridorTask.Editor.asmdef` in the same folder. That
 assembly sets `"rootNamespace": "SL.Tasks"`, restricts itself to `"includePlatforms": ["Editor"]`, and references
 exactly three assemblies: `Sollertia.Gimbl`, `Sollertia.Gimbl.Editor`, and `Sollertia.InfiniteCorridorTask`. Every
-script in the project now compiles into a named assembly, and nothing lands in Unity's predefined `Assembly-CSharp`.
+script in the project compiles into a named assembly, and nothing lands in Unity's predefined `Assembly-CSharp`.
 
 - The bridge declares `namespace SL.Tasks` and imports, through the `using` directives at the top of `McpBridge.cs`:
   `Gimbl`, `SL.Config`, `UnityEditor`, `UnityEditor.SceneManagement`, `UnityEngine`, and `UnityEngine.SceneManagement`
@@ -231,7 +230,7 @@ script in the project now compiles into a named assembly, and nothing lands in U
   `Sollertia.InfiniteCorridorTask` reference.
 - The live foot-gun is the inverse of adding an `.asmdef`: removing or narrowing one of those three references, or
   dropping `"Editor"` from `includePlatforms`, breaks the bridge's imports, the editor assembly fails to compile, and
-  the listener never starts. From the MCP side this is indistinguishable from "Editor not running".
+  the listener never starts. The MCP-side symptom is the one described under "Silent failure after a compile error".
 - Adding a `using` for a type that lives in an unreferenced assembly has the same effect. Add the owning assembly to the
   `references` array in the same change.
 - A new Editor-side script joins this assembly by sitting inside its subtree. A brand-new folder declares its own
@@ -351,10 +350,12 @@ The Unity half is unreachable from Claude until a matching wrapper exists in
   tools**:` count in the same change, because that README is the catalog.
 - Update the `sollertia-shared-assets` README's MCP tool table and the Unity-tool list in the `***Note,***` paragraph
   that follows it, because agents read that README as the wrapper catalog.
-- Bump the remaining counts: the `sollertia-virtual-reality` README's "18 Editor operations" bullet, its `CLAUDE.md`
-  "dispatches 18 tools" line, the `thirteen of the eighteen` counts in `/unity-tests`, the `Unity Editor relay` row
-  and the `eighteen Unity tools` phrase in `assets:cli-reference`, and the `<remarks>` count on
-  `Dispatch_DeclaredToolName_DoesNotFallThroughToUnknownTool` in `McpBridgeTests.cs`.
+- Bump the remaining counts:
+  - The `sollertia-virtual-reality` README's "18 Editor operations" bullet.
+  - Its `CLAUDE.md` "dispatches 18 tools" line.
+  - The `thirteen of the eighteen` counts in `/unity-tests`.
+  - The `Unity Editor relay` row and the `eighteen Unity tools` phrase in `assets:cli-reference`.
+  - The `<remarks>` count on `Dispatch_DeclaredToolName_DoesNotFallThroughToUnknownTool` in `McpBridgeTests.cs`.
 - Bump the count in `plugins/assets/skills/assets-mcp-environment-setup/SKILL.md`, which says "18 Unity-relay tools,
   spanning eight families". Its family grouping must still partition the full roster: a new tool either joins one of
   the eight families or makes a ninth, so update the family count in the same edit.

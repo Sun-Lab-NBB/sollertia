@@ -260,7 +260,7 @@ and this section owns the field itself.
    population table above with the result. The runtime writes the snapshot from three hand-written per-session-type
    branches, and `/mesoscope-vr`'s modification workflow names that edit site.
 4. **Regenerate the checked-in stub** with `tox -e stubs` in `sollertia-shared-assets`, which refreshes
-   `mesoscope_vr/runtime_data.pyi` next to the source module. A stale stub ships with the release.
+   `mesoscope_vr/runtime_data.pyi` next to the source module. Skipping this step ships a stale stub with the release.
 5. **Bump the `sollertia-shared-assets` version** in its `pyproject.toml`, then raise the pin in both consumers, the
    `sollertia-experiment` pin behind the runtime that writes the snapshot and the `sollertia-forgery` pin behind the
    parsers that read it. A consumer resolved below the bump loads a `MesoscopeHardwareState` that lacks the field, the

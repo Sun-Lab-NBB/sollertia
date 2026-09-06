@@ -15,9 +15,9 @@ the `slf mcp` MCP server. This skill is the **exclusive** owner of `read_server_
 `write_server_configuration_tool`. No other skill in the marketplace may document or call these two tools.
 
 This configuration authorizes compute rather than storage. It names one account on one remote compute server, the data
-root every server-side path resolves against, and the conda environment every remote job activates. `connect_to_server`
-in `orchestration/remote.py` builds a `Server` from `get_server_configuration()`, so every call that names
-`host='remote'` reads this file first and fails with its error text when the file is absent or incomplete.
+root against which every server-side path resolves, and the conda environment every remote job activates.
+`connect_to_server` in `orchestration/remote.py` builds a `Server` from `get_server_configuration()`, so every call that
+names `host='remote'` reads this file first and fails with its error text when the file is absent or incomplete.
 
 ---
 
@@ -30,16 +30,14 @@ in `orchestration/remote.py` builds a `Server` from `get_server_configuration()`
 - The on-disk location of `server_configuration.yaml` and the failure text a missing or blank configuration produces
 
 **Does not cover:**
-- Preparing, submitting, monitoring, or cancelling remote batches. Owned by `/batch-processing`.
+- Preparing, submitting, monitoring, or canceling remote batches. Owned by `/batch-processing`.
 - Remote project discovery and SLURM queue and accounting reads. Owned by `/remote-execution`.
-- The working directory every path in this skill resolves against. Owned by `assets:working-directory`.
+- The working directory against which every path in this skill resolves. Owned by `assets:working-directory`.
 - MCP connectivity diagnosis and the plugin-wide response envelope. Owned by `/forging-mcp-environment-setup`.
 - The human-facing `slf server configure` command surface. Owned by `/cli-reference`.
 
 **Handoff rules:** a request to run work on the server, rather than to authorize it, belongs to `/batch-processing` for
-preparation and execution and to `/remote-execution` for discovery and scheduler reads. A request that stalls because
-the working directory is unset belongs to `assets:working-directory`, since neither tool here resolves a path without
-it.
+preparation and execution and to `/remote-execution` for discovery and scheduler reads.
 
 ---
 
@@ -68,13 +66,14 @@ transfer setting. `to_yaml` writes the fields in declaration order, so the store
 | `root`        | The absolute path, on the server, to the single root directory that stores all Sollertia data         |
 | `environment` | The name of the shared conda environment, on the server, that every remote job activates before `slf` |
 
-`root` and `environment` are the two fields a misconfiguration usually lands in, because neither one fails at
+`root` and `environment` are the two fields in which a misconfiguration usually lands, because neither one fails at
 connection time.
 
-**`root`** is the base every remote path resolves against. `Server.root` returns it as a `Path`, and a project resolves
-as `root` joined with the project name. That join is where `discover_remote_project_tool` looks, and it composes every
-absolute server-side path a remote tool reports. A wrong root authenticates cleanly and then reports that the server
-holds no directory for the project. Point it at the data root itself, never at a project, an animal, or a session.
+**`root`** is the base against which every remote path resolves. `Server.root` returns it as a `Path`, and a project
+resolves as `root` joined with the project name. That join is where `discover_remote_project_tool` looks, and it
+composes every absolute server-side path a remote tool reports. A wrong root authenticates cleanly and then reports that
+the server holds no directory for the project. Point it at the data root itself, never at a project, an animal, or a
+session.
 
 **`environment`** is the one shared conda environment on the server that every remote job activates before invoking the
 `slf` CLI. `Job.__init__` writes `eval $(conda shell.bash hook)`, `conda init bash`, and `source activate` for the named
@@ -129,9 +128,8 @@ documented in the `## Response contract` section of `/forging-mcp-environment-se
 
 **The password is never readable.** `read_server_configuration_tool` always substitutes the literal `<masked>`, and
 `write_server_configuration_tool` refuses a payload whose `password` equals that literal, reporting that persisting it
-would replace the real password and leave every later connection unable to authenticate. A read, mutate, and write
-round trip therefore fails every time. Re-prompt the user for the real password on every write, including a write that
-changes only `host` or `root`.
+would replace the real password and leave every later connection unable to authenticate. A read, mutate, and write round
+trip therefore fails every time.
 
 **An omitted field is persisted rather than rejected.** Every field defaults to the empty string, so a partial payload
 writes empty strings and returns success. A payload of `{}` with `overwrite=True` blanks the whole configuration. The
@@ -160,14 +158,12 @@ itself.
 `get_server_configuration_path` composes that path from `get_working_directory()`, the `CONFIGURATION_DIRECTORY`
 constant whose value is `configuration`, and `_SERVER_CONFIGURATION_FILENAME` whose value is
 `server_configuration.yaml`. The looser phrasing is widespread. Both tool docstrings place the file in the working
-directory, and the not-found message from `get_server_configuration` reads "in the Sollertia platform working
-directory" while interpolating the full file path. Report the subdirectory path when a user
-asks where the file lives.
+directory, and the not-found message from `get_server_configuration` reads "in the Sollertia platform working directory"
+while interpolating the full file path. Report the subdirectory path when a user asks where the file lives.
 
 The write tool creates the configuration subdirectory when it is absent, because the scratch file it validates through
-is written with `direct_write`. An unset working directory is the one path failure it cannot repair, and it reports
-`Unable to resolve the server configuration path.` followed by the underlying message. Hand that case off to
-`assets:working-directory`.
+is written with `direct_write`. It reports `Unable to resolve the server configuration path.` followed by the
+underlying message when the working directory is unset.
 
 ---
 
@@ -193,7 +189,7 @@ starting point for the payload, and treat the returned `password` as unusable.
 
 Ask for every value the read did not supply, and never guess one.
 
-- `username` and `password` for the server account. Collect the password on every write, since no read returns it.
+- `username` and `password` for the server account.
 - `host` as the hostname or IP address that reaches the server.
 - `root` as the absolute path on the server to the single Sollertia data root that holds raw and processed data.
 - `environment` as the name of the conda environment on the server that holds this library and every processing
@@ -231,8 +227,7 @@ confirmation to `/remote-execution`, whose discovery tool connects and resolves 
 
 ## Common modification cases
 
-Every row is a complete five-field write with `overwrite=True` and a freshly collected password, because the tool
-persists the whole document and refuses the masked placeholder.
+Every row is a complete five-field write with `overwrite=True`, because the tool persists the whole document.
 
 | Change                                          | Field carrying the new value         |
 |-------------------------------------------------|--------------------------------------|
@@ -250,7 +245,7 @@ persists the whole document and refuses the masked placeholder.
 | Skill                            | Relationship                                                                               |
 |----------------------------------|--------------------------------------------------------------------------------------------|
 | `/forging-mcp-environment-setup` | Run first if the `slf mcp` server is not connected. Owns the plugin-wide response contract |
-| `assets:working-directory`       | Prerequisite that owns the working directory this configuration resolves against           |
+| `assets:working-directory`       | Prerequisite that owns the working directory against which this configuration resolves     |
 | `/remote-execution`              | Consumer that discovers projects under `root` and reads the scheduler for submitted jobs   |
 | `/batch-processing`              | Consumer that prepares and executes every `host='remote'` batch through this configuration |
 | `/cli-reference`                 | Owns the human-facing `slf server configure` path and its options                          |

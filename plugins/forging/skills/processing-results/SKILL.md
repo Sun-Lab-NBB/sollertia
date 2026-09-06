@@ -15,11 +15,11 @@ Documents every artifact the pipelines write, the tracker each one records again
 real success from a vacuous one. This skill owns no MCP tools.
 
 **The server ships no output-verification tool and no feather-query tool.** Nothing on it opens a pipeline's output
-feather, counts its rows, or checks its schema, and the read tools open only the stored record artifacts.
-Verification runs through the breakdowns of `read_project_jobs_tool`,
-owned by `/project-state`, and of `get_processing_status_tool`, owned by `/batch-processing`. The forging jobs the
-project job artifact never carries are covered by `read_dataset_state_tool`, owned by `/dataset-definition`. Read the
-record with those tools first, then read the bytes by hand.
+feather, counts its rows, or checks its schema, and the read tools open only the stored record artifacts. Verification
+runs through the breakdowns of `read_project_jobs_tool`, owned by `/project-state`, and of `get_processing_status_tool`,
+owned by `/batch-processing`. The forging jobs the project job artifact never carries are covered by
+`read_dataset_state_tool`, owned by `/dataset-definition`. Read the record with those tools first, then read the bytes
+by hand.
 
 ---
 
@@ -97,11 +97,11 @@ the batch, is the `## Recommended query order` section of `/project-state`. The 
 through `read_dataset_state_tool`, owned by `/dataset-definition`, and the batch this server process is running through
 `get_processing_status_tool`, owned by `/batch-processing`.
 
-**Read the bytes by hand** only after that order reports `SUCCEEDED` and its counts look right. Every table this
-library writes is uncompressed Arrow IPC, so `pl.read_ipc_schema` answers a column question from the footer alone and
+**Read the bytes by hand** only after that order reports `SUCCEEDED` and its counts look right. Every table this library
+writes is uncompressed Arrow IPC, so `pl.read_ipc_schema` answers a column question from the footer alone and
 `pl.read_ipc` memory-maps the rest. A remote run leaves those bytes on the server, and a remote read mirrors only the
-project's own tables, so bring an output file or directory back with `pull_remote_path_tool`, which
-`/remote-execution` owns, before opening it.
+project's own tables, so bring an output file or directory back with `pull_remote_path_tool`, which `/remote-execution`
+owns, before opening it.
 
 ---
 
@@ -124,7 +124,7 @@ donated parsers and workers, so their filenames and column schemas belong to tha
     │   └── <the acquisition system's runtime tables>
     ├── microcontroller_data/
     │   ├── microcontroller_processing_tracker.yaml     written by microcontrollers.pipeline
-    │   ├── extraction_configuration.yaml               _materialize_extraction_config, rewritten every invocation
+    │   ├── extraction_configuration.yaml               _materialize_extraction_configuration, rewritten each run
     │   ├── controller_{cid}_module_{type}_{mid}.feather   raw extracted messages, one file per emitting module
     │   └── <the acquisition system's parsed tables>
     ├── video_data/
@@ -135,7 +135,7 @@ donated parsers and workers, so their filenames and column schemas belong to tha
     │   └── <the acquisition system's pose-tracking tables>
     └── cindra/                                         <- the imaging library owns everything below this point
         ├── single_recording_tracker.yaml               registered by two_photon.pipeline, recorded on by cindra
-        ├── configuration.yaml                          the one file this library writes here, two_photon.pipeline
+        ├── configuration.yaml                          written by this library, two_photon.pipeline
         ├── acquisition_parameters.yaml
         ├── combined_metadata.npz                       the combination stage's completion marker
         ├── plane_{n}/                                  per virtual plane, with registration and detection outputs
@@ -286,14 +286,15 @@ its energy job with no output, echoing that no recording was found for that came
 measurement is skipped. A rig that ran one of two cameras therefore leaves a clear tracker on the camera it did not run.
 A camera's timestamp job that appears in the discovered universe but not in the possible set has no log archive, or has
 a name that resolves to several archives. Its energy job stays possible because that stage reads only the recording.
+
 ### The two-photon pipeline
 
 The imaging library writes the arrays and images under `processed_data/cindra` and records the four stages on
 `single_recording_tracker.yaml`. This library writes two files there itself. It materializes `configuration.yaml` when
 the run persists it, overriding three fields and leaving everything else as the acquisition system's resolver returned
-it, and it registers the four stages on `single_recording_tracker.yaml` through the tracker's own alignment before any
-stage runs, which is what creates that file. The tracker's presence is therefore evidence that the pipeline was
-invoked, not that a stage completed.
+it. It also registers the four stages on `single_recording_tracker.yaml` through the tracker's own alignment before any
+stage runs, which is what creates that file. The tracker's presence is therefore evidence that the pipeline was invoked,
+not that a stage completed.
 
 Two files are completion markers worth more than a directory listing, because each is written atomically after the
 arrays it describes. `combined_metadata.npz` marks the combination stage, and `tracking_template_masks.npz` under the
@@ -308,11 +309,11 @@ therefore not evidence of progress, and the tracker decides each stage's turn.
 
 ### The forging pipeline
 
-It owns the whole dataset hierarchy, and it also owns a directory inside every source session that hierarchy names,
-so cleaning it removes three things rather than two: every assembled feather in the dataset, the tracker beside them,
-and each source session's cross-recording directory for this dataset. This is the most destructive operation the tool
-set offers, it is the only clean that reaches outside the unit it names, and it is irreversible. Prefer resetting the
-jobs, through `/batch-processing`, whenever the failure cause was external.
+It owns the whole dataset hierarchy, and it also owns a directory inside every source session that hierarchy names.
+Cleaning it therefore removes three things rather than two: every assembled feather in the dataset, the tracker beside
+them, and each source session's cross-recording directory for this dataset. This is the most destructive operation the
+tool set offers, it is the only clean that reaches outside the unit it names, and it is irreversible. Prefer resetting
+the jobs, through `/batch-processing`, whenever the failure cause was external.
 
 Two of its three job kinds write outside that hierarchy. `multiday_discovery` and `multiday_extraction` run the
 imaging library against each source session's `processed_data/cindra` directory, so their output lands under every
@@ -327,12 +328,12 @@ a clean cannot remove what it cannot locate.
 
 The hazard runs the other way. `two_photon` owns the whole of `processed_data/cindra`, so cleaning it for a source
 session takes that session's single-recording arrays, its `combined_metadata.npz`, and its
-`single_recording_tracker.yaml` along with the cross-recording directory the dataset owns inside it, while the
-dataset's own forging tracker is untouched and still records those jobs as `SUCCEEDED`. A later forging run therefore
-skips them, and an assembly job reading that output fails against the missing directory. No clean regenerates it. Reset
-the animal's forging jobs on the dataset's forging tracker instead, through `/batch-processing`, naming the `job_id`
-that `dataset_state.feather` records for the animal's `multiday_discovery` row and for each of its sessions'
-`multiday_extraction` and `forging` rows. Rebuilding the animal resets those same three job kinds on its behalf. That
+`single_recording_tracker.yaml` along with the cross-recording directory the dataset owns inside it. The dataset's own
+forging tracker is untouched by that clean, and it still records those jobs as `SUCCEEDED`. A later forging run
+therefore skips them, and an assembly job reading that output fails against the missing directory. No clean regenerates
+it. Reset the animal's forging jobs on the dataset's forging tracker instead, through `/batch-processing`, naming the
+`job_id` that `dataset_state.feather` records for the animal's `multiday_discovery` row and for each of its sessions'
+`multiday_extraction` and `session_data_assembly` rows. Rebuilding the animal resets those three job kinds. That
 session's own two-photon pipeline has to run again first, since the cross-recording stages read each source session's
 `combined_metadata.npz` and fail against its absence rather than rebuilding it.
 
@@ -371,7 +372,7 @@ a mismatch rather than padding. Compare the two heights before reporting either 
 |-------------------------------------------------------|------------------------------------------------------------------------------------------------------------------------------------------------------------|
 | A tracker file is absent, or holds no jobs            | Never run. The manifest and admission readers both report `not_started`, because a pipeline registers every job it resolved before dispatching any of them |
 | A session carries no row in the project manifest      | Its `raw_data` directory is empty, so the session was aborted or never acquired                                                                            |
-| A unit contributes no row to `{project}_plan.feather` | That unit carries no `job_plan.yaml`. Read the job as unplanned, never as free                                                                             |
+| A unit contributes no row to `{project}_plan.feather` | That unit carries no `job_plan.yaml`, so `/job-planning` owns the reading                                                                                  |
 | A module has no raw extracted feather                 | It emitted no message, and its parse job completed with no output                                                                                          |
 | A camera has no energy feather                        | Its recording is absent from the raw camera directory, and the energy job completed                                                                        |
 | `dataset_state.feather` holds zero rows               | The dataset has no forging tracker, or its tracker holds no jobs                                                                                           |
@@ -448,14 +449,14 @@ Tool-settled (run `rg -n '.{121,}' <file>` and `wc -l <file>`):
 
 Result verification, tool-settled (run read_project_manifest_tool, read_project_jobs_tool):
 - [ ] sollertia-forgery MCP server is connected
-- [ ] The query order of /project-state was followed, so the stored project tables were regenerated after the batch's
-      last job retired
 - [ ] Every pipeline column of every session under review reads 1 in read_project_manifest_tool
 - [ ] read_project_jobs_tool with status FAILED and detailed True returns no row, or every returned error_message is
       accounted for
 - [ ] read_dataset_state_tool reports SUCCEEDED for every session_data_assembly job of each dataset under review
 
 Result verification, reader-judged:
+- [ ] The query order of /project-state was followed, so the stored project tables were regenerated after the batch's
+      last job retired
 - [ ] The checksum verdict under review came from a verification run, not from a regeneration run
 - [ ] Each absent output was matched against the absent-output table before being reported as a problem
 - [ ] Each camera value feather's height was compared against that camera's timestamp feather height

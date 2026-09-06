@@ -18,7 +18,8 @@ tool surface, the registry dispatch, the authoring workflow, and the verificatio
 
 ### Moving an experiment to a new template
 
-1. Read the old configuration with `read_experiment_configuration_tool(file_path=...)`.
+1. Read the old configuration with `read_experiment_configuration_tool(file_path=..., acquisition_system=...)`.
 2. If the new template does not exist, hand off to `/task-templates` to author it.
-3. Call `create_experiment_from_vr_template_tool(file_path=..., template_path=...)` pointing at the new template.
+3. Call `create_experiment_from_vr_template_tool(file_path=..., acquisition_system=..., template_path=...)` pointing at
+   the new template.
 4. Port the customizations (state durations, per-trial runtime parameters, guidance counters) over manually.

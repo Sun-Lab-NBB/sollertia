@@ -14,7 +14,7 @@ field is added, removed, renamed, or has its type/units/default changed.
 | Field              | Type                        | Default                      | Purpose                                                                       |
 |--------------------|-----------------------------|------------------------------|-------------------------------------------------------------------------------|
 | `name`             | `str`                       | `"mesoscope"`                | Human-readable system label                                                   |
-| `filesystem`       | `MesoscopeFileSystem`       | `field(default_factory=...)` | Filesystem paths (see below)                                                  |
+| `filesystem`       | `_MesoscopeFileSystem`      | `field(default_factory=...)` | Filesystem paths (see below)                                                  |
 | `sheets`           | `MesoscopeGoogleSheets`     | `field(default_factory=...)` | Google Sheets identifiers (see below)                                         |
 | `cameras`          | `MesoscopeCameras`          | `field(default_factory=...)` | Camera configuration (see below)                                              |
 | `microcontrollers` | `MesoscopeMicroControllers` | `field(default_factory=...)` | Microcontroller configuration (see below)                                     |
@@ -32,16 +32,16 @@ field is added, removed, renamed, or has its type/units/default changed.
 
 ---
 
-## MesoscopeFileSystem
+## _MesoscopeFileSystem
 
 Captures the filesystem layout in two fields. Both default to empty paths, but only `mesoscope_directory` MUST be set
 per host, because leaving it unset raises `ValueError` when the session filesystem layout is resolved. Individual
 `storage_directories` entries are optional.
 
-| Field                 | Type              | Default                             | Purpose                                                                                                                                                                                                                                                                                                                                                                                        |
-|-----------------------|-------------------|-------------------------------------|------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
-| `mesoscope_directory` | `Path`            | `Path()`                            | Absolute path to the local-filesystem-mounted directory where mesoscope-acquired data is aggregated during acquisition by the PC that manages the mesoscope DAQ                                                                                                                                                                                                                                |
-| `storage_directories` | `dict[str, Path]` | `{"NAS": Path(), "Server": Path()}` | Maps each long-term storage destination name to its local-filesystem-mounted project-root path. Seeded with the `MesoscopeStorageDestination` members `"NAS"` and `"Server"`, and any number of destinations may be configured under arbitrary names. An empty path means the destination is not configured and is skipped during transfer/removal. Mapping order defines pull-back preference |
+| Field                 | Type              | Default                             | Purpose                                                                                                                                                                                                                                                                                                                                                                                         |
+|-----------------------|-------------------|-------------------------------------|-------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| `mesoscope_directory` | `Path`            | `Path()`                            | Absolute path to the local-filesystem-mounted directory where mesoscope-acquired data is aggregated during acquisition by the PC that manages the mesoscope DAQ                                                                                                                                                                                                                                 |
+| `storage_directories` | `dict[str, Path]` | `{"NAS": Path(), "Server": Path()}` | Maps each long-term storage destination name to its local-filesystem-mounted project-root path. Seeded with the `_MesoscopeStorageDestination` members `"NAS"` and `"Server"`, and any number of destinations may be configured under arbitrary names. An empty path means the destination is not configured and is skipped during transfer/removal. Mapping order defines pull-back preference |
 
 The local **data root**, the directory under which projects are stored on this machine, is platform-shared rather than a
 field of this section. Resolve it with `get_data_root()` and set it with `slsa configure data-root`.
@@ -75,7 +75,7 @@ Mesoscope mount and onto each configured storage root.
 | `vrpc_data`                 | `_VRPCPersistentData` | The per-animal VRPC `persistent_data` layout for the session's type          |
 | `scanimagepc_data`          | `_ScanImagePCData`    | The ScanImagePC layout under the Mesoscope acquisition mount                 |
 | `destinations`              | `StorageDestinations` | One `StorageDestination` per configured storage root, in configuration order |
-| `unconfigured_destinations` | `tuple[str, ...]`     | Names of the storage roots left unset, which preprocessing warns about       |
+| `unconfigured_destinations` | `tuple[str, ...]`     | Names of the storage roots left unset, about which preprocessing warns       |
 
 `_VRPCPersistentData(session_type, persistent_data_path)` (`mesoscope_vr/system.py`) derives `zaber_positions.yaml`,
 `mesoscope_positions.yaml`, `window_screenshot.png`, and a per-session-type `*_descriptor.yaml` under the animal's VRPC
@@ -110,8 +110,8 @@ Sheet IDs are the long alphanumeric segments in Google Sheets URLs (e.g., `1AbC.
 
 ## MesoscopeCameras
 
-Captures per-camera configuration. The Mesoscope-VR system uses two cameras, face and body. See the
-[Cameras section in SKILL.md](../SKILL.md#hardware-subsystem-cameras) for their roles.
+Captures per-camera configuration. The Mesoscope-VR system uses two cameras, face and body. See the [Cameras section in
+SKILL.md](../SKILL.md#hardware-subsystem-cameras) for their roles.
 
 | Field                            | Type                  | Default                       | Purpose                                                                 |
 |----------------------------------|-----------------------|-------------------------------|-------------------------------------------------------------------------|
@@ -269,25 +269,25 @@ Captures the online motion-estimation and z-stack acquisition configuration deli
 [`mesoscope-driver.md`](mesoscope-driver.md) for the `MesoscopeDriver` MQTT contract that carries these parameters to
 the `runAcquisition` MATLAB function. Eight fields.
 
-| Field                        | Type                        | Default        | Purpose                                                                                                                                                                                                        |
-|------------------------------|-----------------------------|----------------|----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
-| `z_step_um`                  | `int`                       | `20`           | Spacing, in micrometers, between consecutive target imaging planes in the acquired z-stack                                                                                                                     |
-| `z_range_um`                 | `tuple[int, int]`           | `(1050, 1050)` | The `[minimum, maximum]` z-plane range to image, in micrometers. Equal boundaries image a single plane at that depth, and distinct boundaries image the inclusive slice between them                           |
-| `z_exclusion_um`             | `tuple[int, int]`           | `(0, 0)`       | The `[minimum, maximum]` boundaries, in micrometers, of the non-imaged exclusion zone for two-plane imaging. Equal boundaries disable two-plane imaging, and distinct boundaries must fall within `z_range_um` |
-| `acquisition_order`          | `MesoscopeAcquisitionOrder` | `INTERLEAVED`  | Order in which the target planes are acquired when building the reference and high-definition z-stacks                                                                                                         |
-| `registration_channel`       | `int`                       | `1`            | Acquisition channel used for online motion registration and the high-definition reference z-stack                                                                                                              |
-| `field_curvature_correction` | `bool`                      | `False`        | Whether ScanImage field curvature correction is enabled during acquisition (microscope-dependent)                                                                                                              |
-| `frames_per_reference_plane` | `int`                       | `20`           | Number of frames acquired and averaged at each reference plane. Larger values improve motion characterization at the cost of longer processing and higher acquisition-machine load                             |
-| `zstack_scale_factor`        | `float`                     | `2.0`          | Factor by which each ROI's X and Y resolution is scaled when acquiring the high-definition reference z-stack. The scaling preserves the original ROI aspect ratios                                             |
+| Field                        | Type                         | Default        | Purpose                                                                                                                                                                                                        |
+|------------------------------|------------------------------|----------------|----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| `z_step_um`                  | `int`                        | `20`           | Spacing, in micrometers, between consecutive target imaging planes in the acquired z-stack                                                                                                                     |
+| `z_range_um`                 | `tuple[int, int]`            | `(1050, 1050)` | The `[minimum, maximum]` z-plane range to image, in micrometers. Equal boundaries image a single plane at that depth, and distinct boundaries image the inclusive slice between them                           |
+| `z_exclusion_um`             | `tuple[int, int]`            | `(0, 0)`       | The `[minimum, maximum]` boundaries, in micrometers, of the non-imaged exclusion zone for two-plane imaging. Equal boundaries disable two-plane imaging, and distinct boundaries must fall within `z_range_um` |
+| `acquisition_order`          | `_MesoscopeAcquisitionOrder` | `INTERLEAVED`  | Order in which the target planes are acquired when building the reference and high-definition z-stacks. The ScanImagePC acquires the INTERLEAVED order for every value of this field                           |
+| `registration_channel`       | `int`                        | `1`            | Acquisition channel used for online motion registration                                                                                                                                                        |
+| `field_curvature_correction` | `bool`                       | `False`        | Whether ScanImage field curvature correction is enabled during acquisition (microscope-dependent)                                                                                                              |
+| `frames_per_reference_plane` | `int`                        | `20`           | Number of frames acquired and averaged at each reference plane. Larger values improve motion characterization at the cost of longer processing and higher acquisition-machine load                             |
+| `zstack_scale_factor`        | `float`                      | `2.0`          | Factor by which each ROI's X and Y resolution is scaled when acquiring the high-definition reference z-stack. The scaling preserves the original ROI aspect ratios                                             |
 
-### MesoscopeAcquisitionOrder enum
+### _MesoscopeAcquisitionOrder enum
 
-`acquisition_order` is a `MesoscopeAcquisitionOrder` (`StrEnum`) with two members:
+`acquisition_order` is a `_MesoscopeAcquisitionOrder` (`StrEnum`) with two members:
 
-| Member        | Value           | Meaning                                                                                           |
-|---------------|-----------------|---------------------------------------------------------------------------------------------------|
-| `INTERLEAVED` | `"interleaved"` | Iterate over the target planes once per acquired volume, one frame at each plane (Z1, Z2, Z1, Z2) |
-| `SMOOTH`      | `"smooth"`      | Acquire all averaged frames at one target plane before advancing to the next (Z1, Z1, Z2, Z2)     |
+| Member        | Value           | Meaning                                                                                                                                                                                            |
+|---------------|-----------------|----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| `INTERLEAVED` | `"interleaved"` | Iterate over the target planes once per acquired volume, one frame at each plane (Z1, Z2, Z1, Z2)                                                                                                  |
+| `SMOOTH`      | `"smooth"`      | Requests that all averaged frames be acquired at one target plane before advancing (Z1, Z1, Z2, Z2). The ScanImagePC does not implement this dwell, so selecting it acquires the INTERLEAVED order |
 
 ### `__post_init__` validation
 
@@ -318,9 +318,6 @@ configuration.
 | `headbar_port`  | `str` | `"/dev/ttyUSB0"` | USB port for the HeadBar Zaber motor group (3-axis: Z, Pitch, Roll, in daisy-chain order) |
 | `lickport_port` | `str` | `"/dev/ttyUSB1"` | USB port for the LickPort Zaber motor group (3-axis: Z, Y, X, in daisy-chain order)       |
 | `wheel_port`    | `str` | `"/dev/ttyUSB2"` | USB port for the Wheel Zaber motor group (1-axis: X)                                      |
-
-Default ports use the Linux device-path form (`/dev/ttyUSB*`). The value is OS-specific, taking the `COMx` form on
-Windows, and is set per host from discovery.
 
 Ports come from `experiment:zaber-interface` discovery (`get_zaber_devices_tool`). The daisy-chain order is
 hardware-cabled and MUST match the order the binding class assumes.
@@ -358,15 +355,15 @@ Captures the DeepLabCut pose-inference configuration that analyzes the face-came
 preprocessing. Seven fields, plus the `conda run` subprocess boundary, the placement inside the preprocessing pipeline,
 and the transfer-abort failure mode.
 
-| Field               | Type   | Default  | Purpose                                                                                                                                                                      |
-|---------------------|--------|----------|------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
-| `conda_environment` | `str`  | `""`     | Name of the conda environment that provides the `slvt` command and its DeepLabCut installation. An empty string disables face-camera inference                               |
-| `dlc_project_path`  | `Path` | `Path()` | Absolute path to the DeepLabCut project's `config.yaml` whose trained model analyzes the face-camera video. An empty path disables face-camera inference                     |
-| `shuffle`           | `int`  | `1`      | Shuffle index of the trained DeepLabCut model to run                                                                                                                         |
-| `crop`              | `str`  | `""`     | The `x1,x2,y1,y2` pixel rectangle to analyze instead of the full frame, matching the region the model was trained on. An empty string analyzes the project's configured crop |
-| `batch_size`        | `int`  | `32`     | Number of frames the pose model processes per forward pass, sized for the acquisition rig's GPU                                                                              |
-| `chunks`            | `int`  | `1`      | Number of contiguous frame-range pieces the face-camera video is split into for concurrent analysis. A value of one analyzes the video as a single unbroken frame range      |
-| `compile_model`     | `bool` | `True`   | Whether the pose model is compiled with `torch.compile`. Enabled by default because the rig's GPU amortizes the one-time warm-up cost over the long face-camera video        |
+| Field               | Type   | Default  | Purpose                                                                                                                                                                            |
+|---------------------|--------|----------|------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| `conda_environment` | `str`  | `""`     | Name of the conda environment that provides the `slvt` command and its DeepLabCut installation. An empty string disables face-camera inference                                     |
+| `dlc_project_path`  | `Path` | `Path()` | Absolute path to the DeepLabCut project's `config.yaml` whose trained model analyzes the face-camera video. An empty path disables face-camera inference                           |
+| `shuffle`           | `int`  | `1`      | Shuffle index of the trained DeepLabCut model to run                                                                                                                               |
+| `crop`              | `str`  | `""`     | The `x1,x2,y1,y2` pixel rectangle to analyze instead of the full frame, matching the region on which the model was trained. An empty string analyzes the project's configured crop |
+| `batch_size`        | `int`  | `32`     | Number of frames the pose model processes per forward pass, sized for the acquisition rig's GPU                                                                                    |
+| `chunks`            | `int`  | `1`      | Number of contiguous frame-range pieces the face-camera video is split into for concurrent analysis. A value of one analyzes the video as a single unbroken frame range            |
+| `compile_model`     | `bool` | `True`   | Whether the pose model is compiled with `torch.compile`. Enabled by default because the rig's GPU amortizes the one-time warm-up cost over the long face-camera video              |
 
 **Opt-in gate:** face-camera inference runs only when the host configures both `conda_environment` and
 `dlc_project_path`. An empty string or an unset path disables it, matching the empty-value idiom the other sections use.
@@ -377,8 +374,8 @@ so ask the user for both. `shuffle`, `crop`, `batch_size`, `chunks`, and `compil
 for the reference rig's GPU. Override them for a different trained model or a different GPU.
 
 **Pre-flight coverage:** `dlc_project_path` is covered by the mount checks the
-[MesoscopeFileSystem](#mesoscopefilesystem) section describes. The `conda_environment` name sits outside that report, so
-confirm it separately.
+[_MesoscopeFileSystem](#_mesoscopefilesystem) section describes. The `conda_environment` name sits outside that report,
+so confirm it separately.
 
 ### Face-tracking subprocess
 

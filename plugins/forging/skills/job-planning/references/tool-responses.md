@@ -19,14 +19,15 @@ units[]:              One entry per named unit, in the order they were named:
   unit_name:          The planned unit's own name. Present on success
   job_count:          Jobs the plan now holds for the unit. `0` on a failed entry
   summed_memory_mb:   Sum over every planned job. Present on success, and never a budget
+  summed_resident_mb: Sum over every planned job's `resident_mb`. Present on success, on either host
   unsized_jobs{}:     Each sizing refusal mapped to its reason. Present only when the plan recorded one
   error:              The exception that stopped this unit. Present instead of the success keys
 ```
 
-A local success entry carries `unit_path`, `unit_name`, `job_count`, and `summed_memory_mb`, plus `unsized_jobs` when
-the plan recorded a refusal. A remote entry carries the same four keys, read back out of the projection rather than
-parsed from command output, and never carries `unsized_jobs`. A unit whose plan raised carries `unit_path`, `error`,
-and `job_count: 0`, whatever the host.
+A local success entry carries `unit_path`, `unit_name`, `job_count`, `summed_memory_mb`, and `summed_resident_mb`, plus
+`unsized_jobs` when the plan recorded a refusal. A remote entry carries the same five keys, read back out of the
+projection rather than parsed from command output, and never carries `unsized_jobs`. A unit whose plan raised carries
+`unit_path`, `error`, and `job_count: 0`, whatever the host.
 
 A remote unit that planned nothing reports `The project's plan projection holds no job for this unit, so it planned
 nothing.` in its `error` key.
@@ -44,16 +45,19 @@ elapsed_seconds:         Wall time the projection took
 total_jobs:              Rows in the projection, `0` when it holds none
 summed_memory_mb:        Sum of every row's `memory_mb`
 largest_job_memory_mb:   Largest single-job figure
+summed_resident_mb:      Sum of every row's `resident_mb`
+largest_job_resident_mb: Largest single-job resident figure
 widest_job_cores:        Widest single-job core count
 pipeline_totals[]:       One entry per `(unit_kind, pipeline)` pair, sorted by unit kind then pipeline:
   unit_kind:             `"session"` or `"dataset"`
   pipeline:              The pipeline identifier
   jobs:                  The row count for the pair. The key is `jobs`, NOT `job_count`
   summed_memory_mb:      Sum of the pair's `memory_mb`
+  summed_resident_mb:    Sum of the pair's `resident_mb`
   widest_job_cores:      Widest core count in the pair
 ```
 
-An empty projection reports all four totals as `0` and `pipeline_totals` as an empty list.
+An empty projection reports all six totals as `0` and `pipeline_totals` as an empty list.
 
 ---
 
@@ -64,7 +68,7 @@ success:                 Boolean flag
 project_path:            The project root the caller named for a remote read, the resolved directory otherwise.
                          A remote read opens the mirror, which `plan_path` beside it names
 plan_path:               The projection this read resolved
-total_jobs, summed_memory_mb, largest_job_memory_mb, widest_job_cores:
+total_jobs, summed_memory_mb, largest_job_memory_mb, summed_resident_mb, largest_job_resident_mb, widest_job_cores:
                          The same totals block generate_project_plan_tool returns, spanning EVERY planned
                          job regardless of the filters
 breakdown:               Counts over `unit_kind`, `animal`, `dataset`, `pipeline`, and `job_name`, also
@@ -100,6 +104,8 @@ totals:
   widest_job_cores:        Widest single-job core count, `0` when there are no jobs
   largest_job_memory_mb:   Largest single-job `memory_mb`, `0` when there are none
   summed_memory_mb:        Sum of every job's `memory_mb`, which is NOT what a batch commits at once
+  largest_job_resident_mb: Largest single-job `resident_mb`, `0` when there are none
+  summed_resident_mb:      Sum of every job's `resident_mb`, which is also NOT a budget
 breakdown:
   job_name:                Counts per job type across every resolved job, unelided
 total_cores:              Cores a batch may commit on this machine. Present ONLY for `host="local"`
@@ -150,19 +156,20 @@ An absent `concurrency_limit` means the type is bounded by the core and memory b
 
 ## Error texts these tools return
 
-| Tool                         | Cause                                    | Exact text                                                                                                                     |
-|------------------------------|------------------------------------------|--------------------------------------------------------------------------------------------------------------------------------|
-| Any tool taking `host`       | A host outside the two labels            | `Unsupported host '<host>'. Available: local, remote.`                                                                         |
-| Both plan tools              | No unit named                            | `No processing unit was named.`                                                                                                |
-| Both plan tools              | The planning pass raised                 | `Unable to plan the <host> units. <exception>`                                                                                 |
-| `generate_project_plan_tool` | The projection raised                    | `Unable to project the plans under '<project_path>'. <exception>`                                                              |
-| `read_project_plan_tool`     | A mirror or resolve failure              | `Unable to read the <host> project. <exception>`                                                                               |
-| `read_project_plan_tool`     | No projection on disk                    | `No plan projection exists at '<plan_path>'. Plan the project's units, then run generate_project_plan_tool before reading it.` |
-| `read_project_plan_tool`     | A filter names a value no row holds      | `No planned job has '<column>' in <unknown>. Available: <available>.`                                                          |
-| `read_project_plan_tool`     | A filter names a column the table lacks  | `Unknown column '<column>'. Available: <sorted columns>.`                                                                      |
-| `read_resource_model_tool`   | A named pipeline is not a batch pipeline | `No batch pipeline is named <unknown>. Available: <available>.`                                                                |
-| `read_resource_model_tool`   | A named type is not declared             | `No job type is named <unknown>. Available: <sorted names>.`                                                                   |
-| `read_resource_model_tool`   | A dispatched type declares no width      | `Unable to report the declared resource model. <exception>`                                                                    |
+| Tool                         | Cause                                    | Exact text                                                                                                                                                             |
+|------------------------------|------------------------------------------|------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| Any tool taking `host`       | A host outside the two labels            | `Unsupported host '<host>'. Available: local, remote.`                                                                                                                 |
+| Both plan tools              | No unit named                            | `No processing unit was named.`                                                                                                                                        |
+| Both plan tools              | The planning pass raised                 | `Unable to plan the <host> units. <exception>`                                                                                                                         |
+| `generate_project_plan_tool` | The projection raised                    | `Unable to project the plans under '<project_path>'. <exception>`                                                                                                      |
+| `read_project_plan_tool`     | A mirror or resolve failure              | `Unable to read the <host> project. <exception>`                                                                                                                       |
+| `read_project_plan_tool`     | No projection on disk                    | `No plan projection exists at '<plan_path>'. Plan the project's units, then run generate_project_plan_tool before reading it.`                                         |
+| `read_project_plan_tool`     | A projection that cannot be parsed       | `Unable to read the plan projection at '<plan_path>'. <exception> Regenerate it with generate_project_plan_tool, which rebuilds the table from the units' own caches.` |
+| `read_project_plan_tool`     | A filter names a value no row holds      | `No planned job has '<column>' in <unknown>. Available: <available>.`                                                                                                  |
+| `read_project_plan_tool`     | A filter names a column the table lacks  | `Unknown column '<column>'. Available: <sorted columns>.`                                                                                                              |
+| `read_resource_model_tool`   | A named pipeline is not a batch pipeline | `No batch pipeline is named <unknown>. Available: <available>.`                                                                                                        |
+| `read_resource_model_tool`   | A named type is not declared             | `No job type is named <unknown>. Available: <sorted names>.`                                                                                                           |
+| `read_resource_model_tool`   | A dispatched type declares no width      | `Unable to report the declared resource model. <exception>`                                                                                                            |
 
 A plan call spanning two projects is refused by the project resolver, as is one naming a unit path that holds fewer
 parent directories than its kind sits below its project. Each text is returned with no wrapper prefix in front of it.

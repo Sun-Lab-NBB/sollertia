@@ -13,8 +13,8 @@ user-invocable: false
 Documents the Sollertia platform's paired microcontroller interface stack at the pre-binding-class level:
 
 - **slmc** (`sollertia-micro-controllers`, C++ firmware) holds the `Module` subclasses that run on Arduino-compatible
-  microcontroller boards. Teensy 4.1 is the only board family the current `platformio.ini` targets
-  (the `[teensy41_base]` template and its three `[env:teensy41_*]` environments in `slmc/platformio.ini`), and the
+  microcontroller boards. Teensy 4.1 is the only board family the current `platformio.ini` targets (the
+  `[teensy41_base]` template and its three `[env:teensy41_*]` environments in `slmc/platformio.ini`), and the
   conventions in this skill carry to any board family slmc adds.
 - **sle** (`sollertia-experiment`, Python) holds the `ModuleInterface` subclasses in
   `src/sollertia_experiment/cross_system/module_interfaces.py` that wrap the firmware modules. The pairing is
@@ -131,11 +131,11 @@ accessors. They apply to every `ModuleInterface` subclass in
 ## Shared logging contract
 
 The `MicroControllerInterface` communication process auto-logs every message sent to or received from the
-microcontroller through its `SerialCommunication` instance, so no wrapper in `cross_system/module_interfaces.py`
-writes its own log entries. `data_codes` select which received events
-additionally reach `process_received_data()`, and `error_codes` map the event codes that raise `RuntimeError` and abort
-the runtime. Both sets draw their values from the same firmware `kCustomStatusCodes` enum, and every code must lie in
-the custom event-code range. See `communication:microcontroller-interface` for the base mechanics.
+microcontroller through its `SerialCommunication` instance, so no wrapper in `cross_system/module_interfaces.py` writes
+its own log entries. `data_codes` select which received events additionally reach `process_received_data()`, and
+`error_codes` map the event codes that raise `RuntimeError` and abort the runtime. Both sets draw their values from the
+same firmware `kCustomStatusCodes` enum, and every code must lie in the custom event-code range. See
+`communication:microcontroller-interface` for the base mechanics.
 
 The `SharedMemoryArray` buffers that five wrappers maintain are live IPC state read by other runtime processes. They
 are not a logging channel, so a value that must survive the session reaches disk through the auto-logged message rather
@@ -191,11 +191,11 @@ firmware, and the rest are relative to `src/sollertia_experiment/`.
 | Per-target module layout              | each target's `modules[]` array (`slmc/src/main.cpp`)                            | the `module_interfaces` tuple of each `MicroControllerInterface` (`mesoscope_vr/binding_classes.py`)        |
 
 The ADC resolution is the row that fails silently. `analogReadResolution(kAnalogReadResolution)` in `slmc/src/main.cpp`
-fixes the readout range at 0 to 4095, and every ADC-unit value on both sides is scaled to it: `TorqueModule`'s
-`kBaseline` template argument of 2048 and the `kDefault*` thresholds of the analog modules in firmware, and the `*_adc`
-calibration fields in the active system's configuration. Narrowing the width keeps every struct the same size, so the
-wire stays valid and each message still parses while its numbers silently mean something else. Treat a change to it as a
-re-calibration of both sides rather than a firmware-only setting.
+fixes the readout range at 0 to 4095, and every ADC-unit value on both sides is scaled to it. Firmware carries
+`TorqueModule`'s `kBaseline` template argument of 2048 and the `kDefault*` thresholds of the analog modules, and the
+host carries the `*_adc` calibration fields in the active system's configuration. Narrowing the width keeps every struct
+the same size, so the wire stays valid and each message still parses while its numbers silently mean something else.
+Treat a change to it as a re-calibration of both sides rather than a firmware-only setting.
 
 The keepalive interval also bounds the host-side valve safety cap. `_MAXIMUM_VALVE_PULSE_DURATION_MS = 400` is set
 below the 500 ms interval so a pulse cannot outlast the handshake (`module_interfaces.py`). The controller ids
@@ -207,8 +207,6 @@ active system route through that system's skill. `mesoscope:mesoscope-vr` holds 
 ## Adding modules
 
 ### Decision: new firmware module vs. new wrapper for existing firmware module
-
-Before writing a new firmware module, evaluate whether you actually need new firmware:
 
 1. **New firmware module** is required when the underlying hardware physics or sensing modality is different from any
    existing module: a new sensor type, a new actuator type, a new communication protocol with peripheral hardware.
@@ -226,8 +224,8 @@ The reuse-first preference exists because adding a firmware module forces a firm
 every consumer of that module, while adding a Python wrapper avoids writing a new firmware class. A wrapper is a
 Python-only change only when it re-roles a module instance the target already carries at the same `module_type` and
 `module_id`. A wrapper that drives a new physical instance still needs its own instantiation and `modules[]` entry in
-that target's `slmc/src/main.cpp` block, and a reflash of that one board, as `GasPuffValveInterface` at (5, 2) did
-(`slmc/src/main.cpp:49`, `:51`).
+that target's `slmc/src/main.cpp` block, and a reflash of that one board. `GasPuffValveInterface` at (5, 2) did exactly
+that, through the `gas_puff_valve` instantiation and the `modules[]` array of the `ACTOR` block in `slmc/src/main.cpp`.
 
 ### Workflow: adding a paired Module + Interface
 
@@ -246,8 +244,9 @@ that target's `slmc/src/main.cpp` block, and a reflash of that one board, as `Ga
    - New class in `cross_system/module_interfaces.py` following the sle conventions above and the base
      `communication:microcontroller-interface` mechanics.
    - Hardcode `module_type`, `module_id`, `name`, `data_codes`, `error_codes` in `super().__init__()`.
-   - Expose calibration and policy values as regular constructor parameters that call sites pass by keyword. Reserve
-     true keyword-only syntax (a `*` separator) for the binary state setters.
+   - Expose calibration and policy values as regular constructor parameters that call sites pass by keyword. Use true
+     keyword-only syntax (a `*` separator) for the binary state setters and for the `set_parameters` wrappers exposing
+     boolean report flags.
    - Implement `set_parameters` / `set_state` / domain-specific methods per the sle public-method patterns.
    - Add the class to the `from .module_interfaces import (...)` block and to `__all__` in
      `cross_system/__init__.py`, because every binding class imports its wrappers from the package rather than the
@@ -282,14 +281,15 @@ that target's `slmc/src/main.cpp` block, and a reflash of that one board, as `Ga
 
 Same as above, skipping step 2's new-header bullet and its Doxygen and Sphinx entries. The new wrapper takes the
 existing `module_type`, and how much firmware work remains depends on which instance it drives. A wrapper that drives a
-new physical instance still needs step 2's `slmc/src/main.cpp` bullet, so add a second instantiation of the existing
-module class at the next-available `module_id` under the target block, add it to that block's `modules[]` array, reflash
-that board, and bump the slmc version alongside the sle version, because `MicroControllerInterface` raises `ValueError`
-during its module identification handshake when an interface's combined type and id code has no matching hardware module
-instance (`interface.py:981-989`). A wrapper that instead re-roles an already-instantiated module skips step 2 and step
-6's slmc version bump entirely, reuses that instance's `module_id`, and MUST NOT be registered on the same
-`MicroControllerInterface` as the wrapper it shares that id with, which raises `ValueError` for the duplicated type and
-id pair (`interface.py:663-672`). Update the registry in [`references/module-catalog.md`](references/module-catalog.md)
+new physical instance still needs step 2's `slmc/src/main.cpp` bullet. Add a second instantiation of the existing module
+class at the next-available `module_id` under the target block, add it to that block's `modules[]` array, reflash that
+board, and bump the slmc version alongside the sle version. `MicroControllerInterface` raises `ValueError` during its
+module identification handshake when an interface's combined type and id code has no matching hardware module instance
+(`_verify_microcontroller_communication()` in `microcontroller/interface.py`). A wrapper that instead re-roles an
+already-instantiated module skips step 2 and step 6's slmc version bump entirely and reuses that instance's `module_id`.
+Such a wrapper MUST NOT be registered on the same `MicroControllerInterface` as the wrapper that shares its id, which
+raises `ValueError` for the duplicated type and id pair (`MicroControllerInterface.__init__()` in
+`microcontroller/interface.py`). Update the registry in [`references/module-catalog.md`](references/module-catalog.md)
 to show the additional instance id, and add a new wrapper subsection to the corresponding catalog block.
 
 ---
@@ -323,10 +323,9 @@ Removing a module is a coordinated change across slmc and sle. Before removing:
 
 ## Controller board allocation principles
 
-Each controller board runs one firmware binary corresponding to one target macro in `main.cpp`. Deciding which board a
-module belongs on, and whether a new board is needed at all, is the most consequential design decision in this stack.
-The decision lives at the slmc level because it is a firmware-layout decision, and per-system binding-class needs
-inform it.
+Each controller board runs one firmware binary corresponding to one target macro in `main.cpp`. Choosing the board for a
+module, and deciding whether a new board is needed at all, is the most consequential design decision in this stack. The
+decision lives at the slmc level because it is a firmware-layout decision, and per-system binding-class needs inform it.
 
 The consolidation and split criteria, the current slmc deployment and its reuse ordering, and the step-by-step workflow
 for adding a board live in [`references/board-allocation.md`](references/board-allocation.md).
@@ -354,11 +353,11 @@ This skill is a knowledge repository split across five files, and each one carri
 | [`references/sle-conventions.md`](references/sle-conventions.md)   | The wrapper conventions every interface follows       | A new sle convention is established that future wrappers must follow                          |
 
 A changed parameter **default**, meaning any constant a `CustomRuntimeParameters` field initializes from in
-`slmc/src/<name>_module.h`, is the one catalog
-trigger that fires alone. The struct layout, the command codes, and the event codes all stay valid, so the firmware
-compiles and the wrapper still matches while the "Boot defaults" row goes quietly wrong. An agent acting on a stale
-catalog ships a pair that the codebase does not contain, so re-read `slmc/src/*_module.h`, `slmc/src/main.cpp`, and
-`cross_system/module_interfaces.py` and reconcile the catalog whenever the entry is in doubt.
+`slmc/src/<name>_module.h`, is the one catalog trigger that fires alone. The struct layout, the command codes, and the
+event codes all stay valid, so the firmware compiles and the wrapper still matches while the "Boot defaults" row goes
+quietly wrong. An agent acting on a stale catalog ships a pair that the codebase does not contain, so re-read
+`slmc/src/*_module.h`, `slmc/src/main.cpp`, and `cross_system/module_interfaces.py` and reconcile the catalog whenever
+the entry is in doubt.
 
 ---
 

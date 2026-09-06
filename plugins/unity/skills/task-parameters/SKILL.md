@@ -19,8 +19,7 @@ is a peer that drives the same endpoints directly during a session (see `experim
 
 The window itself is owned by `MainWindow` (`Assets/Gimbl/Editor/MainWindow.cs`), and the read / write surface mirrors
 the GUI's *field controls* plus the option lists and visibility flags the GUI uses to render them. Camera Mapping's
-`Refresh Monitor Positions` button **is** exposed, as `refresh_monitors_tool`, and both paths call
-`FullScreenViewManager.RefreshMonitorPositions`, so they re-detect identically. Action-only GUI controls that are not
+`Refresh Monitor Positions` button **is** exposed, as `refresh_monitors_tool`. Action-only GUI controls that are not
 exposed through the bridge include: MQTT `Test Connection`, Camera Mapping `Show Full-Screen Views`, and the Display
 `Blank Display` / `Show Display` toggle button (its underlying effect is reachable through a
 `display.current_brightness` write). The `Task` component's public fields are `[HideInInspector]` and `TaskEditor`
@@ -292,9 +291,7 @@ You MUST account for two consequences:
   `write_task_parameters_tool`, which is what calls `SaveCameras()` on the per-scene `FullScreenViewsSaved` companion
   asset.
 
-A refresh is also the prerequisite for the zero-monitor write refusal: `write_task_parameters_tool` rejects any
-`camera_mapping` payload while the host reports no monitors, rather than erasing the saved assignments (see [Validation
-rules](#validation-rules)).
+A refresh is also the prerequisite for the zero-monitor write refusal listed in [Validation rules](#validation-rules).
 
 ### Swap controllers (Linear ↔ Simulated Linear)
 
@@ -450,7 +447,7 @@ that the GUI would refuse to apply.
 | Write rejected: "Invalid monitor index N; scene has M monitors"                             | Camera mapping payload references a 1-based monitor index outside `[1, M]`                                                                                             | Re-read `state.camera_mapping` to enumerate valid `monitor` indices                                                             |
 | Write rejected: "Invalid track_length '...'. Must be a positive, finite number ..."         | The payload carried a zero, negative, or non-finite `track_length`                                                                                                     | Send a positive, finite value, since the whole write was rejected and nothing else in the payload applied either                |
 | `state.camera_mapping == []`                                                                | On macOS / Linux the monitor-enumeration helper is missing, and otherwise the host reported zero monitors                                                              | Install the helper (see `/unity-mcp-environment-setup`), confirm the displays are attached, then call `refresh_monitors_tool()` |
-| Write rejected: "Cannot write camera_mapping: no monitors were detected on this host. ..."  | The write is refused rather than allowed to erase the saved assignments                                                                                                | Resolve monitor enumeration as above, call `refresh_monitors_tool()`, then resend the payload                                   |
+| Write rejected: "Cannot write camera_mapping: no monitors were detected on this host. ..."  | The zero-monitor refusal in [Validation rules](#validation-rules)                                                                                                      | Resolve monitor enumeration as above, call `refresh_monitors_tool()`, then resend the payload                                   |
 | Writes succeed but the GUI shows old values                                                 | The Parameters window has not repainted, because it caches component references rather than field values                                                               | Click into the Parameters tab to force a repaint, and reopening the window is not required                                      |
 
 Camera mapping is the exception to the repaint caveat: the bridge reuses the open Parameters window's own
