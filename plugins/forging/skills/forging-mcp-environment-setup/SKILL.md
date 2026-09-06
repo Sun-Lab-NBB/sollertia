@@ -49,7 +49,7 @@ slf = "sollertia_forgery.interfaces.entry_points:slf_cli"
 
 | Server              | CLI command | Purpose                                                                                                        |
 |---------------------|-------------|----------------------------------------------------------------------------------------------------------------|
-| `sollertia-forgery` | `slf mcp`   | All 27 tools, spanning planning, processing, orchestration, forging, project management, and the remote server |
+| `sollertia-forgery` | `slf mcp`   | All 28 tools, spanning planning, processing, orchestration, forging, project management, and the remote server |
 
 The forging plugin's `plugin.json` configures the Claude assistant to launch the server automatically:
 
@@ -83,13 +83,13 @@ of `mcp_server`, globs `*_tools.py` inside `interfaces/` in `sorted()` order, an
 purely as an import side effect of the `@mcp.tool()` decorators, so the `_tools.py` filename suffix is load-bearing and
 a tool module sits directly in `interfaces/` rather than in a subdirectory.
 
-The server registers 27 tools across six modules, `forging_tools.py`, `management_tools.py`, `planning_tools.py`,
+The server registers 28 tools across six modules, `forging_tools.py`, `management_tools.py`, `planning_tools.py`,
 `server_tools.py`, `processing_tools.py`, and `orchestration_tools.py`. `interfaces/remote_tools.py` declares no
 `@mcp.tool()` decorator despite its name. Two of its entry points reach MCP as the `host="remote"` branch of
 `get_processing_status_tool` and `cancel_processing_tool`, and the third backs `retire_remote_batches_tool`, which takes
 no host. `interfaces/server.py` imports the status and retire entry points directly, which is how `slf server batches`
 and `slf server retire-batch` answer exactly as their tools do. Registration is one import per module, so a failure
-inside any one of them takes down all 27 tools rather than a subset. The corollary matters for triage: "some slf tools
+inside any one of them takes down all 28 tools rather than a subset. The corollary matters for triage: "some slf tools
 are present and others are missing" is never an environment fault, so investigate the tool names and the plugin
 registration instead. `run_mcp_server_command` defers `from .mcp_server import run_server` into the command body, so
 `slf --help` never imports a tool module and never proves that the server starts.
@@ -151,7 +151,7 @@ Every other forging skill references this plugin-wide contract by pointer and MU
 
 ### Response envelope
 
-Every one of the 27 tools returns a plain `dict[str, Any]` built by one of the two constructors in
+Every one of the 28 tools returns a plain `dict[str, Any]` built by one of the two constructors in
 `interfaces/responses.py`, and no tool raises for an ordinary failure. `ok_response(**payload)` returns
 `{"success": True, **payload}`, with `success` written first and the payload keys at the top level.
 `error_response(message)` returns `{"success": False, "error": message}` and exactly those two keys. A failure carries

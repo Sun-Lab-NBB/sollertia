@@ -216,7 +216,8 @@ video containers and image headers. That is why it is a call of its own rather t
 
 The cache is a `planning._JobPlan` carrying `unit_name`, `unit_kind`, `model_version`, an `entries` list, and an
 `unsized_jobs` map. Each `planning._JobPlanEntry` holds `pipeline`, `job_name`, `specifier`, `cores`, `memory_mb`,
-`memory_modeled`, and `prerequisite_ids`, and its `job_id` is derived from the job name and the specifier.
+`resident_mb`, `memory_modeled`, and `prerequisite_ids`, and its `job_id` is derived from the job name and the
+specifier.
 
 Sizing runs **before** any tracker write, so a job the plan cannot cover never gets registered at all.
 `planning._align_tracker` then registers the runnable and planned jobs and retires a refused job by withholding it
@@ -258,7 +259,8 @@ written at that root. Pull that file to size a submission without reading the da
 | `job_name`         | `String`       | The tracker job name, which is the stage                              |
 | `specifier`        | `String`       | The differentiator within the unit                                    |
 | `cores`            | `UInt16`       | The cores this job occupies                                           |
-| `memory_mb`        | `UInt32`       | The memory the sizing pass modeled                                    |
+| `memory_mb`        | `UInt32`       | The anonymous memory the sizing pass modeled                          |
+| `resident_mb`      | `UInt32`       | That figure plus the pages the job maps, which SLURM is given         |
 | `memory_modeled`   | `Boolean`      | Whether a model of the job's own input produced the figure            |
 | `prerequisite_ids` | `List(String)` | The jobs that must succeed first, from the pipeline's own ordering    |
 
@@ -327,13 +329,22 @@ each is estimated from the data it will actually process and a long recording is
 
 - **A stage this library owns** reports its declared width and a memory figure modeled from that job's own input, such
   as an archive's message count, a prediction table's row and column counts, or a decoded frame's pixel count.
-- **A stage a dependency owns** is sized whole by that dependency's own sizing pass, which answers with both the cores
-  and the memory it picked for the job's input. The allocation table restates the dependency's width rather than
-  deciding it, and it acts as a **cap** on that type rather than a width every job of the type is raised to.
+- **A stage a dependency owns** takes both the cores and the memory that dependency's own sizing pass picked for the
+  job's input. The two archive extraction stages carry one addition, because a dependency models the children its
+  stage spawns against its own interpreter while a pool opened here re-imports this package, so the difference is
+  charged for each child the stage opens. The allocation table restates the dependency's width rather than deciding
+  it, and it acts as a **cap** on that type rather than a width every job of the type is raised to.
 - **No stage answers with a floor.** A job whose input cannot be read raises, and the refusal is recorded in
   `unsized_jobs` while every job beside it stays planned.
 - **Every figure reaches one scale.** `footprints._round_to_gigabyte` raises each result to a whole gigabyte, and the
   package's own models additionally carry a tolerance before that rounding, so the reported memory is what to request.
+- **Every job carries two memory figures.** `memory_mb` is the anonymous memory the job allocates, and it is the term
+  a local process pool is budgeted against. `resident_mb` adds the bytes the job memory-maps and the shared library
+  image every job holds resident, carries its own margin over that sum, and is the term each SLURM allocation
+  requests. Only the two-photon stages that hold a plane binary open, which are `binarization`, `registration`, and
+  `processing`, and the forging pipeline's `multiday_extraction` stage map anything, so every other job's resident
+  figure is its anonymous one raised by the shared image alone. Every reported total counts `memory_mb` alone, so a
+  remote submission is sized from the per-job `resident_mb` a listing carries rather than from the totals beside it.
 
 `footprints.resolve_model_version()` digests every private uppercase constant in `footprints.py` into a
 twelve-character identifier, and that identifier is stamped into each plan cache. Retuning any one of those constants

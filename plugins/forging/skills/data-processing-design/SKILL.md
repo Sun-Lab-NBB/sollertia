@@ -30,7 +30,8 @@ no single acquisition system's donations.
 - The import-time coverage check, and how to read its `RuntimeError` as the remaining wiring checklist
 - The `PipelineDispatch` table, `BATCH_PIPELINES` membership, and the import-time check that holds the two in step
 - The plan, prepare, execute, close job model, job identity, per-unit trackers, and the four job statuses
-- The resource admission model: declared core allocations, hard ceilings, soft reservations, and the admission passes
+- The resource admission model: declared core allocations, hard ceilings, soft reservations, the two memory figures a
+  job's footprint carries, and the admission passes
 - Feather as the cross-stage interchange format
 - The seam between the stages this library implements and the stages it hands to an upstream library in-process
 - The agnostic event-stream merging primitive this library owns
@@ -216,6 +217,7 @@ is the only lookup into that table.
 | Field           | What the entry supplies                                                                              |
 |-----------------|------------------------------------------------------------------------------------------------------|
 | `pipeline`      | The `ProcessingPipelines` member this entry dispatches                                               |
+| `unit_kind`     | `SESSION_UNIT` or `DATASET_UNIT`, the unit its jobs operate on                                       |
 | `load`          | Loads the unit from its root, reading its markers alone                                              |
 | `discover`      | The job resolver, returning the loaded unit, the job universe, and the possible subset               |
 | `worker`        | The picklable module-level worker the process pool invokes with one planned job                      |
@@ -227,8 +229,10 @@ is the only lookup into that table.
 | `command`       | Renders the argument vector that runs one job on a host holding the data                             |
 | `prime`         | Materializes state the unit needs before its jobs resolve, defaulting to `None`                      |
 
-`prime` is the only field carrying a default, and the two-photon pipeline is the one entry that supplies one, because
-`cindra` requires a single-threaded step that writes the shared configuration before any of its jobs reads it.
+`prime` and `external_output_paths` are the two fields carrying a default, each of them `None`. The two-photon
+pipeline is the one entry that supplies a `prime`, because `cindra` requires a single-threaded step that writes the
+shared configuration before any of its jobs reads it, and the forging pipeline is the one entry that names external
+output paths, because its cross-recording stages write outside the dataset the pipeline processes.
 
 `BATCH_PIPELINES` holds six members, namely `checksum`, `runtime`, `microcontroller`, `video`, `two_photon`, and
 `forging`. The `manifest` pipeline is a `ProcessingPipelines` member that operates on a project, and it carries no
@@ -250,9 +254,9 @@ Work reaches a host as a job, and every pipeline models its jobs the same way.
    descriptor per job and returns a `BatchDocument`, which `orchestration/batches.record_prepared_batch` stores under
    a batch identifier.
 3. **Execute.** Two backends run one prepared document. The local engine drives `job_execution_manager` over a
-   `JobExecutionState`, admitting jobs against a core and memory budget and dispatching them onto a shared
-   `ProcessPoolExecutor`. The remote engine submits one scheduler allocation per job, each sized from its own
-   estimate and sequenced through an `afterok` dependency.
+   `JobExecutionState`, admitting jobs against a core budget and an anonymous memory budget and dispatching them onto
+   a shared `ProcessPoolExecutor`. The remote engine submits one scheduler allocation per job, each declaring the
+   resident memory its own estimate reported and sequenced through an `afterok` dependency.
 4. **Close.** `orchestration/closure.close_batch` snapshots what a finished batch's jobs recorded, records that
    outcome beside the batch, and retires the prepared document. It touches no submission ledger.
 
@@ -308,6 +312,14 @@ A job type declaring no core figure is refused at two layers. `resolve_job_cores
 planning, so the unit's plan fails before any batch is prepared, and `resolve_core_allocations` raises at local
 execution and lists every unregistered name. There is no matching error for a missing ceiling or reservation, since
 absence there is the ordinary case.
+
+A job's footprint carries two memory figures, and which one binds depends on the host that runs the job. `memory_mb`
+is the anonymous memory the job holds at its peak, and the local pool budgets against it, because anonymous pages are
+the ones a host cannot reclaim under pressure. `resident_mb` adds to that term the bytes the job memory-maps and the
+file-backed library image every job holds, carries a tolerance above the sum, and rounds to a gigabyte. One scheduler
+allocation declares that second figure, because a job declaring less than it holds resident drives the node into
+reclaim. A stage reading its input through the file interface maps nothing, so its two figures part by the image and
+the tolerance alone, while a stage that maps its input reports a resident figure well above its anonymous one.
 
 Admission recomputes the committed cores and memory from the running set on every pass, and orders the candidates by
 descending dispatch priority with ties broken on the larger memory footprint. Dispatch priority is the summed core

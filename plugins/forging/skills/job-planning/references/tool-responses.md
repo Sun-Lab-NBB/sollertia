@@ -61,7 +61,8 @@ An empty projection reports all four totals as `0` and `pipeline_totals` as an e
 
 ```text
 success:                 Boolean flag
-project_path:            The mirror path for `host="remote"`, the requested path for `local`
+project_path:            The project root the caller named for a remote read, the resolved directory otherwise.
+                         A remote read opens the mirror, which `plan_path` beside it names
 plan_path:               The projection this read resolved
 total_jobs, summed_memory_mb, largest_job_memory_mb, widest_job_cores:
                          The same totals block generate_project_plan_tool returns, spanning EVERY planned
@@ -70,7 +71,7 @@ breakdown:               Counts over `unit_kind`, `animal`, `dataset`, `pipeline
                          spanning every planned job. An axis holding more distinct values than the shared
                          cap reports how many it holds in place of its counts
 jobs[]:                  Present only when a filter is named or `include_items=True`:
-  unit_kind, animal, session, dataset, pipeline, job_name, specifier, cores, memory_mb
+  unit_kind, animal, session, dataset, pipeline, job_name, specifier, cores, memory_mb, resident_mb
   job_id, memory_modeled, prerequisite_ids:   Appended by `detailed=True`
 rows, matched_rows, start_row, next_start_row:   The paging keys, alongside `jobs`
 ```
@@ -97,15 +98,15 @@ total_units:              Entries in `units`
 totals:
   jobs:                    Dispatchable jobs alone. Blocked jobs are NOT counted
   widest_job_cores:        Widest single-job core count, `0` when there are no jobs
-  largest_job_memory_mb:   Largest single-job figure, `0` when there are none
-  summed_memory_mb:        Sum over every job, which is NOT what a batch commits at once
+  largest_job_memory_mb:   Largest single-job `memory_mb`, `0` when there are none
+  summed_memory_mb:        Sum of every job's `memory_mb`, which is NOT what a batch commits at once
 breakdown:
   job_name:                Counts per job type across every resolved job, unelided
 total_cores:              Cores a batch may commit on this machine. Present ONLY for `host="local"`
 total_memory_mb:          This machine's physical memory. Present ONLY for `host="local"`
 jobs[]:                   Present only when `job_names` is named or `include_items=True`:
-  job_id, job_name, specifier, cores, memory_mb
-  prerequisite_ids, unit_path, options:   Appended by `detailed=True`
+  job_id, job_name, specifier, unit_path, cores, memory_mb, resident_mb
+  prerequisite_ids, options:              Appended by `detailed=True`
 rows, matched_rows, start_row, next_start_row:   The paging keys, alongside `jobs`
 ```
 
@@ -163,5 +164,5 @@ An absent `concurrency_limit` means the type is bounded by the core and memory b
 | `read_resource_model_tool`   | A named type is not declared             | `No job type is named <unknown>. Available: <sorted names>.`                                                                   |
 | `read_resource_model_tool`   | A dispatched type declares no width      | `Unable to report the declared resource model. <exception>`                                                                    |
 
-A plan call spanning two projects is refused by the project resolver, and its text is returned with no wrapper prefix
-in front of it.
+A plan call spanning two projects is refused by the project resolver, as is one naming a unit path that holds fewer
+parent directories than its kind sits below its project. Each text is returned with no wrapper prefix in front of it.

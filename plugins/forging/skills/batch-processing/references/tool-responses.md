@@ -68,11 +68,14 @@ blocked_jobs[]       projected, one entry per job this run could neither queue n
 batch_id             str, 16 lowercase hexadecimal characters
 jobs[]               ONLY when include_job_descriptors=True. Raw descriptors, not projected, so every key is
                      present even when empty: job_id, job_name, specifier, status, executor_id, unit_path,
-                     unit_name, pipeline, tracker_path, cores, memory_mb, prerequisite_ids, options
+                     unit_name, pipeline, tracker_path, cores, memory_mb, resident_mb, prerequisite_ids,
+                     options
 ```
 
 `status` on a raw descriptor is a tracker status MEMBER NAME, uppercase, unlike the lowercase labels a status read
-returns. `tracker_path` is empty on every descriptor of a remotely prepared batch, by design.
+returns. `tracker_path` is empty on every descriptor of a remotely prepared batch, by design. `memory_mb` is the
+anonymous memory a local pool budgets on and `resident_mb` the resident figure a SLURM allocation requests, so a
+remote batch is sized from the second.
 
 ---
 
@@ -116,7 +119,8 @@ withheld_jobs[]      ALWAYS present, empty on a run that withheld nothing. One e
                      recorded RUNNING under a non-slurm executor such as pid:, plus every job downstream of one.
                      Its tracker is NOT cleared, so it is withheld again on every later batch until
                      reset_processing_jobs_tool returns it to SCHEDULED
-submissions[]        in the order the scheduler accepted them: job_id, slurm_job_id, job_name
+submissions[]        in the order the scheduler accepted them: job_id, slurm_job_id, job_name, specifier,
+                     unit_path, unit_name
 invalid_jobs[]       ONLY when a descriptor failed to build, same shape as the local tree
 ```
 
@@ -238,8 +242,9 @@ batches[]            one entry per STILL-OUTSTANDING batch, in ledger order. NOT
   stranded_allocations[]          those allocations' ids, capped at 50
   unresolvable_allocation_count   int, the allocations whose scheduler_state is gone, WHOLE batch
   unresolvable_allocations[]      those allocations' ids, capped at 50
-  remedy             str, the instruction for this verdict. It names a tool call on every branch and
-                     quotes 'slf server retire-batch' on the stalled branch ALONE
+  remedy             str, the instruction for this verdict. It names a tool call on every branch, and
+                     quotes 'slf server retire-batch' on the stalled branch and on an awaiting_closure
+                     batch still holding a stranded job, which closure cannot release
 stalled_batch_ids[]  ALWAYS present, the batch_id of every entry whose progress reads stalled
 uncovered_batch_ids[]  ALWAYS present, the batch_id of every batch another process recorded WHILE this
                      read ran. Named rather than resolved, since the records gathered predate them
@@ -265,9 +270,10 @@ jobs[]               ONLY when a filter is named or include_items=True. Projecte
 ```
 
 `status` is the accounting state, uppercase, while `scheduler_state`, `verdict`, and `remediation` are the resolved
-lowercase values `/remote-execution` defines. `tracker_status` is a ProcessingStatus MEMBER NAME and is dropped from a
-row when the state artifact holds no row for the job, as `specifier`, `claimed_allocation`, and `claim_state` are when
-empty, while `queued: false` survives projection. There is no roll-up `status` label, no `canceled` flag, and no
+lowercase values `/remote-execution` defines, and `memory_mb` is the resident figure the allocation requested rather
+than the anonymous figure a local row carries. `tracker_status` is a ProcessingStatus MEMBER NAME and is dropped from
+a row when the state artifact holds no row for the job, as `specifier`, `claimed_allocation`, and `claim_state` are
+when empty, while `queued: false` survives projection. There is no roll-up `status` label, no `canceled` flag, and no
 `blocked_jobs` count here; a blocked allocation appears as a job whose `status` reads `BLOCKED`. Where the ledger holds
 nothing outstanding at all, the response is `success` plus `active: false` plus a message and carries no other key.
 

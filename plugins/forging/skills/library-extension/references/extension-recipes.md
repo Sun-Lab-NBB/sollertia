@@ -183,11 +183,22 @@ acquisition system can supply also needs the registry through which each system 
 | 5  | Order the prerequisites | `<category>_job_prerequisites(unit, universe)` returns `dict[tuple[str, str], tuple[tuple[str, str], ...]]`. An independent stage maps to `()`                                                                                 |
 | 6  | Execute the stage       | Add a branch to the private dispatcher the pipeline entry point calls, following `_dispatch_job` in `video/pipeline.py`                                                                                                        |
 | 7  | Declare cores           | `_JOB_CORE_ALLOCATIONS` in `orchestration/dispatch.py`                                                                                                                                                                         |
-| 8  | Add a sizing model      | A `_size_*_job` function in `orchestration/footprints.py`, plus a routing branch inside `size_session_jobs` for a session pipeline or `size_dataset_jobs` for the dataset pipeline                                             |
+| 8  | Add a sizing model      | A `_size_*_job` function in `orchestration/footprints.py` returning a `JobFootprint`, plus a routing branch inside `size_session_jobs` for a session pipeline or `size_dataset_jobs` for the dataset pipeline                  |
 | 9  | Declare a ceiling       | `_JOB_CONCURRENCY_LIMITS` in `orchestration/dispatch.py`, or the pipeline's own exported dict splatted into it, as `FORGING_JOB_CONCURRENCY_LIMITS` in `forging/pipeline.py` is. Only when throughput plateaus before cores do |
 | 10 | Declare a reservation   | `_JOB_CONCURRENCY_RESERVATIONS` in `orchestration/dispatch.py`. Only when the type should hand capacity back                                                                                                                   |
 | 11 | Report the stage        | `_PIPELINE_JOB_NAMES` in `interfaces/orchestration_tools.py`, whose own docstring states that a stage reaches the report once its name is listed there                                                                         |
 | 12 | Optional CLI flag       | A `@click.option` on the pipeline's `slf process <name>` subcommand in `interfaces/process.py`, plus the matching keyword on `run_<category>_processing_pipeline`                                                              |
+
+A `JobFootprint` reports two memory figures rather than one. `memory_mb` is the anonymous memory the job holds at its
+peak and is what the local process pool budgets against, and `mapped_mb` is the bytes the job holds memory-mapped
+behind it. The derived `resident_mb` property sums the two with the per-job shared library image, carries a tolerance
+above that sum, and rounds it to a gigabyte, and that is the figure a SLURM allocation declares. A stage reading its
+input through the file interface leaves `mapped_mb` at its zero default. A stage that maps its input states the bytes
+it maps, as `_mapped_plane_megabytes` does for the three two-photon stages holding a plane binary open and
+`_mapped_recording_megabytes` does for the cross-recording extraction stage. Nothing checks the term, so a stage that
+maps its input and reports zero is given a remote allocation below what it holds resident. Every module-private
+uppercase constant a new model adds is digested by `resolve_model_version()`, so landing one re-estimates every plan
+stamped against the previous model.
 
 The job-name constants this library declares today:
 
@@ -402,10 +413,10 @@ and are `resolve_page`, `page_fields`, `resolve_detail_limit`, `project_item`, `
 ### Coverage-omit obligation
 
 `[tool.coverage.run]` in `pyproject.toml` sets `branch = true` and lists fifteen `interfaces/` modules in its `omit`
-list one by one rather than by a directory glob, and `[tool.coverage.report]` sets `fail_under = 100`. A new
-`<name>_tools.py` MUST be added to that list. `interfaces/mcp_instance.py`, `interfaces/responses.py`, and
-`interfaces/__init__.py` are deliberately not omitted, so a new non-tool interface helper is either covered by tests
-or added to the list deliberately.
+list one by one rather than by a directory glob, and the test task in `tox.ini` applies the 100% gate through its
+`--cov-fail-under` flag. A new `<name>_tools.py` MUST be added to that list. `interfaces/mcp_instance.py`,
+`interfaces/responses.py`, and `interfaces/__init__.py` are deliberately not omitted, so a new non-tool interface
+helper is either covered by tests or added to the list deliberately.
 
 ### Cross-repository coordination
 
