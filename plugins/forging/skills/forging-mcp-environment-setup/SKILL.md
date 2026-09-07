@@ -108,16 +108,18 @@ unless `sollertia-forgery` is installed in the active Python environment.
 ### OpenMP runtime prerequisite
 
 `sollertia_forgery/__init__.py` sets the Numba threading layer to `omp` on macOS and to `tbb` on every other platform.
-The macOS omppool extension records its dependency as `@rpath/libomp.dylib` and carries no `LC_RPATH` entries, so the
-dynamic loader resolves that file name against `DYLD_FALLBACK_LIBRARY_PATH` alone. Six of the seven pipelines call
+The macOS omppool extension records its dependency as `@rpath/libomp.dylib` and carries no `LC_RPATH` entry of its own.
+The loader therefore expands that name against the entries the running interpreter carries, and the only directory it
+reaches is that interpreter's own library directory. Six of the seven pipelines call
 `shared_assets/openmp.py::verify_openmp_runtime` before doing any work, and that call raises `RuntimeError` beginning
-`Unable to locate the OpenMP runtime (libomp.dylib) that the Numba threading layer loads on macOS.` whenever the
-runtime does not load. The `manifest` pipeline runs single-threaded and is the one pipeline that does not check.
+`Unable to locate the OpenMP runtime (libomp.dylib) that the Numba threading layer loads on macOS.` whenever the runtime
+does not load. The `manifest` pipeline runs single-threaded and is the one pipeline that does not check.
 
-A macOS host that has never linked the runtime therefore fails every parallel job while the MCP server reports
-perfectly healthy, because the server process itself never opens a threading layer. `slf omp` is the only remedy, there
-is no MCP tool for OpenMP discovery or linking, and writing the link normally needs `sudo`. Hand the operator the
-command rather than looking for a tool.
+A macOS host that has never linked the runtime therefore fails every parallel job while the MCP server reports perfectly
+healthy, because the server process itself never opens a threading layer. `slf omp` is the only remedy, and there is no
+MCP tool for OpenMP discovery or linking. Have the operator run it from the environment that runs the pipelines, so that
+environment receives the link. A conda environment grants that write without `sudo`, while a system-wide interpreter
+needs it.
 
 ```bash
 slf omp
@@ -127,12 +129,12 @@ A bare run is a dry-run report, and it changes nothing. It always prints one sum
 line only when discovery examined paths, and it prints the `runtime:` and `link:` lines only when discovery resolved a
 runtime. `resolve_openmp_runtime` returns one of the four `OpenMPStatus` members.
 
-| Status       | What it means                                              | What to tell the operator                          |
-|--------------|------------------------------------------------------------|----------------------------------------------------|
-| `available`  | The runtime already loads, so nothing was changed          | Nothing to do. `-f/--force` links a runtime anyway |
-| `previewed`  | A runtime was found and the link was resolved as a dry run | Re-run with `-y/--yes`, usually under `sudo`       |
-| `unresolved` | No examined path holds a `libomp.dylib` file               | `brew install libomp`, then re-run `slf omp`       |
-| `linked`     | The discovered runtime was linked into `/usr/local/lib`    | Read the summary line to confirm the runtime loads |
+| Status       | What it means                                               | What to tell the operator                          |
+|--------------|-------------------------------------------------------------|----------------------------------------------------|
+| `available`  | The runtime already loads, so nothing was changed           | Nothing to do. `-f/--force` links a runtime anyway |
+| `previewed`  | A runtime was found and the link was resolved as a dry run  | Re-run with `-y/--yes` from that same interpreter  |
+| `unresolved` | No examined path holds a `libomp.dylib` file                | `brew install libomp`, then re-run `slf omp`       |
+| `linked`     | The runtime was linked into the interpreter's lib directory | Read the summary line to confirm the runtime loads |
 
 `slf omp` exits `1` on `unresolved`, which is the only deliberate non-zero exit in the package. Discovery examines the
 two Homebrew keg directories and the MacPorts directory first, then `$CONDA_PREFIX/lib`, then the runtimes vendored
@@ -321,20 +323,20 @@ server on the next session.
 
 ## Common issues and resolutions
 
-| Symptom                                             | Cause                                          | Resolution                                    |
-|-----------------------------------------------------|------------------------------------------------|-----------------------------------------------|
-| `slf: command not found`                            | Environment not activated                      | Activate conda or venv, restart the assistant |
-| `slf: command not found`                            | `sollertia-forgery` not installed              | `pip install sollertia-forgery`               |
-| Import error on `slf mcp`                           | A pinned sibling library is skewed             | Upgrade the offending package (see Step 5)    |
-| `Unable to validate donor-registry coverage for`    | An incomplete acquisition-system extension     | See `/library-extension`                      |
-| Python version mismatch                             | Wrong environment activated                    | Activate Python `>=3.14,<3.15`                |
-| Every job fails on macOS, the server reports ok     | The OpenMP runtime is not loadable             | `slf omp`, then `slf omp -y` under `sudo`     |
-| `Unable to locate the OpenMP runtime`               | The same fault, raised by a pipeline preflight | `slf omp`, then `slf omp -y` under `sudo`     |
-| `no OpenMP runtime to link`                         | No examined path holds a `libomp.dylib`        | `brew install libomp`, re-run `slf omp`       |
-| `Writing the link requires permission to modify`    | `slf omp -y` cannot write `/usr/local/lib`     | Re-run `slf omp -y` under `sudo`              |
-| A tool errors naming the platform working directory | The working directory was never configured     | See `assets:working-directory`                |
-| `Unable to locate the 'server_configuration.yaml'`  | The server access record was never authored    | See `/server-configuration`                   |
-| Some slf tools present and others missing           | Never an environment fault                     | Check tool names and plugin registration      |
+| Symptom                                             | Cause                                                     | Resolution                                       |
+|-----------------------------------------------------|-----------------------------------------------------------|--------------------------------------------------|
+| `slf: command not found`                            | Environment not activated                                 | Activate conda or venv, restart the assistant    |
+| `slf: command not found`                            | `sollertia-forgery` not installed                         | `pip install sollertia-forgery`                  |
+| Import error on `slf mcp`                           | A pinned sibling library is skewed                        | Upgrade the offending package (see Step 5)       |
+| `Unable to validate donor-registry coverage for`    | An incomplete acquisition-system extension                | See `/library-extension`                         |
+| Python version mismatch                             | Wrong environment activated                               | Activate Python `>=3.14,<3.15`                   |
+| Every job fails on macOS, the server reports ok     | The OpenMP runtime is not loadable                        | `slf omp`, then `slf omp -y` in that environment |
+| `Unable to locate the OpenMP runtime`               | The same fault, raised by a pipeline preflight            | `slf omp`, then `slf omp -y` in that environment |
+| `no OpenMP runtime to link`                         | No examined path holds a `libomp.dylib`                   | `brew install libomp`, re-run `slf omp`          |
+| `Writing the link requires permission to modify`    | `slf omp -y` cannot write the interpreter's lib directory | Re-run under `sudo`, keeping that interpreter    |
+| A tool errors naming the platform working directory | The working directory was never configured                | See `assets:working-directory`                   |
+| `Unable to locate the 'server_configuration.yaml'`  | The server access record was never authored               | See `/server-configuration`                      |
+| Some slf tools present and others missing           | Never an environment fault                                | Check tool names and plugin registration         |
 
 Every runtime dependency other than the sibling libraries is bounded rather than pinned, and the sibling bounds carry
 release floors that a lone upgrade breaks. Upgrade `sollertia-forgery` alone and let pip resolve the sibling versions

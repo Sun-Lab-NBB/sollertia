@@ -113,12 +113,12 @@ JSON-RPC stream makes a message unparsable, while the other two keep the console
 
 ### `slf omp`
 
-| Short | Long       | Type   | Default | Form     | Effect                                                                         |
-|-------|------------|--------|---------|----------|--------------------------------------------------------------------------------|
-| `-s`  | `--source` | `Path` | `None`  | optional | The runtime to link. Omitted, the command searches for one. Must exist         |
-| `-t`  | `--target` | `Path` | `None`  | optional | The path receiving the link. Omitted, it derives one from the loader's default |
-| `-f`  | `--force`  | flag   | `False` | flag     | Links a runtime even on a host whose OpenMP runtime already loads              |
-| `-y`  | `--yes`    | flag   | `False` | flag     | Creates the resolved link. Without it the command changes nothing              |
+| Short | Long       | Type   | Default | Form     | Effect                                                                                    |
+|-------|------------|--------|---------|----------|-------------------------------------------------------------------------------------------|
+| `-s`  | `--source` | `Path` | `None`  | optional | The runtime to link. Omitted, the command searches for one. Must exist                    |
+| `-t`  | `--target` | `Path` | `None`  | optional | The path receiving the link. Omitted, it derives one from the interpreter's lib directory |
+| `-f`  | `--force`  | flag   | `False` | flag     | Links a runtime even on a host whose OpenMP runtime already loads                         |
+| `-y`  | `--yes`    | flag   | `False` | flag     | Creates the resolved link. Without it the command changes nothing                         |
 
 Omitting `-s` searches the macOS package manager directories, then the active conda environment, then the runtimes
 vendored inside installed Python distributions, taking the first candidate that exists.
@@ -293,8 +293,8 @@ documented in the `## Response contract` section of `/forging-mcp-environment-se
 ### CLI commands with no MCP equivalent
 
 - `slf mcp` starts the server, so it is CLI-only by definition.
-- `slf omp` has no tool and cannot usefully have one, since writing the link normally needs sudo. An agent hitting
-  that error hands the operator a shell command.
+- `slf omp` has no tool and cannot usefully have one, because no MCP tool writes the link. An agent hitting that error
+  hands the operator a shell command.
 - `slf manifest print` renders two fixed human views no tool renders, though `read_project_manifest_tool` with
   `detailed=True` returns the underlying `notes` field per session.
 

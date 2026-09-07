@@ -29,8 +29,9 @@ through `slf server`.
 `shared_assets/openmp.py::verify_openmp_runtime` runs at the head of every pipeline except `manifest`, so on macOS
 `slf process`, `slf forge`, and `slf checksum` raise `RuntimeError` naming `slf omp` as the remedy before doing any work
 when `libomp.dylib` does not load. The MCP server reports healthy on such a host while every parallel job fails, which
-makes this a first-order environment diagnostic. A bare `slf omp` is always a dry run, and writing the link usually runs
-through sudo. The `## OpenMP runtime prerequisite` section of `/forging-mcp-environment-setup` owns its four outcomes.
+makes this a first-order environment diagnostic. A bare `slf omp` is always a dry run, and the link lands in the library
+directory of the interpreter that runs the command. The `## OpenMP runtime prerequisite` section of
+`/forging-mcp-environment-setup` owns its four outcomes.
 
 ---
 
