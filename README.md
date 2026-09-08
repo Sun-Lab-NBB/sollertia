@@ -1,6 +1,6 @@
 # Sollertia
 
-**AI-Assisted Scientific Data Acquisition and Processing**
+**A platform for AI-assisted scientific data acquisition and processing**
 
 [![License](https://img.shields.io/badge/License-Apache_2.0-blue.svg)](LICENSE)
 
@@ -15,9 +15,10 @@ own the record schemas, the batch orchestration, and the extension seams, while 
 parsers, locators, and workers that make those seams concrete. Mesoscope-VR is the reference system, and it is the
 worked example an agent copies when implementing a new one.
 
-**Core Insight:** AI assistance operates at *configuration time* and at *processing time*, while runtime data
-acquisition remains *deterministic and AI-independent*. An agent designs the system, authors its configurations, and
-processes its output, and no agent sits in the loop while an animal is on the rig.
+**Core Insight:** An agent sets the work up and then gets out of the way. In acquisition, it configures the system and
+leaves before an animal reaches the rig. In processing, it plans and deploys the batches, then monitors what a
+*deterministic internal orchestrator* resolves. A dropped network connection, an API rate limit, or a model error never
+reaches a running session or a running batch.
 
 Authored by [Ivan Kondratyev](https://github.com/Inkaros).
 Copyright: 2026, NeuroAI Lab, Cornell University.
@@ -29,8 +30,8 @@ ___
 ### Shared Asset Vocabulary
 - **One record schema per concern**: Session markers, descriptors, hardware-state snapshots, and experiment
   configurations are defined once and dispatched to every system through registries.
-- **Registry-backed extension**: A new acquisition system or session type gains its enumeration member in one place,
-  and import-time coverage checks refuse a partially wired system rather than failing at runtime.
+- **Registry-backed extension**: A new acquisition system or session type gains its enumeration member in one place, and
+  import-time coverage checks refuse a partially wired system before runtime begins.
 - **Validated authoring**: Every asset is created, written, and validated through MCP tools that check the payload
   before it reaches disk.
 
@@ -55,7 +56,7 @@ ___
   pipeline orchestration.
 - **Three MCP servers**: Structured tool access to shared assets, the acquisition system, and the processing pipeline.
 - **Deliberate handoffs**: Each skill declares what it owns and what it defers, so an agent reaches the one skill that
-  answers its question rather than guessing.
+  answers its question.
 
 ___
 
@@ -98,14 +99,14 @@ values, the safety interlocks, and the teardown ordering are settled with the hu
 
 **Virtual Reality is the linear infinite corridor.** Every acquisition system presents a Unity task in the linear
 infinite corridor, as the `AcquisitionSystems` enumeration states in its own docstring, so every experiment
-configuration is seeded from a corridor task template and satisfies one contract. Authoring and validating new
-corridor templates is autonomous work. A different topology, such as a T-maze, an open field, or a branching maze, is
-a second task engine rather than an extension of this one, and it is co-designed with the human supervisor.
+configuration is seeded from a corridor task template and satisfies one contract. Authoring and validating new corridor
+templates is autonomous work. A different topology, such as a T-maze, an open field, or a branching maze, is a second
+task engine, and it is co-designed with the human supervisor.
 
 Neither boundary is a missing feature. Every other extension the platform supports, including session types, hardware
 modules, processing pipelines, forged datasets, read assets, and credentials, resolves through a registry. The
-shared-assets and forgery registries run import-time coverage checks that refuse a partially wired extension rather
-than failing once a session is already on disk.
+shared-assets and forgery registries run import-time coverage checks that refuse a partially wired extension before a
+session reaches disk.
 
 ___
 
@@ -140,18 +141,18 @@ ___
 
 Some tools the platform runs cannot live inside it. An external tool binding is reached across a process boundary,
 because its runtime, its dependency pins, its license, or its own launcher forbids installing or driving it beside the
-stack. The binding's contract is the artifact it leaves on disk rather than an API. A binding is not indexed above,
-ships no marketplace plugin, and is not version-checked as a sibling clone. It is documented at the two seams it
-touches, the call that produces the artifact and the stage that reads it back. The `experiment:external-tool-bindings`
-skill owns the convention and the producer seam, and `forging:processing-input-format` owns the consumer seam.
+stack. The binding's contract is the artifact it leaves on disk. A binding is not indexed above, ships no marketplace
+plugin, and is not version-checked as a sibling clone. It is documented at the two seams it touches, the call that
+produces the artifact and the stage that reads it back. The `experiment:external-tool-bindings` skill owns the
+convention and the producer seam, and `forging:processing-input-format` owns the consumer seam.
 
-- **[sollertia-video-tracking](https://github.com/Sun-Lab-NBB/sollertia-video-tracking)** (Python, DeepLabCut). Bolted
-  into Mesoscope-VR acquisition preprocessing, which invokes its `slvt infer` command through `conda run` and leaves
-  the DeepLabCut prediction beside the face-camera video. The forging video pipeline reads that prediction back to
-  compute pupil metrics. DeepLabCut supports only Python 3.10 to 3.12 and the numpy 1.x series, so it cannot share the
-  stack's Python 3.14 and numpy 2 environment, and the project pins itself to the newest interpreter DeepLabCut
-  allows. The binding is skipped where the host leaves it unconfigured or the face-camera video is absent, while an
-  inference that runs and fails aborts the session transfer rather than passing silently.
+- **[sollertia-video-tracking](https://github.com/Sun-Lab-NBB/sollertia-video-tracking)** (Python, DeepLabCut). Injected
+  into Mesoscope-VR acquisition preprocessing, which invokes its `slvt infer` command through `conda run` and leaves the
+  DeepLabCut prediction beside the face-camera video. The forging video pipeline reads that prediction back to compute
+  pupil metrics. DeepLabCut supports only Python 3.10 to 3.12 and the numpy 1.x series, so it cannot share the stack's
+  Python 3.14 and numpy 2 environment, and the project pins itself to the newest interpreter DeepLabCut allows. The
+  binding is skipped where the host leaves it unconfigured or the face-camera video is absent, while an inference that
+  runs and fails aborts the session transfer.
 
 ___
 
@@ -378,8 +379,8 @@ ___
 5. **Record and process a session.** Run one acquisition session, preprocess it, then plan and execute the processing
    pipelines against it before scaling to a project.
 6. **Implement a new system.** Mesoscope-VR is the reference instance, and the `mesoscope` plugin documents every
-   donation it makes. Scaffold the new engine from its shape rather than inventing a new one, and expect to settle the
-   hardware-defined decisions with the human supervisor while an agent wires the registry seams around them.
+   donation it makes. Scaffold the new engine from its shape, and expect to settle the hardware-defined decisions with
+   the human supervisor while an agent wires the registry seams around them.
 
 ___
 
