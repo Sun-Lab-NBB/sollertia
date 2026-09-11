@@ -310,9 +310,9 @@ The trial sources are produced upstream by runtime cue-to-trial decomposition. S
 
 `in_trigger_zone` is computed by the numba-accelerated `_check_trigger_zones`, which marks each `reference_distance`
 point `1` (inside) or `0` (outside) by walking the per-trial trigger-zone start/end boundaries from
-`vr_trigger_zone_data.feather`. It relies on both the distance series and the trigger-zone boundaries being sorted
-and monotonically increasing. It walks a zone index forward as distance increases (and backward to absorb slight
-non-monotonicity), and returns an all-zero array when no trigger zones are defined.
+`vr_trigger_zone_data.feather`, which already carry the actor trigger lead. It relies on both the distance series
+and the trigger-zone boundaries being sorted and monotonically increasing. It walks a zone index forward as distance
+increases (and backward to absorb slight non-monotonicity), and returns an all-zero array when no trigger zones exist.
 
 ### Enum mappings
 

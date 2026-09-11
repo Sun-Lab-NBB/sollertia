@@ -15,10 +15,10 @@ Documents the schema rosters that bind the Mesoscope-VR processing pipelines to 
 the `BehaviorDataFiles` and `VideoDataFiles` filename rosters, the `DatasetColumn` assembled-column roster, and the
 derived `MESOSCOPE_COLUMN_DESCRIPTIONS` mapping, all declared in `sollertia_forgery.mesoscope_vr.metadata`.
 
-The three enumerations are package-internal. None of them appears in `sollertia_forgery.mesoscope_vr.__all__`, so code
-outside the package addresses their members by value rather than importing the enumeration. The derived
-`MESOSCOPE_COLUMN_DESCRIPTIONS` mapping is the one asset in this module that crosses the package boundary, and it
-reaches the agnostic forging pipeline through the `_FORGING_ASSEMBLY_REGISTRY` seam.
+`DatasetColumn` is re-exported from `sollertia_forgery.mesoscope_vr` as of sollertia-forgery 1.0.1, so a consumer
+imports the enumeration from the package. The two filename rosters stay package-internal, so code outside the package
+addresses their members by value. The derived `MESOSCOPE_COLUMN_DESCRIPTIONS` mapping is the asset that crosses the
+package boundary into the agnostic forging pipeline, which it reaches through the `_FORGING_ASSEMBLY_REGISTRY` seam.
 
 ---
 
@@ -138,7 +138,7 @@ fluorescence assembly for mesoscope experiment sessions and from the behavior as
 | `TRIAL`              | `trial`              | One-based trial identifier at each sample. 65535 marks samples outside the run state           |
 | `TRIAL_TYPE`         | `trial_type`         | Trial type label at each sample (e.g. 'ABC', 'ABCD'). 'undefined' marks non-run samples        |
 | `CUE`                | `cue`                | Active virtual reality cue identifier at each sample. 255 marks samples outside the run state  |
-| `IN_TRIGGER_ZONE`    | `in_trigger_zone`    | Boolean flag indicating whether the animal is inside a stimulus trigger zone at each sample    |
+| `IN_TRIGGER_ZONE`    | `in_trigger_zone`    | Boolean flag for the animal being inside a stimulus trigger zone as the runtime registers it   |
 | `RUNTIME_STATE`      | `runtime_state`      | Experiment runtime state label at each sample                                                  |
 | `REINFORCING_GUIDED` | `reinforcing_guided` | Reinforcing guidance state at each sample. Present only when reinforcing guidance was recorded |
 | `AVERSIVE_GUIDED`    | `aversive_guided`    | Aversive guidance state at each sample. Present only when aversive guidance was recorded       |
@@ -363,7 +363,8 @@ Roster fidelity:
 - [ ] DatasetColumn lists 50 members across the 5 comment-delimited groups declared in metadata.py
 - [ ] Every column value matches its source spelling, including torque_N_cm, water_uL, and pupil_area_px2
 - [ ] Every member description matches its metadata.py docstring, with no invented unit, transform, or sensor
-- [ ] MESOSCOPE_COLUMN_DESCRIPTIONS is the exported asset and the three enumerations are package-internal
+- [ ] MESOSCOPE_COLUMN_DESCRIPTIONS and DatasetColumn are the exported assets and the two filename rosters are
+      package-internal
 - [ ] The import-time completeness check is described as a bare KeyError from the dict comprehension
 - [ ] A newly added column carries its DatasetColumn member, its _COLUMN_DESCRIPTIONS entry, and its assembling module,
       the last being the group's own assembler except for a pupil column, whose module is video_tracking.py, and the

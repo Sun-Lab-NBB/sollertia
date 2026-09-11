@@ -343,6 +343,9 @@ public class ActorObject : MonoBehaviour
   scans every existing `TrackCam`-tagged camera in the scene, picks the lowest-numbered display index in `{0..7}` that
   no other tracking camera is using, and defaults to 7 if all are taken. Multi-actor scenes coordinate display
   assignments through this scan.
+- The `CharacterController` that `InitiateActor` adds is a 0.5 unit (5 cm) sphere with a 0.05 unit skin width, since
+  its 0.1 unit height collapses to the radius. Triggers fire while it overlaps a zone, so entry registers about 4 cm
+  before the tracked position reaches the declared face and exit 4 cm after it, which sollertia-forgery compensates.
 - `SetModel(modelName)` swaps the actor's `Model <name>` child GameObject by instantiating
   `Resources.Load("Actors/Prefabs/<modelName>")`. `"None"` removes the existing model without adding a new one.
 - `EditMenu()` renders the Actor section of `MainWindow` (model + controller dropdowns).
