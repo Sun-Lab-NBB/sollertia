@@ -240,12 +240,15 @@ cases apply:
 Trigger-zone boundaries are computed per trial against the corridor into which the trial was **entered**, so the
 offset flag is captured before the cue walk consumes it. A trial entered partway into its first cue is shorter than its
 corridor by that offset, so every position the template declares against the corridor is reached that much earlier in
-the traveled distance. The absolute start is therefore the previous trial's end distance plus
-`stimulus_trigger_zone_start_cm` minus the entry offset. The entry offset is the cue offset when this trial was entered
-mid-cue and zero otherwise, and the absolute end is the same sum built from `stimulus_trigger_zone_end_cm`. A
-trigger-zone start is emitted only when it falls at or before the trial's end distance, and the matching end is clamped
-to the trial's end distance when it would otherwise overshoot. A trial that ends before its trigger zone begins
-contributes no entry, so the two trigger-zone arrays can be shorter than the trial-type array.
+the traveled distance. The zone origin is therefore the previous trial's end distance minus the entry offset, which
+is the cue offset when this trial was entered mid-cue and zero otherwise. The absolute start is that origin plus
+`stimulus_trigger_zone_start_cm` minus the actor trigger lead, and the absolute end is the origin plus
+`stimulus_trigger_zone_end_cm` plus the same lead. The lead, `_ACTOR_TRIGGER_LEAD_CM` (4.0 cm), is the distance by
+which Unity registers a zone crossing ahead of the tracked position, because the Gimbl actor is a 5 cm collider sphere
+whose surface meets the zone before and after its center does. A trigger-zone start is emitted only when it falls at
+or before the trial's end distance, and the matching end is clamped to the trial's end distance when it would
+otherwise overshoot. A trial that ends before its trigger zone begins contributes no entry, so the two trigger-zone
+arrays can be shorter than the trial-type array.
 
 `_process_trial_sequence` returns five arrays: the cue codes (uint8), the per-cue cumulative distances (float64), the
 trigger-zone start distances (float64), the trigger-zone end distances (float64), and the per-trial start distances
