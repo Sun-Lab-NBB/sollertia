@@ -94,10 +94,10 @@ part of its source data lives elsewhere.
 
 `_CalciumIndicator` enumerates the two indicators for which the Mesoscope-VR cindra configurations are tuned:
 
-| Member     | Value      | Transgenic line                                                                                                                                |
-|------------|------------|------------------------------------------------------------------------------------------------------------------------------------------------|
-| `GCAMP6F`  | `GCaMP6f`  | The Thy1-GCaMP6f transgenic line (GP5.17)                                                                                                      |
-| `JGCAMP8S` | `jGCaMP8s` | The in-house cross of a jGCaMP8s reporter line and a CaMKII-Cre driver line (GCaMP8s x CamKIICre), the slow-decay member of the jGCaMP8 family |
+| Member     | Value      | Transgenic line                                                                                                                                         |
+|------------|------------|---------------------------------------------------------------------------------------------------------------------------------------------------------|
+| `GCAMP6F`  | `GCaMP6f`  | The Thy1-GCaMP6f transgenic line (GP5.17)                                                                                                               |
+| `JGCAMP8S` | `jGCaMP8s` | The cross of the TIGRE2-jGCaMP8s reporter line and the CaMKIIa-Cre T29-1 driver line (GCaMP8s x CamKIICre), the slow-decay member of the jGCaMP8 family |
 
 `_IndicatorParameters` is a frozen, slotted dataclass carrying the three values that depend on the indicator. Each
 field names the cindra field it fills:
@@ -112,8 +112,8 @@ field names the cindra field it fills:
 
 | Indicator  | `tau` | `neuropil_coefficient` | `probability_threshold` |
 |------------|-------|------------------------|-------------------------|
-| `GCAMP6F`  | `0.4` | `0.7`                  | `0.85`                  |
-| `JGCAMP8S` | `0.7` | `0.8`                  | `0.80`                  |
+| `GCAMP6F`  | `0.2` | `0.6`                  | `0.85`                  |
+| `JGCAMP8S` | `0.3` | `0.8`                  | `0.80`                  |
 
 `tau` is in seconds. Every parameter outside this table is a fixed literal, identical for both indicators.
 
@@ -266,8 +266,8 @@ Indicator resolution:
 - [ ] The genotype was read from the subject.genotype field of the session's raw_data/surgery_metadata.yaml
 - [ ] The genotype was casefolded, stripped, and whitespace-collapsed before an exact registry match
 - [ ] The three recognized keys were quoted exactly: gp5.17, gp5.17 (hemi), gcamp8s x camkiicre
-- [ ] GCAMP6F carries tau 0.4, neuropil_coefficient 0.7, probability_threshold 0.85
-- [ ] JGCAMP8S carries tau 0.7, neuropil_coefficient 0.8, probability_threshold 0.80
+- [ ] GCAMP6F carries tau 0.2, neuropil_coefficient 0.6, probability_threshold 0.85
+- [ ] JGCAMP8S carries tau 0.3, neuropil_coefficient 0.8, probability_threshold 0.80
 - [ ] An unrecognized genotype raises ValueError naming the normalized string and the recognized genotypes
 - [ ] A missing surgery metadata file raises FileNotFoundError naming the session and the resolved path
 - [ ] A new indicator was added as an enum member, an _INDICATOR_PARAMETERS entry, and a genotype key together
