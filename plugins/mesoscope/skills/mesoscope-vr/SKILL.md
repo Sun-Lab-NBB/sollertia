@@ -337,11 +337,12 @@ Method surface:
 | `wait_until_idle()`            | Blocks in place while at least one managed axis is still moving                              |
 | `disconnect()`                 | Shuts down all managed motors and closes the three motor-group connections                   |
 | `is_connected`                 | Property. True only when all three motor-group connections are active                        |
-| `restore_position()`           | Restores every axis to its previous-runtime position, or to the stored mount / park pose     |
+| `restore_position()`           | Moves only the LickPort axes to previous-runtime or parking positions, holding all others    |
 
 `mount_position()` carries non-obvious semantics. Only the LickPort motors always move to their mounting positions.
 When previous-runtime positions are available, the HeadBar and Wheel motors are restored to those positions instead,
-because mounting is facilitated primarily by moving the LickPort away from the animal.
+because mounting is facilitated primarily by moving the LickPort away from the animal. The `restore_position()` call
+that follows mounting moves only the LickPort, so `mount_position()` sets the HeadBar and Wheel imaging pose.
 
 For when the runtime invokes these methods and in what order, see `/mesoscope-vr-runtime`.
 
@@ -448,7 +449,7 @@ inside the sollertia marketplace.
 | `/mesoscope-vr-session-schema`            | Field schemas of the per-session descriptors this skill delegates.                              |
 | `/mesoscope-vr-module-parsing`            | Owns the forgery parser a new microcontroller module needs to reach processed output.           |
 | `/mesoscope-vr-experiment-schema`         | Field schema of the experiment configuration file this skill's authoring command creates.       |
-| `/mesoscope-vr-snapshots`                 | Per-session Zaber position snapshots consumed by `ZaberMotors.restore_position()`.              |
+| `/mesoscope-vr-snapshots`                 | Zaber position snapshots consumed by `ZaberMotors.mount_position()` and `restore_position()`.   |
 | `experiment:zaber-interface`              | Zaber motor mechanics consumed by `ZaberMotors`.                                                |
 | `experiment:vr-driver-interface`          | The Unity VR task driver (`VRTaskDriver`) configured by `assets.vr_task`.                       |
 | `video:camera-interface`                  | VideoSystem mechanics consumed by `VideoSystems`.                                               |

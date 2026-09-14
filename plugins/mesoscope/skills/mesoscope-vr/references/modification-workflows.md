@@ -212,9 +212,11 @@ Follow the "Workflow: adding a new controller board" section of `experiment:micr
 1. **Add a `<group>_port` field** to `MesoscopeVRAssets`.
 2. **Extend `ZaberMotors`** to instantiate a new `ZaberConnection` for the new port and pull out the per-axis
    `ZaberAxis` handles in the documented daisy-chain order.
-3. **Extend the ten methods that enumerate axes explicitly** to cover the new group's axes: `restore_position()`,
-   `prepare_motors()`, `park_position()`, `maintenance_position()`, `mount_position()`, `unmount_position()`,
-   `generate_position_snapshot()`, `unpark_motors()`, `park_motors()`, and `wait_until_idle()`. Also extend
+3. **Extend the eight methods that enumerate every axis explicitly** to cover the new group's axes: `prepare_motors()`,
+   `park_position()`, `maintenance_position()`, `mount_position()`, `generate_position_snapshot()`, `unpark_motors()`,
+   `park_motors()`, and `wait_until_idle()`. A new group restores its previous-runtime positions in `mount_position()`,
+   as the HeadBar and Wheel groups do. `restore_position()` and `unmount_position()` move only the LickPort axes, so
+   extend them only when the new group must move after the animal is mounted or before it is removed. Also extend
    `disconnect()` and the `is_connected` property to cover the new `ZaberConnection`.
 4. **Update the `ZaberPositions` dataclass** in `mesoscope_vr/system.py` to capture the new group's per-axis positions,
    and reconcile `/mesoscope-vr-snapshots`, which owns that record's schema.
