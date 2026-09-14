@@ -367,7 +367,10 @@ and the transfer-abort failure mode.
 
 **Opt-in gate:** face-camera inference runs only when the host configures both `conda_environment` and
 `dlc_project_path`. An empty string or an unset path disables it, matching the empty-value idiom the other sections use.
-Inference is also skipped, with a warning, when the expected face-camera video is absent.
+Inference is also skipped, at INFO, when a `<session>_face_camera*eye_tracking*.h5` prediction file already sits beside
+the video, because `slvt infer` writes that file only after the whole video is analyzed. A rerun therefore reuses the
+earlier predictions, and removing the prediction files forces a fresh run. That check precedes the video check, and
+inference is skipped with a warning when the expected face-camera video is absent.
 
 **Source of values:** `conda_environment` and `dlc_project_path` name the host's DeepLabCut install and trained project,
 so ask the user for both. `shuffle`, `crop`, `batch_size`, `chunks`, and `compile_model` are deployment defaults tuned
@@ -402,8 +405,10 @@ the DeepLabCut `.h5` file and its companion pickles beside the face-camera video
 the `slvt infer` default when `--output` is omitted. They are therefore covered by the raw-data checksum and shipped to
 long-term storage as raw data, where the forging plugin's video pipeline consumes them.
 
-A non-zero exit status or zero written `.h5` prediction files raises `RuntimeError`, aborts the transfer to long-term
-storage, and retains the local session copy for a manual retry. The transient log lives at
+A non-zero exit status or zero written `.h5` prediction files removes the outputs of the run, raises `RuntimeError`,
+aborts the transfer to long-term storage, and retains the local session copy for a manual retry. An abort of
+preprocessing while the child runs interrupts it and removes its outputs the same way. The `.h5` is written in place, so
+a child that died inside that write leaves a partial file the skip would otherwise reuse. The transient log lives at
 `<tmp>/slvt_infer_<session_name>.log`, is removed on success, and is retained on failure, with its last 2000 characters
 echoed into the error.
 

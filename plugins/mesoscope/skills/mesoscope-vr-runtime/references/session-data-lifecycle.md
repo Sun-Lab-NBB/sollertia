@@ -27,7 +27,10 @@ initialization, so it is purged instead of preprocessed, and each destination li
 | 10    | `push_session_data(session_data, destinations, threads=15)`       | `cross_system`              |
 
 Steps 5 through 8 run inside a `try` whose `except BaseException` calls `_terminate_face_tracking(...)` and re-raises,
-so an abort never abandons the child holding the GPU. Constants: `_PREPROCESSING_WORKER_COUNT` is
+so an abort never abandons the child holding the GPU. The terminator also removes the `.h5` and companion pickle outputs
+of a child that did not exit cleanly, and the transient log of one that did. The prediction file is written in place, so
+a child that died inside that write leaves a partial file the next run would otherwise reuse. Constants:
+`_PREPROCESSING_WORKER_COUNT` is
 `resolve_worker_count(reserved_cores=1)`, `_STORAGE_TRANSFER_THREAD_COUNT = 15`,
 `_FACE_TRACKING_TERMINATION_TIMEOUT = 30.0` seconds, and `_INFERENCE_LOG_TAIL_CHARACTERS = 2000`.
 
@@ -37,14 +40,17 @@ so an abort never abandons the child holding the GPU. Constants: `_PREPROCESSING
 
 - `rename_mesoscope_directory` renames the shared `mesoscope_data` directory to the session-specific path, only when the
   session path is absent and the shared path holds files, then recreates an empty shared directory.
-- `_launch_face_tracking` returns `None` when either `conda_environment` or `dlc_project_path` is unset, or when the
-  face-camera video is missing. Otherwise it runs `conda run -n <env> slvt infer` with `--config-path`, `--videos`,
-  `--shuffle`, `--device cuda`, `--gpus 0`, `--batch-size`, `--chunks`, `--compile-model`, `--no-progress`, and `--crop`
-  when configured. It writes predictions beside the video in raw `camera_data` and redirects output to a temporary log
-  file rather than a pipe, because a full pipe buffer would deadlock the long-running child.
-- `_join_face_tracking` waits for the child, then raises `RuntimeError` when the exit code is non-zero or no `.h5`
-  prediction file sits beside the video, which aborts the transfer and retains the local copy for a retry. The transient
-  log is removed on success and retained on failure, and the failure message carries its tail.
+- `_launch_face_tracking` returns `None` when either `conda_environment` or `dlc_project_path` is unset, when a
+  `<stem>*eye_tracking*.h5` prediction file already sits beside the face-camera video, or when the face-camera video is
+  missing. An existing prediction is reported at INFO and reused, so removing the prediction files forces a fresh run,
+  and a missing video is reported as a WARNING. Otherwise it runs `conda run -n <env> slvt infer` with `--config-path`,
+  `--videos`, `--shuffle`, `--device cuda`, `--gpus 0`, `--batch-size`, `--chunks`, `--compile-model`, `--no-progress`,
+  and `--crop` when configured. It writes predictions beside the video in raw `camera_data` and redirects output to a
+  temporary log file, because a full pipe buffer would deadlock the long-running child.
+- `_join_face_tracking` waits for the child, then removes the run's `.h5` and companion pickle outputs and raises
+  `RuntimeError` when the exit code is non-zero or no `.h5` prediction file sits beside the video. That error aborts the
+  transfer and retains the local copy for a retry. The transient log is removed on success and retained on failure, and
+  the failure message carries its tail.
 - `_pull_mesoscope_data` raises `RuntimeError` unless `MotionEstimator.me`, `fov.roi`, and `zstack.tiff` are all
   present, strips `*.bin` markers, creates `raw_data/raw_mesoscope_frames` only after that verification, and then
   transfers with `remove_source=True`.

@@ -132,8 +132,9 @@ points against the three-point minimum, and rejecting one borderline point costs
 
 `locate_mesoscope_pose_predictions(session)` returns `None` when `session.raw_data.camera_data_path` is not a
 directory. Otherwise it globs that directory for `*eye_tracking*.h5`, sorts the matches with `natsort.natsorted`,
-and returns the first, or `None` when nothing matches. A re-run of inference leaves several files matching, and the
-natural-sort-first one is the file the tracking stage opens.
+and returns the first, or `None` when nothing matches. Predictions produced under more than one model or snapshot leave
+several files matching, because each scorer string names its own file, and the natural-sort-first one is the file the
+tracking stage opens. A preprocessing rerun adds none, since it reuses the prediction already beside the video.
 
 `process_mesoscope_video_tracking(session, output_directory)` calls the locator first. When it returns `None`, the
 pass echoes at `LogLevel.INFO` and returns without writing anything, because the stage is optional and gated

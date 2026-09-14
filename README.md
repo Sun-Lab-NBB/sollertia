@@ -151,8 +151,8 @@ convention and the producer seam, and `forging:processing-input-format` owns the
   DeepLabCut prediction beside the face-camera video. The forging video pipeline reads that prediction back to compute
   pupil metrics. DeepLabCut supports only Python 3.10 to 3.12 and the numpy 1.x series, so it cannot share the stack's
   Python 3.14 and numpy 2 environment, and the project pins itself to the newest interpreter DeepLabCut allows. The
-  binding is skipped where the host leaves it unconfigured or the face-camera video is absent, while an inference that
-  runs and fails aborts the session transfer.
+  binding is skipped where the host leaves it unconfigured, a prediction already sits beside the face-camera video, or
+  that video is absent, while an inference that runs and fails aborts the session transfer.
 
 ___
 
