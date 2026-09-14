@@ -108,6 +108,9 @@ A reinforcing trial that delivers a water reward when the animal meets the trial
 | `reward_tone_duration_ms` | `int`       | `300`             | Duration, in milliseconds, of the auditory tone sounded with the reward    |
 | `trial_kind`              | `TrialKind` | `TrialKind.WATER` | The discriminator that identifies the trial when it is read back from YAML |
 
+`/mesoscope-vr-runtime` documents, in its Reward resolution section, the runtime floor that can raise the first water
+reward of each run phase above `reward_size_ul`.
+
 ### `MesoscopeGasPuffTrial`
 
 An aversive trial that delivers a gas puff when the animal fails the trial's avoidance condition.
