@@ -174,10 +174,10 @@ option is not an output name, so a tool accepting only a directory, as the worke
 DIRECTORY` does, names its own file and falls under the second shape. The tie-break is required because a re-run leaves
 several matching files and discovery must stay deterministic.
 
-Nothing validates at runtime that a file satisfying the producer's existence check also satisfies the consumer's rule,
-so a tool configured under an unexpected project or output name ships successfully and is then invisible downstream.
-Force the name where the tool's command line allows it, and record the rule as a module constant on each side whose
-docstring names the other side.
+The producer's verification globs for the consumer's naming rule as well as the input's stem, so a tool configured
+under an unexpected project name fails the run before the session leaves the machine. An unexpected output directory
+passes that check and leaves the artifact invisible downstream. Force the name where the tool's command line allows it,
+and record the rule as a module constant on each side whose docstring names the other side.
 
 ### Shape
 
@@ -239,8 +239,9 @@ binding whose artifact must reach a dataset is complete only once that addition 
 |--------------------------------------------------|------------|---------------------------------------------------------|
 | The host is not configured for the tool          | `producer` | Return `None` silently, launch nothing                  |
 | The session's own kind does not want the run     | `producer` | Skip the launch at the call site                        |
+| The artifact already exists before launch        | `producer` | Log at INFO, return `None`, reuse the earlier run       |
 | The tool's input is missing before launch        | `producer` | Log at WARNING, return `None`, preprocessing continues  |
-| The run fails, or exits zero writing no artifact | `producer` | Raise, before the session leaves the machine            |
+| The run fails, or exits zero writing no artifact | `producer` | Remove the run's outputs and raise, before the transfer |
 | The pipeline aborts while a child still runs     | `producer` | Terminate, wait a bounded time, escalate to a kill      |
 | The artifact is absent at read time              | `consumer` | Degrades again, under `forging:processing-input-format` |
 
@@ -324,19 +325,27 @@ You MUST follow these steps in order when adding a binding.
    artifact's home, as the worked instance does. Where the tool names its own file, decide the substring and extension
    identifying the artifact, and the total order breaking ties. Record the rule as a module constant on each seam.
 
-6. **Write the launcher.** Gate on the identity fields, and probe the input and return `None` with a WARNING when it is
-   absent. Place the launch call site after every stage that produces the tool's input, because the launcher only probes
-   that input. A launch placed earlier to widen the overlap window degrades to the WARNING-and-skip path instead of
-   failing, and the session ships without the artifact. Build the argument vector from the host-owned prefix and the
-   tool's tokens, open the transient log file in the operating system's temporary directory under a session-derived
-   name, and start the child.
+6. **Write the launcher.** Gate on the identity fields, probe the artifact and return `None` at INFO when it already
+   exists, then probe the input and return `None` with a WARNING when it is absent. The artifact probe makes a
+   preprocessing rerun reuse the verified run, and removing the artifact is what forces a fresh one. Place the launch
+   call site after every stage that produces the tool's input, because the launcher probes that input's existence
+   alone. A launch placed earlier to widen the overlap window degrades to the WARNING-and-skip path instead of failing,
+   and the session ships without the artifact. Build the argument vector from the host-owned prefix and the tool's
+   tokens, open the transient log file in the operating system's temporary directory under a session-derived name, and
+   start the child.
 
-7. **Verify the run.** Check the exit status and the artifact's existence together, raise with the log tail embedded,
-   and unlink the log after the raising call. A synchronous launcher does this inline, and an asynchronous one does it
-   in the caller's join. Place the verification before the checksum-and-transfer step that `/data-management` owns.
+7. **Verify the run.** Check the exit status and the artifact's existence together, remove the run's outputs on
+   failure, raise with the log tail embedded, and unlink the log after the raising call. The removal holds because the
+   artifact probe precedes every launch, so any artifact present while a launched child runs belongs to that child. A
+   tool writing its artifact in place leaves a partial file under the final name when it dies inside the write, which
+   the next launcher's artifact probe would otherwise trust. A synchronous launcher does this inline, and an
+   asynchronous one does it in the caller's join. Place the verification before the checksum-and-transfer step that
+   `/data-management` owns.
 
 8. **Reap on abort, when the launch is asynchronous.** Wrap the stages running while the child is in flight, terminate
-   the child on any exception, wait a bounded time, escalate to a kill, and re-raise.
+   the child on any exception, wait a bounded time, escalate to a kill, remove the outputs of a child that did not exit
+   cleanly, and re-raise. The removal never raises, so a file the dying child still holds open is reported for manual
+   removal and the original exception propagates.
 
 9. **Decide whether the platform reads the artifact back.** When it does not, the producer half alone is the complete
    binding, so skip ahead to the recording step below.
@@ -388,9 +397,10 @@ addresses the tool by a configured environment name rather than by a host path, 
 distribution. Its call site gates the launch on the experiment session type, because only those sessions acquire the
 data the predictions accompany.
 
-Two cautions carry forward. Its producer checks existence by the input's stem while its consumer globs the tool's
-project name, so one real filename satisfies both rules only while the operator names the tool's project as the consumer
-expects. And the cross-reference this skill requires is met on the producer seam alone. The producer's
+Two cautions carry forward. Its producer globs the input's stem together with the tool's project name while its
+consumer globs the project name alone, so one real filename satisfies both rules only while the operator names the
+tool's project as the consumer expects. And the cross-reference this skill requires is met on the producer seam alone.
+The producer's
 `EYE_TRACKING_PROJECT_NAME` docstring names sollertia-forgery's `locate_mesoscope_pose_predictions`, while the
 consumer's own naming constant names neither sollertia-experiment nor its module, so the precedent misses the consumer
 naming constant record.
@@ -445,11 +455,14 @@ Binding compliance, reader-judged:
 - [ ] The naming rule is a forced exact name, or a glob plus a total order where the tool names its own output
 - [ ] The producer's existence check and the consumer's discovery are satisfied by that one naming rule
 - [ ] The artifact's format is read without importing the bound tool
+- [ ] An artifact already present logs at INFO and returns `None`, so a rerun reuses the earlier run
 - [ ] A missing input logs at WARNING and returns `None`, and preprocessing continues to completion
 - [ ] The launch call site follows every stage that produces the tool's input
-- [ ] A failed run and a zero exit writing no artifact are checked together, and both raise before the transfer
+- [ ] A failed run and a zero exit writing no artifact are checked together, and both remove the run's outputs and
+      raise before the transfer
 - [ ] The child's streams go to a file in the temporary directory, and the unlink follows the raising call
-- [ ] An asynchronous launch terminates the child on abort with a bounded wait escalating to a kill
+- [ ] An asynchronous launch terminates the child on abort with a bounded wait escalating to a kill, and removes the
+      outputs of a child that did not exit cleanly without raising
 - [ ] The consumer donation joins the registry naming its concern or mints one, with a new stage minted first
 - [ ] An artifact that must reach a forged dataset carries its dataset columns and assembly routing
 - [ ] The reader dependency comment names the tool and the writer-side version on which the format depends
