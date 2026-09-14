@@ -74,8 +74,8 @@ fixes the brake state, the screen state, and which sensors are monitoring.
 | State           | Value | Meaning                                                |
 |-----------------|-------|--------------------------------------------------------|
 | `IDLE`          | 0     | Not conducting a session, and the state a pause enters |
-| `REST`          | 1     | Rest period of an experiment session                   |
-| `RUN`           | 2     | Run period of an experiment session                    |
+| `REST`          | 1     | Rest phase of an experiment session                    |
+| `RUN`           | 2     | Run phase of an experiment session                     |
 | `LICK_TRAINING` | 3     | Lick training session                                  |
 | `RUN_TRAINING`  | 4     | Run training session                                   |
 
@@ -100,8 +100,10 @@ the per-mode logic functions rather than constructing the class directly.
 Module constants: `_MINIMUM_CPU_COUNT = 10`, derived as three cores for the microcontrollers, one for the data logger,
 four for the video systems, one for the central process, and one for the GUI. `_GUIDED_RUNTIME_STATE_CODE` and
 `_MAXIMUM_RUNTIME_STATE_CODE` are both 255. `_MESOSCOPE_START_TIMEOUT_MS = 15000` and `_EXPECTED_FRAME_PULSES = 10`
-together decide whether frame acquisition began. Class statics set the mesoscope frame-checking window
-`_MESOSCOPE_FRAME_DELAY_MS = 300`, the `_SPEED_CALCULATION_WINDOW_MS = 50`, and the logging `_SOURCE_ID = np.uint8(1)`.
+together decide whether frame acquisition began. `_MINIMUM_FIRST_REWARD_VOLUME_UL = 15.0` sets the floor, in
+microliters, for the first Unity-requested water reward of each run phase. Class statics set the mesoscope
+frame-checking window `_MESOSCOPE_FRAME_DELAY_MS = 300`, the `_SPEED_CALCULATION_WINDOW_MS = 50`, and the logging
+`_SOURCE_ID = np.uint8(1)`.
 
 ### Consumer API
 
@@ -123,6 +125,7 @@ The per-mode logic functions reach the orchestrator through these members alone.
 | `publish_runtime_thresholds(speed_threshold, duration_threshold)`                                    | method    | Publishes those same thresholds to the runtime control GUI                           |
 | `setup_reinforcing_guidance(initial_guided_trials, recovery_mode_threshold, recovery_guided_trials)` | method    | Configures guidance for reinforcing (water reward) trials                            |
 | `setup_aversive_guidance(initial_guided_trials, recovery_mode_threshold, recovery_guided_trials)`    | method    | Configures guidance for aversive (gas puff) trials                                   |
+| `arm_first_reward()`                                                                                 | method    | Arms the 15 µL floor on the first Unity-requested water reward of a run phase        |
 | `terminated`                                                                                         | property  | Returns True once the system has entered the termination state                       |
 | `running_speed`                                                                                      | property  | Returns the animal's current running speed in centimeters per second                 |
 | `speed_modifier`                                                                                     | property  | Returns the modifier applied to the run training speed threshold                     |
@@ -183,6 +186,13 @@ each delivery and resets whenever the animal licks, so an animal that consumes i
 `lick_training_logic` (`mesoscope_vr/data_acquisition.py`) calls the method for every reward and ignores the returned
 flag, while `run_training_logic` branches on it, advancing the water progress bar only when water actually left the
 valve.
+
+`experiment_logic` calls `arm_first_reward()` right after `run()` for every experiment state whose system state is
+`RUN`, so only a phase transition arms the first reward floor, and the `run()` call inside `_resume_runtime()` leaves it
+unchanged. While the floor is armed, the reinforcing branch of `_unity_cycle()` raises the size of a Unity-requested
+reward in the unpaused `RUN` state to at least `_MINIMUM_FIRST_REWARD_VOLUME_UL` before passing it to
+`resolve_reward()`. The larger reward offsets the slow dispensing of water left idle in the line during rest phases. The
+first such reward for which `resolve_reward()` returns `True` releases the floor.
 
 ### Start and stop ordering
 
