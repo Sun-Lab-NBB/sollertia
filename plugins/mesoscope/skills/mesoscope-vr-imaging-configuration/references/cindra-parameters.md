@@ -15,8 +15,8 @@ values Mesoscope-VR chooses.
 
 | Indicator  | `tau` | `neuropil_coefficient` | `probability_threshold` |
 |------------|-------|------------------------|-------------------------|
-| `GCAMP6F`  | `0.4` | `0.7`                  | `0.85`                  |
-| `JGCAMP8S` | `0.7` | `0.8`                  | `0.80`                  |
+| `GCAMP6F`  | `0.2` | `0.6`                  | `0.85`                  |
+| `JGCAMP8S` | `0.3` | `0.8`                  | `0.80`                  |
 
 ---
 
