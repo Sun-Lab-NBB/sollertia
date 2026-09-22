@@ -270,13 +270,14 @@ animal's session set invalidates the outputs already forged for the sessions it 
 the dataset does not hold stays safe and needs nothing extra.
 
 Name the animal in `recreate_animals` to opt it out of the freeze. The animal is dropped from the dataset with its
-directory tree and rebuilt from the sessions the provided list holds for it, and its tracked jobs return to the
-scheduled state. Every other animal keeps its data. Each animal is named at most once, must already be in the dataset,
-and must have at least one session in the provided list, all three checked before the hierarchy is touched.
+directory tree and rebuilt from the sessions the provided list holds for it. Its tracked jobs return to the scheduled
+state, and the cross-recording output written by the dataset into its source sessions is discarded, so its recordings
+are tracked afresh. Every other animal keeps its data. Each animal is named at most once, must already be in the
+dataset, and must have at least one session in the provided list, all three checked before the hierarchy is touched.
 
-`force_recreate` is the destructive alternative. It deletes the entire hierarchy and rebuilds it from the provided
-list, losing every animal's tracked job state, and it cannot be combined with `recreate_animals`. Prefer
-`recreate_animals` whenever the change is confined to named animals, and confirm either with the user first.
+`force_recreate` is the destructive alternative. It deletes the entire hierarchy and rebuilds every animal from the
+provided list, discarding every animal's job state and cross-recording output, and it cannot be combined with
+`recreate_animals`. Prefer `recreate_animals` for a change confined to named animals, and confirm either with the user.
 
 ### generate_dataset_state_tool
 
@@ -407,7 +408,7 @@ per-animal configurations, and undoing that means deleting and rebuilding it.
 
 3. **Decide create, extend, or rebuild.** Read the resolution policy table above with the user. A pure addition of new
    animals needs neither flag. A change to an animal already in the dataset needs `recreate_animals`. A change to the
-   dataset's whole definition needs `force_recreate`, which discards every animal's job state.
+   dataset's whole definition needs `force_recreate`, which rebuilds every animal.
 
 4. **Define the dataset.** Call `define_forging_dataset_tool` with the confirmed arguments. Inspect the response:
    - `success: true` with `session_count` and `animal_count` matching the intent means the hierarchy is ready.
