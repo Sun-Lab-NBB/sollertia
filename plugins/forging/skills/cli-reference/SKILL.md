@@ -182,7 +182,8 @@ naming none of them runs every stage, all three on `video` and all four in seque
 `forging/pipeline.py::define_forging_dataset` and then runs the outstanding jobs. An invocation naming none of the three
 skips definition and runs jobs alone, as the scheduler-rendered command deliberately does. **Note on the freeze
 policy:** an animal already in the dataset is frozen, because widening its session set invalidates the outputs already
-forged for it. Name that animal with `-ra` to rebuild it from the provided sessions.
+forged for it. Name that animal with `-ra` to rebuild it from the provided sessions. A rebuild also discards the
+cross-recording output written by the dataset into the animal's source sessions, and `-f` discards it for every animal.
 
 ### `slf manifest`
 
