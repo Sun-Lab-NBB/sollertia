@@ -11,7 +11,7 @@ user-invocable: false
 
 # Sollertia experiment library extension
 
-Catalogues the seams a new acquisition system composes across sollertia-experiment and sollertia-micro-controllers, and
+Catalogs the seams a new acquisition system composes across sollertia-experiment and sollertia-micro-controllers, and
 names the handoffs for the halves that other skills own.
 
 You MUST read this entire skill before extending either library, then read
@@ -24,12 +24,12 @@ repository you are touching. You MUST run the verification checklist before repo
 
 **Covers:**
 - The acquisition-system configuration registry and the zero-code file lifecycle it unlocks
-- The shared `cross_system` primitives a new system composes rather than rewrites
+- The shared `cross_system` primitives a new system composes
 - The `interfaces/` seams: automatic MCP tool-module discovery and manual CLI group registration
 - The autonomy boundary at the acquisition engine, and the scaffolding a new system composes on either side of it
 - The sollertia-micro-controllers seams: a new firmware module, a new controller target, a new board family, and
   the cross-repo constants that move together
-- The ordered new-system workflow across four repositories, with its gating conditions
+- The ordered new-system workflow across six repositories, with its gating conditions
 - The audit view: which seams a half-built system still misses, and what each omission looks like at runtime
 
 **Does not cover:**
@@ -40,8 +40,7 @@ repository you are touching. You MUST run the verification checklist before repo
   `mesoscope:mesoscope-vr-runtime`, and `mesoscope:mesoscope-vr-snapshots`
 - The static composition pattern for the configuration and binding layers, owned by `/acquisition-system-design`
 - The runtime behavior pattern, owned by `/acquisition-system-runtime`
-- The paired firmware Module and Interface conventions and the module catalog, owned by
-  `/microcontroller-interface`
+- The paired firmware Module and Interface conventions and the module catalog, owned by `/microcontroller-interface`
 - Phase ordering across the whole build, owned by `/system-design-pipeline`
 - The base ataraxis firmware and communication mechanics, owned by `microcontroller:firmware-module` and
   `communication:microcontroller-interface`
@@ -50,8 +49,7 @@ repository you are touching. You MUST run the verification checklist before repo
 
 ## What each repository owns
 
-A new acquisition system touches four repositories. Each one owns a distinct part of the contract, and the two this
-skill covers sit in the middle of that chain.
+A new acquisition system touches six repositories.
 
 | Repository                                                                                 | What the new system contributes                                                                               | Owning skill                              |
 |--------------------------------------------------------------------------------------------|---------------------------------------------------------------------------------------------------------------|-------------------------------------------|
@@ -59,6 +57,8 @@ skill covers sit in the middle of that chain.
 | `sollertia-experiment` (`src/sollertia_experiment/`, `sle`)                                | A `SystemConfiguration` subclass, binding classes, a runtime controller, a CLI group, and a tool module       | This skill                                |
 | `sollertia-micro-controllers` (`slmc/`)                                                    | Firmware modules and controller targets, only when the rig needs hardware the current firmware does not drive | This skill                                |
 | `sollertia-virtual-reality`                                                                | The corridor scene and its task prefabs, when the system runs the VR task                                     | `unity:task-prefabs`, `unity:scene-setup` |
+| `sollertia-forgery` (`sollertia-forgery/src/sollertia_forgery/`, `slf`)                    | The `AcquisitionSystems`-keyed processing and forging registry entries, handed off in Step 9                  | `forging:data-processing-design`          |
+| `sollertia` (the marketplace)                                                              | The companion `plugins/<system>/` plugin and its `marketplace.json` entry, authored in Step 8                 | This skill                                |
 
 The `AcquisitionSystems` enum in `enums.py` currently holds one member, so Mesoscope-VR is the only registered
 acquisition system. Read it as the worked example through `mesoscope:mesoscope-vr` and `mesoscope:mesoscope-vr-runtime`,
@@ -91,27 +91,27 @@ dataclass tree itself.
 
 ## Shared primitives a new system composes
 
-The `__all__` list of `cross_system/__init__.py` exports 41 names, and a new system reuses them rather than
-authoring equivalents. Six post-acquisition primitives live in `cross_system/data_preprocessing.py` and are all
-system-agnostic: `assemble_session_logs`, `rename_session_videos`, `snapshot_surgery_data`, `push_session_data`,
-`delete_session_directories`, and `migrate_session_directory`. Four take a `SessionData` and the other two take
-resolved paths, so none of them needs a per-system branch. `/data-management` owns their individual contracts, and
+The `__all__` list of `cross_system/__init__.py` exports 41 names, and a new system reuses them. Six post-acquisition
+primitives live in `cross_system/data_preprocessing.py` and are all system-agnostic: `assemble_session_logs`,
+`rename_session_videos`, `snapshot_surgery_data`, `push_session_data`, `delete_session_directories`, and
+`migrate_session_directory`. Four take a `SessionData` and the other two take resolved paths, so none of them needs a
+per-system branch. `/data-management` owns their individual contracts, and
 [references/sle-seams.md](references/sle-seams.md) lists them beside the seam each one occupies.
 
-One constant and one shared type decide whether those primitives find anything to work on. The behavior `DataLogger` of
-every acquisition system is named `"behavior"`, because `BEHAVIOR_LOGGER_NAME` derives the `behavior_data_log` directory
-that `assemble_session_logs` looks for (`cross_system/data_preprocessing.py`). Long-term storage targets reach the
-shared utilities as a `StorageDestinations` collection of `StorageDestination` records, and each system resolves the
-paths from its own configuration (`cross_system/data_preprocessing.py`).
+One constant and one shared type decide whether those primitives find any input. The behavior `DataLogger` of every
+acquisition system is named `"behavior"`, because `BEHAVIOR_LOGGER_NAME` derives the `behavior_data_log` directory that
+`assemble_session_logs` expects (`cross_system/data_preprocessing.py`). Long-term storage targets reach the shared
+utilities as a `StorageDestinations` collection of `StorageDestination` records, and each system resolves the paths
+from its own configuration (`cross_system/data_preprocessing.py`).
 
 The hardware bindings are reusable in the same way. The eight `ModuleInterface` subclasses in
-`cross_system/module_interfaces.py` are hardware-family bindings rather than system-specific code, so any system
-driving the same modules composes them unchanged. `MesoscopeFrameTTLInterface` in the same module is an input-only
-role specialization of the generic firmware `TTLModule`, and its name reads as system-specific while its binding is
-not. The `ZaberAxis`, `_ZaberDevice`, and `ZaberConnection` hierarchy (`cross_system/zaber_bindings.py`), the
-`SurgeryLog` and `WaterLog` sheet readers (`cross_system/google_sheet_tools.py`), the terminal prompt helpers
-(`cross_system/terminal_prompts.py`), the `run_shutdown_step` isolator (`cross_system/shutdown_tools.py`), and the
-`get_version_data` and `get_project_experiments` helpers (`cross_system/project_tools.py`) are all system-neutral.
+`cross_system/module_interfaces.py` are hardware-family bindings, so any system driving the same modules composes them
+unchanged. `MesoscopeFrameTTLInterface` in the same module is an input-only role specialization of the generic firmware
+`TTLModule`, and its name reads as system-specific while its binding is not. The `ZaberAxis`, `_ZaberDevice`, and
+`ZaberConnection` hierarchy (`cross_system/zaber_bindings.py`), the `SurgeryLog` and `WaterLog` sheet readers
+(`cross_system/google_sheet_tools.py`), the terminal prompt helpers (`cross_system/terminal_prompts.py`), the
+`run_shutdown_step` isolator (`cross_system/shutdown_tools.py`), and the `get_version_data` and
+`get_project_experiments` helpers (`cross_system/project_tools.py`) are all system-neutral.
 
 ---
 
@@ -125,27 +125,29 @@ directory, imports `mcp` from `.mcp_instance` (`interfaces/mcp_instance.py`), an
 suffix is load-bearing, and the `glob` call, not `rglob`, requires the module to sit directly in `interfaces/`.
 
 CLI registration is **hand-edited**. `_register_subcommands()` carries one explicit import and one `add_command` call
-per group, and a third group requires editing that function (`interfaces/entry_points.py`). The group module
-itself is new work: it declares its own `_CONTEXT_SETTINGS`, because the constant is duplicated per module rather than
-imported, following the pattern of `_CONTEXT_SETTINGS` and the `get` group in `interfaces/get.py`.
+per group, and a third group requires editing that function (`interfaces/entry_points.py`). The group module itself is
+new work: it declares its own `_CONTEXT_SETTINGS`, because each module keeps a private copy of the constant, following
+the pattern of `_CONTEXT_SETTINGS` and the `get` group in `interfaces/get.py`.
 
 Three further pieces of the package are reused unchanged. `run_server` handles both transports
 (`interfaces/mcp_server.py`). In `interfaces/mcp_instance.py`, `write_yaml_validated` and `read_yaml` take any
 `YamlConfig` subclass as their `validator_cls`, `serialize` accepts any value, and `describe_dataclass` any dataclass
-type, while the write probe `probe_writable` takes a directory path from `cross_system/filesystem_tools.py`, reached
-through `..cross_system`. The hardware-agnostic discovery surface serves every system, meaning the `get` group in
-`interfaces/get.py` and the seven tools in `interfaces/get_tools.py`. A system's own tool module re-implements the
-health-report helpers rather than importing them, because they are typed against one system's configuration.
+type, while `probe_writable`, imported from `cross_system/filesystem_tools.py` through `..cross_system`, takes a
+directory path. The hardware-agnostic discovery surface serves every system, meaning the `get` group in
+`interfaces/get.py` and the seven tools in `interfaces/get_tools.py`. A new system re-implements the health-report
+helpers of seam 24 in its own package and tool module. `build_filesystem_paths_report` is typed against
+`MesoscopeSystemConfiguration`, `check_dlc_project_task` checks the Mesoscope-VR eye-tracking project, and the two
+camera helpers are private to `interfaces/mesoscope_vr_tools.py`.
 
 ---
 
 ## The acquisition engine is a human-in-the-loop rewrite
 
 The acquisition engine, meaning the runtime controller together with the binding classes and acquisition components it
-drives, is written per system rather than derived from a base class, and that is a design position rather than a gap. An
-engine is defined by a physical hardware inventory and by lab-local wiring conventions, so a template wide enough to
-cover every engine would assert a topology that no acquisition system actually shares. The "Extending the Platform"
-section of `sollertia-experiment/README.md` states the same position from the library side.
+drives, is written per system by design. An engine is defined by a physical hardware inventory and by lab-local wiring
+conventions, so a base class wide enough to cover every engine would assert a topology that no acquisition system
+shares. The "Extending the Platform" section of `sollertia-experiment/README.md` states the same position from the
+library side.
 
 Two kinds of scaffolding carry that work. The first is the Mesoscope-VR worked example, whose package splits the engine
 across five core modules:
@@ -153,64 +155,35 @@ across five core modules:
 - `mesoscope_vr/system.py` for the configuration layer
 - `mesoscope_vr/binding_classes.py` for the `ZaberMotors`, `MicroControllerInterfaces`, and `VideoSystems` binding
   classes
-- `mesoscope_vr/system_controller.py` for the `MesoscopeVRSystem` orchestrator
+- `mesoscope_vr/system_controller.py` for the `MesoscopeVRSystem` runtime controller
 - `mesoscope_vr/data_acquisition.py` for the per-mode logic functions
 - `mesoscope_vr/acquisition_components.py` for the runtime helpers those logic functions share
 
-Mirror that split and leave the values behind. Six further modules complete the package, meaning
-`mesoscope_vr/data_preprocessing.py` for the preprocess, purge, and migrate entry points, `mesoscope_vr/runtime_ui.py`
-and `mesoscope_vr/maintenance_ui.py` for the two control UIs, and `mesoscope_vr/visualizer.py` for `BehaviorVisualizer`.
-The last two are `mesoscope_vr/mesoscope_driver.py` for the external-instrument driver and
-`mesoscope_vr/system_health.py` for the filesystem and video-tracking health checks. The second is `cross_system`,
-catalogued in the "Shared primitives a new system composes" section above and composed rather than rewritten:
+Six further modules complete the package, meaning `mesoscope_vr/data_preprocessing.py` for the preprocess, purge, and
+migrate entry points, `mesoscope_vr/runtime_ui.py` and `mesoscope_vr/maintenance_ui.py` for the two control UIs, and
+`mesoscope_vr/visualizer.py` for `BehaviorVisualizer`. The last two are `mesoscope_vr/mesoscope_driver.py` for the
+external-instrument driver and `mesoscope_vr/system_health.py` for the filesystem and video-tracking health checks.
 
-- the eight module interface wrappers (`cross_system/module_interfaces.py`)
-- the `ZaberAxis`, `_ZaberDevice`, and `ZaberConnection` hierarchy (`cross_system/zaber_bindings.py`)
-- the six preprocessing primitives, with `StorageDestination` and `StorageDestinations`
-  (`cross_system/data_preprocessing.py`)
-- the `SurgeryLog` and `WaterLog` sheet readers (`cross_system/google_sheet_tools.py`)
-- the five prompt helpers (`cross_system/terminal_prompts.py`)
-- `run_shutdown_step` (`cross_system/shutdown_tools.py`)
-- `get_version_data` and `get_project_experiments` (`cross_system/project_tools.py`)
-- the configuration lifecycle (`cross_system/system_configuration.py`)
+The second scaffold is `cross_system`, cataloged under "The configuration registry" and "Shared primitives a new system
+composes" above.
 
 **Autonomy boundary.** The Mesoscope-VR engine is the **only** acquisition engine with an author-derived recipe, and the
 two scaffolds above are the material that recipe carries. Composing those primitives, mirroring the worked example's
 file split, and wiring every glue seam is agent-ownable, and you complete it autonomously. The glue is the registry
-surface that the other repositories expose for exactly this purpose. On the shared-assets side that is the
-`AcquisitionSystems` member and the dispatch registry entries in
-`sollertia-shared-assets/src/sollertia_shared_assets/registries.py` (`assets:library-extension`), and on the forgery
-side the `AcquisitionSystems`-keyed registries in `sollertia-forgery/src/sollertia_forgery/registries.py`
-(`forging:data-processing-design`). The firmware side is the target selection block of `slmc/src/main.cpp`, and the
-Unity side is the corridor task and scene in sollertia-virtual-reality (`unity:task-prefabs`). The engine's substance
-has no recipe, meaning the hardware inventory, the wiring topology, the per-mode semantics of the state machine, the
-calibration values, the safety interlocks, and the teardown ordering. Escalate those to the human supervisor and
-co-design them in a generative, collaborative mode. What is missing there is a hardware fact that no repository records,
-rather than capability, so the work must be human-supervised.
+surface that the other repositories expose for this purpose. On the shared-assets side that is the `AcquisitionSystems`
+member and the dispatch registry entries in `sollertia-shared-assets/src/sollertia_shared_assets/registries.py`
+(`assets:library-extension`), and on the forgery side the `AcquisitionSystems`-keyed registries in
+`sollertia-forgery/src/sollertia_forgery/registries.py` (`forging:data-processing-design`). The firmware side is the
+target selection block of `slmc/src/main.cpp`, and the Unity side is the corridor task and scene in
+sollertia-virtual-reality (`unity:task-prefabs`). The engine's substance has no recipe, meaning the hardware inventory,
+the wiring topology, the per-mode semantics of the state machine, the calibration values, the safety interlocks, and the
+teardown ordering. Escalate those to the human supervisor and co-design them in a generative, collaborative mode. That
+work needs hardware facts that no repository records, so it must be human-supervised.
 
-`/acquisition-system-runtime` owns the contract that controller must satisfy, which is the two state axes, the
-per-mode logic functions, the per-cycle loop, the typed-event dispatch, and the teardown ordering.
+`/acquisition-system-runtime` owns the contract that the runtime controller must satisfy, which is the two state axes,
+the per-mode logic functions, the per-cycle loop, the typed-event dispatch, and the teardown ordering.
 `/acquisition-system-design` owns the binding-class contract the controller composes. This skill owns the boundary
 itself and the scaffolding that sits on either side of it.
-
----
-
-## The sollertia-micro-controllers seams
-
-Firmware work is needed only when the rig drives hardware that the current firmware modules do not cover. Three
-distinct seams exist, and each carries a different obligation on the sollertia-experiment side.
-
-| Seam                  | Firmware work                                                                                                                   | sollertia-experiment mirror                                                                   |
-|-----------------------|---------------------------------------------------------------------------------------------------------------------------------|-----------------------------------------------------------------------------------------------|
-| New firmware module   | A new `slmc/src/<name>_module.h`, wired into the target selection block of `slmc/src/main.cpp`                                  | Required. A matching `ModuleInterface` carrying the same type, id, codes, and parameter order |
-| New controller target | A `platformio.ini` environment, an `#elif` branch, and the `static_assert` message of the `#else` branch in `slmc/src/main.cpp` | Required. A `MicroControllerInterface(controller_id=...)` mirror                              |
-| New board family      | A second non-`env:` template mirroring `[teensy41_base]` in `slmc/platformio.ini`                                               | Only when controller IDs, event codes, the baud rate, or the ADC resolution change            |
-
-Teensy 4.1 is the only board family for which the firmware currently builds, because every `[env:teensy41_*]`
-environment inherits `board` and `monitor_speed` from that one template (`slmc/platformio.ini`). The firmware repository
-ships no `library.json`, so its version lives in two places that MUST move together, `PROJECT_NUMBER` in `slmc/Doxyfile`
-and `release` in `slmc/docs/source/conf.py`. [references/slmc-seams.md](references/slmc-seams.md) carries the step
-lists, and `/microcontroller-interface` owns the paired-module conventions and the module catalog.
 
 ---
 
@@ -219,85 +192,86 @@ lists, and `/microcontroller-interface` owns the paired-module conventions and t
 Column `Kind` reads `automatic` when a new system needs no edit to an existing file, and `manual` when it does.
 Column `Counterpart` names the paired obligation in another repository.
 
-| #   | Seam                                              | Kind                                         | File and symbol                                                                                                                                                                                                                                                                                      | Counterpart                                                                                                                                                                                            |
-|-----|---------------------------------------------------|----------------------------------------------|------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|--------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
-| 1   | Acquisition-system configuration registry         | manual, one call at import                   | `_SYSTEM_CONFIGURATION_CLASSES` and `register_system_configuration` in `cross_system/system_configuration.py`                                                                                                                                                                                        | slsa: the `AcquisitionSystems` member in `enums.py` (`assets:library-extension`)                                                                                                                       |
-| 2   | `SystemConfiguration` base class                  | manual, one subclass                         | the `SystemConfiguration` class in `cross_system/system_configuration.py`                                                                                                                                                                                                                            | slsa: the `HARDWARE_STATE_REGISTRY`, `EXPERIMENT_CONFIGURATION_REGISTRY`, and `SYSTEM_RAW_DATA_REGISTRY` entries in `registries.py`                                                                    |
-| 3   | `SystemConfiguration.save()` hook                 | manual, optional override                    | `SystemConfiguration.save()` in `cross_system/system_configuration.py`                                                                                                                                                                                                                               | none                                                                                                                                                                                                   |
-| 4   | Configuration file lifecycle                      | automatic                                    | `create_system_configuration_file`, `get_system_configuration_path`, `get_system_configuration_data`, and `_system_configuration_filename`, all in `cross_system/system_configuration.py`                                                                                                            | none. The filename derives from the enum value                                                                                                                                                         |
-| 5   | Typed configuration accessor                      | manual, one thin wrapper                     | pattern of `get_system_configuration()` in `mesoscope_vr/system.py`                                                                                                                                                                                                                                  | none                                                                                                                                                                                                   |
-| 6   | `StorageDestination` and `StorageDestinations`    | automatic, consumed                          | `StorageDestination` and `StorageDestinations` in `cross_system/data_preprocessing.py`                                                                                                                                                                                                               | none                                                                                                                                                                                                   |
-| 7   | The six preprocessing primitives                  | automatic, composed                          | `assemble_session_logs` through `migrate_session_directory` in `cross_system/data_preprocessing.py`                                                                                                                                                                                                  | none                                                                                                                                                                                                   |
-| 8   | The behavior logger name                          | manual, one constant to honor                | `BEHAVIOR_LOGGER_NAME = "behavior"` and `_LOG_DIRECTORY_NAME` in `cross_system/data_preprocessing.py`                                                                                                                                                                                                | none. Miss it and `assemble_session_logs` finds no `behavior_data_log/`                                                                                                                                |
-| 9   | Camera-manifest video renaming                    | automatic                                    | `rename_session_videos` in `cross_system/data_preprocessing.py`                                                                                                                                                                                                                                      | the acquisition code writes a `CameraManifest`, and no static source-ID map is needed                                                                                                                  |
-| 10  | The eight `ModuleInterface` subclasses            | automatic, reused                            | the eight subclasses in `cross_system/module_interfaces.py`                                                                                                                                                                                                                                          | slmc: the matching firmware modules in the target blocks of `slmc/src/main.cpp`                                                                                                                        |
-| 11  | `initialize_local_assets` convention              | manual, on any new shared-memory interface   | `initialize_local_assets` on the five shared-memory interfaces in `cross_system/module_interfaces.py`                                                                                                                                                                                                | none. It is a project-local convention rather than part of the upstream ABC. A new wrapper is also added to the `module_interfaces` import block and the `__all__` list of `cross_system/__init__.py`. |
-| 12  | The Zaber tri-class hierarchy                     | automatic, reused                            | `ZaberAxis`, `_ZaberDevice`, and `ZaberConnection`, with the `_ZaberSettings` map, in `cross_system/zaber_bindings.py`                                                                                                                                                                               | none                                                                                                                                                                                                   |
-| 13  | Google Sheet logs                                 | automatic, reused                            | `SurgeryLog` and `WaterLog` in `cross_system/google_sheet_tools.py`                                                                                                                                                                                                                                  | slsa: `CredentialsTypes.GOOGLE` in `enums.py`                                                                                                                                                          |
-| 14  | Terminal prompts                                  | automatic, reused                            | the five prompt helpers in `cross_system/terminal_prompts.py`                                                                                                                                                                                                                                        | none                                                                                                                                                                                                   |
-| 15  | Shutdown-step isolation                           | automatic, reused                            | `run_shutdown_step` in `cross_system/shutdown_tools.py`                                                                                                                                                                                                                                              | none                                                                                                                                                                                                   |
-| 16  | Project and version discovery                     | automatic, reused                            | `get_version_data` and `get_project_experiments` in `cross_system/project_tools.py`                                                                                                                                                                                                                  | none                                                                                                                                                                                                   |
-| 17  | MCP tool-module registration                      | **automatic**                                | `_register_tool_modules()` in `interfaces/mcp_server.py`, create `interfaces/<system>_tools.py`                                                                                                                                                                                                      | none                                                                                                                                                                                                   |
-| 18  | Shared MCP server instance                        | automatic, imported                          | `mcp = MCPServer(name="sollertia-experiment")` in `interfaces/mcp_instance.py`                                                                                                                                                                                                                       | none                                                                                                                                                                                                   |
-| 19  | YAML read, write, validate, describe helpers      | automatic, reused                            | `serialize`, `describe_dataclass`, `write_yaml_validated`, and `read_yaml` in `interfaces/mcp_instance.py`. The write probe `probe_writable` is separate, in `cross_system/filesystem_tools.py`                                                                                                      | none                                                                                                                                                                                                   |
-| 20  | MCP transports                                    | automatic                                    | `run_server` in `interfaces/mcp_server.py`                                                                                                                                                                                                                                                           | none                                                                                                                                                                                                   |
-| 21  | CLI group registration                            | **manual**, one import and one `add_command` | `_register_subcommands` in `interfaces/entry_points.py`                                                                                                                                                                                                                                              | none                                                                                                                                                                                                   |
-| 22  | CLI group module                                  | manual, new file                             | pattern of the `get` group in `interfaces/get.py` and the `mesoscope` group in `interfaces/mesoscope_vr.py`. `_CONTEXT_SETTINGS` is duplicated per module                                                                                                                                            | none                                                                                                                                                                                                   |
-| 23  | Shared session-parameter object for a `run` group | manual, re-implement                         | the pattern is private, `_SharedSessionParameters` and `_pass_shared_parameters` in `interfaces/mesoscope_vr.py`                                                                                                                                                                                     | none                                                                                                                                                                                                   |
-| 24  | Filesystem and camera health report helpers       | manual, re-implement                         | typed against one system's configuration, four in `mesoscope_vr/system_health.py` (`build_filesystem_paths_report` and `check_dlc_project_task` public) and two in `interfaces/mesoscope_vr_tools.py`                                                                                                | none                                                                                                                                                                                                   |
-| 25  | Session-file constants                            | manual, re-declare                           | the only private module constants are `_SYSTEM_CONFIGURATION_GLOB` and `_MESOSCOPE_SYSTEM_CONFIGURATION_FILENAME` in `interfaces/mesoscope_vr_tools.py`. The raw-data directory name and the canonical session filenames come from `RAW_DATA_DIRECTORY`, `RawDataFiles`, and `MesoscopeRawDataFiles` | none                                                                                                                                                                                                   |
-| 26  | Hardware-agnostic discovery CLI and tools         | automatic, reused unchanged                  | the `get` command group in `interfaces/get.py` and the seven tools in `interfaces/get_tools.py`                                                                                                                                                                                                      | none                                                                                                                                                                                                   |
-| 26a | Sphinx API documentation entry                    | manual, one block                            | a `.. automodule:: sollertia_experiment.<system>` section in `docs/source/api.rst`, following its "Mesoscope-VR Acquisition System" section                                                                                                                                                          | none. Omit it and the new package renders no API documentation                                                                                                                                         |
-| 26b | README acquisition-system section                 | manual, one section plus one ToC line        | a `### <System> Data Acquisition System` subsection of the `## Usage` section in `sollertia-experiment/README.md`, following its "Mesoscope-VR Data Acquisition System" section, plus a matching indented entry under `- [Usage](#usage)` in its "Table of Contents" section                         | none. The README's "Data Acquisition Systems" section states each supported system gets its own section                                                                                                |
-| 27  | The VR task package                               | automatic, composed                          | the `__all__` list of `vr_task/__init__.py`, consumer obligations in `/vr-driver-interface`                                                                                                                                                                                                          | unity: a scene carrying a `"Linear"` controller and a running Editor                                                                                                                                   |
-| 28  | The runtime controller                            | **manual, human-in-the-loop**                | scaffolded from the worked example, per "The acquisition engine is a human-in-the-loop rewrite" above                                                                                                                                                                                                | none                                                                                                                                                                                                   |
-| 29  | slmc: a new firmware module                       | manual, ten steps                            | `slmc/src/<name>_module.h`, wired into the target block of `slmc/src/main.cpp` as an `#include`, an instantiation, and a `modules[]` entry                                                                                                                                                           | sle: a matching `ModuleInterface` carrying the same type, id, codes, and parameter order                                                                                                               |
-| 30  | slmc: a new controller target                     | manual, three steps                          | the `[env:teensy41_actor]` pattern in `slmc/platformio.ini`, plus the `#elif` branch, `kControllerID`, `modules[]`, and `static_assert` of `slmc/src/main.cpp`                                                                                                                                       | sle: a `MicroControllerInterface(controller_id=...)` mirror, pattern in `MicroControllerInterfaces.__init__` in `mesoscope_vr/binding_classes.py`                                                      |
-| 31  | slmc: a new board family                          | manual, five steps                           | a second non-`env:` template mirroring `[teensy41_base]` in `slmc/platformio.ini`, plus one `[env:<board>_<target>]` per target                                                                                                                                                                      | sle: only when controller IDs, event codes, the baud rate, or the ADC resolution change                                                                                                                |
-| 32  | slmc: the twelve cross-repo constants             | manual, moved together                       | the `kKeepaliveInterval`, `kSerialBaudRate`, `kAnalogReadResolution`, `kControllerID`, `(type, id)`, template-argument, and `modules[]` values of `slmc/src/main.cpp`, plus the codes, parameter layouts, and default literals of the module headers                                                 | sle mirrors listed per row in `/microcontroller-interface`'s cross-repo constants table                                                                                                                |
+| #   | Seam                                              | Kind                                         | File and symbol                                                                                                                                                                                                                                                                                      | Counterpart                                                                                                                                                                                                                 |
+|-----|---------------------------------------------------|----------------------------------------------|------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|-----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| 1   | Acquisition-system configuration registry         | manual, one call at import                   | `_SYSTEM_CONFIGURATION_CLASSES` and `register_system_configuration` in `cross_system/system_configuration.py`                                                                                                                                                                                        | slsa: the `AcquisitionSystems` member in `enums.py` (`assets:library-extension`)                                                                                                                                            |
+| 2   | `SystemConfiguration` base class                  | manual, one subclass                         | the `SystemConfiguration` class in `cross_system/system_configuration.py`                                                                                                                                                                                                                            | slsa: the `HARDWARE_STATE_REGISTRY`, `EXPERIMENT_CONFIGURATION_REGISTRY`, and `SYSTEM_RAW_DATA_REGISTRY` entries in `registries.py`                                                                                         |
+| 3   | `SystemConfiguration.save()` hook                 | manual, optional override                    | `SystemConfiguration.save()` in `cross_system/system_configuration.py`                                                                                                                                                                                                                               | none                                                                                                                                                                                                                        |
+| 3a  | Per-session-type settings table                   | manual, one entry per session type           | pattern of `SESSION_TYPE_SETTINGS` and its import-time check `_verify_session_type_settings()` in `mesoscope_vr/system.py`                                                                                                                                                                           | slsa: the system's `SYSTEM_SESSION_TYPES` claim in `registries.py`                                                                                                                                                          |
+| 4   | Configuration file lifecycle                      | automatic                                    | `create_system_configuration_file`, `get_system_configuration_path`, `get_system_configuration_data`, and `_system_configuration_filename`, all in `cross_system/system_configuration.py`                                                                                                            | none. The filename derives from the enum value                                                                                                                                                                              |
+| 5   | Typed configuration accessor                      | manual, one thin accessor                    | pattern of `get_system_configuration()` in `mesoscope_vr/system.py`                                                                                                                                                                                                                                  | none                                                                                                                                                                                                                        |
+| 6   | `StorageDestination` and `StorageDestinations`    | automatic, consumed                          | `StorageDestination` and `StorageDestinations` in `cross_system/data_preprocessing.py`                                                                                                                                                                                                               | none                                                                                                                                                                                                                        |
+| 7   | The six preprocessing primitives                  | automatic, composed                          | `assemble_session_logs` through `migrate_session_directory` in `cross_system/data_preprocessing.py`                                                                                                                                                                                                  | none                                                                                                                                                                                                                        |
+| 8   | The behavior logger name                          | manual, one constant to honor                | `BEHAVIOR_LOGGER_NAME = "behavior"` and `_LOG_DIRECTORY_NAME` in `cross_system/data_preprocessing.py`                                                                                                                                                                                                | none. Miss it and `assemble_session_logs` finds no `behavior_data_log/`                                                                                                                                                     |
+| 9   | Camera-manifest video renaming                    | automatic                                    | `rename_session_videos` in `cross_system/data_preprocessing.py`                                                                                                                                                                                                                                      | the acquisition code writes a `CameraManifest`, and no static source-ID map is needed                                                                                                                                       |
+| 10  | The eight `ModuleInterface` subclasses            | automatic, reused                            | the eight subclasses in `cross_system/module_interfaces.py`                                                                                                                                                                                                                                          | slmc: the matching firmware modules in the target blocks of `slmc/src/main.cpp`                                                                                                                                             |
+| 11  | `initialize_local_assets` convention              | manual, on any new shared-memory interface   | `initialize_local_assets` on the five shared-memory interfaces in `cross_system/module_interfaces.py`                                                                                                                                                                                                | none. It is a project-local convention that the upstream ABC does not declare. A new `ModuleInterface` subclass is also added to the `module_interfaces` import block and the `__all__` list of `cross_system/__init__.py`. |
+| 12  | The Zaber tri-class hierarchy                     | automatic, reused                            | `ZaberAxis`, `_ZaberDevice`, and `ZaberConnection`, with the `_ZaberSettings` map, in `cross_system/zaber_bindings.py`                                                                                                                                                                               | none                                                                                                                                                                                                                        |
+| 13  | Google Sheet logs                                 | automatic, reused                            | `SurgeryLog` and `WaterLog` in `cross_system/google_sheet_tools.py`                                                                                                                                                                                                                                  | slsa: `CredentialsTypes.GOOGLE` in `enums.py`                                                                                                                                                                               |
+| 14  | Terminal prompts                                  | automatic, reused                            | the five prompt helpers in `cross_system/terminal_prompts.py`                                                                                                                                                                                                                                        | none                                                                                                                                                                                                                        |
+| 15  | Shutdown-step isolation                           | automatic, reused                            | `run_shutdown_step` in `cross_system/shutdown_tools.py`                                                                                                                                                                                                                                              | none                                                                                                                                                                                                                        |
+| 16  | Project and version discovery                     | automatic, reused                            | `get_version_data` and `get_project_experiments` in `cross_system/project_tools.py`                                                                                                                                                                                                                  | none                                                                                                                                                                                                                        |
+| 17  | MCP tool-module registration                      | **automatic**                                | `_register_tool_modules()` in `interfaces/mcp_server.py`, create `interfaces/<system>_tools.py`                                                                                                                                                                                                      | none                                                                                                                                                                                                                        |
+| 18  | Shared MCP server instance                        | automatic, imported                          | `mcp = MCPServer(name="sollertia-experiment")` in `interfaces/mcp_instance.py`                                                                                                                                                                                                                       | none                                                                                                                                                                                                                        |
+| 19  | YAML read, write, validate, describe helpers      | automatic, reused                            | `serialize`, `describe_dataclass`, `write_yaml_validated`, and `read_yaml` in `interfaces/mcp_instance.py`. The write probe `probe_writable` is separate, in `cross_system/filesystem_tools.py`                                                                                                      | none                                                                                                                                                                                                                        |
+| 20  | MCP transports                                    | automatic                                    | `run_server` in `interfaces/mcp_server.py`                                                                                                                                                                                                                                                           | none                                                                                                                                                                                                                        |
+| 21  | CLI group registration                            | **manual**, one import and one `add_command` | `_register_subcommands` in `interfaces/entry_points.py`                                                                                                                                                                                                                                              | none                                                                                                                                                                                                                        |
+| 22  | CLI group module                                  | manual, new file                             | pattern of the `get` group in `interfaces/get.py` and the `mesoscope` group in `interfaces/mesoscope_vr.py`. `_CONTEXT_SETTINGS` is duplicated per module                                                                                                                                            | none                                                                                                                                                                                                                        |
+| 23  | Shared session-parameter object for a `run` group | manual, re-implement                         | the pattern is private, `_SharedSessionParameters` and `_pass_shared_parameters` in `interfaces/mesoscope_vr.py`                                                                                                                                                                                     | none                                                                                                                                                                                                                        |
+| 24  | Filesystem and camera health report helpers       | manual, re-implement                         | four in `mesoscope_vr/system_health.py`, of which `build_filesystem_paths_report` and `check_dlc_project_task` are public and the first is typed against the system configuration, and two private ones in `interfaces/mesoscope_vr_tools.py`                                                        | none                                                                                                                                                                                                                        |
+| 25  | Session-file constants                            | manual, re-declare                           | the only private module constants are `_SYSTEM_CONFIGURATION_GLOB` and `_MESOSCOPE_SYSTEM_CONFIGURATION_FILENAME` in `interfaces/mesoscope_vr_tools.py`. The raw-data directory name and the canonical session filenames come from `RAW_DATA_DIRECTORY`, `RawDataFiles`, and `MesoscopeRawDataFiles` | none                                                                                                                                                                                                                        |
+| 26  | Hardware-agnostic discovery CLI and tools         | automatic, reused unchanged                  | the `get` command group in `interfaces/get.py` and the seven tools in `interfaces/get_tools.py`                                                                                                                                                                                                      | none                                                                                                                                                                                                                        |
+| 26a | Sphinx API documentation entry                    | manual, one block                            | a `.. automodule:: sollertia_experiment.<system>` section in `docs/source/api.rst`, following its "Mesoscope-VR Acquisition System" section                                                                                                                                                          | none. Omit it and the new package renders no API documentation                                                                                                                                                              |
+| 26b | README acquisition-system section                 | manual, one section plus one ToC line        | a `### <System> Data Acquisition System` subsection of the `## Usage` section in `sollertia-experiment/README.md`, following its "Mesoscope-VR Data Acquisition System" section, plus a matching indented entry under `- [Usage](#usage)` in its "Table of Contents" section                         | none                                                                                                                                                                                                                        |
+| 27  | The VR task package                               | automatic, composed                          | the `__all__` list of `vr_task/__init__.py`, consumer obligations in `/vr-driver-interface`                                                                                                                                                                                                          | unity: a scene carrying a `"Linear"` controller and a running Editor                                                                                                                                                        |
+| 28  | The runtime controller                            | **manual, human-in-the-loop**                | scaffolded from the worked example, per "The acquisition engine is a human-in-the-loop rewrite" above                                                                                                                                                                                                | none                                                                                                                                                                                                                        |
+| 29  | slmc: a new firmware module                       | manual, ten steps                            | `slmc/src/<name>_module.h`, wired into the target block of `slmc/src/main.cpp` as an `#include`, an instantiation, and a `modules[]` entry                                                                                                                                                           | sle: a matching `ModuleInterface` carrying the same type, id, codes, and parameter order                                                                                                                                    |
+| 30  | slmc: a new controller target                     | manual, three steps                          | the `[env:teensy41_actor]` pattern in `slmc/platformio.ini`, plus the `#elif` branch, `kControllerID`, `modules[]`, and `static_assert` of `slmc/src/main.cpp`                                                                                                                                       | sle: a `MicroControllerInterface(controller_id=...)` mirror, pattern in `MicroControllerInterfaces.__init__` in `mesoscope_vr/binding_classes.py`                                                                           |
+| 31  | slmc: a new board family                          | manual, five steps                           | a second non-`env:` template mirroring `[teensy41_base]` in `slmc/platformio.ini`, plus one `[env:<board>_<target>]` per target                                                                                                                                                                      | sle: only when controller IDs, event codes, the baud rate, or the ADC resolution change                                                                                                                                     |
+| 32  | slmc: the twelve cross-repo constants             | manual, moved together                       | the `kKeepaliveInterval`, `kSerialBaudRate`, `kAnalogReadResolution`, `kControllerID`, `(type, id)`, template-argument, and `modules[]` values of `slmc/src/main.cpp`, plus the codes, parameter layouts, and default literals of the module headers                                                 | sle mirrors listed per row in `/microcontroller-interface`'s cross-repo constants table                                                                                                                                     |
 
 ---
 
 ## Workflow: building a new acquisition system
 
-Nine steps, each with a gate. A gate that does not hold blocks the next step.
+A gate that does not hold blocks the next step.
 
 ### Step 1: Shared-assets contract
 
 Hand off to `assets:library-extension` for the `AcquisitionSystems` member, the `<System>HardwareState`,
-`<System>ExperimentConfiguration`, and `<System>RawData` classes, the four registry entries, and the
+`<System>ExperimentConfiguration`, and `<System>RawData` classes, the three dispatch registry entries, and the
 `SYSTEM_SESSION_TYPES` claim. A new session type the system runs is registered in the same handoff, because its
-`SessionTypes` member and its `SYSTEM_SESSION_TYPES` claim both live there.
+`SessionTypes` member and its `SYSTEM_SESSION_TYPES` claim both live there. Each new session type also needs an entry
+in the system's per-session-type settings table (seam 3a), or `sle` fails to import. A lab extending the platform from
+its own forks keeps every pin and labels each edited fork locally, as described in `assets:library-extension`'s
+extending-from-forks reference.
 **Gate:** `python -c "import sollertia_shared_assets"` succeeds and the system appears in
 `list_supported_acquisition_systems_tool`.
 
 ### Step 2: Configuration layer
 
-Subclass `SystemConfiguration`, compose one nested dataclass per concern, call `register_system_configuration()` at
-module scope, and add the typed `get_system_configuration()` accessor plus the zero-argument
-`create_system_configuration_file()` wrapper. Design conventions come from `/acquisition-system-design`.
+Build seams 1, 2, and 5 per "The configuration registry" above, and add the zero-argument
+`create_system_configuration_file()` function. Design conventions come from `/acquisition-system-design`.
 **Gate:** `create_system_configuration_file()` writes `<system>_system_configuration.yaml` and
 `get_system_configuration_data()` loads it back.
 
 ### Step 3: Hardware interface layer
 
 Reuse the eight `ModuleInterface` subclasses (`cross_system/module_interfaces.py`) and the Zaber hierarchy
-(`cross_system/zaber_bindings.py`). The camera layer has no shared wrapper, so a system composes the upstream
+(`cross_system/zaber_bindings.py`). The camera layer has no shared binding class, so a system composes the upstream
 `ataraxis-video-system` `VideoSystem` into its own binding class, following `VideoSystems` in
 `mesoscope_vr/binding_classes.py`, with conventions from `video:camera-interface`. When the rig needs hardware none of
 them covers, hand off to `/microcontroller-interface` for the paired-module conventions and to
 [references/slmc-seams.md](references/slmc-seams.md) for the firmware seam.
-**Gate:** every module the system needs has a wrapper with a matching firmware counterpart.
+**Gate:** every module the system needs has a `ModuleInterface` subclass with a matching firmware counterpart.
 
-### Step 4: Binding classes and orchestrator
+### Step 4: Binding classes and runtime controller
 
 Follow `/acquisition-system-design` for the binding-class contract and `/acquisition-system-runtime` for the runtime
-contract, and scaffold the orchestrator from the worked example's file split above. The hardware-defined decisions this
-step cannot infer, meaning the hardware inventory, the wiring topology, the per-mode semantics, the calibration values,
-the safety interlocks, and the teardown ordering, go to the human supervisor. Co-design them in a generative,
-collaborative mode, per "The acquisition engine is a human-in-the-loop rewrite" above.
-**Gate:** the orchestrator constructs, starts, and stops with the DataLogger outliving every consumer, and the human
-supervisor has signed off on every hardware-defined decision.
+contract, and scaffold the runtime controller from the worked example's file split above. The hardware-defined
+decisions listed under "Autonomy boundary" go to the human supervisor.
+**Gate:** the runtime controller constructs, starts, and stops with the DataLogger outliving every consumer, and the
+human supervisor has signed off on every hardware-defined decision.
 
 ### Step 5: VR task wiring
 
@@ -308,8 +282,8 @@ off to `unity:task-prefabs`, `unity:task-scenes`, and `unity:scene-setup` for th
 
 ### Step 6: Preprocessing
 
-Name the behavior logger `"behavior"`, resolve `StorageDestinations` from the system's own configuration, and compose
-the six shared primitives, adding system-specific steps around them. Conventions come from `/data-management`. A
+Honor the behavior logger name of seam 8, resolve `StorageDestinations` from the system's own configuration, and
+compose the six shared primitives, adding system-specific steps around them. Conventions come from `/data-management`. A
 system's CLI and tool module call three session-lifecycle entry points, preprocess, purge, and migrate, which are
 written from scratch in `<system>/data_preprocessing.py`. `cross_system` supplies only the six single-session primitives
 they compose (`cross_system/data_preprocessing.py`).
@@ -318,19 +292,17 @@ they compose (`cross_system/data_preprocessing.py`).
 ### Step 7: Interfaces
 
 Author `interfaces/<system>.py` with its own `_CONTEXT_SETTINGS` and command group, add the import and the `add_command`
-call inside `_register_subcommands`, and author `interfaces/<system>_tools.py`, which registers itself. Add a
-`.. automodule:: sollertia_experiment.<system>` block to `docs/source/api.rst`, following its "Mesoscope-VR Acquisition
-System" section. Add a `### <System> Data Acquisition System` subsection carrying the system's assembly instructions to
-the `## Usage` section of `sollertia-experiment/README.md`, following its "Mesoscope-VR Data Acquisition System"
-section, plus the matching indented "Table of Contents" entry.
+call inside `_register_subcommands`, and author `interfaces/<system>_tools.py`, which registers itself. Add the Sphinx
+block of seam 26a and the README subsection and "Table of Contents" entry of seam 26b. The README subsection carries
+the system's assembly instructions.
 **Gate:** `sle <system> --help` prints and the new tools appear on `sle mcp`.
 
 ### Step 8: Agentic assets
 
 Create `plugins/<system>/` with its `.claude-plugin/plugin.json`, add its entry to `.claude-plugin/marketplace.json`,
-author its session-schema, experiment-schema, snapshot, instance, and runtime skills mirroring the mesoscope plugin, and
-add a row to `/acquisition-system-setup`'s supported-systems table. **Gate:** every per-system pointer in a generic
-skill resolves.
+author its session-schema, experiment-schema, snapshot, instance, runtime, and CLI-reference skills mirroring the
+mesoscope plugin, and add a row to `/acquisition-system-setup`'s supported-systems table. **Gate:** every per-system
+pointer in a generic skill resolves.
 
 ### Step 9: Downstream
 
@@ -342,25 +314,28 @@ entries the system needs before its sessions are processed or forged.
 
 ## Guardrails and what nothing checks
 
-sollertia-experiment runs no import-time contract check of its own. The only fail-fast guard in the chain is the three
-assertions at the bottom of `registries.py`, `_assert_registry_coverage()`, `_assert_descriptor_contract()`, and
-`_assert_experiment_configuration_contract()`, which cover the shared-assets half and which `assets:library-extension`
-owns. Every omission below therefore surfaces at runtime, or silently, and each one is verified by hand.
+sollertia-experiment runs one import-time check of its own. `_verify_session_type_settings()` at the bottom of
+`mesoscope_vr/system.py` raises `RuntimeError` when the keys of `SESSION_TYPE_SETTINGS` differ from the session types
+claimed by the system, and a new system mirrors it for its own per-session-type settings. The other fail-fast guards
+are the three assertions at the bottom of `registries.py`, `_assert_registry_coverage()`,
+`_assert_descriptor_contract()`, and `_assert_experiment_configuration_contract()`, which cover the shared-assets half
+and which `assets:library-extension` owns. Every omission below therefore surfaces at runtime, or silently, and each one
+is verified by hand.
 
-| Omission                                                        | How it surfaces                                                                                                                                                                           |
-|-----------------------------------------------------------------|-------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
-| `register_system_configuration()` never called                  | `create_system_configuration_file` raises `ValueError` listing the registered systems, or `"none"` (`cross_system/system_configuration.py`)                                               |
-| Two configuration files present on one host                     | `get_system_configuration_path` raises `FileNotFoundError`, because more than one file matches the glob (`cross_system/system_configuration.py`)                                          |
-| Behavior logger named anything other than `"behavior"`          | `assemble_session_logs` finds no `behavior_data_log/` and silently no-ops (`cross_system/data_preprocessing.py`)                                                                          |
-| No `CameraManifest` written during acquisition                  | `rename_session_videos` returns early and the videos keep their source-ID filenames (`cross_system/data_preprocessing.py`)                                                                |
-| A runtime that never writes the system-configuration snapshot   | Nothing in sollertia-experiment checks it. The gap surfaces only when a caller compares the session directory against `SessionData.required_raw_assets()` (`session_data.py`)             |
-| A runtime that never writes `hardware_state.yaml`               | Nothing checks it anywhere. `required_raw_assets()` does not list it, so the omission stays silent until a downstream consumer resolves `RawData.hardware_state_path` (`session_data.py`) |
-| Tool module named without the `_tools.py` suffix, or nested     | The `*_tools.py` glob never imports it and the tools silently do not exist (`_register_tool_modules()` in `interfaces/mcp_server.py`)                                                     |
-| CLI group not added to `_register_subcommands`                  | `sle <system>` is not a command, and nothing warns (`interfaces/entry_points.py`)                                                                                                         |
-| A new shared-memory interface without `initialize_local_assets` | The binding class raises `AttributeError` at start (`MicroControllerInterfaces.start()` in `mesoscope_vr/binding_classes.py` shows the call site)                                         |
-| Firmware and wrapper parameter structs disagree                 | Every field after the first mismatch is silently corrupted, because `PACKED_STRUCT` carries no padding                                                                                    |
-| A new system missing from the supported-systems table           | `/pipeline` never routes to it at operate time, and nothing warns                                                                                                                         |
-| Two controller boards flashed with the same ID                  | The identification handshake raises `ValueError` on the port whose interface expects a different id (`microcontroller/interface.py` in axci). Silent only if two interfaces share an id   |
+| Omission                                                                  | How it surfaces                                                                                                                                                                           |
+|---------------------------------------------------------------------------|-------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| `register_system_configuration()` never called                            | `create_system_configuration_file` raises `ValueError` listing the registered systems, or `"none"` (`cross_system/system_configuration.py`)                                               |
+| Two configuration files present on one host                               | `get_system_configuration_path` raises `FileNotFoundError`, because more than one file matches the glob (`cross_system/system_configuration.py`)                                          |
+| Behavior logger named anything other than `"behavior"`                    | `assemble_session_logs` finds no `behavior_data_log/` and silently no-ops (`cross_system/data_preprocessing.py`)                                                                          |
+| No `CameraManifest` written during acquisition                            | `rename_session_videos` returns early and the videos keep their source-ID filenames (`cross_system/data_preprocessing.py`)                                                                |
+| A runtime that never writes the system-configuration snapshot             | Nothing in sollertia-experiment checks it. The gap surfaces only when a caller compares the session directory against `SessionData.required_raw_assets()` (`session_data.py`)             |
+| A runtime that never writes `hardware_state.yaml`                         | Nothing checks it anywhere. `required_raw_assets()` does not list it, so the omission stays silent until a downstream consumer resolves `RawData.hardware_state_path` (`session_data.py`) |
+| Tool module named without the `_tools.py` suffix, or nested               | The `*_tools.py` glob never imports it and the tools silently do not exist (`_register_tool_modules()` in `interfaces/mcp_server.py`)                                                     |
+| CLI group not added to `_register_subcommands`                            | `sle <system>` is not a command, and nothing warns (`interfaces/entry_points.py`)                                                                                                         |
+| A new shared-memory interface without `initialize_local_assets`           | The binding class raises `AttributeError` at start (`MicroControllerInterfaces.start()` in `mesoscope_vr/binding_classes.py` shows the call site)                                         |
+| Firmware module and `ModuleInterface` subclass parameter structs disagree | Every field after the first mismatch is silently corrupted, because `PACKED_STRUCT` carries no padding                                                                                    |
+| A new system missing from the supported-systems table                     | `/pipeline` never routes to it at operate time, and nothing warns                                                                                                                         |
+| Two controller boards flashed with the same ID                            | The identification handshake raises `ValueError` on the port whose interface expects a different id (`microcontroller/interface.py` in axci). Silent only if two interfaces share an id   |
 
 ---
 
@@ -370,16 +345,34 @@ owns. Every omission below therefore surfaces at runtime, or silently, and each 
 |-------------------------------------------------------------------|------------------------------------------------------------------------------------------------------------------------------------------------------------------|
 | Assuming CLI registration is as automatic as MCP registration     | MCP tool modules are globbed, and CLI groups are two hand-written lines                                                                                          |
 | Looking for a runtime base class to subclass                      | None exists by design. Each system composes its engine from the worked example and `cross_system`, with the human supervisor settling the hardware-defined parts |
-| Copying a private helper out of the worked example's tools module | The shared session-parameter object and the health-report helpers are private and typed against one system's configuration, so a new system re-implements them   |
+| Copying a private helper out of the worked example's tools module | The session-parameter object and the camera health helpers are private, and the filesystem helper is typed against one system, so new systems re-implement them  |
 | Treating a role-specialized interface name as system coupling     | The eight `ModuleInterface` subclasses live in `cross_system` and bind hardware families, so any system driving the same modules reuses them                     |
 | Changing a firmware constant on one side only                     | The twelve constants in seam 32 move together, and a one-sided change produces a system that compiles and runs while its data is garbage                         |
 
 ---
 
+## Citing source without line numbers
+
+Every citation in this skill, and in every edit made to it, names the asset. Line numbers drift as unrelated code above
+them moves, and a drifted citation points at the wrong asset while still reading as authoritative. Naming the asset
+means naming the module plus one of the identifiers it declares: a class, a method, a function, a dataclass field, an
+enum, an enum member, a constant, a C++ template parameter, or a config key. The module path alone suffices when the
+whole module is the subject.
+
+| Rejected                         | Correct                                                  |
+|----------------------------------|----------------------------------------------------------|
+| `interfaces/mcp_server.py:88-96` | `_register_tool_modules()` in `interfaces/mcp_server.py` |
+| `slmc/platformio.ini:12-18`      | the `[teensy41_base]` template in `slmc/platformio.ini`  |
+
+Cross-document references follow the same rule. Cite a README or a CLAUDE.md by its section heading, the way the
+runtime section above cites the "Extending the Platform" section of `sollertia-experiment/README.md`, never by a line.
+
+---
+
 ## Related skills
 
-The `microcontroller:`, `communication:`, and `automation:` entries below resolve through the ataraxis marketplace.
-Every other entry resolves inside the sollertia marketplace.
+The `microcontroller:`, `communication:`, `video:`, and `automation:` entries below resolve through the ataraxis
+marketplace. Every other entry resolves inside the sollertia marketplace.
 
 | Skill                                     | Relationship                                                                                            |
 |-------------------------------------------|---------------------------------------------------------------------------------------------------------|
@@ -399,37 +392,21 @@ Every other entry resolves inside the sollertia marketplace.
 | `/data-management`                        | Owns the six preprocessing primitives composed at seam 7                                                |
 | `/acquisition-system-setup`               | Owns the supported-systems table a new system joins                                                     |
 | `/system-design-pipeline`                 | Orchestrates the whole build and designates this skill as the sollertia-experiment and slmc phase owner |
+| `/pipeline`                               | Owns operation of an already-built acquisition system, routed through the supported-systems table       |
 | `/experiment-mcp-environment-setup`       | Owns the `sle mcp` server the new tool module joins                                                     |
-| `mesoscope:mesoscope-vr`                  | The worked example's configuration and binding layer                                                    |
-| `mesoscope:mesoscope-vr-runtime`          | The worked example's controller, CLI, and session lifecycle                                             |
-| `mesoscope:mesoscope-vr-snapshots`        | The worked example's raw-data layout and per-session snapshots                                          |
+| `mesoscope:mesoscope-vr`                  | Documents the worked example's configuration and binding layer                                          |
+| `mesoscope:mesoscope-vr-runtime`          | Documents the worked example's controller, CLI, and session lifecycle                                   |
+| `mesoscope:mesoscope-vr-snapshots`        | Documents the worked example's raw-data layout and per-session snapshots                                |
 | `forging:data-processing-design`          | Owns the per-system processing-stage design behind the sollertia-forgery registry entries               |
 | `forging:dataset-definition`              | Owns the admission policy that decides whether the new system's sessions join a forged dataset          |
 | `unity:task-prefabs`                      | Builds the task prefabs and the scene the VR task seam needs                                            |
 | `unity:task-scenes`                       | Lists, opens, and inspects the scenes generated per task template                                       |
 | `unity:scene-setup`                       | Prepares the scene, the display rig, and the treadmill controller the driver enforces                   |
-| `microcontroller:firmware-module`         | Authoritative base for the C++ `Module` mechanics the firmware seam extends                             |
-| `communication:microcontroller-interface` | Authoritative base for the Python `ModuleInterface` mechanics the wrapper seam extends                  |
+| `microcontroller:firmware-module`         | Provides the authoritative base for the C++ `Module` mechanics the firmware seam extends                |
+| `communication:microcontroller-interface` | Provides the authoritative base for the Python mechanics every `ModuleInterface` subclass extends       |
+| `video:camera-interface`                  | Owns the `VideoSystem` conventions the Step 3 camera binding class follows                              |
 | `automation:platformio-config`            | Owns the `platformio.ini` conventions seams 30 and 31 edit                                              |
 | `automation:commit`                       | Should be invoked once the cross-repository changes land                                                |
-
----
-
-## Citing source without line numbers
-
-Every citation in this skill, and in every edit made to it, names the asset rather than the line the asset occupies.
-Line numbers drift as unrelated code above them moves, and a drifted citation points at the wrong asset while still
-reading as authoritative. Naming the asset means naming the module plus one of the identifiers it declares: a class, a
-method, a function, a dataclass field, an enum, an enum member, a constant, a C++ template parameter, or a config key.
-The module path alone suffices when the whole module is the subject.
-
-| Rejected                         | Correct                                                  |
-|----------------------------------|----------------------------------------------------------|
-| `interfaces/mcp_server.py:88-96` | `_register_tool_modules()` in `interfaces/mcp_server.py` |
-| `slmc/platformio.ini:12-18`      | the `[teensy41_base]` template in `slmc/platformio.ini`  |
-
-Cross-document references follow the same rule. Cite a README or a CLAUDE.md by its section heading, the way the
-runtime section above cites the "Extending the Platform" section of `sollertia-experiment/README.md`, never by a line.
 
 ---
 
@@ -452,26 +429,23 @@ the sollertia-shared-assets registry, which `assets:library-extension` owns.
 ## Verification checklist
 
 ```text
-Tool-settled (run `rg -n '.{121,}' <file>` and `wc -l <file>`):
-- [ ] All lines at or under 120 characters (tables and code blocks may exceed for clarity)
-- [ ] SKILL.md under 500 lines
-
 Shared-assets side (handed off):
 - [ ] assets:library-extension's checklist completed and `python -c "import sollertia_shared_assets"` succeeds
 - [ ] The system appears in list_supported_acquisition_systems_tool
 
 sollertia-experiment side:
 - [ ] A SystemConfiguration subclass exists and register_system_configuration() runs at module import
+- [ ] A per-session-type settings table covers every claimed session type and is verified at import
 - [ ] A typed get_system_configuration() accessor exists and rejects a host belonging to another system
 - [ ] create_system_configuration_file() writes exactly one <system>_system_configuration.yaml on the host
 - [ ] The behavior DataLogger is named "behavior"
 - [ ] StorageDestinations is resolved from the system's own configuration
-- [ ] Every one of the six shared preprocessing primitives is composed rather than re-implemented
+- [ ] Every one of the six shared preprocessing primitives is composed from cross_system
 - [ ] Every shared-memory ModuleInterface the system adds implements initialize_local_assets()
 - [ ] interfaces/<system>_tools.py exists, sits directly in interfaces/, and ends in _tools.py
 - [ ] _register_subcommands carries the new group's import and add_command call
-- [ ] The runtime controller was scaffolded from the worked example, with every hardware-defined decision settled
-      with the human supervisor rather than inferred
+- [ ] The runtime controller was scaffolded from the worked example, with every hardware-defined decision settled with
+      the human supervisor
 - [ ] The runtime writes the session descriptor, the system-configuration snapshot, and hardware_state.yaml
 - [ ] docs/source/api.rst carries an automodule block for the new system package
 - [ ] README.md carries a '<System> Data Acquisition System' section and its Table of Contents entry
@@ -489,12 +463,14 @@ sollertia-micro-controllers side (only when firmware changed):
 Marketplace side:
 - [ ] plugins/<system>/ exists with its .claude-plugin/plugin.json
 - [ ] .claude-plugin/marketplace.json carries the new plugin entry
-- [ ] The per-system schema, instance, and runtime skills exist and every generic-skill pointer resolves
+- [ ] The per-system schema, instance, runtime, and CLI-reference skills exist and every generic-skill pointer resolves
 - [ ] /acquisition-system-setup's supported-systems table carries a row for the new system
 - [ ] Every cross-plugin link resolves to a skill on the authoritative roster
-- [ ] Every source citation added to a skill names the asset or the section heading rather than a line
+- [ ] Every source citation added to a skill names the asset or the section heading
+- [ ] Every skill file Step 8 authors passes the /skill-design "Skill files (SKILL.md)" checklist
 
 Downstream:
 - [ ] forging registry entries handed off and listed in the pull request description
-- [ ] sollertia-experiment version bumped and its sollertia-shared-assets pin updated
+- [ ] sollertia-experiment version bumped and its sollertia-shared-assets pin updated, or the fork carries a local
+      version label with every pin unchanged
 ```

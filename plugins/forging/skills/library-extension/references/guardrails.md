@@ -5,8 +5,7 @@ manifest. It carries the verbatim text of every failure they raise, the touch ea
 steps no check covers. The per-scenario touch lists that carry those steps are in
 [extension-recipes.md](extension-recipes.md).
 
-Every failure is raised through `ataraxis_base_utilities.console.error`, so it stops the import at the first offender
-rather than accumulating a report.
+Every failure is raised through `ataraxis_base_utilities.console.error`, so it stops the import at the first problem.
 
 ---
 
@@ -20,8 +19,8 @@ rather than accumulating a report.
 | A system package's own checks      | `<system>/`                 | `sollertia_forgery.registries`, since it imports every system package | Whatever privately keyed table that system declares  |
 
 `import sollertia_forgery` on its own runs none of them, because the top-level `__init__.py` re-exports no library
-symbol. `slf --help` runs all three, since `interfaces/entry_points.py` imports `interfaces/manage.py`, which imports
-both `..managing` and `..orchestration`.
+symbol. `slf --help` runs every check in this table, since `interfaces/entry_points.py` imports `interfaces/manage.py`,
+which imports both `..managing` and `..orchestration`.
 
 ---
 
@@ -61,8 +60,8 @@ The thirteenth row is how "at least one parser per system" is enforced without a
 ### Check 2, a parseable module that declares no event codes
 
 For each system that donates a parser, the check subtracts the keys the registered event-code accessor returns from
-the `(module_type, module_id)` pairs the parser registry carries for that system. It calls the accessor rather than
-reading it, since the donation is a zero-argument callable.
+the `(module_type, module_id)` pairs the parser registry carries for that system. It calls the accessor, since the
+donation is a zero-argument callable.
 
 ```text
 Unable to validate donor-registry coverage for _MICROCONTROLLER_EVENT_CODE_REGISTRY. Every module registered in _MICROCONTROLLER_PARSER_REGISTRY must also declare the event codes its parser reads, but {target_system.name} does not declare codes for the following modules: {module_names}.
@@ -123,7 +122,7 @@ Unable to validate the pipeline dispatch table. Every pipeline named in BATCH_PI
 
 Collects every entry whose `unit_kind` falls outside `_UNIT_KINDS`, the frozenset holding `SESSION_UNIT` and
 `DATASET_UNIT`, and raises naming those pipelines by value. `mislabeled` is sorted, so the message reports every
-offending entry at once rather than the first.
+offending entry at once.
 
 ```text
 Unable to validate the pipeline dispatch table. Every entry must declare one of {sorted(_UNIT_KINDS)} as the unit its jobs operate on, but {mislabeled} declare another unit kind.
@@ -174,8 +173,7 @@ Unable to validate the manifest's column rosters. Every roster that lists the ma
 Both directions raise at import, so neither a missing column nor a stale entry survives to a generation pass. The loop
 walks the rosters in the order above and tests a roster's omissions before its stale entries, so the first message an
 extender reads names the earliest roster with either fault. All five rosters live in `managing/manifest.py`, and
-`MANIFEST_AXES` and `MANIFEST_SEMI_FIELDS` are public because `interfaces/management_tools.py` imports them from there
-rather than declaring copies of its own.
+`MANIFEST_AXES` and `MANIFEST_SEMI_FIELDS` are public because `interfaces/management_tools.py` imports them from there.
 
 A roster that carries no status column by design is deliberately outside the check. Those are `_MANIFEST_DETAIL_FIELDS`
 in `interfaces/management_tools.py`, holding `notes` alone, and the inline column list `ProjectManifest.print_notes`
@@ -198,7 +196,7 @@ empty `KeyError` and a `<system>/metadata.py` frame is that omission and nothing
 
 ## Runtime errors that stand in for an absent import check
 
-Each of these fires while a pipeline runs rather than at import, and each names exactly one missing touch.
+Each of these fires while a pipeline runs, and each names exactly one missing touch.
 
 | Function                          | Module                              | Touch it names                                                                                                     |
 |-----------------------------------|-------------------------------------|--------------------------------------------------------------------------------------------------------------------|

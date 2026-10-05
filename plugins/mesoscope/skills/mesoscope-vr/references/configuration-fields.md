@@ -1,11 +1,11 @@
 # Mesoscope-VR configuration fields
 
-State snapshot of every field in `MesoscopeSystemConfiguration` and its nested calibration dataclasses, as defined in
+State snapshot of every field in `MesoscopeSystemConfiguration` and its nested dataclasses, as defined in
 `mesoscope_vr/system.py`.
 
 See [`../SKILL.md`](../SKILL.md) for the system overview and binding-class composition, and
-[`modification-workflows.md`](modification-workflows.md) for the modification workflows. Update this file whenever any
-field is added, removed, renamed, or has its type/units/default changed.
+[`modification-workflows.md`](modification-workflows.md) for configuration authoring, recalibration, and hardware-change
+workflows. Update this file whenever any field is added, removed, renamed, or has its type/units/default changed.
 
 ---
 
@@ -20,7 +20,7 @@ field is added, removed, renamed, or has its type/units/default changed.
 | `microcontrollers` | `MesoscopeMicroControllers` | `field(default_factory=...)` | Microcontroller configuration (see below)                                     |
 | `acquisition`      | `MesoscopeAcquisition`      | `field(default_factory=...)` | Mesoscope motion-estimation and z-stack acquisition configuration (see below) |
 | `assets`           | `MesoscopeVRAssets`         | `field(default_factory=...)` | Zaber motor ports + nested Unity MQTT task configuration (see below)          |
-| `video_tracking`   | `MesoscopeVideoTracking`    | `field(default_factory=...)` | DeepLabCut face-camera eye-tracking inference configuration (see below)       |
+| `video_tracking`   | `MesoscopeVideoTracking`    | `field(default_factory=...)` | DeepLabCut face-camera inference configuration (see below)                    |
 
 ### Non-default behaviors
 
@@ -34,8 +34,7 @@ field is added, removed, renamed, or has its type/units/default changed.
 
 ## _MesoscopeFileSystem
 
-Captures the filesystem layout in two fields. Both default to empty paths, but only `mesoscope_directory` MUST be set
-per host, because leaving it unset raises `ValueError` when the session filesystem layout is resolved. Individual
+Every path in this section defaults to empty, but only `mesoscope_directory` MUST be set per host. Individual
 `storage_directories` entries are optional.
 
 | Field                 | Type              | Default                             | Purpose                                                                                                                                                                                                                                                                                                                                                                                         |
@@ -43,8 +42,8 @@ per host, because leaving it unset raises `ValueError` when the session filesyst
 | `mesoscope_directory` | `Path`            | `Path()`                            | Absolute path to the local-filesystem-mounted directory where mesoscope-acquired data is aggregated during acquisition by the PC that manages the mesoscope DAQ                                                                                                                                                                                                                                 |
 | `storage_directories` | `dict[str, Path]` | `{"NAS": Path(), "Server": Path()}` | Maps each long-term storage destination name to its local-filesystem-mounted project-root path. Seeded with the `_MesoscopeStorageDestination` members `"NAS"` and `"Server"`, and any number of destinations may be configured under arbitrary names. An empty path means the destination is not configured and is skipped during transfer/removal. Mapping order defines pull-back preference |
 
-The local **data root**, the directory under which projects are stored on this machine, is platform-shared rather than a
-field of this section. Resolve it with `get_data_root()` and set it with `slsa configure data-root`.
+The local **data root**, the directory under which projects are stored on this machine, is platform-shared. Resolve it
+with `get_data_root()` and set it with `slsa configure data-root`.
 
 **Mount checks:** `check_system_mounts_tool` is an agent-invoked MCP tool that returns a diagnostic report covering
 every path the configuration declares, keyed as `data_root`, `mesoscope_directory`, one `storage_directory:<name>` entry
@@ -53,12 +52,7 @@ are reported `ok` when they exist and are writable, and the three optional input
 An unset storage root or input file is reported as `{"configured": False, "ok": True}`, because configuring those is
 optional, while an unset `mesoscope_directory` is reported as `{"configured": False, "ok": False}`.
 `validate_system_configuration_tool` builds its own `paths` report from the same source. Call one of them yourself as a
-pre-flight check. The acquisition runtime performs no on-disk existence check of its own. `MesoscopeData.__init__`
-rejects an unset `mesoscope_directory` with `ValueError` before any path is resolved, while unset storage roots are
-recorded under `unconfigured_destinations` and only produce a preprocessing warning about the skipped backup.
-
-See [MesoscopeData path resolution](#mesoscopedata-path-resolution) below for the class that turns this section into
-resolved per-session paths.
+pre-flight check. The acquisition runtime performs no on-disk existence check of its own.
 
 ---
 
@@ -77,13 +71,14 @@ Mesoscope mount and onto each configured storage root.
 | `destinations`              | `StorageDestinations` | One `StorageDestination` per configured storage root, in configuration order |
 | `unconfigured_destinations` | `tuple[str, ...]`     | Names of the storage roots left unset, about which preprocessing warns       |
 
-`_VRPCPersistentData(session_type, persistent_data_path)` (`mesoscope_vr/system.py`) derives `zaber_positions.yaml`,
-`mesoscope_positions.yaml`, `window_screenshot.png`, and a per-session-type `*_descriptor.yaml` under the animal's VRPC
-persistent directory, creating the directory when it is absent. An unrecognized session type raises `ValueError`.
+`_VRPCPersistentData(session_type, persistent_data_path)` (`mesoscope_vr/system.py`) derives, under the animal's VRPC
+persistent directory, `zaber_positions.yaml`, `mesoscope_positions.yaml`, `window_screenshot.png`, and the descriptor
+file that the session type's `SESSION_TYPE_SETTINGS` entry names, creating the directory when it is absent. An
+unrecognized session type raises `ValueError`.
 
 `_ScanImagePCData(session, mesoscope_root_path, persistent_data_path)` (`mesoscope_vr/system.py`) derives the animal's
 persistent `MotionEstimator.me` and `fov.roi`, the session-specific directory `<root>/<session>`, and the shared
-acquisition directory `<root>/mesoscope_data` that every session writes into during its runtime.
+acquisition directory `<root>/mesoscope_data` into which every session writes during its runtime.
 
 For the on-disk hierarchy these resolved paths address, see `assets:project-hierarchy`. For the transfer, verification,
 and removal workflows that consume `destinations`, see `experiment:data-management`. For the per-session snapshot files
@@ -93,11 +88,11 @@ under `vrpc_data`, see `/mesoscope-vr-snapshots`.
 
 ## MesoscopeGoogleSheets
 
-Captures Google Sheets identifiers in two `str` fields. Both are optional and default to empty strings. An unset
-identifier skips that exchange with a warning, and leaving both unset disables the Google Sheets integration entirely.
-Configuring **either** identifier makes the Google service-account credentials mandatory: preprocessing resolves them
-before either exchange and aborts with `FileNotFoundError` when they are missing or unconfigured. Set them with
-`slsa configure credentials` (`assets:working-directory`).
+Both identifiers are optional and default to empty strings. An unset identifier skips that exchange with a warning, and
+leaving both unset disables the Google Sheets integration entirely. Configuring **either** identifier makes the Google
+service-account credentials mandatory: preprocessing resolves them before either exchange and aborts with
+`FileNotFoundError` when they are missing or unconfigured. Set them with `slsa configure credentials`
+(`assets:working-directory`).
 
 | Field                | Type  | Default | Purpose                                                                                     |
 |----------------------|-------|---------|---------------------------------------------------------------------------------------------|
@@ -110,7 +105,7 @@ Sheet IDs are the long alphanumeric segments in Google Sheets URLs (e.g., `1AbC.
 
 ## MesoscopeCameras
 
-Captures per-camera configuration. The Mesoscope-VR system uses two cameras, face and body. See the [Cameras section in
+The Mesoscope-VR system uses two cameras, face and body. See the [Cameras section in
 SKILL.md](../SKILL.md#hardware-subsystem-cameras) for their roles.
 
 | Field                            | Type                  | Default                       | Purpose                                                                 |
@@ -133,7 +128,7 @@ SKILL.md](../SKILL.md#hardware-subsystem-cameras) for their roles.
   reference rig. Override only with measured / preferred values.
 - Configuration paths are **optional**. Set them only for cameras whose GenICam node configuration is captured to a YAML
   (the standard practice for GenTL/GenICam cameras). By convention these files live in the working-directory
-  `configuration/` folder, next to `*_system_configuration.yaml` (e.g. `face_camera_configuration.yaml`). See
+  `configuration/` folder, next to `*_system_configuration.yaml` (e.g., `face_camera_configuration.yaml`). See
   [`modification-workflows.md`](modification-workflows.md) for the verify / dump / restore workflow. The file is an
   `ataraxis-video-system` `GenicamConfiguration` YAML.
 
@@ -141,13 +136,14 @@ SKILL.md](../SKILL.md#hardware-subsystem-cameras) for their roles.
 
 ## MesoscopeMicroControllers
 
-Captures port assignments + per-module calibration for the three Teensy 4.1 boards (ACTOR, SENSOR, ENCODER). See
+Captures port assignments + per-module calibration for the three Teensy 4.1 boards (ACTOR, SENSOR, ENCODER). See the
 [Microcontrollers section in SKILL.md](../SKILL.md#hardware-subsystem-microcontrollers) for board roles.
 
 The `MesoscopeMicroControllers` dataclass in `mesoscope_vr/system.py` holds 28 fields. Three name the board ports and
 one sets the keepalive interval. The remaining 24 parameterize seven of the eight module wrappers running on the three
-boards: brake strength, wheel geometry, lick thresholds, torque calibration, encoder reporting, screen pulse duration,
-sensor polling delay, and the valve calibration table. `GasPuffValveInterface` takes no configuration.
+boards. They set brake strength, wheel geometry, lick thresholds, torque calibration, encoder reporting, screen pulse
+duration, mesoscope frame TTL averaging, sensor polling delay, and the valve calibration table. `GasPuffValveInterface`
+takes no configuration.
 
 ### Port and keepalive
 
@@ -159,7 +155,7 @@ sensor polling delay, and the valve calibration table. `GasPuffValveInterface` t
 | `keepalive_interval_ms` | `int` | `500`            | Interval (ms) at which controllers expect and send keepalive messages during runtime |
 
 Default ports use the Linux device-path form (`/dev/ttyACM*`). The value is OS-specific, taking the `COMx` form on
-Windows, and is set per host from discovery.
+Windows.
 
 Ports come from `experiment:acquisition-system-setup` discovery (`communication:microcontroller-setup`'s
 `list_microcontrollers_tool`). The user must confirm which physical Teensy plays the ACTOR / SENSOR / ENCODER role and
@@ -186,9 +182,8 @@ assign ports accordingly.
 | `wheel_encoder_polling_delay_us`      | `int`   | `500`     | Delay (microseconds) between consecutive encoder state readouts    |
 
 `EncoderInterface(encoder_ppr, wheel_diameter, polling_frequency)` consumes these, and
-`set_parameters(report_ccw, report_cw, delta_threshold)` is sent at session start. The centimeters-per-Unity-unit
-conversion lives in the active `TaskTemplate` (`vr_environment.cm_per_unity_unit`) rather than in this section, and the
-runtime applies it at experiment start through `EncoderInterface.set_unity_scale()`.
+`set_parameters(report_ccw, report_cw, delta_threshold)` is sent at session start. The runtime applies the active
+`TaskTemplate`'s `vr_environment.cm_per_unity_unit` at experiment start through `EncoderInterface.set_unity_scale()`.
 
 ### Lick sensor calibration (consumes `LickInterface`)
 
@@ -204,16 +199,16 @@ runtime applies it at experiment start through `EncoderInterface.set_unity_scale
 
 ### Torque sensor calibration (consumes `TorqueInterface`)
 
-| Field                         | Type    | Default    | Purpose                                                           |
-|-------------------------------|---------|------------|-------------------------------------------------------------------|
-| `torque_baseline_voltage_adc` | `int`   | `2048`     | ADC voltage corresponding to 0 torque (post-AD620-amplifier)      |
-| `torque_maximum_voltage_adc`  | `int`   | `3443`     | ADC voltage corresponding to maximum detectable torque            |
-| `torque_sensor_capacity_g_cm` | `float` | `720.0779` | Maximum torque detectable by the sensor (gram centimeter)         |
-| `torque_report_cw`            | `bool`  | `True`     | Whether to report clockwise torque                                |
-| `torque_report_ccw`           | `bool`  | `True`     | Whether to report counter-clockwise torque                        |
-| `torque_signal_threshold_adc` | `int`   | `150`      | Minimum voltage reported to PC. Below this, signal is pulled to 0 |
-| `torque_delta_threshold_adc`  | `int`   | `100`      | Minimum delta between consecutive readouts to report a change     |
-| `torque_averaging_pool_size`  | `int`   | `4`        | Number of readouts averaged together                              |
+| Field                         | Type    | Default    | Purpose                                                               |
+|-------------------------------|---------|------------|-----------------------------------------------------------------------|
+| `torque_baseline_voltage_adc` | `int`   | `2048`     | ADC voltage corresponding to 0 torque (post-AD620-amplifier)          |
+| `torque_maximum_voltage_adc`  | `int`   | `3443`     | ADC voltage corresponding to maximum detectable torque                |
+| `torque_sensor_capacity_g_cm` | `float` | `720.0779` | Maximum torque detectable by the sensor (gram centimeter)             |
+| `torque_report_cw`            | `bool`  | `True`     | Whether to report clockwise torque                                    |
+| `torque_report_ccw`           | `bool`  | `True`     | Whether to report counter-clockwise torque                            |
+| `torque_signal_threshold_adc` | `int`   | `150`      | Minimum voltage reported to the PC. Below this, signal is pulled to 0 |
+| `torque_delta_threshold_adc`  | `int`   | `100`      | Minimum delta between consecutive readouts to report a change         |
+| `torque_averaging_pool_size`  | `int`   | `4`        | Number of readouts averaged together                                  |
 
 `TorqueInterface(baseline_voltage, maximum_voltage, sensor_capacity, polling_frequency)` consumes the calibration
 fields, and `set_parameters(report_ccw, report_cw, signal_threshold, delta_threshold, averaging_pool_size)` is sent at
@@ -242,8 +237,8 @@ sending).
 |---------------------------|-------|---------|-----------------------------------------------------------------------------|
 | `sensor_polling_delay_ms` | `int` | `1`     | Delay (milliseconds) between consecutive readouts of any non-encoder sensor |
 
-Converted to microseconds and passed as `polling_frequency` to `MesoscopeFrameTTLInterface`, `LickInterface`, and
-`TorqueInterface` constructors.
+`sensor_polling_delay_ms` is converted to microseconds and passed as `polling_frequency` to the
+`MesoscopeFrameTTLInterface`, `LickInterface`, and `TorqueInterface` constructors.
 
 ### Valve calibration (consumes `WaterValveInterface`)
 
@@ -251,9 +246,8 @@ Converted to microseconds and passed as `polling_frequency` to `MesoscopeFrameTT
 |--------------------------|-------------------------------------------------------------------------------------|----------------------------------------------------------------|---------------------------------------------------------------------------|
 | `valve_calibration_data` | `dict[int \| float, int \| float] \| tuple[tuple[int \| float, int \| float], ...]` | `((15000, 1.10), (30000, 3.0), (45000, 6.25), (60000, 10.90))` | Maps valve open durations (microseconds) → dispensed volume (microliters) |
 
-`WaterValveInterface(valve_calibration_data)` consumes the tuple form, which the dataclass's `__post_init__` normalizes
-from `dict` on YAML load. `WaterValveInterface` fits a power-law model (`a * pulse_duration ** b`) to this calibration
-data using `scipy.optimize.curve_fit`.
+`WaterValveInterface(valve_calibration_data)` consumes the tuple form. `WaterValveInterface` fits a power-law model
+(`a * pulse_duration ** b`) to this calibration data using `scipy.optimize.curve_fit`.
 
 **Recalibration** drives the valve hardware, repeatedly opening the valve to measure the dispensed volume, so the
 experimenter performs it on the rig. Direct the user to the maintenance runtime (`sle mesoscope maintain`, the
@@ -267,14 +261,14 @@ new measurements, and you MUST NOT invoke `WaterValveInterface.calibrate_valve()
 
 Captures the online motion-estimation and z-stack acquisition configuration delivered to the ScanImagePC. See
 [`mesoscope-driver.md`](mesoscope-driver.md) for the `MesoscopeDriver` MQTT contract that carries these parameters to
-the `runAcquisition` MATLAB function. Eight fields.
+the `runAcquisition` MATLAB function.
 
 | Field                        | Type                         | Default        | Purpose                                                                                                                                                                                                        |
 |------------------------------|------------------------------|----------------|----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
 | `z_step_um`                  | `int`                        | `20`           | Spacing, in micrometers, between consecutive target imaging planes in the acquired z-stack                                                                                                                     |
 | `z_range_um`                 | `tuple[int, int]`            | `(1050, 1050)` | The `[minimum, maximum]` z-plane range to image, in micrometers. Equal boundaries image a single plane at that depth, and distinct boundaries image the inclusive slice between them                           |
 | `z_exclusion_um`             | `tuple[int, int]`            | `(0, 0)`       | The `[minimum, maximum]` boundaries, in micrometers, of the non-imaged exclusion zone for two-plane imaging. Equal boundaries disable two-plane imaging, and distinct boundaries must fall within `z_range_um` |
-| `acquisition_order`          | `_MesoscopeAcquisitionOrder` | `INTERLEAVED`  | Order in which the target planes are acquired when building the reference and high-definition z-stacks. The ScanImagePC acquires the INTERLEAVED order for every value of this field                           |
+| `acquisition_order`          | `_MesoscopeAcquisitionOrder` | `INTERLEAVED`  | Order in which the target planes are acquired when building the reference and high-definition z-stacks                                                                                                         |
 | `registration_channel`       | `int`                        | `1`            | Acquisition channel used for online motion registration                                                                                                                                                        |
 | `field_curvature_correction` | `bool`                       | `False`        | Whether ScanImage field curvature correction is enabled during acquisition (microscope-dependent)                                                                                                              |
 | `frames_per_reference_plane` | `int`                        | `20`           | Number of frames acquired and averaged at each reference plane. Larger values improve motion characterization at the cost of longer processing and higher acquisition-machine load                             |
@@ -284,10 +278,10 @@ the `runAcquisition` MATLAB function. Eight fields.
 
 `acquisition_order` is a `_MesoscopeAcquisitionOrder` (`StrEnum`) with two members:
 
-| Member        | Value           | Meaning                                                                                                                                                                                            |
-|---------------|-----------------|----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
-| `INTERLEAVED` | `"interleaved"` | Iterate over the target planes once per acquired volume, one frame at each plane (Z1, Z2, Z1, Z2)                                                                                                  |
-| `SMOOTH`      | `"smooth"`      | Requests that all averaged frames be acquired at one target plane before advancing (Z1, Z1, Z2, Z2). The ScanImagePC does not implement this dwell, so selecting it acquires the INTERLEAVED order |
+| Member        | Value           | Meaning                                                                                                                                                                                              |
+|---------------|-----------------|------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| `INTERLEAVED` | `"interleaved"` | Iterates over the target planes once per acquired volume, one frame at each plane (Z1, Z2, Z1, Z2)                                                                                                   |
+| `SMOOTH`      | `"smooth"`      | Requests that all averaged frames be acquired at one target plane before advancing (Z1, Z1, Z2, Z2). The ScanImagePC does not implement this dwell, so selecting it acquires the `INTERLEAVED` order |
 
 ### `__post_init__` validation
 
@@ -307,9 +301,6 @@ consumes them.
 ---
 
 ## MesoscopeVRAssets
-
-Captures the Virtual Reality task assets in four fields: the three Zaber motor ports plus a nested `vr_task`
-configuration.
 
 ### Zaber motor ports
 
@@ -339,7 +330,7 @@ acquisition PC (localhost) but may be relocated to a separate machine for multi-
 (cue catalog, corridor geometry, cm-per-Unity-unit) live in the matching `TaskTemplate` YAML, which the runtime resolves
 at experiment start. See `experiment:vr-driver-interface`.
 
-`MesoscopeDriver` reuses these same two fields as its own broker discovery (the `MesoscopeDriver` construction in
+`MesoscopeDriver` reuses these two fields as its own broker discovery (the `MesoscopeDriver` construction in
 `MesoscopeVRSystem.__init__` of `mesoscope_vr/system_controller.py`, and `MesoscopeDriver.__init__` in
 `mesoscope_vr/mesoscope_driver.py`), so the Unity task and the ScanImagePC share one broker. See
 [`mesoscope-driver.md`](mesoscope-driver.md) for the topic namespace that keeps the two surfaces apart.
@@ -351,26 +342,21 @@ which `unity:unity-mcp-environment-setup` owns, so this section carries no bridg
 
 ## MesoscopeVideoTracking
 
-Captures the DeepLabCut pose-inference configuration that analyzes the face-camera video during experiment-session
-preprocessing. Seven fields, plus the `conda run` subprocess boundary, the placement inside the preprocessing pipeline,
-and the transfer-abort failure mode.
+Captures the DeepLabCut face-camera inference configuration that analyzes the face-camera video during
+experiment-session preprocessing.
 
-| Field               | Type   | Default  | Purpose                                                                                                                                                                            |
-|---------------------|--------|----------|------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
-| `conda_environment` | `str`  | `""`     | Name of the conda environment that provides the `slvt` command and its DeepLabCut installation. An empty string disables face-camera inference                                     |
-| `dlc_project_path`  | `Path` | `Path()` | Absolute path to the DeepLabCut project's `config.yaml` whose trained model analyzes the face-camera video. An empty path disables face-camera inference                           |
-| `shuffle`           | `int`  | `1`      | Shuffle index of the trained DeepLabCut model to run                                                                                                                               |
-| `crop`              | `str`  | `""`     | The `x1,x2,y1,y2` pixel rectangle to analyze instead of the full frame, matching the region on which the model was trained. An empty string analyzes the project's configured crop |
-| `batch_size`        | `int`  | `32`     | Number of frames the pose model processes per forward pass, sized for the acquisition rig's GPU                                                                                    |
-| `chunks`            | `int`  | `1`      | Number of contiguous frame-range pieces the face-camera video is split into for concurrent analysis. A value of one analyzes the video as a single unbroken frame range            |
-| `compile_model`     | `bool` | `True`   | Whether the pose model is compiled with `torch.compile`. Enabled by default because the rig's GPU amortizes the one-time warm-up cost over the long face-camera video              |
+| Field               | Type   | Default  | Purpose                                                                                                                                                                                                         |
+|---------------------|--------|----------|-----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| `conda_environment` | `str`  | `""`     | Name of the conda environment that provides the `slvt` command and its DeepLabCut installation                                                                                                                  |
+| `dlc_project_path`  | `Path` | `Path()` | Absolute path to the DeepLabCut project's `config.yaml` whose trained model analyzes the face-camera video                                                                                                      |
+| `shuffle`           | `int`  | `1`      | Shuffle index of the trained DeepLabCut model to run                                                                                                                                                            |
+| `crop`              | `str`  | `""`     | The `x1,x2,y1,y2` pixel rectangle to analyze, matching the region on which the model was trained. An empty string analyzes the project's configured crop, or the full frame when the project configures no crop |
+| `batch_size`        | `int`  | `32`     | Number of frames the pose model processes per forward pass, sized for the acquisition rig's GPU                                                                                                                 |
+| `chunks`            | `int`  | `1`      | Number of contiguous frame-range pieces into which the face-camera video is split for concurrent analysis. A value of one analyzes the video as a single unbroken frame range                                   |
+| `compile_model`     | `bool` | `True`   | Whether the pose model is compiled with `torch.compile`. Enabled by default because the rig's GPU amortizes the one-time warm-up cost over the long face-camera video                                           |
 
 **Opt-in gate:** face-camera inference runs only when the host configures both `conda_environment` and
-`dlc_project_path`. An empty string or an unset path disables it, matching the empty-value idiom the other sections use.
-Inference is also skipped, at INFO, when a `<session>_face_camera*eye_tracking*.h5` prediction file already sits beside
-the video, because `slvt infer` writes that file only after the whole video is analyzed. A rerun therefore reuses the
-earlier predictions, and removing the prediction files forces a fresh run. That check precedes the video check, and
-inference is skipped with a warning when the expected face-camera video is absent.
+`dlc_project_path`.
 
 **Source of values:** `conda_environment` and `dlc_project_path` name the host's DeepLabCut install and trained project,
 so ask the user for both. `shuffle`, `crop`, `batch_size`, `chunks`, and `compile_model` are deployment defaults tuned
@@ -380,7 +366,7 @@ for the reference rig's GPU. Override them for a different trained model or a di
 [_MesoscopeFileSystem](#_mesoscopefilesystem) section describes. The `conda_environment` name sits outside that report,
 so confirm it separately.
 
-### Face-tracking subprocess
+### Face-camera inference subprocess
 
 `_launch_face_tracking` (in `mesoscope_vr/data_preprocessing.py`) applies that gate and launches the subprocess.
 
@@ -398,19 +384,12 @@ conda run -n <conda_environment> slvt infer --config-path <dlc_project_path>
 slvt ships no MCP server and no plugin, so the `slvt` CLI is its only agent-facing surface and this binding is
 documented on the `sollertia-experiment` side.
 
-Preprocessing launches inference asynchronously right after `rename_session_videos`, and only for
-`SessionTypes.MESOSCOPE_EXPERIMENT` sessions, so it overlaps the CPU-bound and disk-bound stages on the rig's
-otherwise-idle GPU. `_join_face_tracking` waits for it immediately before `push_session_data`. A successful run writes
-the DeepLabCut `.h5` file and its companion pickles beside the face-camera video in `raw_data/camera_data/`, which is
-the `slvt infer` default when `--output` is omitted. They are therefore covered by the raw-data checksum and shipped to
-long-term storage as raw data, where the forging plugin's video pipeline consumes them.
+A successful run writes the DeepLabCut `.h5` file and its companion pickles beside the face-camera video in
+`raw_data/camera_data/`, which is the `slvt infer` default when `--output` is omitted. They are therefore covered by the
+raw-data checksum and shipped to long-term storage as raw data, where the forging plugin's video pipeline consumes them.
 
-A non-zero exit status or zero written `.h5` prediction files removes the outputs of the run, raises `RuntimeError`,
-aborts the transfer to long-term storage, and retains the local session copy for a manual retry. An abort of
-preprocessing while the child runs interrupts it and removes its outputs the same way. The `.h5` is written in place, so
-a child that died inside that write leaves a partial file the skip would otherwise reuse. The transient log lives at
-`<tmp>/slvt_infer_<session_name>.log`, is removed on success, and is retained on failure, with its last 2000 characters
-echoed into the error.
+The `/mesoscope-vr-runtime` session data lifecycle reference documents when preprocessing skips, launches, and joins the
+subprocess, and how a failed run aborts the transfer to long-term storage.
 
 ---
 
