@@ -2,19 +2,17 @@
 name: library-extension
 description: >-
   Owns the extension path of sollertia-forgery: adding an acquisition system, a session type, a processing stage, a
-  processing pipeline, or an MCP tool. Covers the thirteen donor registries, the three import-time coverage checks and
-  their verbatim errors, the touch points no check reaches, and the cross-repository ordering the upstream libraries
-  impose. Use when wiring a new acquisition system into the registries, adding a processing stage or pipeline, adding an
-  slf mcp tool, or when an import-time RuntimeError names a registry, a dispatch table, or a status column.
+  processing pipeline, or an MCP tool. Covers the thirteen donor registries, the import-time coverage checks and their
+  verbatim errors, the touch points no check reaches, and the cross-repository ordering the upstream libraries impose.
+  Use when wiring a new acquisition system into the registries, adding a processing stage or pipeline, adding an slf mcp
+  tool, or when an import-time RuntimeError names a registry, a dispatch table, or a status column.
 user-invocable: false
 ---
 
 # Sollertia forgery library extension
 
 Extends `sollertia-forgery` along the seams by which an acquisition system, a session type, a processing stage, a
-processing pipeline, and an MCP tool enter it. Every system-specific behavior enters this library through
-`registries.py` alone, so extending it is a wiring exercise, and an import error names the work that remains. The file
-set of a forged dataset is the one seam a donation does not reach.
+processing pipeline, and an MCP tool enter it.
 
 You MUST read this entire skill before extending the library, then read
 [references/extension-recipes.md](references/extension-recipes.md) for the scenario you are applying and
@@ -33,7 +31,7 @@ checklist before reporting an extension complete.
 - Minting or joining a per-system registry for a stage whose input only an acquisition system can supply
 - Adding a processing pipeline, which is a new `ProcessingPipelines` member and a new category package
 - Adding an MCP tool module to the `slf mcp` server
-- The three import-time coverage checks, their verbatim errors, and the touch points no check reaches
+- The import-time coverage checks, their verbatim errors, and the touch points no check reaches
 - The dataset file set fixed in the agnostic layer, which no donation widens
 - The cross-repository ordering the upstream libraries impose, and the handoff each scenario carries
 - The documentation, coverage, and test obligations each scenario carries
@@ -64,7 +62,7 @@ An extension spans up to four repositories, and this library sits at the downstr
 | `sollertia-shared-assets`                                             | The `AcquisitionSystems` and `SessionTypes` members, the `SYSTEM_SESSION_TYPES` pairing, the `ProcessingTrackers` filenames, and the `ProcessedData` directory and tracker fields | `assets:library-extension`       |
 | `sollertia-experiment`                                                | The acquisition runtime that records the artifacts every donation reads                                                                                                           | `experiment:library-extension`   |
 | `sollertia-forgery`                                                   | The thirteen donor registries, the category packages, the dispatch table, the resource model, the `slf` CLI, and the MCP tools                                                    | This skill                       |
-| `cindra`, `ataraxis-video-system`, `ataraxis-communication-interface` | The stages this library delegates in-process, and the job-name constants and resource figures a wrapper reuses rather than mints                                                  | The owning library's maintainers |
+| `cindra`, `ataraxis-video-system`, `ataraxis-communication-interface` | The stages this library delegates in-process, and the job-name constants and resource figures a wrapper reuses                                                                    | The owning library's maintainers |
 
 ---
 
@@ -89,8 +87,8 @@ declared in total, and two registries hold no callable at all.
 | `_FORGING_ASSEMBLY_REGISTRY`             | A `_ForgingAssemblyAsset` bundling the per-session `assembler` and its `column_descriptions` mapping    |
 | `_ASSEMBLY_GEOMETRY_REGISTRY`            | `(session: SessionData) -> AssemblyGeometry`, the heights its assembler holds a frame and its sources   |
 | `_ASSEMBLY_SOURCE_REGISTRY`              | `(session: SessionData) -> tuple[int, ...]`, the height its assembler holds each source it reads        |
-| `_FORGING_ADMISSION_REGISTRY`            | `dict[SessionTypes, frozenset[ProcessingPipelines]]`, data rather than a callable                       |
-| `_MULTI_RECORDING_SESSION_TYPE_REGISTRY` | `frozenset[SessionTypes]`, data rather than a callable                                                  |
+| `_FORGING_ADMISSION_REGISTRY`            | `dict[SessionTypes, frozenset[ProcessingPipelines]]`                                                    |
+| `_MULTI_RECORDING_SESSION_TYPE_REGISTRY` | `frozenset[SessionTypes]`                                                                               |
 
 The key shape of each registry, and the fifteen `resolve_*` accessors through which a pipeline reads them, are
 documented by `/data-processing-design`.
@@ -105,25 +103,24 @@ state that null shape in their own docstrings.
 **The accessor is the API and the dict is an implementation detail.** No category package imports a registry constant,
 and each imports the matching accessor from `..registries` instead. `_resolve_system` normalizes a `str` or an
 `AcquisitionSystems` member behind every accessor, so a system resolves to the same asset whichever spelling reaches
-it, and an unknown system raises a named `ValueError` rather than a bare `KeyError`.
+it, and an unknown system raises a named `ValueError`.
 
 **A system package never imports a category package.** The arrows already run category package to `registries.py` to
-system package, so the reverse import is a cycle rather than a style preference. The one legal upward import is
-`..shared_assets`, which imports nothing from this library. Nothing enforces the rule, so the circular `ImportError`
-is the enforcement.
+system package, so the reverse import is a cycle. The one legal upward import is `..shared_assets`, which imports
+nothing from this library. Nothing enforces the rule, so the circular `ImportError` is the enforcement.
 
 Minting a fourteenth registry is a separate act from adding an entry to the thirteen above. A stage whose input only an
 acquisition system can supply joins the registry that already names its concern, or mints one. Minting is a donation
 Protocol, a module-private dict, a `resolve_*` accessor, its `__all__` export, and its name in the tuple
 `_assert_registry_coverage()` iterates. That last touch is the one nothing else implies. A registry outside the tuple
-admits a system with no entry, so the seam raises a bare `KeyError` from its accessor at runtime rather than a named
-`RuntimeError` at import. The ordered touch list of each branch is under "Minting or joining a per-system registry" in
-[references/extension-recipes.md](references/extension-recipes.md). `_POSE_PREDICTION_REGISTRY` is the worked pattern
-there for every touch, including its entry in the coverage test.
+admits a system with no entry, so the seam raises a bare `KeyError` from its accessor at runtime. Inside the tuple, the
+same gap raises a named `RuntimeError` at import. The ordered touch list of each branch is under "Minting or joining a
+per-system registry" in [references/extension-recipes.md](references/extension-recipes.md). `_POSE_PREDICTION_REGISTRY`
+is the worked pattern there for every touch, including its entry in the coverage test.
 
 The Mesoscope-VR donations that fill these seams are documented by the `mesoscope:mesoscope-vr-*` skill family, one
-member per seam group. `forging:data-processing-design` carries the registry-to-skill map, and the related-skills table
-below repeats it as routing.
+member per seam group. `/data-processing-design` carries the registry-to-skill map, and the related-skills table below
+repeats it as routing.
 
 ---
 
@@ -141,23 +138,22 @@ acquisition-system-agnostic across the change.
 
 **Autonomy boundary.** The file set of a forged dataset is fixed in the agnostic layer, and no registry reaches it. That
 closure is deliberate, because a forged dataset is read by consumers that know no acquisition system, so its file set is
-a platform contract rather than a per-system choice. `_forge_session` in `forging/pipeline.py` re-exports exactly the
-raw assets its `reexported_assets` mapping names, and `DatasetFiles` in
-`sollertia_shared_assets.data_hierarchy.dataset_data` declares exactly `DATA` and `DESCRIPTIONS`. Folding a new
-per-session artifact into `data.feather` columns through the assembly worker that every system already donates is
-agent-ownable, and you complete it autonomously. Widening the file set itself has no recipe, because it edits
-`reexported_assets` and `DatasetFiles` across two repositories and reaches every dataset already forged against the
-current set. Neither routing the artifact around the seam nor minting a per-system copy of either symbol substitutes for
-that change. Escalate those to the human supervisor and co-design them in a generative, collaborative mode. What is
-missing there is a platform-contract decision that binds consumers outside this library, rather than capability, so the
-work must be human-supervised.
+a platform contract. `_forge_session` in `forging/pipeline.py` re-exports exactly the raw assets its `reexported_assets`
+mapping names, and `DatasetFiles` in `sollertia_shared_assets.data_hierarchy.dataset_data` declares exactly `DATA` and
+`DESCRIPTIONS`. Folding a new per-session artifact into `data.feather` columns through the assembly worker that every
+system already donates is agent-ownable, and you complete it autonomously. Widening the file set itself has no recipe,
+because it edits `reexported_assets` and `DatasetFiles` across two repositories and reaches every dataset already forged
+against the current set. Neither routing the artifact around the seam nor minting a per-system copy of either symbol
+substitutes for that change. Escalate those to the human supervisor and co-design them in a generative, collaborative
+mode. What is missing there is a platform-contract decision that binds consumers outside this library, so the work must
+be human-supervised.
 
 ---
 
 ## Import-time guardrails
 
-Three module-scope checks guard this library, and each raises a `RuntimeError` through
-`ataraxis_base_utilities.console.error`, which stops the import at the first offender.
+Three module-scope checks guard the extension seams, and each raises a `RuntimeError` through
+`ataraxis_base_utilities.console.error`, which stops the import at the first problem.
 
 | Check                              | Module                      | Import that runs it                                        | What it guards                                                                                                                                              |
 |------------------------------------|-----------------------------|------------------------------------------------------------|-------------------------------------------------------------------------------------------------------------------------------------------------------------|
@@ -165,15 +161,17 @@ Three module-scope checks guard this library, and each raises a `RuntimeError` t
 | `_assert_dispatch_coverage()`      | `orchestration/dispatch.py` | `sollertia_forgery.orchestration`                          | The dispatch table against `BATCH_PIPELINES`, symmetrically, and every entry's `unit_kind` against the two this library resolves                            |
 | `_assert_status_column_coverage()` | `managing/manifest.py`      | `sollertia_forgery.managing`                               | `_PIPELINE_STATUS_COLUMNS` against `SESSION_PIPELINES`, and every roster that names a status column, all symmetrically                                      |
 
-`import sollertia_forgery` alone runs none of them, because the top-level `__init__.py` re-exports no library symbol
-and its `__all__` is empty. `slf --help` runs all three, since `interfaces/entry_points.py` imports
-`interfaces/manage.py`, which imports both `..managing` and `..orchestration`.
+`import sollertia_forgery` alone runs none of them, because the top-level `__init__.py` re-exports no library symbol and
+its `__all__` is empty. `slf --help` runs every module-scope check in the library, since `interfaces/entry_points.py`
+imports `interfaces/manage.py`, which imports both `..managing` and `..orchestration`. That covers the three above and
+any check a system package runs at its own import, such as `_assert_indicator_coverage()` in the registered system's
+`two_photon.py`.
 
 **The error is the remaining checklist.** The coverage check reports one problem per import attempt, so an extender
-fixes the registry it names, re-imports, and reads the next. The order is fixed, which makes the sequence of errors a
-worklist rather than a surprise. [references/guardrails.md](references/guardrails.md) carries the verbatim text of
-every message and maps each onto the touch it names. The three checks raise nine stems between them, four from the
-registries, two from the dispatch table, and three from the manifest:
+fixes the registry it names, re-imports, and reads the next. The order is fixed, so the sequence of errors is a
+worklist. [references/guardrails.md](references/guardrails.md) carries the verbatim text of every message and maps each
+onto the touch it names. The three checks raise nine stems between them, four from the registries, two from the dispatch
+table, and three from the manifest:
 
 ```text
 Unable to validate donor-registry coverage for <REGISTRY>. Every acquisition system must register ...
@@ -193,19 +191,18 @@ enum value, so a search for the offending entry uses the spelling carried by the
 ### What the checks do not catch
 
 The three checks cover registry membership, the dispatch table, and the manifest columns together with every roster that
-names one. Seventeen further touch points reach no guardrail, so tests rather than a check cover each one. All but two
-pass every import and fail later or silently. A dataset column with no description entry raises a bare `KeyError` with
-no message at import of the system's own metadata module, and a system package importing a category package raises a
-circular `ImportError` at import. One is silent by design, because omitting a recorded session type from the admission
-mapping is the supported opt-out. [references/guardrails.md](references/guardrails.md) lists all seventeen, the scenario
-that owns each one, how it surfaces, and where to cover it.
+names one. Seventeen further touch points reach no guardrail, so a test covers each one. All but two pass every import
+and fail later or silently. A dataset column with no description entry raises a bare `KeyError` with no message at
+import of the system's own metadata module, and a system package importing a category package raises a circular
+`ImportError` at import. One is silent by design, because omitting a recorded session type from the admission mapping is
+the supported opt-out. [references/guardrails.md](references/guardrails.md) lists all seventeen, the scenario that owns
+each one, how it surfaces, and where to cover it.
 
 ---
 
 ## Extension scenarios
 
-Pick exactly one row and apply its recipe. A change spanning several scenarios applies their recipes sequentially
-rather than interleaved, because the coverage check reports one structure at a time.
+Pick exactly one row and apply its recipe. A change spanning several scenarios applies their recipes sequentially.
 
 | Scenario                | Blocking upstream half                                                               | Recipe                                                                                          |
 |-------------------------|--------------------------------------------------------------------------------------|-------------------------------------------------------------------------------------------------|
@@ -234,21 +231,24 @@ section of `sollertia-forgery/CLAUDE.md`, and it runs strictly upstream to downs
    fields are all owned upstream. Hand off to `assets:library-extension` and wait for its checklist to complete.
 2. **The moment an acquisition-system member lands upstream, this library stops importing.** Its coverage check
    measures against `frozenset(AcquisitionSystems)`, so every import path reaching `registries.py` fails until the
-   thirteen donations are wired. That break is expected and is the checklist for step 3.
+   thirteen donations are wired.
 3. **Wire the donations here.** Apply the recipe for the scenario until the import gates in the verification
    checklist below all pass.
 4. **The acquisition side must record the data before anything here can process it.** A donation reads artifacts the
    acquisition runtime writes, so a system or a session type is not processable until `sollertia-experiment` runs it.
-   That library carries no import-time check, so this handoff is verified by hand. Hand off to
-   `experiment:library-extension` for the runtime, and to `experiment:pipeline` for the acquisition run that produces
-   the first processable session.
+   That library checks only each system's session-type settings at import, so the rest of this handoff is verified by
+   hand. Hand off to `experiment:library-extension` for the runtime, and to `experiment:pipeline` for the acquisition
+   run that produces the first processable session.
 5. **A dependency's release lands before a stage that wraps it.** A stage backed by a cindra, video-system, or
-   communication-interface binding needs that library released first, then reuses its exported job-name constant and
-   its declared resource figures rather than minting local ones.
+   communication-interface binding needs that library released first, then reuses its exported job-name constant and its
+   declared resource figures.
 
-The gate between steps 1 and 3 is that `python -c "import sollertia_shared_assets"` succeeds and the new member
-appears in `assets:library-extension`'s introspection tools. The gate between steps 3 and 4 is that `slf --help`
-prints, which is what runs all three of this library's checks.
+The gate between steps 1 and 3 is that `python -c "import sollertia_shared_assets"` succeeds and the new member appears
+in `assets:library-extension`'s introspection tools. The gate between steps 3 and 4 is that `slf --help` prints.
+
+A lab extending the platform from its own forks keeps every pin and labels each edited fork locally, as described in
+`assets:library-extension`'s extending-from-forks reference. The `sollertia-shared-assets>=10.0.0,<11` pin here accepts
+a labeled fork unchanged inside the shared editable environment.
 
 ---
 
@@ -284,40 +284,37 @@ extension checks against it.
 
 ### Step 1: Identify the scenario and its blocking upstream half
 
-Pick exactly one row of the scenario table and read the upstream column. A scenario with a blocking half does not start
-here, and attempting the forgery half first produces an unimportable library that has no member to wire.
+Read the upstream column of the chosen scenario row. A scenario with a blocking half does not start here, and attempting
+the forgery half first produces an unimportable library that has no member to wire.
 
 ### Step 2: Land the upstream change
 
-Hand off to `assets:library-extension` and confirm its checklist completed. Confirm the acquisition-side plan with
-`experiment:library-extension` in parallel, since that half is required before the first session is processable even
-though it blocks no import here.
+Complete step 1 of **Cross-repository ordering**. Confirm the acquisition-side plan with `experiment:library-extension`
+in parallel, since that half is required before the first session is processable even though it blocks no import here.
 
 ### Step 3: Apply the code touches
 
-Work through [references/extension-recipes.md](references/extension-recipes.md) for the scenario, in the order it
-lists. Re-import after each registry entry, since the coverage check names one gap at a time. Then run the test
-suite, because every touch point under "What the checks do not catch" needs explicit coverage.
+Work through [references/extension-recipes.md](references/extension-recipes.md) for the scenario, in the order it lists.
+Re-import after each registry entry. Then run the test suite, because every touch point under "What the checks do not
+catch" needs explicit coverage.
 
 ### Step 4: Apply the documentation and skill touches
 
 Add the `docs/source/api.rst` section or `autodata` directive the recipe names, add a new `*_tools.py` module to the
-coverage omit list in `pyproject.toml`, then walk the cross-skill touch table and apply every update the scenario
-names. Record concrete per-system material in that system's own schema skill rather than in a skill of this plugin,
-which is acquisition-system-agnostic by contract.
+coverage omit list in `pyproject.toml`, then walk the cross-skill touch table and apply every update the scenario names.
+Record concrete per-system material in that system's own schema skill.
 
 ### Step 5: Verify
 
-Run the verification checklist below. The import gates are the safety net for registry membership, the dispatch table,
-and the manifest columns and their rosters, and the manual items cover everything the gates do not reach.
+Run the verification checklist below.
 
 ### Citing source in a skill edit
 
-A citation in this skill, and in every skill edit a recipe names, gives the asset name rather than its line number.
-Line numbers drift as unrelated code above them moves, and a drifted citation points at the wrong asset while still
-reading as authoritative. Naming the asset means naming the module plus one of the identifiers it declares, which is
-a class, a method, a function, a dataclass field, an enum, an enum member, or a constant. The module path alone
-suffices when the whole module is the subject.
+A citation in this skill, and in every skill edit a recipe names, gives the asset name. Line numbers drift as unrelated
+code above them moves, and a drifted citation points at the wrong asset while still reading as authoritative. Naming the
+asset means naming the module plus one of the identifiers it declares, which is a class, a method, a function, a
+dataclass field, an enum, an enum member, or a constant. The module path alone suffices when the whole module is the
+subject.
 
 | Rejected                | Correct                                                            |
 |-------------------------|--------------------------------------------------------------------|
@@ -337,7 +334,7 @@ Cross-document references follow the same rule. Cite a README or a CLAUDE.md by 
 | Treating a system that produces no data of a class as exempt | See **The registry model**                                                                                                                                                  |
 | Adding a stage and stopping at the pipeline                  | A stage also needs a core allocation, a sizing model with its routing branch and its mapped term, and a `_PIPELINE_JOB_NAMES` entry, none of which any check reaches        |
 | Adding a per-session pipeline without its manifest column    | The declaring mapping and five further rosters name the column, and `_assert_status_column_coverage()` refuses the import until every one carries it, one message at a time |
-| Minting a local job-name string for a dependency's stage     | The dependency exports the constant and its resource figures, and a local copy drifts the moment either is retuned                                                          |
+| Minting a local job-name string for a dependency's stage     | See **Cross-repository ordering**                                                                                                                                           |
 | Registering a closure or a bound method as a donated worker  | The forging assemblers and the module parsers cross a process boundary, so a donation that is not a picklable module-level function fails at dispatch                       |
 | Adding a per-system section to a skill in this plugin        | See **Step 4: Apply the documentation and skill touches**                                                                                                                   |
 | Minting a per-system registry with no coverage-tuple row     | See **The registry model**                                                                                                                                                  |
@@ -359,7 +356,7 @@ marketplaces. Every other entry resolves inside the sollertia marketplace.
 | `/dataset-forging`                              | Owns the forging pipeline whose reach a new admission entry widens                                      |
 | `/batch-processing`                             | Owns running the pipelines and stages an extension adds                                                 |
 | `/job-planning`                                 | Owns the resource model a new job type joins through `_PIPELINE_JOB_NAMES`                              |
-| `/project-state`                                | Owns the project manifest a new per-session pipeline adds a status column to                            |
+| `/project-state`                                | Owns the project manifest that gains a status column for every new per-session pipeline                 |
 | `/processing-input-format`                      | Owns the acquired artifacts a new donation or pipeline reads                                            |
 | `/processing-results`                           | Owns the outputs a new stage or pipeline writes                                                         |
 | `/cli-reference`                                | Owns the `slf` surface a new subcommand or stage flag joins                                             |
@@ -432,7 +429,7 @@ Code side:
 - [ ] A newly minted registry carries its donation Protocol, its resolve_* accessor, its __all__ export, and its
       pair in the tuple _assert_registry_coverage() iterates
 - [ ] No new per-session file was added to a forged dataset, or the change to reexported_assets and DatasetFiles was
-      escalated to the human supervisor rather than worked around
+      escalated to the human supervisor
 - [ ] Every touch point under "What the checks do not catch" that this scenario reaches carries a test
 - [ ] A new system or category package has a mirrored tests/ package, and a new system was added to the per-system
       assertions in tests/registry_coverage_test.py
@@ -450,16 +447,16 @@ Code side, command-settled (run the three package imports, `slf --help`, `slf mc
 Skill side:
 - [ ] No acquisition-system-specific file name, column, or session type appears in this skill
 - [ ] Walked the cross-skill touch table and applied every update the scenario names
-- [ ] Concrete per-system material recorded in that system's own companion plugin, not in a forging skill
+- [ ] Concrete per-system material recorded in that system's own schema skill
 - [ ] No other forging skill gained an acquisition-system-specific file, column, or session type
 - [ ] Cross-references between the touched skills still resolve to a skill on the authoritative roster
-- [ ] Every citation added to a touched skill names the asset or the section heading rather than a line
+- [ ] Every citation added to a touched skill names the asset or the section heading
 
 Downstream side:
 - [ ] The acquisition runtime writes every artifact the new donations read, confirmed with
-      experiment:library-extension by hand, since that library carries no import-time check
+      experiment:library-extension by hand, since that library checks only its session-type settings at import
 - [ ] A dependency's release landed before any stage that wraps one of its bindings
 - [ ] Every handoff the recipe names is listed in the pull request description
 - [ ] The sollertia-forgery version is bumped and its sollertia-shared-assets pin updated when a scenario
-      changed the upstream contract
+      changed the upstream contract, or the fork carries a local version label with every pin unchanged
 ```
