@@ -14,17 +14,12 @@ user-invocable: false
 Documents the field-level schema of Mesoscope-VR's session descriptors and hardware-state snapshot, Mesoscope-VR's
 concrete instance of the universal per-system session-record contract.
 
-Descriptors, hardware-state, trial-types, experiment-config, and raw-data are a **universal per-system contract**, and
-every Sollertia acquisition system is expected to define its own concrete schema for each. The system-agnostic core,
-meaning the generic create/write/validate/describe tools and the dispatch registries (`DESCRIPTOR_REGISTRY`,
-`HARDWARE_STATE_REGISTRY`, `SYSTEM_SESSION_TYPES`, `SESSION_TYPES_USING_VR_TASK`), lives in the `assets` plugin. This
-skill owns only Mesoscope-VR's **concrete instance** of that contract, meaning the actual fields, types, defaults, and
-enums the Mesoscope-VR system writes to disk.
+Descriptors, hardware state, trial types, the experiment configuration, and `raw_data` are a **universal per-system
+contract**, and every Sollertia acquisition system is expected to define its own concrete schema for each.
 
 The dataclasses documented here live in `sollertia-shared-assets` (`mesoscope_vr/runtime_data.py`), and are registered
-in `registries.py`. Both files are the authoritative source of truth. Read them if a field detail is in doubt, rather
-than trusting a stale table here. Each class is importable as `from sollertia_shared_assets import <Name>` or from
-`sollertia_shared_assets.mesoscope_vr`.
+in `registries.py`. Both files are the source of truth. Read them if a field detail is in doubt. Each class is
+importable as `from sollertia_shared_assets import <Name>` or from `sollertia_shared_assets.mesoscope_vr`.
 
 ---
 
@@ -71,8 +66,6 @@ the parsing dataclass changes.
 
 `SYSTEM_SESSION_TYPES[MESOSCOPE_VR]` claims all four session types. `SESSION_TYPES_USING_VR_TASK` contains only
 `MESOSCOPE_EXPERIMENT`, so only experiment sessions also write a `vr_configuration.yaml` task-template snapshot.
-Registry dispatch mechanics are owned by the `assets` plugin, and this skill documents only the resolved Mesoscope-VR
-classes.
 
 This skill is also the worked reference an extender copies when authoring a new acquisition system's
 `<system>/runtime_data.py`. The extension workflow itself is owned by `assets:library-extension`.
@@ -91,20 +84,21 @@ This skill is also the worked reference an extender copies when authoring a new 
 | `window checking`      | `WindowCheckingDescriptor`      | `window_checking_descriptor.yaml`      |
 
 The per-animal persistent cache at `<animal>/persistent_data/` keeps the most recent descriptor of each session type
-under the third column's filename. The cached copy is therefore named after the session type instead of carrying the
-flat `session_descriptor.yaml` name used inside `raw_data`. The Mesoscope-VR acquisition runtime hardcodes those four
-names, and it recovers the previous session's animal weight and water intake from the newest of the three
-non-window-checking caches. `assets:project-hierarchy` owns the `persistent_data` path property itself.
+under the third column's filename. The cached copy is therefore named after the session type. The copy inside
+`raw_data` keeps the flat `session_descriptor.yaml` name. The Mesoscope-VR acquisition runtime reads those names from
+`SESSION_TYPE_SETTINGS` in sollertia-experiment's `mesoscope_vr/system.py`, and it recovers the previous session's
+animal weight and water intake from the newest cache of a session type marked there as recording water intake.
+`assets:project-hierarchy` owns the `persistent_data` path property itself.
 
 ### Shared field contract
 
-All four descriptors share three required-or-defaulted fields, but only three of the four ever clear `incomplete`:
+All four descriptors share three universal fields:
 
-| Field                | Type   | Default                           | Meaning                                                                                                                                                                                                                              |
-|----------------------|--------|-----------------------------------|--------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
-| `experimenter`       | `str`  | (required, no default)            | The ID of the experimenter running the session.                                                                                                                                                                                      |
-| `incomplete`         | `bool` | `True`                            | `True` marks the session as incomplete, so it may carry data gaps and is held back from unsupervised processing. The runtime clears it at a clean session end for every session type except `window checking`, which leaves it set.  |
-| `experimenter_notes` | `str`  | `"Replace this with your notes."` | The experimenter's notes made during runtime.                                                                                                                                                                                        |
+| Field                | Type   | Default                           | Meaning                                                                                                                                                                                                                             |
+|----------------------|--------|-----------------------------------|-------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| `experimenter`       | `str`  | (required, no default)            | The ID of the experimenter running the session.                                                                                                                                                                                     |
+| `incomplete`         | `bool` | `True`                            | `True` marks the session as incomplete, so it may carry data gaps and is held back from unsupervised processing. The runtime clears it at a clean session end for every session type except `window checking`, which leaves it set. |
+| `experimenter_notes` | `str`  | `"Replace this with your notes."` | The experimenter's notes made during runtime.                                                                                                                                                                                       |
 
 Every registered descriptor must declare `incomplete`, a platform contract enforced at import and owned by
 `assets:library-extension`.
@@ -139,9 +133,6 @@ fields follow.
 | `water_reward_size_ul`      | `float` | `5.0`   | Water volume, in microliters, dispensed on each reward of the training's pseudorandom reward-delay sequence. |
 | `reward_tone_duration_ms`   | `int`   | `300`   | Duration, in milliseconds, of the reward auditory tone.                                                      |
 
-Plus the shared non-window-checking fields (`animal_weight_g`, `maximum_unconsumed_rewards`, the three water-total
-floats) and the three universal fields (`experimenter`, `incomplete`, `experimenter_notes`).
-
 #### `RunTrainingDescriptor`
 
 | Field                              | Type    | Default | Meaning                                                                                                              |
@@ -155,12 +146,9 @@ floats) and the three universal fields (`experimenter`, `incomplete`, `experimen
 | `run_duration_increase_step_s`     | `float` | `0.1`   | Duration-threshold increment, in seconds, applied per `increase_threshold_ml`.                                       |
 | `maximum_water_volume_ml`          | `float` | `1.0`   | Maximum water volume, in mL, the system may dispense during training.                                                |
 | `maximum_training_time_min`        | `int`   | `40`    | Maximum time, in minutes, the system may run the training.                                                           |
-| `maximum_idle_time_s`              | `float` | `0.3`   | Max time, in seconds, the animal may dip below the speed threshold and still reward.                                 |
+| `maximum_idle_time_s`              | `float` | `0.3`   | Maximum time, in seconds, the animal may spend below the speed threshold and still earn the reward.                  |
 | `water_reward_size_ul`             | `float` | `5.0`   | Water volume, in microliters, dispensed when the animal achieves the required running speed and duration thresholds. |
 | `reward_tone_duration_ms`          | `int`   | `300`   | Duration, in milliseconds, of the reward auditory tone.                                                              |
-
-Plus the shared non-window-checking fields and the three universal fields. Note `maximum_training_time_min` defaults to
-`40` here versus `20` for lick training.
 
 #### `MesoscopeExperimentDescriptor`
 
@@ -176,15 +164,9 @@ owned by `/mesoscope-vr-experiment-schema`, and the trial zone geometry lives on
 |-------------------|-------|---------|-----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
 | `surgery_quality` | `int` | `0`     | Cranial window / surgery quality on a `0`-`3` inclusive scale, `0` non-usable to `3` publication-grade. The range is a convention, not a constraint. `WindowCheckingDescriptor` declares no `__post_init__`, so `write_session_descriptor_tool` accepts an out-of-range integer without error. Validate the value before writing. |
 
-Carries only `experimenter`, `surgery_quality`, `incomplete`, and `experimenter_notes`.
-
-Its `incomplete` stays `True` even on a clean run, because `window_checking_logic` never starts `MesoscopeVRSystem`,
-whose `_generate_session_descriptor` (`mesoscope_vr/system_controller.py`) holds the sole `incomplete = False`
-assignment in `sollertia-experiment`, and `finalize_session_descriptor` does not touch the field. Consumers that gate on
-the field therefore see every window-checking session as incomplete, so `slsa` session inspection reports the status
-`incomplete`. `sollertia-forgery` does not drop the session: manifest building skips only a session whose `raw_data`
-directory is empty, and records a window-checking session with `complete = 0` rather than omitting it. Do not read that
-value as a failed window-checking session. `forging:project-state` owns the manifest surface itself.
+Consumers that gate on `incomplete`, such as `slsa` session inspection and the `sollertia-forgery` manifest
+(`forging:project-state`), see every window-checking session as incomplete. Do not read that value as a failed
+window-checking session. `/mesoscope-vr-runtime` owns the runtime flow that leaves the field set.
 
 ---
 
@@ -194,12 +176,13 @@ value as a failed window-checking session. `forging:project-state` owns the mani
 
 `MesoscopeHardwareState` is the Mesoscope-VR instance of the per-system hardware-state contract, registered in
 `HARDWARE_STATE_REGISTRY` keyed by `AcquisitionSystems.MESOSCOPE_VR`, whose string value is `mesoscope`, the value every
-`acquisition_system` tool argument expects. The member name is not accepted. The snapshot is written to
-`hardware_state.yaml`. Every field defaults to `None`, and `None` means **"the corresponding hardware module was not
-used by the executed runtime"** rather than "missing data". That convention is load-bearing for downstream pipelines and
-MUST be preserved on any amendment. The convention is also unenforced, because `MesoscopeHardwareState` declares no
+`acquisition_system` tool argument expects. Every field defaults to `None`, and `None` means **"the corresponding
+hardware module was not used by the executed runtime"**. You MUST preserve that convention on any amendment, because
+downstream pipelines rely on it. The convention is also unenforced, because `MesoscopeHardwareState` declares no
 `__post_init__`, so `write_session_hardware_state_tool` performs a shape check only and accepts a value that contradicts
-it. Validate the snapshot against the population table below before writing.
+it. Validate the snapshot against the population table below before writing. A numeric value in a field that the table
+leaves `None` implies a hardware module was used when it was not, which misinforms the processing pipeline's eligibility
+checks.
 
 | Field                         | Type                     | Default | Meaning                                                                              |
 |-------------------------------|--------------------------|---------|--------------------------------------------------------------------------------------|
@@ -218,9 +201,9 @@ it. Validate the snapshot against the population table below before writing.
 ### Per-session-type applicability and field population
 
 The hardware-state file exists only for session types whose runtime **exercises hardware modules**. Window-checking
-sessions never produce a `hardware_state.yaml`, and reading it for one fails with a missing-file error by design rather
-than by corruption. Which fields are populated versus left `None` is deterministic per session type, a runtime-side
-convention owned by `/mesoscope-vr-runtime` as the producer. The table below records the resulting schema state.
+sessions never produce a `hardware_state.yaml`, and reading it for one fails with a missing-file error by design. Which
+fields are populated versus left `None` is deterministic per session type, a runtime-side convention owned by
+`/mesoscope-vr-runtime` as the producer.
 
 | Session type           | Populated fields                                                                                                                                      | Left as `None`                                                                                                               |
 |------------------------|-------------------------------------------------------------------------------------------------------------------------------------------------------|------------------------------------------------------------------------------------------------------------------------------|
@@ -229,16 +212,13 @@ convention owned by `/mesoscope-vr-runtime` as the producer. The table below rec
 | `run training`         | `cm_per_pulse`, `lick_threshold`, `valve_scale_coefficient`, `valve_nonlinearity_exponent`, `delivered_gas_puffs=False`, `system_state_codes`.        | `maximum_brake_strength`, `minimum_brake_strength`, `torque_per_adc_unit`, `screens_initially_on`, `recorded_mesoscope_ttl`. |
 | `window checking`      | (no file produced, see above)                                                                                                                         | n/a                                                                                                                          |
 
-When amending a snapshot, set fields that the matching session type leaves as `None` to `None`. A numeric value would
-imply a hardware module was used when it was not, misinforming the processing pipeline's eligibility checks.
-
 ### The `delivered_gas_puffs` derivation
 
 `delivered_gas_puffs` is **not** a direct measurement. For `mesoscope experiment` sessions it is derived, holding `True`
 when at least one `MesoscopeGasPuffTrial` appears in the experiment configuration's `trial_structures` and `False`
 otherwise. For lick-training and run-training it is fixed `False`, because those runtimes never deliver gas puffs. The
 `trial_structures` source and `MesoscopeGasPuffTrial` shape belong to the experiment configuration (see
-`/mesoscope-vr-experiment-schema`), and this skill documents only the derived hardware-state value.
+`/mesoscope-vr-experiment-schema`).
 
 ---
 
@@ -250,8 +230,8 @@ field, because every Mesoscope-VR module parser is gated on one. The surrounding
 and this section owns the field itself.
 
 1. **Append the field to `MesoscopeHardwareState`** in `mesoscope_vr/runtime_data.py`, carrying the `| None` union, the
-   `None` default, and the unit-bearing docstring every existing field carries. Appending rather than inserting keeps
-   the YAML key order of already written snapshots aligned with the class.
+   `None` default, and the unit-bearing docstring every existing field carries. Appending keeps the YAML key order of
+   already written snapshots aligned with the class.
 2. **Decide which eligibility group the field joins.** A calibration constant or a recorded state value belongs in the
    parser's `required_fields`, where only `None` disqualifies the module, so a legitimate `False` such as
    `screens_initially_on` still parses. A boolean recording whether the module was used at all belongs in
@@ -259,28 +239,33 @@ and this section owns the field itself.
 3. **Set the field in every session type that drives the module**, and leave it `None` in the rest, then extend the
    population table above with the result. The runtime writes the snapshot from three hand-written per-session-type
    branches, and `/mesoscope-vr`'s modification workflow names that edit site.
-4. **Regenerate the checked-in stub** with `tox -e stubs` in `sollertia-shared-assets`, which refreshes
+4. **Regenerate the checked-in stub** by running `tox -e stubs` in `sollertia-shared-assets`. The command refreshes
    `mesoscope_vr/runtime_data.pyi` next to the source module. Skipping this step ships a stale stub with the release.
 5. **Bump the `sollertia-shared-assets` version** in its `pyproject.toml`, then raise the pin in both consumers, the
    `sollertia-experiment` pin behind the runtime that writes the snapshot and the `sollertia-forgery` pin behind the
    parsers that read it. A consumer resolved below the bump loads a `MesoscopeHardwareState` that lacks the field, the
-   eligibility check reads the absent attribute as `None`, and the module is skipped rather than reported.
+   eligibility check reads the absent attribute as `None`, and the module is silently skipped.
 
 ---
 
 ## Related skills
 
-| Skill                             | Relationship                                                                                                                                              |
-|-----------------------------------|-----------------------------------------------------------------------------------------------------------------------------------------------------------|
-| `/mesoscope-vr-cli-reference`     | Owns the `sle mesoscope run` commands whose runtime populates these records                                                                               |
-| `assets:session-descriptors`      | Generic owner of the descriptor read/write/validate/describe tools and `DESCRIPTOR_REGISTRY` dispatch.                                                    |
-| `assets:session-hardware-state`   | Generic owner of the hardware-state read/write/validate/describe tools and `HARDWARE_STATE_REGISTRY` dispatch.                                            |
-| `assets:library-extension`        | Owns the platform contract that requires `incomplete`, and the workflow for authoring a new system's `runtime_data.py`.                                   |
-| `/mesoscope-vr-experiment-schema` | Owns the trial classes and `trial_structures` behind the `delivered_gas_puffs` derivation, and the `REST`/`RUN` codes stored in `system_state_codes`.     |
-| `/mesoscope-vr-module-parsing`    | Consumes the null convention through `check_eligibility` when selecting module parsers.                                                                   |
-| `/mesoscope-vr-runtime`           | Owns the runtime behavior that populates, seeds, and completes these records (state machine, threshold seeding).                                          |
-| `/mesoscope-vr-snapshots`         | Sibling per-session records, the frozen Zaber and mesoscope-objective position snapshots, and routes descriptor and hardware-state schema questions here. |
-| `/mesoscope-vr`                   | Mesoscope-VR hardware composition and configuration that backs the populated hardware-state fields.                                                       |
+| Skill                             | Relationship                                                                                                                                                       |
+|-----------------------------------|--------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| `/mesoscope-vr-cli-reference`     | Owns the `sle mesoscope run` commands whose runtime populates these records                                                                                        |
+| `assets:session-descriptors`      | Generic owner of the descriptor read/write/validate/describe tools and `DESCRIPTOR_REGISTRY` dispatch.                                                             |
+| `assets:session-hardware-state`   | Generic owner of the hardware-state read/write/validate/describe tools and `HARDWARE_STATE_REGISTRY` dispatch.                                                     |
+| `assets:library-extension`        | Owns the platform contract that requires `incomplete`, and the workflow for authoring a new system's `runtime_data.py`.                                            |
+| `assets:project-hierarchy`        | Owns path resolution, including the `persistent_data` path property behind the descriptor caches.                                                                  |
+| `assets:session-discovery`        | Owns session discovery under a project root.                                                                                                                       |
+| `assets:session-data`             | Owns the `SessionData` marker file and the session inspection that reads `incomplete`.                                                                             |
+| `assets:task-templates`           | Owns the task template's `TrialStructure` in `vr_configuration.yaml`, which holds the trial zone geometry.                                                         |
+| `/mesoscope-vr-experiment-schema` | Owns the trial classes and `trial_structures` behind the `delivered_gas_puffs` derivation, and the `REST`/`RUN` codes stored in `system_state_codes`.              |
+| `/mesoscope-vr-module-parsing`    | Consumes the `None` = "module not used" convention through `check_eligibility` when selecting module parsers.                                                      |
+| `/mesoscope-vr-runtime`           | Owns the runtime behavior that populates, seeds, and completes these records (state machine, threshold seeding).                                                   |
+| `/mesoscope-vr-snapshots`         | Owns the sibling per-session records, the frozen Zaber and mesoscope-objective position snapshots, and routes descriptor and hardware-state schema questions here. |
+| `/mesoscope-vr`                   | Mesoscope-VR hardware composition and configuration that backs the populated hardware-state fields.                                                                |
+| `forging:project-state`           | Owns the session manifest that records a window-checking session as incomplete.                                                                                    |
 
 ---
 
@@ -296,17 +281,17 @@ Tool-settled (run `rg -n '.{121,}' <file>` and `wc -l <file>`):
 Session schema:
 - [ ] Field names, types, and defaults match sollertia-shared-assets/mesoscope_vr/runtime_data.py exactly
 - [ ] Descriptor to SessionTypes mapping matches DESCRIPTOR_REGISTRY in registries.py
-- [ ] Persistent-cache filenames listed for all four session types and marked as runtime-hardcoded
+- [ ] Persistent-cache filenames listed for all four session types and marked as read from SESSION_TYPE_SETTINGS
 - [ ] WindowCheckingDescriptor documented as omitting animal_weight_g and carrying only surgery_quality (0-3)
 - [ ] surgery_quality and the hardware-state None rule both documented as unenforced conventions
 - [ ] incomplete documented with True meaning incomplete and held back from unsupervised processing
-- [ ] Shared experimenter / animal_weight_g / incomplete / experimenter_notes contract stated correctly
+- [ ] Shared-field tables match the universal and non-window-checking fields in runtime_data.py for each descriptor
 - [ ] MesoscopeHardwareState documented with all 11 fields and the None = "module not used" convention
 - [ ] AcquisitionSystems.MESOSCOPE_VR documented as the string value "mesoscope"
 - [ ] Per-session-type hardware-state population table matches the producer convention (window-checking = no file)
 - [ ] delivered_gas_puffs documented as derived from MesoscopeGasPuffTrial in trial_structures (experiment only)
-- [ ] A new hardware-state field carries a None default, joins required_fields or usage_flags deliberately, and is
-      reflected in the per-session-type population table
+- [ ] A new hardware-state field carries a None default, joins required_fields (calibration constant or recorded state
+      value) or usage_flags (module-used boolean) per step 2, and is reflected in the per-session-type population table
 - [ ] A new hardware-state field was followed by tox -e stubs, a sollertia-shared-assets version bump, and raised
       pins in sollertia-experiment and sollertia-forgery
 - [ ] Generic tool mechanics deferred to assets:session-descriptors and assets:session-hardware-state, not re-documented

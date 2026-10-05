@@ -10,7 +10,7 @@ and the workflow for adding a new runtime mode.
 
 `preprocess_session_data(session_data)` (`mesoscope_vr/data_preprocessing.py`) is the Mesoscope-VR orchestration around
 the shared primitives that `experiment:data-management` owns. A session whose `nk.bin` marker survives never finished
-initialization, so it is purged instead of preprocessed, and each destination listed in
+initialization, so `preprocess_session_data` purges it and returns. For every other session, each destination listed in
 `MesoscopeData.unconfigured_destinations` produces one WARNING.
 
 | Order | Step                                                              | Owner                       |
@@ -30,8 +30,7 @@ Steps 5 through 8 run inside a `try` whose `except BaseException` calls `_termin
 so an abort never abandons the child holding the GPU. The terminator also removes the `.h5` and companion pickle outputs
 of a child that did not exit cleanly, and the transient log of one that did. The prediction file is written in place, so
 a child that died inside that write leaves a partial file the next run would otherwise reuse. Constants:
-`_PREPROCESSING_WORKER_COUNT` is
-`resolve_worker_count(reserved_cores=1)`, `_STORAGE_TRANSFER_THREAD_COUNT = 15`,
+`_PREPROCESSING_WORKER_COUNT` is `resolve_worker_count(reserved_cores=1)`, `_STORAGE_TRANSFER_THREAD_COUNT = 15`,
 `_FACE_TRACKING_TERMINATION_TIMEOUT = 30.0` seconds, and `_INFERENCE_LOG_TAIL_CHARACTERS = 2000`.
 
 ---
@@ -42,27 +41,29 @@ a child that died inside that write leaves a partial file the next run would oth
   session path is absent and the shared path holds files, then recreates an empty shared directory.
 - `_launch_face_tracking` returns `None` when either `conda_environment` or `dlc_project_path` is unset, when a
   `<stem>*eye_tracking*.h5` prediction file already sits beside the face-camera video, or when the face-camera video is
-  missing. An existing prediction is reported at INFO and reused, so removing the prediction files forces a fresh run,
-  and a missing video is reported as a WARNING. Otherwise it runs `conda run -n <env> slvt infer` with `--config-path`,
+  missing. An existing prediction is reported at INFO and reused, so removing the prediction files forces a fresh run. A
+  missing video is reported as a WARNING. Otherwise it runs `conda run -n <env> slvt infer` with `--config-path`,
   `--videos`, `--shuffle`, `--device cuda`, `--gpus 0`, `--batch-size`, `--chunks`, `--compile-model`, `--no-progress`,
   and `--crop` when configured. It writes predictions beside the video in raw `camera_data` and redirects output to a
   temporary log file, because a full pipe buffer would deadlock the long-running child.
-- `_join_face_tracking` waits for the child, then removes the run's `.h5` and companion pickle outputs and raises
-  `RuntimeError` when the exit code is non-zero or no `.h5` prediction file sits beside the video. That error aborts the
-  transfer and retains the local copy for a retry. The transient log is removed on success and retained on failure, and
-  the failure message carries its tail.
-- `_pull_mesoscope_data` raises `RuntimeError` unless `MotionEstimator.me`, `fov.roi`, and `zstack.tiff` are all
-  present, strips `*.bin` markers, creates `raw_data/raw_mesoscope_frames` only after that verification, and then
-  transfers with `remove_source=True`.
-- `_preprocess_mesoscope_directory` re-verifies the same three files, seeds the animal's persistent ScanImagePC
-  `fov.roi` and `MotionEstimator.me` when absent, copies all three into the session `mesoscope_data` directory, and
-  emits `frame_invariant_metadata.json`, `frame_variant_metadata.npz`, and `cindra_parameters.json` alongside the
-  LERC-recompressed frame stacks.
+- `_join_face_tracking` waits for the child and raises `RuntimeError` when the exit code is non-zero or no
+  `<stem>*eye_tracking*.h5` prediction file sits beside the video. Before raising, it removes the run's `.h5` and
+  companion pickle outputs. That error aborts the transfer and retains the local copy for a retry. The transient log is
+  removed on success and retained on failure, and the failure message carries its tail.
+- When the session-specific ScanImagePC directory exists, `_pull_mesoscope_data` raises `RuntimeError` unless
+  `MotionEstimator.me`, `fov.roi`, and `zstack.tiff` are all present, strips `*.bin` markers, creates
+  `raw_data/raw_mesoscope_frames` only after that verification, and then transfers with `remove_source=True`.
+- When `raw_mesoscope_frames` exists, `_preprocess_mesoscope_directory` re-verifies the same three files, seeds the
+  animal's persistent ScanImagePC `fov.roi` and `MotionEstimator.me` when absent, copies all three into the session
+  `mesoscope_data` directory, and emits `frame_invariant_metadata.json`, `frame_variant_metadata.npz`, and
+  `cindra_parameters.json` alongside the LERC-recompressed frame stacks.
 - `_preprocess_google_sheet_data` returns early with a WARNING when neither sheet id is set, otherwise resolves
   `get_credentials(CredentialsTypes.GOOGLE)`, validates the session type against `MESOSCOPE_VR_SESSIONS`, and loads the
-  descriptor through `DESCRIPTOR_REGISTRY`. Window-checking sessions call `update_surgery_quality` with the descriptor
-  value clamped into 0 to 3, and every other session type writes the water log entry from the animal weight and the
-  summed training and experimenter-given volumes. Both handles close in a `finally`.
+  descriptor through `DESCRIPTOR_REGISTRY`. It then snapshots the animal's surgery log entry to `surgery_metadata.yaml`
+  when the surgery sheet is set. Window-checking sessions call `update_surgery_quality` with the descriptor value
+  clamped into 0 to 3. Every session type marked in `SESSION_TYPE_SETTINGS` as recording water intake writes the water
+  log entry from the animal weight and the summed training and experimenter-given volumes. A step whose sheet is unset
+  is skipped with a WARNING, and both handles close in a `finally`.
 
 ---
 
@@ -76,11 +77,11 @@ directory.
 
 `migrate_animal_between_projects(animal, source_project, target_project)` raises `FileNotFoundError` when the target
 project is absent, then picks one of two strategies. With no configured storage destination it relocates each locally
-stored session on premises. With at least one, the first configured destination becomes the source of truth, and each
-session is pulled from that destination, re-preprocessed, and purged against it. Both strategies then relocate the
-ScanImagePC persistent directory at `mesoscope_directory/<project>/<animal>` and the VRPC persistent directory, and
-delete the redundant `<root>/<source_project>/<animal>` directory under the mesoscope mount, the data root, and every
-configured storage root.
+stored session on premises. With at least one, it first preprocesses every local-only session, then makes the first
+configured destination the source of truth, pulling, re-preprocessing, and purging each session against it. Both
+strategies then relocate the ScanImagePC persistent directory at `mesoscope_directory/<project>/<animal>` and the VRPC
+persistent directory, and delete the redundant `<root>/<source_project>/<animal>` directory under the mesoscope mount,
+the data root, and every configured storage root.
 
 `sle mesoscope delete` runs the data-root containment check and then delegates to `purge_session` (the `delete` command
 in `interfaces/mesoscope_vr.py`). It therefore prompts for an interactive confirmation on any session whose `nk.bin`

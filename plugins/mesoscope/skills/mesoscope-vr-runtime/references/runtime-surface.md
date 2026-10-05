@@ -1,8 +1,8 @@
 # Mesoscope-VR runtime surface
 
-Enumerates the per-mode runtime logic functions, the `sle mesoscope` CLI commands that invoke them, and the
-shared-memory surfaces of the two runtime GUIs. See [`../SKILL.md`](../SKILL.md) for the state machine, the
-orchestrator, the session data lifecycle, and the workflow for adding a new runtime mode.
+Enumerates the per-mode runtime logic functions, the `sle mesoscope` CLI commands that invoke them, the orchestrator
+members those functions call, and the shared-memory surfaces of the two runtime GUIs. See [`../SKILL.md`](../SKILL.md)
+for the state machine, the orchestrator, the session data lifecycle, and the workflow for adding a new runtime mode.
 
 ---
 
@@ -36,9 +36,6 @@ Each session-running mode has a top-level function in `mesoscope_vr/data_acquisi
    `experiment_logic` zeroing it between experiment states.
 6. Tears down in a `finally` block that isolates each step and purges a session whose marker survives.
 
-The orchestrator members these loops call are tabulated in [`../SKILL.md`](../SKILL.md), "MesoscopeVRSystem
-orchestrator".
-
 `maintenance_logic()` runs none of steps 1, 2, or 4. It takes no arguments, resolves only `get_system_configuration()`
 in `data_acquisition.py`, and mints no `SessionData` and no descriptor.
 
@@ -64,6 +61,35 @@ All three `MesoscopeVRSystem` logic functions convert an operator abort at the p
 effective threshold to `RUN_TRAINING_THRESHOLD_LIMITS`. `experiment_logic` pre-validates that every experiment state's
 `system_state_code` is `REST` or `RUN` before starting the hardware. All three functions live in
 `mesoscope_vr/data_acquisition.py`.
+
+### Orchestrator consumer API
+
+The per-mode logic functions reach the orchestrator through its public members alone. Every other attribute is private.
+
+| Member                                                                                               | Kind      | Purpose                                                                              |
+|------------------------------------------------------------------------------------------------------|-----------|--------------------------------------------------------------------------------------|
+| `start()`                                                                                            | method    | Runs the semi-interactive sequence that prepares every asset and begins acquisition  |
+| `stop()`                                                                                             | method    | Stops all components and external assets, then ends the session's data acquisition   |
+| `runtime_cycle()`                                                                                    | method    | Carries out one pass of every cyclic runtime task. Loops in place while paused       |
+| `change_runtime_state(new_state)`                                                                    | method    | Updates and logs the acquired session's runtime state code                           |
+| `idle()`                                                                                             | method    | Switches the system to the idle state                                                |
+| `rest()`                                                                                             | method    | Switches the system to the rest state                                                |
+| `run()`                                                                                              | method    | Switches the system to the run state                                                 |
+| `lick_train()`                                                                                       | method    | Switches the system to the lick training state                                       |
+| `run_train()`                                                                                        | method    | Switches the system to the run training state                                        |
+| `resolve_reward(reward_size, tone_duration)`                                                         | method    | Delivers or simulates a water reward, returning whether water was dispensed          |
+| `update_visualizer_thresholds(speed_threshold, duration_threshold)`                                  | method    | Updates the running speed and epoch duration thresholds the visualizer draws         |
+| `publish_runtime_thresholds(speed_threshold, duration_threshold)`                                    | method    | Publishes the thresholds, before the GUI modifier, to the runtime control GUI        |
+| `setup_reinforcing_guidance(initial_guided_trials, recovery_mode_threshold, recovery_guided_trials)` | method    | Configures guidance for reinforcing (water reward) trials                            |
+| `setup_aversive_guidance(initial_guided_trials, recovery_mode_threshold, recovery_guided_trials)`    | method    | Configures guidance for aversive (gas puff) trials                                   |
+| `arm_first_reward()`                                                                                 | method    | Arms the 15 µL floor on the first Unity-requested water reward of a run phase        |
+| `terminated`                                                                                         | property  | Returns True once the system has entered the termination state                       |
+| `running_speed`                                                                                      | property  | Returns the animal's current running speed in centimeters per second                 |
+| `speed_modifier`                                                                                     | property  | Returns the modifier applied to the run training speed threshold                     |
+| `duration_modifier`                                                                                  | property  | Returns the modifier applied to the run training duration threshold                  |
+| `dispensed_water_volume`                                                                             | property  | Returns the water volume, in microliters, dispensed while the runtime was not paused |
+| `paused_time`                                                                                        | attribute | The total seconds spent paused, folded into the logic functions' timing budgets      |
+| `descriptor`                                                                                         | attribute | The session descriptor, cached at construction and completed during the runtime      |
 
 ### Session descriptor consumption
 
@@ -158,7 +184,7 @@ The water-valve and gas-valve `🔓 Open` and `🔒 Close` buttons are all perma
 `_ControlUIWindow._disable_valve_open_close_buttons()`. A 100 ms `QTimer` runs `_check_external_state`, which honors
 `TERMINATION` and mirrors external pause, guidance, setup-complete, and reference-enabled changes. It also re-syncs both
 run-training spinboxes through `_sync_run_training_spinbox` unless the spinbox has focus, and clears the reward and puff
-status labels by watching the **cumulative** tracker totals rather than the live open state.
+status labels by watching the **cumulative** tracker totals.
 
 `runtime_ui.py` also exports the three terminal prompt helpers the teardown path uses, `collect_experimenter_notes`,
 `collect_surgery_quality`, and `collect_experimenter_given_water_volume`.
