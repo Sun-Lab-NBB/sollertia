@@ -4,7 +4,7 @@ description: >-
   Documents the Mesoscope-VR pupil-tracking pass and video sub-dataset assembler donated to the sollertia-forgery video
   and forging pipelines. Covers the pose-prediction locator, the thirteen canonical bodyparts and the ring-ellipse fit,
   the nineteen pupil columns with the blink and dilation partition, and the per-camera video sub-dataset with its
-  interpolation split and slowest-camera clock. Use when interpreting the face-camera pupil feather, tracing a NaN or a
+  resampling split and slowest-camera clock. Use when interpreting the face-camera pupil feather, tracing a NaN or a
   blink flag back to its rule, or debugging the video columns of a forged dataset.
 user-invocable: false
 ---
@@ -14,7 +14,7 @@ user-invocable: false
 Documents the two Mesoscope-VR modules that turn face-camera and body-camera recordings into per-frame metrics, and then
 into the video columns of a forged dataset. `sollertia_forgery.mesoscope_vr.video_tracking` post-processes the
 externally-produced DeepLabCut predictions into `face_camera_pupil.feather`, and
-`sollertia_forgery.mesoscope_vr.video_dataset` interpolates every per-camera feather onto the assembly reference clock.
+`sollertia_forgery.mesoscope_vr.video_dataset` resamples every per-camera feather onto the assembly reference clock.
 
 The token `video_tracking` names two different things on the two sides of the platform. On the acquisition side it is
 the `MesoscopeVideoTracking` configuration section that runs `slvt infer` during preprocessing and writes the DeepLabCut
@@ -37,7 +37,7 @@ consumer, and the two live in different libraries.
 - The three derived geometry formulas, the openness baseline, the blink rule, and the measured, dilated, or blinked
   partition of every frame
 - `PupilColumn`, the nineteen columns of `face_camera_pupil.feather`, their dtypes, and their per-column NaN masks
-- `assemble_video_dataset`, the two camera sources, the output column naming, the interpolation split, the row-count
+- `assemble_video_dataset`, the two camera sources, the output column naming, the resampling split, the row-count
   mismatch error, and the empty-frame return
 - `resolve_slowest_camera_clock`, its minimum frame count, its rate comparison, its echo, and its failure
 
@@ -299,7 +299,7 @@ because it has none.
 ## The video sub-dataset
 
 `assemble_video_dataset(video_data_path, reference_time)` in `mesoscope_vr/video_dataset.py` reads the fixed camera
-set from the processed video-data directory and interpolates every present feather onto the reference time vector.
+set from the processed video-data directory and resamples every present feather onto the reference time vector.
 `_CAMERA_SOURCES` is a fixed two-entry tuple of frozen `_CameraSource` records, and only the face camera carries the
 eye, so only it names a pupil file.
 
@@ -319,12 +319,17 @@ Output column naming differs between the two feather kinds. Energy columns are e
 `body_camera_frame_luminance`. Pupil columns are iterated verbatim off `pupil_frame.columns`, so they reach the
 dataset under their bare `PupilColumn` names with no camera prefix.
 
-Interpolation splits two ways, by whether the value has a meaningful linear blend:
+Resampling splits three ways, by whether the value records brief events and whether it has a meaningful linear blend:
 
-| Source values                                  | Mode          | Call                | Stored dtype |
-|------------------------------------------------|---------------|---------------------|--------------|
-| Motion energy, frame luminance, pupil geometry | Linear        | `is_discrete=False` | `float32`    |
-| `blinking_state`, `dilation_state`             | Nearest prior | `is_discrete=True`  | `uint8`      |
+| Source values                      | Mode           | Call                                  | Stored dtype |
+|------------------------------------|----------------|---------------------------------------|--------------|
+| Motion energy                      | Window maximum | `frame_windows.resolve_window_maxima` | `float32`    |
+| Frame luminance, pupil geometry    | Linear         | `is_discrete=False`                   | `float32`    |
+| `blinking_state`, `dilation_state` | Nearest prior  | `is_discrete=True`                    | `uint8`      |
+
+Motion energy takes the largest value among the camera frames acquired in each sample's window `(t[i - 1], t[i]]`,
+because a movement bout can span fewer camera frames than one reference interval holds. The maximum skips not-a-number
+frames, and a window holding no camera frame takes the linearly interpolated value.
 
 The two flags are the members of `_PUPIL_FLAG_COLUMNS`, and they take the nearest prior frame's value because a
 boolean state cannot be linearly blended. Linear interpolation propagates a not-a-number source value to the samples
@@ -419,7 +424,8 @@ Tracking pass:
 
 Video sub-dataset:
 - [ ] Energy columns were named camera_source and pupil columns were left unprefixed
-- [ ] The two state flags were treated as nearest-prior uint8 and every other value as linear float32
+- [ ] Motion energy was treated as the window maximum, the two state flags as nearest-prior uint8, and every other
+      value as linear float32
 - [ ] A row-count mismatch was reported against the named timestamp feather rather than silently trimmed
 - [ ] An empty video dataset was read as a session processed without video, not as an assembly failure
 - [ ] The slowest-camera clock was cited only for training sessions
