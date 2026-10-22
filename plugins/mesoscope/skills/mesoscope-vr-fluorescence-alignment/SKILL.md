@@ -12,7 +12,7 @@ user-invocable: false
 
 Documents how the Mesoscope-VR dataset-forging pipeline aligns two-photon fluorescence frames to the
 microcontroller-logged frame-acquisition TTL pulses, building the frame-indexed reference clock onto which the
-experiment session assembly interpolates every other stream.
+experiment session assembly resamples every other stream.
 
 This is the concrete Mesoscope-VR instance of the agnostic processing-stage seam owned by the forging plugin. The
 alignment consumes upstream cindra single-recording and multi-recording fluorescence outputs and the microcontroller

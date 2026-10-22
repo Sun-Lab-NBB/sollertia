@@ -24,6 +24,15 @@ of it takes the linear blend and lands as an interpolated float rather than a st
 
 ---
 
+## Brief-event sources
+
+A new column whose source records events shorter than one reference interval resamples through
+`mesoscope_vr/frame_windows.py`, which summarizes each sample's window `(t[i - 1], t[i]]`. A frame-instant interpolation
+of such a source drops every event that starts and ends between two reference timestamps. `flag_window_onsets` serves a
+binary state, `resolve_window_signed_peaks` a stepwise signed value, and `resolve_window_maxima` a per-frame magnitude.
+
+---
+
 ## String literals against DatasetColumn members
 
 `two_photon_dataset.py` is the only sub-assembler that imports `DatasetColumn`, so the other three name their columns as

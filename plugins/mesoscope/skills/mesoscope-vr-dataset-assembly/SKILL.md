@@ -3,7 +3,7 @@ name: mesoscope-vr-dataset-assembly
 description: >-
   Documents the Mesoscope-VR session-assembly worker and admission policy that sollertia-forgery dispatches through its
   forging registries. Covers the session-type dispatcher, the experiment and training assembly paths, the behavior and
-  runtime interpolation rules, sentinel masking, and the session-bounds clip. Use when interpreting an assembled session
+  runtime resampling rules, sentinel masking, and the session-bounds clip. Use when interpreting an assembled session
   feather, debugging an assembly failure or an unexpected row count, or deciding which session types join a forged
   dataset.
 user-invocable: false
@@ -29,7 +29,7 @@ The column-roster enum definitions themselves (`DatasetColumn`, `BehaviorDataFil
 - `MESOSCOPE_ADMISSION_PIPELINES`, the per-session-type pipeline requirement that decides which sessions join a dataset
 - `assemble_mesoscope_session`, the session-type dispatcher, and the two assembly paths it selects
 - The reference clock each path resolves, and the sub-datasets each path concatenates onto it
-- Behavior-dataset discrete-versus-continuous interpolation, the running-speed sliding window, and reward
+- Behavior-dataset point interpolation and frame-window resampling, the running-speed sliding window, and reward
   classification (`no` / `tone` / `yes`)
 - Behavior-dataset special cases: torque zeroed during run, distance clamping and holding across idle/rest, brake
   binary thresholding, and system-state code inversion from the hardware state
@@ -164,7 +164,7 @@ produces none of the runtime columns that masking rewrites.
 
 ---
 
-## Reference clock and interpolation
+## Reference clock and resampling
 
 | Session type                | Reference clock                                                                   | Produced by                                  |
 |-----------------------------|-----------------------------------------------------------------------------------|----------------------------------------------|
@@ -175,45 +175,45 @@ Both clocks are `uint64` NumPy arrays of microsecond timestamps, and every sub-d
 the clock that path resolved. The slowest camera is chosen for training sessions because every other source
 interpolates onto its coarser grid without inventing samples between its frames.
 
-All alignment is performed by `interpolate_data` from `ataraxis-data-structures`, which maps source values sampled at
-`source_coordinates` onto `target_coordinates`. The `is_discrete` flag selects nearest-previous (step) interpolation
-for `True` and linear interpolation for `False`.
+`interpolate_data` from `ataraxis-data-structures` aligns the discrete sources by nearest-previous (step) interpolation
+(`is_discrete=True`) and the continuous sources linearly (`is_discrete=False`). The window sources resample through
+`mesoscope_vr/frame_windows.py`, which summarizes each sample's window `(t[i - 1], t[i]]`.
 
 See `/mesoscope-vr-fluorescence-alignment` for the fluorescence clock and `/mesoscope-vr-video-tracking` for the
 camera clock and the video sub-dataset.
 
 ---
 
-## Behavior-dataset interpolation rules and special cases
+## Behavior-dataset resampling rules and special cases
 
 `assemble_behavior_dataset(microcontroller_data_path, runtime_data_path, raw_data_path, reference_time, *,
 drop_time_columns=False)` reads its sources from two processed-data directories. The module-parsed feathers (encoder,
 lick, valve, brake, torque, screen) come from the session's `processed_data/microcontroller_data` directory, and the
 runtime system-state feather comes from `processed_data/runtime_data`, both addressed by their `BehaviorDataFiles`
 names. The session's `MesoscopeHardwareState` is read from `raw_data/hardware_state.yaml`. Each source is then
-interpolated onto `reference_time`. `drop_time_columns` is keyword-only and defaults to `False`. The full
+resampled onto `reference_time`. `drop_time_columns` is keyword-only and defaults to `False`. The full
 feather-to-directory mapping is owned by `/mesoscope-vr-processing-schema`.
 
 ### Always-present sources
 
-| Source feather                      | Aligned column        | `is_discrete` | Notes                                                                                                    |
-|-------------------------------------|-----------------------|---------------|----------------------------------------------------------------------------------------------------------|
-| `system_state_data.feather`         | `system_state`        | `True`        | Code series, inverted to names and cast to a Polars Enum (below)                                         |
-| `lick_data.feather`                 | `lick`                | `True`        | Thresholded lick state                                                                                   |
-| `valve_data.feather` (water volume) | `water_uL`            | `True`        | Cast to `Float32`, discrete because the power-law dispensing curve makes linear interpolation inaccurate |
-| `valve_data.feather` (tone state)   | (`reward` derivation) | `True`        | Interpolated into a temporary tone column used only to classify rewards                                  |
+| Source feather                      | Aligned column        | Resampling   | Notes                                                                                                    |
+|-------------------------------------|-----------------------|--------------|----------------------------------------------------------------------------------------------------------|
+| `system_state_data.feather`         | `system_state`        | discrete     | Code series, inverted to names and cast to a Polars Enum (below)                                         |
+| `lick_data.feather`                 | `lick`                | window onset | 1 when a thresholded lick contact began inside the sample's window (`flag_window_onsets`)                |
+| `valve_data.feather` (water volume) | `water_uL`            | discrete     | Cast to `Float32`, discrete because the power-law dispensing curve makes linear interpolation inaccurate |
+| `valve_data.feather` (tone state)   | (`reward` derivation) | discrete     | Interpolated into a temporary tone column used only to classify rewards                                  |
 
 ### Conditional sources
 
 Each of these is included only when its feather exists in the microcontroller-data directory:
 
-| Source feather         | Aligned column | `is_discrete` | Present for                                    |
-|------------------------|----------------|---------------|------------------------------------------------|
-| `encoder_data.feather` | `distance_cm`  | `False`       | All session types except lick training         |
-| `encoder_data.feather` | `speed_cm_s`   | `False`       | Derived from encoder distance (sliding window) |
-| `screen_data.feather`  | `screens`      | `True`        | Mesoscope experiments only                     |
-| `brake_data.feather`   | `brake`        | `True`        | Mesoscope experiments only, then thresholded   |
-| `torque_data.feather`  | `torque_N_cm`  | `False`       | All session types except run training          |
+| Source feather         | Aligned column | Resampling         | Present for                                    |
+|------------------------|----------------|--------------------|------------------------------------------------|
+| `encoder_data.feather` | `distance_cm`  | continuous         | All session types except lick training         |
+| `encoder_data.feather` | `speed_cm_s`   | continuous         | Derived from encoder distance (sliding window) |
+| `screen_data.feather`  | `screens`      | discrete           | Mesoscope experiments only                     |
+| `brake_data.feather`   | `brake`        | discrete           | Mesoscope experiments only, then thresholded   |
+| `torque_data.feather`  | `torque_N_cm`  | window signed peak | All session types except run training          |
 
 ### Running-speed sliding window
 
@@ -473,8 +473,8 @@ Assembly claims:
 - [ ] drop_time_columns is stated as True on the experiment path and False on the training path
 - [ ] MESOSCOPE_ADMISSION_PIPELINES is quoted with its three mapped session types, and window checking is stated
       as absent from the mapping
-- [ ] Every interpolation claim (is_discrete True/False, source vs reference, distance vs time) matches
-      behavior_dataset.py / runtime_dataset.py
+- [ ] Every resampling claim (is_discrete True/False, window summary, source vs reference, distance vs time)
+      matches behavior_dataset.py, runtime_dataset.py, and frame_windows.py
 - [ ] Running-speed window stated as 100 ms (_RUNNING_SPEED_WINDOW_US = 100_000 us) over original encoder samples
 - [ ] Reward classes named exactly no / tone / yes with the correct water-volume condition
 - [ ] Masking attributed to the public mask_non_run_experiment_data, applied only for idle and rest over the
