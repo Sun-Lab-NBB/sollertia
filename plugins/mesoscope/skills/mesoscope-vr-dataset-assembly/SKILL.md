@@ -286,13 +286,13 @@ axis. The training path leaves the `False` default in place, so both time column
 ## Runtime-dataset distance-indexed interpolation and trigger zones
 
 `assemble_runtime_dataset(microcontroller_data_path, runtime_data_path, experiment_configuration, reference_time)`
-runs on the experiment path only. It reads the encoder feather from the microcontroller-data directory and the VR cue,
-trigger zone, trial, and runtime state feathers from the runtime-data directory, and it receives the
+runs on the experiment path only. It reads the encoder feather from the microcontroller-data directory and the VR
+corridor, cue, trigger zone, trial, and runtime state feathers from the runtime-data directory, and it receives the
 `MesoscopeExperimentConfiguration` the experiment path already loaded. Unlike the behavior assembly, several runtime
-columns are indexed by **traveled distance** rather than by time:
+columns are indexed by **traveled distance** in the corridor frame owned by `/mesoscope-vr-trial-decomposition`:
 
-1. The encoder's traveled distance is interpolated onto `reference_time` (`is_discrete=False`) to produce a
-   `reference_distance` vector, the cumulative distance at each reference sample.
+1. `_resolve_corridor_distance` builds a `reference_distance` vector in that frame. Each reference sample is measured
+   from the encoder distance at the onset of the last corridor opened before it, and capped at that corridor's end.
 2. `trial`, `trial_type`, and `cue` are then interpolated against `reference_distance` (their source coordinates are
    the per-trial / per-cue traveled-distance values, not timestamps), all with `is_discrete=True`:
 
@@ -404,17 +404,17 @@ live in [`references/column-emission.md`](references/column-emission.md).
 
 ## Error surface
 
-| Raise                   | Origin                                         | Condition                                                                                                  |
-|-------------------------|------------------------------------------------|------------------------------------------------------------------------------------------------------------|
-| `ValueError`            | `forging.py`                                   | The session type is neither the experiment type nor a member of `_TRAINING_SESSION_TYPES`                  |
-| `FileNotFoundError`     | `experiment_dataset.py`, `training_dataset.py` | The processed microcontroller-data or runtime-data directory does not exist                                |
-| `FileNotFoundError`     | `experiment_dataset.py`                        | The single-recording cindra output directory does not exist                                                |
-| `FileNotFoundError`     | `video_dataset.py`                             | No camera clock qualifies as the training reference clock                                                  |
-| `FileNotFoundError`     | `behavior_dataset.py`                          | The hardware state YAML, or the valve, lick, or system-state feather, is missing                           |
-| `ValueError`            | `behavior_dataset.py`                          | The hardware state is missing `system_state_codes`, or `minimum_brake_strength` when brake data is present |
-| `InvalidOperationError` | `behavior_dataset.py`                          | The system-state feather carries a code absent from the `system_state_codes` mapping                       |
-| `FileNotFoundError`     | `runtime_dataset.py`                           | Any of the five required encoder, VR cue, trigger zone, trial, or runtime state feathers is missing        |
-| `InvalidOperationError` | `runtime_dataset.py`                           | A recorded trial type index or runtime state code has no entry in the experiment configuration's mappings  |
+| Raise                   | Origin                                         | Condition                                                                                                       |
+|-------------------------|------------------------------------------------|-----------------------------------------------------------------------------------------------------------------|
+| `ValueError`            | `forging.py`                                   | The session type is neither the experiment type nor a member of `_TRAINING_SESSION_TYPES`                       |
+| `FileNotFoundError`     | `experiment_dataset.py`, `training_dataset.py` | The processed microcontroller-data or runtime-data directory does not exist                                     |
+| `FileNotFoundError`     | `experiment_dataset.py`                        | The single-recording cindra output directory does not exist                                                     |
+| `FileNotFoundError`     | `video_dataset.py`                             | No camera clock qualifies as the training reference clock                                                       |
+| `FileNotFoundError`     | `behavior_dataset.py`                          | The hardware state YAML, or the valve, lick, or system-state feather, is missing                                |
+| `ValueError`            | `behavior_dataset.py`                          | The hardware state is missing `system_state_codes`, or `minimum_brake_strength` when brake data is present      |
+| `InvalidOperationError` | `behavior_dataset.py`                          | The system-state feather carries a code absent from the `system_state_codes` mapping                            |
+| `FileNotFoundError`     | `runtime_dataset.py`                           | Any of the six required encoder, VR corridor, VR cue, trigger zone, trial, or runtime state feathers is missing |
+| `InvalidOperationError` | `runtime_dataset.py`                           | A recorded trial type index or runtime state code has no entry in the experiment configuration's mappings       |
 
 `InvalidOperationError` is the Polars exception `replace_strict` raises on an unmapped value, so it surfaces as an
 unmapped code rather than as a missing file. The two `FileNotFoundError` rows attributed to `behavior_dataset.py` and
