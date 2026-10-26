@@ -3,16 +3,16 @@ name: mesoscope-vr-trial-decomposition
 description: >-
   Documents Mesoscope-VR's concrete runtime-log decomposition: the runtime message codes, the numba-accelerated greedy
   longest-first cue-sequence-to-trial-motif matching, trial-type and cumulative-distance sequence extraction, and the
-  task-template trial geometry (trigger zones, cue offsets on sequence restart). Use when interpreting the vr_cue,
-  vr_trigger_zone, or trial feathers, or when debugging cue-sequence decomposition failures.
+  task-template trial geometry (trigger zones, cue offsets on sequence restart). Use when interpreting the vr_corridor,
+  vr_cue, vr_trigger_zone, or trial feathers, or when debugging cue-sequence decomposition failures.
 user-invocable: false
 ---
 
 # Mesoscope-VR trial decomposition
 
-Decomposes the Mesoscope-VR runtime log archive into the per-trial behavior feathers (`vr_cue_data.feather`,
-`vr_trigger_zone_data.feather`, `trial_data.feather`) by matching the recorded virtual-reality wall-cue sequence
-against the experiment's trial motifs.
+Decomposes the Mesoscope-VR runtime log archive into the per-trial behavior feathers (`vr_corridor_data.feather`,
+`vr_cue_data.feather`, `vr_trigger_zone_data.feather`, `trial_data.feather`) by matching the recorded virtual-reality
+wall-cue sequence against the experiment's trial motifs.
 
 This skill documents the **forging-side runtime LOG decomposition** implemented in
 `src/sollertia_forgery/mesoscope_vr/runtime.py`. It is **not** the acquisition-side runtime behavior layer (the state
@@ -31,11 +31,12 @@ decomposition, which it delegates to `experiment:vr-driver-interface`, and it ne
 - The `_RUNTIME_PARSER_REGISTRY` donation binding `RUNTIME_SOURCE_ID` and `parse_runtime` to
   `AcquisitionSystems.MESOSCOPE_VR`
 - Decomposing one or more virtual-reality wall-cue sequences into trial motifs via numba-accelerated greedy
-  longest-first matching, and stitching multiple sequences together across distance breakpoints
+  longest-first matching, and stitching multiple sequences end to end at the running totals of their distance
+  snapshots
 - Extracting the trial-type-index sequence and the cumulative trial-end distance sequence
 - Mapping the decomposed trials into trial geometry: per-cue cumulative distances, trigger-zone start and end
   boundaries, and the cue offset applied to the first cue after a sequence start or restart
-- The output schemas for the `vr_cue_data`, `vr_trigger_zone_data`, and `trial_data` feathers
+- The output schemas for the `vr_corridor_data`, `vr_cue_data`, `vr_trigger_zone_data`, and `trial_data` feathers
 - Joining the experiment configuration's ordered trial names to the VR task template's spatial trial geometry
 
 **Does not cover:**
@@ -124,16 +125,14 @@ it. Teaching this parser a new code means adding a branch here and a matching fe
 roster.
 
 A distance-snapshot message is logged from exactly one acquisition-side site: the branch that handles Unity signaling
-runtime termination. That branch emergency-pauses the runtime and records the wheel encoder's traveled distance at that
-moment. Resuming afterwards re-arms Unity through the editor bridge, and the restarted game regenerates the VR wall-cue
-sequence. That regeneration is why each snapshot marks the boundary between two consecutive cue sequences and why its
-float64 value serves as the breakpoint that stitches them together (see below). The `_DISTANCE_SNAPSHOT_CODE` docstring
-in `runtime.py` states the looser "logged when VR wall cue sequence changes", which names the consequence rather than
-the trigger, so the acquisition-side emitter owned by `/mesoscope-vr-runtime` governs when the message is written. A
-termination the operator resolves by ending the session instead of resuming therefore leaves a trailing breakpoint with
-no following sequence. With a single recorded sequence that surplus breakpoint is ignored, since the truncation check
-runs only for sequences before the last. With two or more sequences, the surplus breakpoint makes the breakpoint count
-equal the sequence count and trips the `ValueError` described below.
+runtime termination. That branch emergency-pauses the runtime and records the wheel encoder's traveled distance since
+the current corridor's onset. Resuming afterwards re-arms Unity through the editor bridge, logs the regenerated VR
+wall-cue sequence, and zeroes that distance tracker, so each snapshot measures only the corridor it ends.
+`_export_runtime_data` therefore sums the snapshots into running totals, and each total is the breakpoint at which one
+corridor ends and the next begins (see below). A termination the operator resolves by ending the session instead of
+resuming leaves a trailing snapshot with no following sequence. With a single recorded sequence that surplus snapshot
+is ignored, since the truncation check runs only for sequences before the last. With two or more sequences, the
+surplus snapshot makes the breakpoint count equal the sequence count and trips the `ValueError` described below.
 
 The system-state and runtime-state streams are written to the feathers named by the `SYSTEM_STATE` and
 `RUNTIME_STATE` members of the `BehaviorDataFiles` roster, and the guidance streams use `REINFORCING_GUIDANCE` and
@@ -258,14 +257,20 @@ trigger-zone start distances (float64), the trigger-zone end distances (float64)
 
 ## Output feather schemas
 
-`parse_runtime` writes the three decomposition feathers (uncompressed Arrow IPC) under the names defined by
-the `BehaviorDataFiles` roster. The roster member, on-disk filename, and column schema are:
+`parse_runtime` writes the four decomposition feathers (uncompressed Arrow IPC) under the names defined by the
+`BehaviorDataFiles` roster. The roster member, on-disk filename, and column schema are:
 
-| Roster member     | Filename                       | Columns                                                           |
-|-------------------|--------------------------------|-------------------------------------------------------------------|
-| `VR_CUE`          | `vr_cue_data.feather`          | `vr_cue` (cue id), `traveled_distance_cm` (cumulative distance)   |
-| `VR_TRIGGER_ZONE` | `vr_trigger_zone_data.feather` | `trigger_zone_start_cm`, `trigger_zone_end_cm`                    |
-| `TRIAL`           | `trial_data.feather`           | `trial_type_index`, `traveled_distance_cm` (trial start distance) |
+| Roster member     | Filename                       | Columns                                                             |
+|-------------------|--------------------------------|---------------------------------------------------------------------|
+| `VR_CORRIDOR`     | `vr_corridor_data.feather`     | `time_us` (corridor onset), `traveled_distance_cm` (corridor start) |
+| `VR_CUE`          | `vr_cue_data.feather`          | `vr_cue` (cue id), `traveled_distance_cm` (cumulative distance)     |
+| `VR_TRIGGER_ZONE` | `vr_trigger_zone_data.feather` | `trigger_zone_start_cm`, `trigger_zone_end_cm`                      |
+| `TRIAL`           | `trial_data.feather`           | `trial_type_index`, `traveled_distance_cm` (trial start distance)   |
+
+Every distance column holds the corridor frame, in which each corridor starts where the one before it ended.
+`vr_corridor_data` carries one row per cue sequence. Its `time_us` is the sequence's log timestamp, which marks the
+corridor onset because the acquisition runtime logs each sequence immediately before zeroing its distance tracker. Its
+`traveled_distance_cm` is zero for the first corridor and the preceding breakpoint for every later one.
 
 The `vr_cue` column is the cue/distance pair produced by `_process_trial_sequence`, the trigger-zone columns are its
 trigger start/end arrays, and `trial_data` pairs the `trial_type_index` array (the decomposed trial-type indices)
@@ -308,8 +313,8 @@ Runtime message dispatch:
 - [ ] The length test stated as running first, with the reason testing the session type alongside the
       length would misroute a wall-cue sequence into the state-code chain
 - [ ] Code 6 stated as emitted by the acquisition runtime and left undispatched by parse_runtime
-- [ ] Distance snapshot stated as logged only when Unity signals runtime termination, with the resume that
-      regenerates the cue sequence explaining why each snapshot is a stitching breakpoint
+- [ ] Distance snapshot stated as logged only when Unity signals runtime termination and as counting from the
+      current corridor's onset, with the snapshots summed into running totals that serve as stitching breakpoints
 - [ ] The registry seam named as _RUNTIME_PARSER_REGISTRY, holding (RUNTIME_SOURCE_ID, parse_runtime)
 
 Decomposition and outputs:
@@ -317,8 +322,8 @@ Decomposition and outputs:
       and raises RuntimeError naming the position and next 20 cues, empty or mismatched-breakpoint inputs
       raise ValueError
 - [ ] Cue offset applies only to the first cue after a sequence start or restart (cue_length - cue_offset)
-- [ ] Output feathers named via BehaviorDataFiles (vr_cue_data, vr_trigger_zone_data, trial_data) with the
-      documented columns
+- [ ] Output feathers named via BehaviorDataFiles (vr_corridor_data, vr_cue_data, vr_trigger_zone_data,
+      trial_data) with the documented columns
 - [ ] The experiment-only outputs gated by the combined experiment_configuration and task_template guard
 - [ ] Trial motifs, motif distances, and the cue offset sourced from the task template (task_template.cues,
       task_template.trial_structures, task_template.vr_environment.cue_offset_cm), keyed by cue name

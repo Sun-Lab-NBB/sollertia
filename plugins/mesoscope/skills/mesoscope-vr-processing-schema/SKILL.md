@@ -25,7 +25,7 @@ package boundary into the agnostic forging pipeline, which it reaches through th
 ## Scope
 
 **Covers:**
-- `BehaviorDataFiles`: the fifteen behavior feather filenames the donated parsers write into two processed-data
+- `BehaviorDataFiles`: the sixteen behavior feather filenames the donated parsers write into two processed-data
   directories
 - `VideoDataFiles`: the five per-camera video feather filenames written into `processed_data/video_data`
 - `DatasetColumn`: the fifty assembled-session column names, their five declaration groups, and the presence
@@ -70,6 +70,7 @@ directory, and the runtime parser writes its feathers into `processed_data/runti
 | `RUNTIME_STATE`        | `runtime_state_data.feather`              | Experiment-state code transitions from the acquisition runtime's log archive |
 | `REINFORCING_GUIDANCE` | `reinforcing_guidance_state_data.feather` | Reinforcing guidance-state transitions, written only when any were recorded  |
 | `AVERSIVE_GUIDANCE`    | `aversive_guidance_state_data.feather`    | Aversive guidance-state transitions, written only when any were recorded     |
+| `VR_CORRIDOR`          | `vr_corridor_data.feather`                | Onset time and corridor-frame start distance of each VR corridor             |
 | `VR_CUE`               | `vr_cue_data.feather`                     | VR wall-cue transitions along the corridor                                   |
 | `VR_TRIGGER_ZONE`      | `vr_trigger_zone_data.feather`            | VR trigger-zone entry and exit events                                        |
 | `TRIAL`                | `trial_data.feather`                      | Per-trial trial type index and traveled distance at trial start              |
@@ -299,6 +300,7 @@ enumeration itself, and the `ProcessedData` path properties that resolve its mem
 | `BehaviorDataFiles.RUNTIME_STATE`        | Runtime parsing   | `runtime.py`          | `RUNTIME_DATA`              |
 | `BehaviorDataFiles.REINFORCING_GUIDANCE` | Runtime parsing   | `runtime.py`          | `RUNTIME_DATA`              |
 | `BehaviorDataFiles.AVERSIVE_GUIDANCE`    | Runtime parsing   | `runtime.py`          | `RUNTIME_DATA`              |
+| `BehaviorDataFiles.VR_CORRIDOR`          | Runtime parsing   | `runtime.py`          | `RUNTIME_DATA`              |
 | `BehaviorDataFiles.VR_CUE`               | Runtime parsing   | `runtime.py`          | `RUNTIME_DATA`              |
 | `BehaviorDataFiles.VR_TRIGGER_ZONE`      | Runtime parsing   | `runtime.py`          | `RUNTIME_DATA`              |
 | `BehaviorDataFiles.TRIAL`                | Runtime parsing   | `runtime.py`          | `RUNTIME_DATA`              |
@@ -313,12 +315,12 @@ output like the other seven. It is listed here as such even though its only cons
 
 Four assembly stages read the two filename rosters back, and the union of their outputs is the forged `data.feather`:
 
-| Assembly stage        | Assembling module       | Roster members read                                                                                                  | `DatasetColumn` group emitted       |
-|-----------------------|-------------------------|----------------------------------------------------------------------------------------------------------------------|-------------------------------------|
-| Behavior assembly     | `behavior_dataset.py`   | `SYSTEM_STATE`, `LICK`, `VALVE` always, plus `ENCODER`, `SCREEN`, `BRAKE`, `TORQUE` when present                     | Behavior alignment                  |
-| Runtime assembly      | `runtime_dataset.py`    | `ENCODER`, `VR_CUE`, `VR_TRIGGER_ZONE`, `TRIAL`, `RUNTIME_STATE` always, plus the two guidance feathers when present | Runtime and experiment              |
-| Fluorescence assembly | `two_photon_dataset.py` | `MESOSCOPE_FRAME`, alongside the cindra single-recording and multi-recording arrays                                  | cindra fluorescence                 |
-| Video assembly        | `video_dataset.py`      | Every `VideoDataFiles` member present under `video_data`                                                             | Video motion energy, pupil tracking |
+| Assembly stage        | Assembling module       | Roster members read                                                                                                                 | `DatasetColumn` group emitted       |
+|-----------------------|-------------------------|-------------------------------------------------------------------------------------------------------------------------------------|-------------------------------------|
+| Behavior assembly     | `behavior_dataset.py`   | `SYSTEM_STATE`, `LICK`, `VALVE` always, plus `ENCODER`, `SCREEN`, `BRAKE`, `TORQUE` when present                                    | Behavior alignment                  |
+| Runtime assembly      | `runtime_dataset.py`    | `ENCODER`, `VR_CORRIDOR`, `VR_CUE`, `VR_TRIGGER_ZONE`, `TRIAL`, `RUNTIME_STATE` always, plus the two guidance feathers when present | Runtime and experiment              |
+| Fluorescence assembly | `two_photon_dataset.py` | `MESOSCOPE_FRAME`, alongside the cindra single-recording and multi-recording arrays                                                 | cindra fluorescence                 |
+| Video assembly        | `video_dataset.py`      | Every `VideoDataFiles` member present under `video_data`                                                                            | Video motion energy, pupil tracking |
 
 Two roster facts do not fit either table. `GAS_PUFF` is written by the module parsers and read by no assembler, so it
 reaches no `DatasetColumn` member. `SYSTEM_STATE` and `RUNTIME_STATE` are read a second time after concatenation, by
@@ -335,7 +337,7 @@ producing or consuming stage. This skill owns all three, and the producing and c
 | Skill                                  | Relationship                                                                           |
 |----------------------------------------|----------------------------------------------------------------------------------------|
 | `/mesoscope-vr-module-parsing`         | Producer of the eight microcontroller feathers and owner of their column schemas       |
-| `/mesoscope-vr-trial-decomposition`    | Producer of the seven runtime feathers and owner of their column schemas               |
+| `/mesoscope-vr-trial-decomposition`    | Producer of the eight runtime feathers and owner of their column schemas               |
 | `/mesoscope-vr-video-tracking`         | Producer of the face-camera pupil feather and owner of the pupil-metric definitions    |
 | `/mesoscope-vr-fluorescence-alignment` | Consumer of `MESOSCOPE_FRAME`, producer of the cindra fluorescence columns             |
 | `/mesoscope-vr-imaging-configuration`  | Resolver of the cindra configuration behind those fluorescence columns                 |
@@ -359,7 +361,7 @@ Tool-settled (run `rg -n '.{121,}' <file>` and `wc -l <file>`):
 - [ ] rg -n 'ataraxis@|cindra@' <file> finds nothing
 
 Roster fidelity:
-- [ ] BehaviorDataFiles lists 15 members and VideoDataFiles lists 5, matching metadata.py exactly
+- [ ] BehaviorDataFiles lists 16 members and VideoDataFiles lists 5, matching metadata.py exactly
 - [ ] DatasetColumn lists 50 members across the 5 comment-delimited groups declared in metadata.py
 - [ ] Every column value matches its source spelling, including torque_N_cm, water_uL, and pupil_area_px2
 - [ ] Every member description matches its metadata.py docstring, with no invented unit, transform, or sensor

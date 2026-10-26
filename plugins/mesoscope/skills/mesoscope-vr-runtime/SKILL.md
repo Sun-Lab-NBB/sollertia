@@ -251,7 +251,7 @@ to the `DataLogger`:
 | `2`  | `RUNTIME_STATE`               | The acquired session changed its runtime state                   |
 | `3`  | `REINFORCING_GUIDANCE_STATE`  | The reinforcing-trial guidance state changed                     |
 | `4`  | `AVERSIVE_GUIDANCE_STATE`     | The aversive-trial guidance state changed                        |
-| `5`  | `DISTANCE_SNAPSHOT`           | Total traveled distance at Unity-signaled runtime termination    |
+| `5`  | `DISTANCE_SNAPSHOT`           | Distance traveled since the corridor onset, at Unity termination |
 | `6`  | `MESOSCOPE_ACQUISITION_STATE` | Whether the ScanImagePC is expected to be writing session frames |
 
 A new event gets the next unused code, 7. Downstream behavior processing in the forging plugin consumes these codes.
@@ -287,9 +287,10 @@ finished trial, because the data cycle advances it before the Unity cycle dequeu
 `STIMULUS_TRIGGERED` branch of `_unity_cycle()` counts an aversive trial a success when the puff was **not** delivered,
 and a reinforcing trial a success when the reward was delivered. On `UNITY_TERMINATED` the resume path calls
 `resume_after_unity_restart()`, which re-arms Unity through the bridge and re-fetches the cue sequence, so the operator
-does not press the play button. The driver, its event model, the MQTT contract, the editor bridge, and trial
-decomposition are documented in `experiment:vr-driver-interface`, and the Unity side in `unity:gimbl-framework`,
-`unity:mqtt-contract`, `unity:play-mode`, `unity:task-scenes`, and `unity:scene-setup`.
+does not press the play button. The resume then zeroes the encoder distance tracker, so each corridor counts from its
+own onset. The driver, its event model, the MQTT contract, the editor bridge, and trial decomposition are documented in
+`experiment:vr-driver-interface`, and the Unity side in `unity:gimbl-framework`, `unity:mqtt-contract`,
+`unity:play-mode`, `unity:task-scenes`, and `unity:scene-setup`.
 
 ---
 
