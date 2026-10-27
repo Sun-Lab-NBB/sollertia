@@ -82,10 +82,11 @@ fixes the brake state, the screen state, and which sensors are monitoring.
 sites all sit in `_generate_hardware_state_snapshot()`, which stores the mapping as the `system_state_codes` field of
 `MesoscopeHardwareState` in the session's `hardware_state.yaml` (`mesoscope_vr/system_controller.py`). Downstream
 behavior processing reads it to decode the logged system-state codes. Values 0 through 4 are taken. You should give a
-new state the next unused value, 5. The system tracks two state axes. **System state** is a `MesoscopeVRStates` value
-set by the hardware-state methods and logged through `_change_system_state()` with the `SYSTEM_STATE` code
-(`mesoscope_vr/system_controller.py`). **Runtime state**, the within-session stage, is an integer set by
-`change_runtime_state(new_state)` and logged with the `RUNTIME_STATE` code. A code outside 0 to
+new state the next unused value, 5. A new state in which the wheel encoder reports motion also joins `_ENCODER_STATES`,
+the tuple that `/mesoscope-vr-dataset-assembly` documents. The system tracks two state axes. **System state** is a
+`MesoscopeVRStates` value set by the hardware-state methods and logged through `_change_system_state()` with the
+`SYSTEM_STATE` code (`mesoscope_vr/system_controller.py`). **Runtime state**, the within-session stage, is an integer
+set by `change_runtime_state(new_state)` and logged with the `RUNTIME_STATE` code. A code outside 0 to
 `_MAXIMUM_RUNTIME_STATE_CODE = 255` raises `ValueError`, because the value is serialized as `uint8`, and a non-`IDLE`
 code is cached so a resume restores it. The training modes stamp the runtime state code
 `_GUIDED_RUNTIME_STATE_CODE = 255`, deliberately outside the system-state range.
@@ -437,6 +438,7 @@ When in doubt, re-read the source (`mesoscope_vr/system_controller.py`, `mesosco
 | `/mesoscope-vr-snapshots`               | Zaber and mesoscope position snapshots recorded near the session's end                |
 | `/mesoscope-vr-session-schema`          | Field-level schema for the descriptors and hardware state this runtime populates      |
 | `/mesoscope-vr-experiment-schema`       | Field-level schema for the experiment configuration and trial types this runtime runs |
+| `/mesoscope-vr-dataset-assembly`        | Owns the `_ENCODER_STATES` tuple, which lists every state that reports wheel motion   |
 | `forging:batch-processing`              | Runs the runtime pipeline that decodes the message codes this runtime logs            |
 | `unity:gimbl-framework`                 | Unity-side framework for the VR game engine                                           |
 | `unity:mqtt-contract`                   | Unity-side MQTT topic registration                                                    |
