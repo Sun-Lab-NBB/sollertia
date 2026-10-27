@@ -240,18 +240,17 @@ The temporary tone, active-flag, event-id, water-delta, and per-event-water colu
 ### System-state code inversion
 
 The `MesoscopeHardwareState` supplies a `system_state_codes` mapping (name to code). The assembly inverts it (code to
-name) and casts `system_state` to a Polars Enum built from the mapping's keys, yielding the five descriptive state
-names (`idle`, `rest`, `run`, `lick training`, `run training`). The downstream special cases and the masking test only
-`idle`, `rest`, and `run`. If the hardware state is missing `system_state_codes`, assembly raises a `ValueError`.
+name) and casts `system_state` to a Polars Enum built from the mapping's keys, yielding the five state names (`idle`,
+`rest`, `run`, `lick training`, `run training`). Assembly raises a `ValueError` when that mapping is missing.
 
 ### Torque, distance, and brake special cases
 
 - **Torque zeroed during run:** if `torque_N_cm` is present, its value is set to `0.0` wherever `system_state` is
   `run` (the torque sensor is disabled in the run state).
-- **Distance clamping and holding:** if `distance_cm` is present, the cumulative traveled distance is held constant
-  outside the run state. The initial idle distance (before the system has ever left idle) is forced to `0.0`,
-  distance updates only while `system_state` is `run`, intermediate non-run samples forward-fill the last run value,
-  and any remaining nulls fill to `0.0`. The running speed is simultaneously set to `0.0` outside the run state.
+- **Distance clamping and holding:** if `distance_cm` is present, the traveled distance updates only in the `run` and
+  `run training` states that `_ENCODER_STATES` names, and a new state in which the wheel encoder reports motion joins
+  that tuple. The distance before the first non-idle sample is `0.0`, samples in every other state forward-fill the last
+  encoder-state value, and any remaining nulls fill to `0.0`. The running speed is `0.0` outside those states.
 - **Brake binary threshold:** the brake torque is interpolated (`is_discrete=True`) and converted to a binary `uint8`
   `brake` column, computed as `brake = brake_torque > minimum_brake_strength` against the hardware state's
   `minimum_brake_strength`. If the hardware state is missing that field, assembly raises a `ValueError`.
@@ -476,6 +475,7 @@ Assembly claims:
 - [ ] Every resampling claim (is_discrete True/False, window summary, source vs reference, distance vs time)
       matches behavior_dataset.py, runtime_dataset.py, and frame_windows.py
 - [ ] Running-speed window stated as 100 ms (_RUNNING_SPEED_WINDOW_US = 100_000 us) over original encoder samples
+- [ ] Distance and speed stated as updating only in the _ENCODER_STATES (run and run training), held elsewhere
 - [ ] Reward classes named exactly no / tone / yes with the correct water-volume condition
 - [ ] Masking attributed to the public mask_non_run_experiment_data, applied only for idle and rest over the
       concatenated frame, with sentinels cue 255, trial 65535, and trial_type "undefined"
