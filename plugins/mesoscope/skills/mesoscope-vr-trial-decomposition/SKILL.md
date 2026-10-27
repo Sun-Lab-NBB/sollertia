@@ -2,8 +2,8 @@
 name: mesoscope-vr-trial-decomposition
 description: >-
   Documents Mesoscope-VR's concrete runtime-log decomposition: the runtime message codes, the numba-accelerated greedy
-  longest-first cue-sequence-to-trial-motif matching, trial-type and cumulative-distance sequence extraction, and the
-  task-template trial geometry (trigger zones, cue offsets on sequence restart). Use when interpreting the vr_corridor,
+  longest-first cue-sequence-to-trial-motif matching, the per-trial records it extracts, and the task-template trial
+  geometry (trigger zones, cue offsets on sequence restart). Use when interpreting the vr_corridor,
   vr_cue, vr_trigger_zone, or trial feathers, or when debugging cue-sequence decomposition failures.
 user-invocable: false
 ---
@@ -33,7 +33,8 @@ decomposition, which it delegates to `experiment:vr-driver-interface`, and it ne
 - Decomposing one or more virtual-reality wall-cue sequences into trial motifs via numba-accelerated greedy
   longest-first matching, and stitching multiple sequences end to end at the running totals of their distance
   snapshots
-- Extracting the trial-type-index sequence and the cumulative trial-end distance sequence
+- Extracting one record per trial: its type index, its start and end distances, the distance traveled inside it, and
+  whether it opens a corridor or was cut short
 - Mapping the decomposed trials into trial geometry: per-cue cumulative distances, trigger-zone start and end
   boundaries, and the cue offset applied to the first cue after a sequence start or restart
 - The output schemas for the `vr_corridor_data`, `vr_cue_data`, `vr_trigger_zone_data`, and `trial_data` feathers
@@ -127,12 +128,12 @@ roster.
 A distance-snapshot message is logged from exactly one acquisition-side site: the branch that handles Unity signaling
 runtime termination. That branch emergency-pauses the runtime and records the wheel encoder's traveled distance since
 the current corridor's onset. Resuming afterwards re-arms Unity through the editor bridge, logs the regenerated VR
-wall-cue sequence, and zeroes that distance tracker, so each snapshot measures only the corridor it ends.
-`_export_runtime_data` therefore sums the snapshots into running totals, and each total is the breakpoint at which one
-corridor ends and the next begins (see below). A termination the operator resolves by ending the session instead of
-resuming leaves a trailing snapshot with no following sequence. With a single recorded sequence that surplus snapshot
-is ignored, since the truncation check runs only for sequences before the last. With two or more sequences, the
-surplus snapshot makes the breakpoint count equal the sequence count and trips the `ValueError` described below.
+wall-cue sequence, and zeroes that distance tracker, so each snapshot measures only the corridor it ends. The
+decomposition therefore closes each corridor at its own snapshot, and `_resolve_corridor_starts` sums the snapshots into
+running totals that place every corridor's opening distance (see below). A termination the operator resolves by ending
+the session instead of resuming leaves a trailing snapshot with no following sequence. With a single recorded sequence
+that surplus snapshot is ignored, since only sequences before the last close at a snapshot. With two or more sequences,
+the surplus snapshot makes the snapshot count equal the sequence count and trips the `ValueError` described below.
 
 The system-state and runtime-state streams are written to the feathers named by the `SYSTEM_STATE` and
 `RUNTIME_STATE` members of the `BehaviorDataFiles` roster, and the guidance streams use `REINFORCING_GUIDANCE` and
@@ -143,14 +144,14 @@ The system-state and runtime-state streams are written to the feathers named by 
 ## Cue-sequence to trial-motif decomposition
 
 `_decompose_multiple_cue_sequences_into_trials` converts the collected wall-cue sequences into a single ordered list
-of trials, taking the experiment configuration, the task template, the cue sequences, and the distance breakpoints.
-It handles the case where the original cue sequence was interrupted during runtime and a new sequence was generated,
-using the distance breakpoints to stitch the sequences together.
+of trials, taking the experiment configuration, the task template, the cue sequences, and the distance snapshots as
+`corridor_distances`. It handles the case where the original cue sequence was interrupted during runtime and a new
+sequence was generated, closing each interrupted corridor at its snapshot.
 
 It raises:
 
 - `ValueError` when no cue sequences are provided.
-- `ValueError` when there are multiple cue sequences but the number of distance breakpoints is not exactly the
+- `ValueError` when there are multiple cue sequences but the number of distance snapshots is not exactly the
   number of sequences minus one.
 - `ValueError` when the experiment configuration names a trial the task template does not define. The message lists
   the missing names alongside the template's available trial names.
@@ -189,27 +190,33 @@ When a sequence fails to decompose, `_decompose_multiple_cue_sequences_into_tria
 message naming the offending sequence and the next 20 unmatched cues, for example `Unable to decompose VR wall cue
 sequence N of M into a sequence of trial distances. No trial motif matched at position P. The next 20 cues: [...]`.
 
-Trials are accumulated with a running `cumulative_distance` that **opens at minus the corridor cue offset**
-(`task_template.vr_environment.cue_offset_cm`). The animal enters each corridor already that far into its first cue, and
-therefore completes a trial after traveling that much less than the trial's corridor length. Opening the accumulator
-there puts every emitted distance in the traveled-distance frame that the encoder reports and that carries the recorded
-corridor swap snapshots.
+Each corridor's trials are placed in that corridor's own frame, the distance traveled since its onset, which is the
+frame the snapshot records. The animal enters each corridor already `task_template.vr_environment.cue_offset_cm` into
+its first cue, so the corridor's first trial spans its motif distance minus that offset, and every later trial spans
+its full motif distance. In every sequence except the last, the first trial whose end passes the corridor's snapshot is
+truncated at the snapshot, and the rest of the sequence is abandoned. The truncated trial is recorded only when the
+snapshot lies past its start, so a swap landing on a trial boundary contributes no zero-length trial. Each decision
+compares sums of template lengths with the measured snapshot, so none depends on the rounding of cumulative distances.
 
-For every sequence except the last, when a trial would push the cumulative distance past that sequence's
-`distance_breakpoint`, the trial is truncated. It is recorded at the breakpoint distance, but only when the truncated
-remainder is positive, and accumulation then resets to the breakpoint minus the cue offset before the walk moves on
-to the next sequence. The function returns two arrays: `trial_type_sequence` (int32 trial-type indices in runtime
-order) and `trial_distance_sequence` (float64 cumulative distances at the end of each trial).
+The function returns one `_Trial` record per trial, in runtime order:
+
+| Field                | Holds                                                                                    |
+|----------------------|------------------------------------------------------------------------------------------|
+| `trial_type`         | The trial-type index, in the experiment configuration's order                            |
+| `start_cm`, `end_cm` | The cumulative distances at the trial's start and end, offset by the corridor's opening  |
+| `length_cm`          | The distance traveled inside the trial, measured in the corridor's own frame             |
+| `opens_corridor`     | Whether the trial is its corridor's first, entered partway into its first cue            |
+| `truncated`          | Whether a corridor swap cut the trial short                                              |
 
 ---
 
 ## Trial geometry and cue offsets
 
-`_process_trial_sequence(experiment_configuration, task_template, trial_types, trial_distances)` maps the decomposed
-trial sequence onto absolute corridor positions. It resolves the per-trial geometry exactly as the decomposition step
-does: the ordered trial names come from `experiment_configuration.trial_structures`, and each name is looked up in
+`_process_trial_sequence(experiment_configuration, task_template, trials)` maps the decomposed trials onto cue and
+trigger-zone distances. It resolves the per-trial geometry exactly as the decomposition step does: the ordered trial
+names come from `experiment_configuration.trial_structures`, and each name is looked up in
 `task_template.trial_structures` to yield its `TrialStructure`. Per-cue codes and lengths come from
-`task_template.cues`, keyed by cue **name** rather than by code, and the corridor offset comes from
+`task_template.cues`, keyed by cue **name**, and the corridor offset comes from
 `task_template.vr_environment.cue_offset_cm`.
 
 These are the only template fields this stage reads. Their full schema, including the fields this stage ignores, is
@@ -221,37 +228,31 @@ owned by `assets:task-templates`.
 | `TrialStructure.stimulus_trigger_zone_start_cm` | The trial-relative start of the stimulus trigger zone           |
 | `TrialStructure.stimulus_trigger_zone_end_cm`   | The trial-relative end of the stimulus trigger zone             |
 | `Cue.name`, `Cue.code`, `Cue.length_cm`         | The cue catalog, indexed by name into a uint8 code and a length |
-| `VREnvironment.cue_offset_cm`                   | The corridor offset applied at a sequence start or restart      |
+| `VREnvironment.cue_offset_cm`                   | The offset applied to the first trial of every corridor         |
 
-Walking the trial's cue sequence, each cue contributes its `length_cm` to a running cumulative distance, and the
-cue's code together with the cumulative distance at its onset are appended to the cue/distance output. Two special
-cases apply:
+Walking the trial's cue sequence, the stage appends each cue's code and its onset, the trial's start distance plus
+the distance traveled inside the trial before that cue. Every decision compares a position inside the trial with the
+trial's `length_cm`, never two cumulative distances. Two special cases apply:
 
-- **Cue offset on sequence start or restart.** For the first cue after a sequence start or restart, the effective
-  distance to the next cue is `cue_length - cue_offset` rather than the full `cue_length`. The offset is the animal's
-  starting position relative to the cue sequence origin, so it enters every corridor already that far into its first
-  cue. The flag that applies it is reset after each trial truncation so the offset is reapplied at the next restart.
-- **Trial truncation.** If adding the next cue's effective distance would exceed the trial's actual distance (the
-  trial-end distance minus the previous trial's end distance), the trial was abruptly ended before completion: the
-  current cue is recorded, the cumulative distance is snapped to the trial's actual end, and the offset flag is
-  re-armed.
+- **Cue offset at a corridor's onset.** In a trial that opens a corridor, the first cue spans `cue_length - cue_offset`.
+  The offset is the animal's starting position relative to the cue sequence origin, so it enters every corridor
+  already that far into its first cue.
+- **Trial truncation.** A truncated trial lists only the cues whose onset inside the trial falls below its
+  `length_cm`, which are the cues the animal entered before the swap.
 
-Trigger-zone boundaries are computed per trial against the corridor into which the trial was **entered**, so the
-offset flag is captured before the cue walk consumes it. A trial entered partway into its first cue is shorter than its
-corridor by that offset, so every position the template declares against the corridor is reached that much earlier in
-the traveled distance. The zone origin is therefore the previous trial's end distance minus the entry offset, which
-is the cue offset when this trial was entered mid-cue and zero otherwise. The absolute start is that origin plus
-`stimulus_trigger_zone_start_cm` minus the actor trigger lead, and the absolute end is the origin plus
-`stimulus_trigger_zone_end_cm` plus the same lead. The lead, `_ACTOR_TRIGGER_LEAD_CM` (4.0 cm), is the distance by
-which Unity registers a zone crossing ahead of the tracked position, because the Gimbl actor is a 5 cm collider sphere
-whose surface meets the zone before and after its center does. A trigger-zone start is emitted only when it falls at
-or before the trial's end distance, and the matching end is clamped to the trial's end distance when it would
-otherwise overshoot. A trial that ends before its trigger zone begins contributes no entry, so the two trigger-zone
-arrays can be shorter than the trial-type array.
+Trigger-zone boundaries are computed per trial. A trial that opens a corridor is shorter than its corridor by the cue
+offset, so every position the template declares against the corridor is reached that much earlier in the traveled
+distance. Inside the trial, the zone starts at `stimulus_trigger_zone_start_cm` minus that entry offset and the actor
+trigger lead, and ends at `stimulus_trigger_zone_end_cm` minus the entry offset plus the same lead. The lead,
+`_ACTOR_TRIGGER_LEAD_CM` (4.0 cm), is the distance by which Unity registers a zone crossing ahead of the tracked
+position, because the Gimbl actor is a 5 cm collider sphere whose surface meets the zone before and after its center
+does. A trigger-zone start is emitted, offset by the trial's start distance, only when it falls at or before the
+trial's `length_cm`, and the matching end is clamped to the trial's end distance when it would otherwise overshoot. A
+trial that ends before its trigger zone begins contributes no entry, so the two trigger-zone arrays can be shorter than
+the trial list.
 
-`_process_trial_sequence` returns five arrays: the cue codes (uint8), the per-cue cumulative distances (float64), the
-trigger-zone start distances (float64), the trigger-zone end distances (float64), and the per-trial start distances
-(float64).
+`_process_trial_sequence` returns four arrays: the cue codes (uint8), the per-cue cumulative distances (float64), the
+trigger-zone start distances (float64), and the trigger-zone end distances (float64).
 
 ---
 
@@ -270,13 +271,13 @@ trigger-zone start distances (float64), the trigger-zone end distances (float64)
 Every distance column holds the corridor frame, in which each corridor starts where the one before it ended.
 `vr_corridor_data` carries one row per cue sequence. Its `time_us` is the sequence's log timestamp, which marks the
 corridor onset because the acquisition runtime logs each sequence immediately before zeroing its distance tracker. Its
-`traveled_distance_cm` is zero for the first corridor and the preceding breakpoint for every later one.
+`traveled_distance_cm` is the running total of the snapshots logged before it, zero for the first corridor.
 
 The `vr_cue` column is the cue/distance pair produced by `_process_trial_sequence`, the trigger-zone columns are its
-trigger start/end arrays, and `trial_data` pairs the `trial_type_index` array (the decomposed trial-type indices)
-with the per-trial start distances. The roster enumeration that owns these filenames is documented by
-`/mesoscope-vr-processing-schema`. The distance-indexed interpolation that consumes these feathers into the
-assembled session feather is documented by `/mesoscope-vr-dataset-assembly`.
+trigger start/end arrays, and `trial_data` pairs each decomposed trial's type index with its start distance. The roster
+enumeration that owns these filenames is documented by `/mesoscope-vr-processing-schema`. The distance-indexed
+interpolation that consumes these feathers into the assembled session feather is documented by
+`/mesoscope-vr-dataset-assembly`.
 
 ---
 
@@ -314,14 +315,17 @@ Runtime message dispatch:
       length would misroute a wall-cue sequence into the state-code chain
 - [ ] Code 6 stated as emitted by the acquisition runtime and left undispatched by parse_runtime
 - [ ] Distance snapshot stated as logged only when Unity signals runtime termination and as counting from the
-      current corridor's onset, with the snapshots summed into running totals that serve as stitching breakpoints
+      current corridor's onset, with each corridor closed at its own snapshot and the running totals placing every
+      corridor's opening distance
 - [ ] The registry seam named as _RUNTIME_PARSER_REGISTRY, holding (RUNTIME_SOURCE_ID, parse_runtime)
 
 Decomposition and outputs:
 - [ ] Decomposition described as greedy longest-first numba matching, failure returns trial_count == -1
-      and raises RuntimeError naming the position and next 20 cues, empty or mismatched-breakpoint inputs
+      and raises RuntimeError naming the position and next 20 cues, empty or mismatched-snapshot inputs
       raise ValueError
-- [ ] Cue offset applies only to the first cue after a sequence start or restart (cue_length - cue_offset)
+- [ ] Cue offset applies only to the first cue of a trial that opens a corridor (cue_length - cue_offset)
+- [ ] Truncation and trigger-zone decisions stated as taken inside the corridor or the trial, against the snapshot or
+      the trial's length_cm
 - [ ] Output feathers named via BehaviorDataFiles (vr_corridor_data, vr_cue_data, vr_trigger_zone_data,
       trial_data) with the documented columns
 - [ ] The experiment-only outputs gated by the combined experiment_configuration and task_template guard
